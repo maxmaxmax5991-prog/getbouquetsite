@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F6F7F3">
 <title>venikoff.net</title>
-<meta name="description" content="venikoff.net — букеты, розы, коробочки и корзины с доставкой по Белгороду. Фото букета перед доставкой.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%233346FF'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M16 27V15M16 17l-6-6M16 17l6-6'/%3E%3Ccircle cx='16' cy='10' r='3.4'/%3E%3Ccircle cx='9' cy='9' r='2.6'/%3E%3Ccircle cx='23' cy='9' r='2.6'/%3E%3C/g%3E%3C/svg%3E">
+<meta name="description" content="venikoff.net — букеты, розы, коробочки и корзины с доставкой по Москве. Фото букета перед доставкой.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23E0178A'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M16 27V15M16 17l-6-6M16 17l6-6'/%3E%3Ccircle cx='16' cy='10' r='3.4'/%3E%3Ccircle cx='9' cy='9' r='2.6'/%3E%3Ccircle cx='23' cy='9' r='2.6'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
@@ -16,8 +16,8 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
   --ground:#F6F7F3; --paper:#FFFFFF; --tile:#FFFFFF; --soft:#ECEEE8;
   --ink:#14171A; --ink-2:rgba(20,23,26,.64); --ink-3:rgba(20,23,26,.42);
   --line:rgba(20,30,20,.09); --line-2:rgba(20,30,20,.16);
-  --accent:#3346FF; --accent-ink:#FFFFFF; --accent-text:#2335E0;
-  --accent-soft:rgba(51,70,255,.08); --accent-soft-2:rgba(51,70,255,.17);
+  --accent:#E0178A; --accent-ink:#FFFFFF; --accent-text:#C0106F;
+  --accent-soft:rgba(224,23,138,.08); --accent-soft-2:rgba(224,23,138,.17);
   --leaf:#1F7A4D; --leaf-soft:rgba(31,122,77,.1);
   --sale:#E5484D;
   --shadow:0 1px 2px rgba(20,30,20,.05),0 18px 40px -24px rgba(20,40,30,.35);
@@ -30,8 +30,8 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
     --ground:#0F1113; --paper:#181B1F; --tile:#F2F3EF; --soft:#22262B;
     --ink:#EEF0EC; --ink-2:rgba(238,240,236,.68); --ink-3:rgba(238,240,236,.44);
     --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.16);
-    --accent:#5D6CFF; --accent-ink:#FFFFFF; --accent-text:#9AA4FF;
-    --accent-soft:rgba(93,108,255,.14); --accent-soft-2:rgba(93,108,255,.26);
+    --accent:#F0339E; --accent-ink:#FFFFFF; --accent-text:#FF7CC4;
+    --accent-soft:rgba(240,51,158,.14); --accent-soft-2:rgba(240,51,158,.26);
     --leaf:#4CC38A; --leaf-soft:rgba(76,195,138,.12);
     --sale:#FF6B6F;
     --shadow:0 1px 2px rgba(0,0,0,.3),0 18px 40px -22px rgba(0,0,0,.7);
@@ -42,8 +42,8 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
   --ground:#0F1113; --paper:#181B1F; --tile:#F2F3EF; --soft:#22262B;
   --ink:#EEF0EC; --ink-2:rgba(238,240,236,.68); --ink-3:rgba(238,240,236,.44);
   --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.16);
-  --accent:#5D6CFF; --accent-ink:#FFFFFF; --accent-text:#9AA4FF;
-  --accent-soft:rgba(93,108,255,.14); --accent-soft-2:rgba(93,108,255,.26);
+  --accent:#F0339E; --accent-ink:#FFFFFF; --accent-text:#FF7CC4;
+  --accent-soft:rgba(240,51,158,.14); --accent-soft-2:rgba(240,51,158,.26);
   --leaf:#4CC38A; --leaf-soft:rgba(76,195,138,.12);
   --sale:#FF6B6F;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 18px 40px -22px rgba(0,0,0,.7);
@@ -108,7 +108,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 
 /* studio */
 .studio{position:relative;height:590px;border-radius:32px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow);isolation:isolate;user-select:none;-webkit-user-select:none}
-.studio::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 55% at 50% 44%,var(--glow,rgba(51,70,255,.07)),transparent 70%);transition:background 1s;z-index:-1}
+.studio::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 55% at 50% 44%,var(--glow,rgba(224,23,138,.07)),transparent 70%);transition:background 1s;z-index:-1}
 .studio-bar{position:absolute;inset:18px 22px auto;display:flex;justify-content:space-between;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);z-index:3;pointer-events:none}
 .studio-bar b{color:var(--accent-text)}
 .chooser{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 28px 28px;transition:transform .7s cubic-bezier(.3,.9,.3,1),opacity .45s}
@@ -358,7 +358,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <header class="top">
   <div class="wrap">
     <a class="logo" href="#/" aria-label="venikoff.net — на главную"><span class="mark"><svg class="i"><use href="#i-sprig"/></svg></span><span class="word">venikoff<i>.net</i></span></a>
-    <span class="city"><svg class="i"><use href="#i-pin"/></svg>Белгород</span>
+    <span class="city"><svg class="i"><use href="#i-pin"/></svg>Москва</span>
     <nav class="nav" aria-label="Разделы">
       <a href="#/catalog" data-nav="catalog">Каталог</a>
       <a href="#/studio" data-nav="studio">Собрать букет</a>
@@ -378,7 +378,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <section class="hero" id="studio-sec">
     <div class="wrap">
       <div class="hero-copy">
-        <p class="eyebrow">Цветы с доставкой · Белгород</p>
+        <p class="eyebrow">Цветы с доставкой · Москва</p>
         <h1>Не веник. <em>Букет.</em></h1>
         <p class="lede">Собираем честные букеты по честным ценам и присылаем фото перед доставкой. Полистайте — и соберите свой.</p>
         <div class="hero-cta">
@@ -419,7 +419,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
     <div class="wrap">
       <div class="perks">
         <div class="perk"><span class="ic"><svg class="i"><use href="#i-camera"/></svg></span><div><b>Фото перед доставкой</b><span>Вы видите букет до того, как его увидят</span></div></div>
-        <div class="perk"><span class="ic"><svg class="i"><use href="#i-truck"/></svg></span><div><b>Доставка по Белгороду</b><span>В удобный вам интервал</span></div></div>
+        <div class="perk"><span class="ic"><svg class="i"><use href="#i-truck"/></svg></span><div><b>Доставка по Москве</b><span>В удобный вам интервал</span></div></div>
         <div class="perk"><span class="ic"><svg class="i"><use href="#i-gift"/></svg></span><div><b>Бонусы с каждого заказа</b><span>Копятся и тратятся на следующий</span></div></div>
       </div>
     </div>
@@ -439,7 +439,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
         <li><span class="n">01</span><b>Выбираете букет</b><p>Готовый из каталога, поштучно или в студии — как удобно.</p></li>
         <li><span class="n">02</span><b>Оформляете заказ</b><p>Адрес, удобный интервал и текст открытки — за минуту.</p></li>
         <li><span class="n">03</span><b>Согласуем фото</b><p>Собираем букет и присылаем фото перед отправкой.</p></li>
-        <li><span class="n">04</span><b>Доставляем</b><p>По Белгороду, в выбранный вами интервал.</p></li>
+        <li><span class="n">04</span><b>Доставляем</b><p>По всей Москве, в выбранный вами интервал.</p></li>
       </ol>
     </div>
   </section>
@@ -485,7 +485,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
           <button class="btn btn-primary" id="pdAdd">В корзину · <span class="num" id="pdTotal"></span></button>
           <button class="icon-btn" id="pdFav" aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
         </div>
-        <div class="pd-notes"><span><svg class="i"><use href="#i-camera"/></svg>Фото перед доставкой</span><span><svg class="i"><use href="#i-check"/></svg>Гарантия свежести</span><span><svg class="i"><use href="#i-truck"/></svg>Доставка по Белгороду</span></div>
+        <div class="pd-notes"><span><svg class="i"><use href="#i-camera"/></svg>Фото перед доставкой</span><span><svg class="i"><use href="#i-check"/></svg>Гарантия свежести</span><span><svg class="i"><use href="#i-truck"/></svg>Доставка по Москве</span></div>
       </div>
     </div>
     <section class="sec" id="addonsSec">
@@ -504,7 +504,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <div class="wrap">
     <a class="logo" href="#/"><span class="mark"><svg class="i"><use href="#i-sprig"/></svg></span><span class="word">venikoff<i>.net</i></span></a>
     <nav aria-label="Ссылки"><a href="#/catalog">Каталог</a><a href="#/studio">Собрать букет</a><a href="#/delivery">Доставка</a></nav>
-    <span>© venikoff.net, 2026 · Белгород</span>
+    <span>© venikoff.net, 2026 · Москва</span>
   </div>
 </footer>
 
@@ -542,7 +542,21 @@ const catName = Object.fromEntries(CATS);
 const STEMS = [5, 9, 15, 25, 51];
 const isStem = p => p.cat === 'stems';
 const ADDONS = P.filter(p => p.cat === 'cards' || p.cat === 'toys');
-const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
+/* one card per rose line; each size is a real store product with its own price and photo */
+const GROUPS = [
+  { title: 'Красные розы 40 см',        ids: ['3159', '2177', '3180'] },
+  { title: 'Розовые розы 40 см',        ids: ['3137', '3163'] },
+  { title: 'Розы яркий микс',           ids: ['2178', '2172'] },
+  { title: 'Красные розы Эквадор',      ids: ['3151', '3181'] },
+  { title: 'Красные французские розы',  ids: ['3178', '3162', '3173'] },
+  { title: 'Белые французские розы',    ids: ['3176', '3157'] }
+].map(g => ({ ...g, ids: g.ids.filter(id => byId[id]) })).filter(g => g.ids.length > 1);
+const groupOf = {};
+GROUPS.forEach((g, gi) => g.ids.forEach(id => groupOf[id] = gi));
+const nOf = id => +(byId[id].name.match(/^\d+/) || [0])[0];
+const varSel = {};    // group index -> chosen product id
+const isHiddenVariant = p => p.id in groupOf && GROUPS[groupOf[p.id]].ids[0] !== p.id;
+const count = P.reduce((m, p) => (isHiddenVariant(p) || (m[p.cat] = (m[p.cat] || 0) + 1), m), {});
 
 /* ---------- cart: key = id or id×stems ---------- */
 let cart = store.get('cart', {});
@@ -582,13 +596,18 @@ function buyHTML(p) {
     : `<button class="buy num" data-inc="${k}">${icon('bag')}${rub(keyPrice(k))}</button>`;
 }
 function card(p) {
+  const gi = groupOf[p.id], g = GROUPS[gi];
+  if (g) p = byId[varSel[gi] || p.id];
   const f = favs.has(p.id);
   const tag = p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>' : '';
-  const sizes = isStem(p) ? `<div class="sizes" role="group" aria-label="Количество стеблей">${STEMS.map(s => `<button data-stem="${p.id}" data-n="${s}" aria-pressed="${(stemSel[p.id] || 9) === s}">${s}</button>`).join('')}</div>` : '';
-  return `<article class="card" data-id="${p.id}">
-    <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${img(p.id)}" alt="" loading="lazy" width="560" height="560">${tag}</a>
+  const sizes = g
+    ? `<div class="sizes" role="group" aria-label="Количество стеблей">${g.ids.map(v => `<button data-var="${v}" data-group="${gi}" aria-pressed="${v === p.id}">${nOf(v)}</button>`).join('')}</div>`
+    : isStem(p) ? `<div class="sizes" role="group" aria-label="Количество стеблей">${STEMS.map(s => `<button data-stem="${p.id}" data-n="${s}" aria-pressed="${(stemSel[p.id] || 9) === s}">${s}</button>`).join('')}</div>` : '';
+  const title = g ? g.title : p.name;
+  return `<article class="card" data-id="${p.id}"${g ? ` data-group="${gi}"` : ''}>
+    <a class="card-img" href="#/p/${p.id}" aria-label="${esc(title)}"><img src="${img(p.id)}" alt="" loading="lazy" width="560" height="560">${tag}</a>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
-    <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
+    <h3><a href="#/p/${p.id}">${esc(title)}</a></h3>
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : ''}
     ${sizes}
     <div class="buy-slot">${buyHTML(p)}</div>
@@ -597,7 +616,11 @@ function card(p) {
 function refreshBuy(id) { const p = byId[id]; $$(`[data-id="${id}"] .buy-slot`).forEach(el => el.innerHTML = buyHTML(p)); if (route.name === 'product' && route.id === id) pdSync(); }
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
-  if (t.dataset.fav) toggleFav(t.dataset.fav);
+  if (t.dataset.var && t.dataset.group) {
+    const gi = +t.dataset.group; varSel[gi] = t.dataset.var;
+    $$(`.card[data-group="${gi}"]`).forEach(el => el.outerHTML = card(byId[t.dataset.var]));
+  }
+  else if (t.dataset.fav) toggleFav(t.dataset.fav);
   else if (t.dataset.stem) { stemSel[t.dataset.stem] = +t.dataset.n; $$(`[data-stem="${t.dataset.stem}"]`).forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === +t.dataset.n)); refreshBuy(t.dataset.stem); }
   else if (t.dataset.inc && !t.closest('dialog')) addToCart(t.dataset.inc, 1);
   else if (t.dataset.dec && !t.closest('dialog')) setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1);
@@ -615,7 +638,7 @@ $('#tiles').innerHTML = CATS.map(([k, label]) => {
 /* ---------- catalog ---------- */
 const state = { cat: 'all', q: '', sort: 'pop', favOnly: false };
 function renderChips() {
-  let html = `<button class="chip" data-cat="all" aria-pressed="${!state.favOnly && state.cat === 'all'}">Все <small class="num">${P.length - ADDONS.length}</small></button>`;
+  let html = `<button class="chip" data-cat="all" aria-pressed="${!state.favOnly && state.cat === 'all'}">Все <small class="num">${P.filter(p => !isHiddenVariant(p)).length - ADDONS.length}</small></button>`;
   html += CATS.map(([k, label]) => `<button class="chip" data-cat="${k}" aria-pressed="${!state.favOnly && state.cat === k}">${label} <small class="num">${count[k] || 0}</small></button>`).join('');
   if (favs.size) html += `<button class="chip" data-favonly aria-pressed="${state.favOnly}">${icon('heart')}Избранное <small class="num">${favs.size}</small></button>`;
   $('#chips').innerHTML = html;
@@ -627,10 +650,10 @@ $('#chips').addEventListener('click', e => {
 });
 function list() {
   const q = state.q.trim().toLowerCase().replace(/ё/g, 'е');
-  let r = P.filter(p =>
+  let r = P.filter(p => (state.favOnly || !isHiddenVariant(p)) &&
     (state.favOnly ? favs.has(p.id) : state.cat === 'all' ? !(p.cat === 'cards' || p.cat === 'toys') : p.cat === state.cat) &&
     (!q || p.name.toLowerCase().replace(/ё/g, 'е').includes(q)));
-  if (q && !state.favOnly && state.cat === 'all') r = P.filter(p => p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
+  if (q && !state.favOnly && state.cat === 'all') r = P.filter(p => !isHiddenVariant(p) && p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
   if (state.sort === 'asc') r = [...r].sort((a, b) => a.price - b.price);
   if (state.sort === 'desc') r = [...r].sort((a, b) => b.price - a.price);
   return r;
@@ -653,7 +676,7 @@ function pdSync() {
   $('#pdPrice').textContent = rub(p.price) + (isStem(p) ? ' / шт' : '');
   $('#pdTotal').textContent = rub(keyPrice(pdKey()) * pd.qty);
   $('#pdQty').textContent = pd.qty;
-  $$('#pdOpts button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === pd.stems));
+  if (isStem(byId[pd.id])) $$('#pdOpts button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === pd.stems));
   const f = favs.has(p.id); $('#pdFav').setAttribute('aria-pressed', f); $('#pdFav').dataset.fav = p.id;
 }
 function showProduct(id) {
@@ -666,8 +689,11 @@ function showProduct(id) {
   $('#pdCat').textContent = catName[p.cat];
   $('#pdName').textContent = p.name;
   $('#pdBonus').hidden = !p.bonus; $('#pdBonus').textContent = `+${p.bonus} бонусов`;
-  $('#pdOptsWrap').hidden = !isStem(p);
-  $('#pdOpts').innerHTML = STEMS.map(s => `<button class="num" data-n="${s}">${s}</button>`).join('');
+  const gi = groupOf[id], g = GROUPS[gi];
+  $('#pdOptsWrap').hidden = !isStem(p) && !g;
+  $('#pdOpts').innerHTML = g
+    ? g.ids.map(v => `<button class="num" data-var="${v}" aria-pressed="${v === id}">${nOf(v)}</button>`).join('')
+    : STEMS.map(s => `<button class="num" data-n="${s}">${s}</button>`).join('');
   pdSync();
   const isAddon = p.cat === 'cards' || p.cat === 'toys';
   $('#addonsSec').hidden = isAddon;
@@ -675,17 +701,21 @@ function showProduct(id) {
     const pick = [...ADDONS].sort((a, b) => (a.id * 7 + +id) % 13 - (b.id * 7 + +id) % 13).slice(0, 10);
     $('#addons').innerHTML = pick.map(a => `<div class="addon" data-id="${a.id}"><a class="ph" href="#/p/${a.id}"><img src="${img(a.id)}" alt="" loading="lazy"></a><h4>${esc(a.name)}</h4><div class="buy-slot">${buyHTML(a)}</div></div>`).join('');
   }
-  const sim = P.filter(x => x.cat === p.cat && x.id !== id).slice(0, 4);
+  const sim = P.filter(x => x.cat === p.cat && x.id !== id && !isHiddenVariant(x) && (g ? groupOf[x.id] !== gi : true)).slice(0, 4);
   $('#similar').innerHTML = sim.map(card).join('');
   $('#simMore').href = '#/catalog/' + p.cat;
 }
-$('#pdOpts').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { pd.stems = +b.dataset.n; pdSync(); } });
+$('#pdOpts').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.var) { keepScroll = true; location.replace('#/p/' + b.dataset.var); return; }
+  pd.stems = +b.dataset.n; pdSync();
+});
 $('#pdMinus').onclick = () => { pd.qty = Math.max(1, pd.qty - 1); pdSync(); };
 $('#pdPlus').onclick = () => { pd.qty++; pdSync(); };
 $('#pdAdd').onclick = () => addToCart(pdKey(), pd.qty);
 
 /* ---------- router ---------- */
-let route = { name: 'home' };
+let route = { name: 'home' }, keepScroll = false;
 function go404() { location.hash = '#/catalog'; }
 function router() {
   const h = location.hash.replace(/^#\/?/, '');
@@ -704,7 +734,7 @@ function router() {
   $$('.nav a').forEach(l => l.toggleAttribute('aria-current', l.dataset.nav === (name === 'catalog' ? 'catalog' : a)));
   if (name === 'home') layout();
   if (scrollTo) requestAnimationFrame(() => $(scrollTo).scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }));
-  else scrollTo0();
+  else if (keepScroll) keepScroll = false; else scrollTo0();
 }
 function scrollTo0() { window.scrollTo(0, 0); }
 addEventListener('hashchange', router);
@@ -856,7 +886,7 @@ function renderCart() {
         <label for="fName">Ваше имя<input id="fName" name="name" required autocomplete="name" placeholder="Анна"></label>
         <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[+0-9 ()\\-]{10,}"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя"></label>
-        <label for="fAddr">Адрес в Белгороде<input id="fAddr" name="addr" required autocomplete="street-address" placeholder="Улица, дом, квартира"></label>
+        <label for="fAddr">Адрес в Москве<input id="fAddr" name="addr" required autocomplete="street-address" placeholder="Улица, дом, квартира"></label>
         <div class="two">
           <label for="fDate">Дата<input id="fDate" name="date" type="date" required min="${today}" value="${today}"></label>
           <label for="fTime">Интервал<select id="fTime" name="time"><option>09:00–12:00</option><option>12:00–15:00</option><option selected>15:00–18:00</option><option>18:00–21:00</option></select></label>
