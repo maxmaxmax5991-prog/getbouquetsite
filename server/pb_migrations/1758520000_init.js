@@ -35,10 +35,11 @@ migrate((app) => {
     fields: [
       { name: "name", type: "text", required: true },
       { name: "category", type: "relation", collectionId: categories.id, maxSelect: 1, required: true },
-      { name: "price", type: "number", required: true, min: 0 },
+      { name: "price", type: "number", min: 0 },
       { name: "bonus", type: "number", min: 0 },
       { name: "photo", type: "file", maxSelect: 5, maxSize: 15 * 1024 * 1024, mimeTypes: ["image/jpeg", "image/png", "image/webp"], thumbs: ["560x0", "160x160"] },
       { name: "cutout", type: "file", maxSelect: 1, maxSize: 15 * 1024 * 1024, mimeTypes: ["image/png", "image/webp"] },
+      { name: "lengths", type: "json" },     // одноголовые розы: доступные длины [50, 60]; цена — из прайса settings.rose_prices
       { name: "variants", type: "json" },    // [{label:"25", price:2189, estimated:false, photo:"file.jpg"}] — кнопки размеров
       { name: "badge", type: "select", maxSelect: 1, values: ["sale", "author", "hit", "new"] },
       { name: "description", type: "text", max: 2000 },
@@ -96,6 +97,7 @@ migrate((app) => {
       { name: "closed_dates", type: "json" },             // ["2026-12-31", ...]
       { name: "accepting", type: "bool" },                // приём заказов включён
       { name: "notice", type: "text" },                   // объявление на сайте
+      { name: "rose_prices", type: "json" },              // {"40": {"25": 2490, "51": 3490, "101": 5990}, ...}
       { name: "tg_token", type: "text" },
       { name: "tg_admins", type: "text" },                // ID в Телеграме через запятую
       { name: "tg_secret", type: "text" },
@@ -139,6 +141,7 @@ migrate((app) => {
   s.set("days_ahead", 14);
   s.set("closed_dates", []);
   s.set("accepting", true);
+  s.set("rose_prices", { "40": { "25": 2490, "51": 3490, "101": 5990 }, "50": { "25": 2990, "51": 4990, "101": 9490 }, "60": { "25": 3490, "51": 5990, "101": 10990 } });
   s.set("tg_secret", $security.randomString(32));
   app.save(s);
 
@@ -152,8 +155,8 @@ migrate((app) => {
     r.set("start", a); r.set("end", b); r.set("extra", 0); r.set("sort", i); r.set("active", true);
     app.save(r);
   });
-  [["roses", "Розы"], ["mono", "Монобукеты"], ["boxes", "Коробочки и композиции"], ["baskets", "Корзины"],
-   ["stems", "Поштучно"], ["cards", "Открытки", true], ["toys", "Игрушки", true]].forEach(([slug, name, addon], i) => {
+  [["single", "Одноголовые розы"], ["kenya", "Кенийские розы"], ["french", "Французские розы"], ["hydrangea", "Гортензии"],
+   ["cards", "Открытки", true], ["toys", "Игрушки", true]].forEach(([slug, name, addon], i) => {
     const r = new Record(categories);
     r.set("slug", slug); r.set("name", name); r.set("sort", i); r.set("addon", !!addon); r.set("active", true);
     app.save(r);
@@ -164,6 +167,13 @@ migrate((app) => {
   st.backups.cron = "0 4 * * *";
   st.backups.cronMaxKeep = 14;
   st.meta.appName = "venikoff.net";
+  st.trustedProxy.headers = ["X-Forwarded-For"];   // за Caddy — настоящий IP покупателя для защиты от перегрузки
+  st.rateLimits.enabled = true;
+  st.rateLimits.rules = [
+    { label: "POST /api/collections/orders/records", duration: 60, maxRequests: 5 },
+    { label: "/api/collections/managers/auth-with-password", duration: 60, maxRequests: 10 },
+    { label: "/api/", duration: 10, maxRequests: 300 },
+  ];
   app.save(st);
 }, (app) => {
   ["orders", "settings", "delivery_intervals", "delivery_zones", "products", "categories", "managers"].forEach((n) => {

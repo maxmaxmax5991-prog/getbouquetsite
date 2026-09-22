@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Админка venikoff.net</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23E0178A'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M16 27V15M16 17l-6-6M16 17l6-6'/%3E%3Ccircle cx='16' cy='10' r='3.4'/%3E%3Ccircle cx='9' cy='9' r='2.6'/%3E%3Ccircle cx='23' cy='9' r='2.6'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<style>
+body{margin:0}[hidden]{display:none!important}
+:root{
+  --ground:#F4F5F1; --paper:#fff; --ink:#15181A; --ink-2:rgba(21,24,26,.62); --ink-3:rgba(21,24,26,.4);
+  --line:rgba(20,30,20,.1); --line-2:rgba(20,30,20,.18);
+  --accent:#E0178A; --accent-text:#C0106F; --accent-soft:rgba(224,23,138,.09);
+  --ok:#1F7A4D; --ok-soft:rgba(31,122,77,.1); --warn:#A15C00; --warn-soft:rgba(230,150,20,.14); --bad:#C62D3A; --bad-soft:rgba(198,45,58,.1);
+  --display:"Unbounded","Arial Black",system-ui,sans-serif; --body:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0F1113; --paper:#181B1F; --ink:#EEF0EC; --ink-2:rgba(238,240,236,.66); --ink-3:rgba(238,240,236,.42);
+  --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.16); --accent:#F0339E; --accent-text:#FF7CC4; --accent-soft:rgba(240,51,158,.14);
+  --ok:#4CC38A; --ok-soft:rgba(76,195,138,.13); --warn:#F2B04C; --warn-soft:rgba(242,176,76,.14); --bad:#FF6B6F; --bad-soft:rgba(255,107,111,.13);
+}}
+*,*::before,*::after{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:500 15px/1.45 var(--body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--accent-text)}
+.wrap{max-width:1100px;margin-inline:auto;padding-inline:16px}
+
+/* login */
+.login{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.login form{width:min(380px,100%);background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:28px;display:grid;gap:14px}
+.brand{display:flex;align-items:center;gap:9px;font:700 19px var(--display);letter-spacing:-.05em}
+.brand i{font-style:normal;color:var(--accent-text)}
+.brand .mark{width:30px;height:30px;border-radius:9px;background:var(--accent);display:grid;place-items:center;color:#fff}
+.brand svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+
+/* shell */
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:14px;height:60px}
+.top .who{margin-left:auto;font-size:13px;color:var(--ink-2);display:flex;gap:12px;align-items:center}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-block:10px}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;height:38px;padding:0 14px;border-radius:10px;font-weight:700;font-size:14px;color:var(--ink-2);display:flex;align-items:center;gap:7px}
+.tabs button[aria-selected="true"]{background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.dot{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--accent);color:#fff;font-size:11.5px;display:grid;place-items:center}
+main{padding-block:8px 60px}
+h1{font:700 24px/1.1 var(--display);letter-spacing:-.04em;margin:10px 0 16px}
+h2{font:700 17px var(--display);letter-spacing:-.03em;margin:0 0 12px}
+.hint{font-size:13px;color:var(--ink-2);margin:4px 0 0}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px}
+.stack{display:grid;gap:12px}
+
+/* controls */
+.btn{height:42px;padding:0 16px;border-radius:11px;font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.btn-p{background:var(--accent);color:#fff}
+.btn-g{background:var(--paper);border:1px solid var(--line-2)}
+.btn-d{color:var(--bad)}
+.btn-s{height:34px;padding:0 12px;font-size:13px;border-radius:9px}
+.in,select.in,textarea.in{height:42px;border-radius:11px;border:1px solid var(--line-2);background:var(--paper);padding:0 12px;outline:0;width:100%;font-size:15px}
+textarea.in{height:auto;min-height:80px;padding:10px 12px;resize:vertical}
+.in:focus{border-color:var(--accent)}
+.in.sm{height:36px;font-size:14px}
+label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.chip{height:34px;padding:0 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--paper);font-size:13px;font-weight:700;display:inline-flex;gap:6px;align-items:center}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.sw{position:relative;width:44px;height:26px;border-radius:13px;background:var(--line-2);transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw[aria-checked="true"]{background:var(--ok)}
+.sw[aria-checked="true"]::after{transform:translateX(18px)}
+.swl{display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px}
+.pill{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:7px;font-size:12px;font-weight:700}
+.st-new{background:var(--accent-soft);color:var(--accent-text)}
+.st-confirmed,.st-assembling,.st-photo,.st-delivering{background:var(--warn-soft);color:var(--warn)}
+.st-done{background:var(--ok-soft);color:var(--ok)}
+.st-cancelled{background:var(--bad-soft);color:var(--bad)}
+.est{background:var(--warn-soft);color:var(--warn)}
+
+/* orders */
+.orders{display:grid;gap:10px}
+.order{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:grid;gap:10px}
+.order.is-new{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.order-h{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.order-h b{font:700 16px var(--display);letter-spacing:-.03em}
+.order-h .sum{margin-left:auto;font:700 17px var(--display)}
+.order ul{margin:0;padding-left:18px;font-size:14px}
+.order .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 18px;font-size:14px}
+.order .meta span{color:var(--ink-3);font-size:12px;display:block}
+.order-f{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.order-f select{width:auto}
+
+/* products */
+.plist{display:grid;gap:8px}
+.prow{display:grid;grid-template-columns:56px 1fr auto;gap:12px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px 12px 8px 8px;cursor:pointer}
+.prow img{width:56px;height:56px;border-radius:10px;object-fit:cover;background:#fff}
+.prow .n{font-weight:700;font-size:14.5px;line-height:1.3}
+.prow .s{font-size:12.5px;color:var(--ink-2)}
+.prow.off{opacity:.55}
+.prow.off .n::after{content:" · скрыт";color:var(--bad);font-weight:600}
+
+/* editor */
+dialog{border:0;padding:0;background:var(--paper);color:var(--ink);border-radius:20px;width:min(760px,calc(100% - 20px));max-height:calc(100% - 20px)}
+dialog::backdrop{background:rgba(10,12,14,.5)}
+.ed-h{position:sticky;top:0;background:var(--paper);display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line);z-index:2}
+.ed-h h2{margin:0;flex:1}
+.ed-b{padding:18px;display:grid;gap:16px}
+.ed-f{position:sticky;bottom:0;background:var(--paper);display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
+.ed-f .sp{flex:1}
+.photos{display:flex;gap:8px;flex-wrap:wrap}
+.ph{position:relative;width:86px;height:86px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line)}
+.ph img{width:100%;height:100%;object-fit:cover}
+.ph button{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1}
+.ph.new{outline:2px dashed var(--accent);outline-offset:-2px}
+.add-ph{width:86px;height:86px;border-radius:12px;border:1.5px dashed var(--line-2);display:grid;place-items:center;color:var(--ink-2);font-size:12px;text-align:center;cursor:pointer}
+.seg{display:inline-flex;background:var(--ground);border-radius:11px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{height:34px;padding:0 12px;border-radius:9px;font-size:13px;font-weight:700;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{font-size:12px;color:var(--ink-3);text-align:left;font-weight:700;padding:0 6px 6px}
+table.t td{padding:4px 6px;vertical-align:middle}
+.scroll{overflow-x:auto}
+.grid3{display:grid;grid-template-columns:auto repeat(3,minmax(90px,1fr));gap:8px;align-items:center}
+.grid3 b{font-size:13px;color:var(--ink-2)}
+.dates{display:flex;gap:6px;flex-wrap:wrap}
+.dates span{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 10px;border-radius:8px;background:var(--bad-soft);color:var(--bad);font-size:13px;font-weight:700}
+.dates button{width:20px;height:20px;border-radius:50%;color:inherit}
+.steps{margin:6px 0 0;padding-left:20px;font-size:14px;color:var(--ink-2);display:grid;gap:4px}
+.empty{text-align:center;padding:40px 10px;color:var(--ink-2)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,150%);background:var(--ink);color:var(--ground);padding:12px 18px;border-radius:12px;font-weight:600;font-size:14px;transition:transform .3s;z-index:100;max-width:calc(100% - 32px)}
+.toast.show{transform:translate(-50%,0)}
+.toast.bad{background:var(--bad);color:#fff}
+@media (max-width:600px){h1{font-size:21px}.order-h .sum{margin-left:0;width:100%}.ed-b{padding:14px}}
+</style>
+</head>
+<body>
+
+<!-- ============ ВХОД ============ -->
+<div class="login" id="login" hidden>
+  <form id="loginForm">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 21V11M12 13l-5-5M12 13l5-5"/><circle cx="12" cy="7" r="2.6"/><circle cx="6" cy="6.5" r="2"/><circle cx="18" cy="6.5" r="2"/></svg></span><span>venikoff<i>.net</i></span></div>
+    <p class="hint" style="margin:0">Вход в админку магазина</p>
+    <label class="f" for="lEmail">Почта<input class="in" id="lEmail" type="email" autocomplete="username" required></label>
+    <label class="f" for="lPass">Пароль<input class="in" id="lPass" type="password" autocomplete="current-password" required></label>
+    <button class="btn btn-p" type="submit">Войти</button>
+    <p class="hint" id="lErr" style="color:var(--bad)" hidden></p>
+  </form>
+</div>
+
+<!-- ============ АДМИНКА ============ -->
+<div id="app" hidden>
+  <header class="top"><div class="wrap">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 21V11M12 13l-5-5M12 13l5-5"/><circle cx="12" cy="7" r="2.6"/><circle cx="6" cy="6.5" r="2"/><circle cx="18" cy="6.5" r="2"/></svg></span><span>venikoff<i>.net</i></span></div>
+    <div class="who"><a href="/" target="_blank" rel="noopener">Открыть сайт</a><button class="btn btn-g btn-s" id="logout">Выйти</button></div>
+  </div></header>
+  <div class="wrap">
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="orders" aria-selected="true">Заказы <span class="dot" id="newCount" hidden>0</span></button>
+      <button role="tab" data-tab="products">Товары</button>
+      <button role="tab" data-tab="delivery">Доставка</button>
+      <button role="tab" data-tab="prices">Прайс роз</button>
+      <button role="tab" data-tab="settings">Настройки</button>
+    </nav>
+  </div>
+  <main class="wrap">
+
+    <!-- Заказы -->
+    <section id="tab-orders">
+      <div class="bar" id="orderFilters"></div>
+      <div class="orders" id="orders"></div>
+    </section>
+
+    <!-- Товары -->
+    <section id="tab-products" hidden>
+      <div class="bar">
+        <input class="in" id="pSearch" type="search" placeholder="Поиск по названию" style="flex:1;min-width:180px">
+        <select class="in" id="pCat" style="width:auto"></select>
+        <button class="btn btn-p" id="pNew">+ Новый товар</button>
+      </div>
+      <p class="hint" style="margin:-4px 0 12px">Нажмите на товар, чтобы изменить. Переключатель справа — показать или скрыть на сайте. Товары можно добавлять и через Телеграм-бота.</p>
+      <div class="plist" id="plist"></div>
+    </section>
+
+    <!-- Доставка -->
+    <section id="tab-delivery" hidden>
+      <div class="stack">
+        <div class="card">
+          <h2>Приём заказов</h2>
+          <div class="stack">
+            <div class="swl"><button class="sw" id="dAccepting" role="switch" aria-checked="true" aria-label="Принимать заказы"></button>Принимаем заказы на сайте</div>
+            <div class="row">
+              <label class="f" for="dMin">Минимальная сумма заказа, ₽<input class="in num" id="dMin" type="number" min="0" step="10"></label>
+              <label class="f" for="dLead">Принимаем заказ не позже чем за, ч<input class="in num" id="dLead" type="number" min="0" step="0.5"></label>
+              <label class="f" for="dDays">Можно выбрать дату на дней вперёд<input class="in num" id="dDays" type="number" min="1" max="120"></label>
+            </div>
+            <label class="f" for="dNotice">Объявление на сайте (необязательно)<input class="in" id="dNotice" placeholder="Например: 8 марта доставка только до 18:00"></label>
+            <div>
+              <label class="f" for="dClosedAdd">Дни без доставки</label>
+              <div class="bar" style="margin:6px 0"><input class="in" id="dClosedAdd" type="date" style="width:auto"><button class="btn btn-g btn-s" id="dClosedBtn">Добавить</button></div>
+              <div class="dates" id="dClosed"></div>
+            </div>
+            <div><button class="btn btn-p" id="dSave">Сохранить</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Зоны и стоимость доставки</h2>
+          <div class="scroll"><table class="t" id="zones"></table></div>
+          <p class="hint">«Бесплатно от» — при сумме букетов от этой суммы доставка бесплатная. 0 — всегда платно.</p>
+          <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="zAdd">+ Зона</button><button class="btn btn-p btn-s" id="zSave">Сохранить зоны</button></div>
+        </div>
+        <div class="card">
+          <h2>Интервалы доставки</h2>
+          <div class="scroll"><table class="t" id="ints"></table></div>
+          <p class="hint">Доплата — например, за ночной или ранний интервал. Сегодняшние интервалы, на которые уже не успеть, сайт скрывает сам.</p>
+          <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="iAdd">+ Интервал</button><button class="btn btn-p btn-s" id="iSave">Сохранить интервалы</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Прайс роз -->
+    <section id="tab-prices" hidden>
+      <div class="card">
+        <h2>Одноголовые розы: цена по длине и количеству</h2>
+        <p class="hint" style="margin-bottom:14px">Цена действует для всех сортов раздела «Одноголовые розы». Какие длины есть у сорта — отмечается в самом товаре.</p>
+        <div class="grid3" id="rp"></div>
+        <div class="bar" style="margin-top:16px"><button class="btn btn-p" id="rpSave">Сохранить прайс</button></div>
+      </div>
+    </section>
+
+    <!-- Настройки -->
+    <section id="tab-settings" hidden>
+      <div class="stack">
+        <div class="card stack">
+          <h2>Магазин</h2>
+          <div class="row">
+            <label class="f" for="sPhone">Телефон на сайте<input class="in" id="sPhone" placeholder="+7 900 000-00-00"></label>
+            <label class="f" for="sUrl">Адрес сайта<input class="in" id="sUrl" placeholder="https://venikoff.net"></label>
+          </div>
+          <div><button class="btn btn-p" id="sSave">Сохранить</button></div>
+        </div>
+        <div class="card stack">
+          <h2>Телеграм-бот</h2>
+          <ol class="steps">
+            <li>В Телеграме откройте <b>@BotFather</b>, отправьте <b>/newbot</b>, придумайте имя и адрес бота (должен заканчиваться на bot).</li>
+            <li>BotFather пришлёт ключ вида <code>123456:ABC…</code> — скопируйте и вставьте его ниже.</li>
+            <li>Откройте своего бота, нажмите <b>Start</b> — бот пришлёт ваш номер. Вставьте его в поле «Кто может управлять ботом».</li>
+            <li>Нажмите «Сохранить», затем «Проверить бота» — в Телеграм придёт сообщение.</li>
+          </ol>
+          <label class="f" for="sTok">Ключ бота<input class="in" id="sTok" type="password" autocomplete="off" placeholder="Вставьте ключ от @BotFather"></label>
+          <label class="f" for="sAdm">Кто может управлять ботом (номера через запятую)<input class="in num" id="sAdm" placeholder="123456789, 987654321"></label>
+          <p class="hint">Этим людям приходят уведомления о заказах, и только они могут добавлять и скрывать товары через бота.</p>
+          <div class="bar"><button class="btn btn-p" id="tSave">Сохранить</button><button class="btn btn-g" id="tTest">Проверить бота</button></div>
+        </div>
+        <div class="card stack">
+          <h2>Мой пароль</h2>
+          <div class="row">
+            <label class="f" for="mOld">Текущий пароль<input class="in" id="mOld" type="password" autocomplete="current-password"></label>
+            <label class="f" for="mNew">Новый пароль (от 10 символов)<input class="in" id="mNew" type="password" autocomplete="new-password" minlength="10"></label>
+          </div>
+          <div><button class="btn btn-p" id="mSave">Сменить пароль</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Редактор товара -->
+<dialog id="ed" aria-labelledby="edTitle">
+  <div class="ed-h"><h2 id="edTitle">Товар</h2><div class="swl"><button class="sw" id="eActive" role="switch" aria-checked="true" aria-label="На сайте"></button>На сайте</div></div>
+  <div class="ed-b">
+    <div class="row">
+      <label class="f" for="eName">Название<input class="in" id="eName" required></label>
+      <label class="f" for="eCat">Раздел<select class="in" id="eCat"></select></label>
+    </div>
+    <div>
+      <label class="f">Фото <span class="hint" style="margin:0;font-weight:500">— первое показывается в каталоге</span></label>
+      <div class="photos" id="ePhotos" style="margin-top:6px"></div>
+    </div>
+    <div>
+      <label class="f">Цена</label>
+      <div class="seg" id="eMode" style="margin:6px 0 10px">
+        <button data-mode="variants">Размеры (кнопки)</button>
+        <button data-mode="lengths">Длина × количество</button>
+        <button data-mode="single">Одна цена</button>
+      </div>
+      <div id="mVariants">
+        <div class="scroll"><table class="t" id="eVars"></table></div>
+        <div class="bar" style="margin-top:8px">
+          <button class="btn btn-g btn-s" id="eVarAdd">+ Размер</button>
+          <button class="btn btn-g btn-s" id="eVarAuto">Заполнить по цене</button>
+        </div>
+        <p class="hint">Жёлтым отмечены расчётные цены — проверьте и снимите отметку. Фото размера меняет картинку на сайте при выборе кнопки.</p>
+      </div>
+      <div id="mLengths">
+        <div class="bar" id="eLens"></div>
+        <p class="hint">Цены берутся из вкладки «Прайс роз».</p>
+      </div>
+      <div id="mSingle"><input class="in num" id="ePrice" type="number" min="0" step="10" style="max-width:200px"></div>
+    </div>
+    <div class="row">
+      <label class="f" for="eBonus">Бонусы за покупку<input class="in num" id="eBonus" type="number" min="0"></label>
+      <label class="f" for="eBadge">Метка<select class="in" id="eBadge"><option value="">Нет</option><option value="sale">Акция</option><option value="hit">Хит</option><option value="new">Новинка</option><option value="author">Авторский</option></select></label>
+      <label class="f" for="eSort">Порядок (меньше — выше)<input class="in num" id="eSort" type="number"></label>
+    </div>
+    <div class="bar" style="gap:18px">
+      <div class="swl"><button class="sw" id="ePopular" role="switch" aria-checked="false" aria-label="Популярный"></button>В «Популярных»</div>
+      <div class="swl"><button class="sw" id="eFeatured" role="switch" aria-checked="false" aria-label="В карусели"></button>В карусели на главной</div>
+    </div>
+    <div id="featBox" class="card stack" style="background:var(--ground)">
+      <div class="row">
+        <label class="f" for="eMood">Подпись в карусели<input class="in" id="eMood" placeholder="Нежность в каждом лепестке"></label>
+        <label class="f" for="eTint">Цвет свечения<input class="in" id="eTint" type="color" style="padding:4px"></label>
+      </div>
+      <div>
+        <label class="f">Букет без фона (PNG) — для карусели</label>
+        <div class="photos" id="eCut" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <label class="f" for="eDesc">Описание (необязательно)<textarea class="in" id="eDesc" rows="3"></textarea></label>
+  </div>
+  <div class="ed-f"><button class="btn btn-d" id="eDel">Удалить</button><span class="sp"></span><button class="btn btn-g" id="eCancel">Отмена</button><button class="btn btn-p" id="eSave">Сохранить</button></div>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const rub = n => (+n || 0).toLocaleString('ru-RU') + ' ₽';
+const STATUS = { new: 'Новый', confirmed: 'Подтверждён', assembling: 'Собирается', photo: 'Фото отправлено', delivering: 'В пути', done: 'Доставлен', cancelled: 'Отменён' };
+const labelText = l => /^\d+-\d+$/.test(l) ? `${l.split('-')[1]} шт · ${l.split('-')[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
+const LENGTHS = [40, 50, 60, 70, 80], COUNTS = [25, 51, 101];
+
+let auth = null;
+try { auth = JSON.parse(localStorage.getItem('vk.admin')); } catch {}
+function toast(t, bad) { const el = $('#toast'); el.textContent = t; el.classList.toggle('bad', !!bad); el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2800); }
+
+async function api(path, opts = {}) {
+  const headers = opts.body instanceof FormData ? {} : { 'content-type': 'application/json' };
+  if (auth) headers.Authorization = auth.token;
+  const res = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) },
+    body: opts.body && !(opts.body instanceof FormData) ? JSON.stringify(opts.body) : opts.body });
+  if (res.status === 401) { logout(); throw new Error('Войдите заново'); }
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  if (!res.ok) {
+    const f = data && data.data && Object.entries(data.data)[0];
+    throw new Error(f ? `${f[0]}: ${f[1].message}` : (data && data.message) || 'Ошибка сервера');
+  }
+  return data;
+}
+const list = (c, q = '') => api(`/api/collections/${c}/records?perPage=500${q}`).then(r => r.items);
+const safe = fn => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, true); } };
+
+/* ---------- вход ---------- */
+function logout() { auth = null; try { localStorage.removeItem('vk.admin'); } catch {} $('#app').hidden = true; $('#login').hidden = false; }
+$('#logout').onclick = logout;
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault(); $('#lErr').hidden = true;
+  try {
+    const r = await fetch('/api/collections/managers/auth-with-password', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ identity: $('#lEmail').value.trim(), password: $('#lPass').value }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error('Неверная почта или пароль');
+    auth = { token: d.token, id: d.record.id, email: d.record.email };
+    try { localStorage.setItem('vk.admin', JSON.stringify(auth)); } catch {}
+    start();
+  } catch (err) { $('#lErr').textContent = err.message; $('#lErr').hidden = false; }
+});
+
+/* ---------- вкладки ---------- */
+let tab = 'orders';
+$$('.tabs button').forEach(b => b.onclick = () => show(b.dataset.tab));
+function show(t) {
+  tab = t;
+  $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+  $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
+  ({ orders: loadOrders, products: loadProducts, delivery: loadDelivery, prices: loadPrices, settings: loadSettings })[t]();
+}
+
+let S = null, CATS = [];
+async function loadSettings0() { S = (await list('settings'))[0]; CATS = await list('categories', '&sort=sort'); }
+
+/* ---------- заказы ---------- */
+let oFilter = 'active';
+const OF = [['active', 'Активные'], ['new', 'Новые'], ['done', 'Доставленные'], ['cancelled', 'Отменённые'], ['all', 'Все']];
+function renderOF() { $('#orderFilters').innerHTML = OF.map(([k, t]) => `<button class="chip" data-f="${k}" aria-pressed="${oFilter === k}">${t}</button>`).join(''); }
+$('#orderFilters').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { oFilter = b.dataset.f; loadOrders(); } };
+const loadOrders = safe(async () => {
+  renderOF();
+  const f = { active: "status!='done'&&status!='cancelled'", new: "status='new'", done: "status='done'", cancelled: "status='cancelled'", all: '' }[oFilter];
+  const items = await list('orders', `&sort=-created${f ? '&filter=' + encodeURIComponent(f) : ''}&expand=zone`);
+  $('#orders').innerHTML = items.length ? items.map(orderHTML).join('') : `<div class="empty">Заказов нет.</div>`;
+  countNew();
+});
+function orderHTML(o) {
+  const created = new Date(o.created.replace(' ', 'T'));
+  return `<article class="order${o.status === 'new' ? ' is-new' : ''}" data-id="${o.id}">
+    <div class="order-h"><b>№${o.number}</b><span class="pill st-${o.status}">${STATUS[o.status]}</span>
+      <span class="hint" style="margin:0">создан ${created.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+      <span class="sum num">${rub(o.total)}</span></div>
+    <ul>${(o.items || []).map(it => `<li>${esc(it.name)}${it.label_text ? ' · ' + esc(it.label_text) : ''} × ${it.qty} — <span class="num">${rub(it.sum)}</span></li>`).join('')}</ul>
+    <div class="meta">
+      <div><span>Когда</span><b>${new Date(o.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })}</b>, ${esc(o.interval || '—')}</div>
+      <div><span>Куда</span>${esc(o.address)}${o.expand && o.expand.zone ? ` <span style="display:inline">(${esc(o.expand.zone.name)}, доставка ${rub(o.delivery_price)})</span>` : ''}</div>
+      <div><span>Заказчик</span>${esc(o.name)}, <a href="tel:${esc(o.phone.replace(/[^\d+]/g, ''))}">${esc(o.phone)}</a></div>
+      ${o.recipient ? `<div><span>Получатель</span>${esc(o.recipient)}</div>` : ''}
+      ${o.note ? `<div><span>Открытка</span>${esc(o.note)}</div>` : ''}
+    </div>
+    <div class="order-f">
+      <select class="in sm" data-status aria-label="Статус">${Object.entries(STATUS).map(([k, t]) => `<option value="${k}"${k === o.status ? ' selected' : ''}>${t}</option>`).join('')}</select>
+      <input class="in sm" data-comment placeholder="Комментарий для себя" value="${esc(o.comment)}" style="flex:1;min-width:160px">
+      <button class="btn btn-g btn-s" data-savec>Сохранить</button>
+    </div>
+  </article>`;
+}
+$('#orders').addEventListener('change', safe(async e => {
+  if (!e.target.matches('[data-status]')) return;
+  const el = e.target.closest('.order');
+  await api(`/api/collections/orders/records/${el.dataset.id}`, { method: 'PATCH', body: { status: e.target.value } });
+  toast('Статус: ' + STATUS[e.target.value]); loadOrders();
+}));
+$('#orders').addEventListener('click', safe(async e => {
+  if (!e.target.matches('[data-savec]')) return;
+  const el = e.target.closest('.order');
+  await api(`/api/collections/orders/records/${el.dataset.id}`, { method: 'PATCH', body: { comment: el.querySelector('[data-comment]').value } });
+  toast('Комментарий сохранён');
+}));
+async function countNew() {
+  try {
+    const r = await api(`/api/collections/orders/records?perPage=1&filter=${encodeURIComponent("status='new'")}`);
+    $('#newCount').hidden = !r.totalItems; $('#newCount').textContent = r.totalItems;
+    document.title = (r.totalItems ? `(${r.totalItems}) ` : '') + 'Админка venikoff.net';
+  } catch {}
+}
+setInterval(() => { if (!auth) return; if (tab === 'orders') loadOrders(); else countNew(); }, 30000);
+
+/* ---------- товары ---------- */
+let PRODS = [];
+const fileUrl = (p, name, thumb) => `/api/files/products/${p.id}/${name}${thumb ? '?thumb=' + thumb : ''}`;
+function priceOf(p) {
+  if (p.lengths && p.lengths.length) {
+    const rp = S.rose_prices || {}; const all = p.lengths.flatMap(L => COUNTS.map(C => rp[L] && rp[L][C]).filter(Boolean));
+    return all.length ? 'от ' + rub(Math.min(...all)) + ` · ${p.lengths.join('/')} см` : '—';
+  }
+  if (p.variants && p.variants.length) {
+    const est = p.variants.filter(v => v.estimated).length;
+    return 'от ' + rub(Math.min(...p.variants.map(v => v.price))) + ` · ${p.variants.length} разм.` + (est ? ` · <span class="pill est">${est} проверить</span>` : '');
+  }
+  return rub(p.price);
+}
+function renderProducts() {
+  const q = $('#pSearch').value.trim().toLowerCase(), c = $('#pCat').value;
+  const r = PRODS.filter(p => (!c || p.category === c) && (!q || p.name.toLowerCase().includes(q)));
+  $('#plist').innerHTML = r.length ? r.map(p => `<div class="prow${p.active ? '' : ' off'}" data-id="${p.id}">
+    ${p.photo && p.photo[0] ? `<img src="${fileUrl(p, p.photo[0], '160x160')}" alt="" loading="lazy">` : '<div class="ph" style="width:56px;height:56px"></div>'}
+    <div><div class="n">${esc(p.name)}</div><div class="s">${esc((CATS.find(x => x.id === p.category) || {}).name || '')} · ${priceOf(p)}</div></div>
+    <button class="sw" data-toggle="${p.id}" role="switch" aria-checked="${p.active}" aria-label="На сайте"></button>
+  </div>`).join('') : `<div class="empty">Ничего не нашлось.</div>`;
+}
+const loadProducts = safe(async () => {
+  await loadSettings0();
+  $('#pCat').innerHTML = `<option value="">Все разделы</option>` + CATS.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  PRODS = await list('products', '&sort=sort,-created');
+  renderProducts();
+});
+$('#pSearch').oninput = renderProducts;
+$('#pCat').onchange = renderProducts;
+$('#plist').addEventListener('click', safe(async e => {
+  const t = e.target.closest('[data-toggle]');
+  if (t) {
+    const p = PRODS.find(x => x.id === t.dataset.toggle);
+    const r = await api(`/api/collections/products/records/${p.id}`, { method: 'PATCH', body: { active: !p.active } });
+    Object.assign(p, r); renderProducts(); toast(p.active ? 'Показан на сайте' : 'Скрыт с сайта'); return;
+  }
+  const row = e.target.closest('.prow'); if (row) openEditor(PRODS.find(x => x.id === row.dataset.id));
+}));
+$('#pNew').onclick = () => openEditor(null);
+
+/* ---------- редактор товара ---------- */
+let E = null;   // { rec, photos: [{name}|{file,url}], removed: [], cut, cutFile, mode, variants, lengths }
+const sw = (el, v) => { if (v !== undefined) el.setAttribute('aria-checked', !!v); return el.getAttribute('aria-checked') === 'true'; };
+$$('.sw').forEach(b => b.addEventListener('click', () => { if (!b.dataset.toggle) sw(b, !sw(b)); if (b.id === 'eFeatured') $('#featBox').hidden = !sw(b); }));
+function openEditor(p) {
+  const cat = p ? p.category : (CATS.find(c => !c.addon) || CATS[0]).id;
+  E = {
+    rec: p, removed: [], cutFile: null, cutRemoved: false,
+    photos: p ? (p.photo || []).map(name => ({ name })) : [],
+    mode: p && p.lengths && p.lengths.length ? 'lengths' : p && p.variants && p.variants.length ? 'variants' : (p ? 'single' : 'variants'),
+    variants: p && p.variants ? JSON.parse(JSON.stringify(p.variants)) : [],
+    lengths: p && p.lengths ? [...p.lengths] : [50, 60],
+  };
+  $('#edTitle').textContent = p ? 'Товар' : 'Новый товар';
+  $('#eName').value = p ? p.name : '';
+  $('#eCat').innerHTML = CATS.map(c => `<option value="${c.id}"${c.id === cat ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  $('#ePrice').value = p ? p.price : '';
+  $('#eBonus').value = p ? p.bonus || 0 : 0;
+  $('#eBadge').value = p ? p.badge || '' : '';
+  $('#eSort').value = p ? p.sort || 0 : 0;
+  $('#eMood').value = p ? p.mood || '' : '';
+  $('#eTint').value = p && /^#[0-9a-f]{6}$/i.test(p.tint || '') ? p.tint : '#E0178A';
+  $('#eDesc').value = p ? p.description || '' : '';
+  sw($('#eActive'), p ? p.active : true); sw($('#ePopular'), p && p.popular); sw($('#eFeatured'), p && p.featured);
+  $('#featBox').hidden = !(p && p.featured);
+  $('#eDel').hidden = !p;
+  renderPhotos(); renderCut(); renderMode();
+  $('#ed').showModal();
+}
+function photoSrc(ph) { return ph.url || fileUrl(E.rec, ph.name, '160x160'); }
+function renderPhotos() {
+  $('#ePhotos').innerHTML = E.photos.map((ph, i) => `<div class="ph${ph.file ? ' new' : ''}"><img src="${photoSrc(ph)}" alt=""><button data-rmph="${i}" aria-label="Убрать фото">×</button></div>`).join('') +
+    `<label class="add-ph">+ фото<input type="file" accept="image/*" multiple hidden id="ePhAdd"></label>`;
+  $('#ePhAdd').onchange = e => { [...e.target.files].forEach(f => E.photos.push({ file: f, url: URL.createObjectURL(f) })); renderPhotos(); if (E.mode === 'variants') renderVars(); };
+}
+$('#ePhotos').addEventListener('click', e => {
+  const b = e.target.closest('[data-rmph]'); if (!b) return;
+  const [ph] = E.photos.splice(+b.dataset.rmph, 1); if (ph.name) E.removed.push(ph.name);
+  E.variants.forEach(v => { if (v.photo === ph.name) delete v.photo; });
+  renderPhotos(); if (E.mode === 'variants') renderVars();
+});
+function renderCut() {
+  const has = E.cutFile || (E.rec && E.rec.cutout && !E.cutRemoved);
+  const src = E.cutFile ? URL.createObjectURL(E.cutFile) : has ? fileUrl(E.rec, E.rec.cutout) : '';
+  $('#eCut').innerHTML = (has ? `<div class="ph" style="background:repeating-conic-gradient(#ddd 0 25%,#fff 0 50%) 0 0/16px 16px"><img src="${src}" alt="" style="object-fit:contain"><button data-rmcut aria-label="Убрать">×</button></div>` : '') +
+    `<label class="add-ph">${has ? 'заменить' : '+ PNG без фона'}<input type="file" accept="image/png,image/webp" hidden id="eCutAdd"></label>`;
+  $('#eCutAdd').onchange = e => { E.cutFile = e.target.files[0] || null; renderCut(); };
+}
+$('#eCut').addEventListener('click', e => { if (e.target.closest('[data-rmcut]')) { E.cutFile = null; E.cutRemoved = true; renderCut(); } });
+$('#eMode').onclick = e => { const b = e.target.closest('[data-mode]'); if (b) { readVars(); E.mode = b.dataset.mode; renderMode(); } };
+function renderMode() {
+  $$('#eMode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === E.mode));
+  $('#mVariants').hidden = E.mode !== 'variants'; $('#mLengths').hidden = E.mode !== 'lengths'; $('#mSingle').hidden = E.mode !== 'single';
+  renderVars(); renderLens();
+}
+function renderVars() {
+  const opts = ph => `<option value="">—</option>` + E.photos.filter(p => p.name).map((p, i) => `<option value="${esc(p.name)}"${p.name === ph ? ' selected' : ''}>Фото ${i + 1}</option>`).join('');
+  $('#eVars').innerHTML = `<tr><th>Кнопка</th><th>Цена, ₽</th><th>Фото</th><th>Расчётная</th><th></th></tr>` +
+    E.variants.map((v, i) => `<tr${v.estimated ? ' style="background:var(--warn-soft)"' : ''}>
+      <td><input class="in sm" data-v="label" data-i="${i}" value="${esc(v.label)}" style="width:80px" placeholder="25"></td>
+      <td><input class="in sm num" data-v="price" data-i="${i}" type="number" min="0" step="10" value="${v.price || ''}" style="width:110px"></td>
+      <td><select class="in sm" data-v="photo" data-i="${i}" style="width:100px">${opts(v.photo)}</select></td>
+      <td><input type="checkbox" data-v="estimated" data-i="${i}"${v.estimated ? ' checked' : ''} aria-label="Расчётная цена"></td>
+      <td><button class="btn btn-d btn-s" data-rmv="${i}">Убрать</button></td></tr>`).join('');
+}
+function readVars() {
+  $$('#eVars [data-v]').forEach(el => {
+    const v = E.variants[+el.dataset.i]; if (!v) return;
+    const k = el.dataset.v;
+    if (k === 'estimated') v.estimated = el.checked || undefined;
+    else if (k === 'price') v.price = +el.value || 0;
+    else if (k === 'photo') { if (el.value) v.photo = el.value; else delete v.photo; }
+    else v.label = el.value.trim();
+  });
+}
+$('#eVars').addEventListener('change', () => { readVars(); renderVars(); });
+$('#eVars').addEventListener('click', e => { const b = e.target.closest('[data-rmv]'); if (b) { readVars(); E.variants.splice(+b.dataset.rmv, 1); renderVars(); } });
+$('#eVarAdd').onclick = () => { readVars(); E.variants.push({ label: '', price: 0 }); renderVars(); };
+$('#eVarAuto').onclick = () => {
+  readVars();
+  const base = E.variants.find(v => !v.estimated && v.price) || { price: +$('#ePrice').value || 0 };
+  if (!base.price) return toast('Сначала укажите цену хотя бы одного размера', true);
+  const round = x => Math.max(10, Math.round(x / 100) * 100 - 10);
+  const n = +(String(base.label || '').match(/^\d+$/) || $('#eName').value.match(/^(\d+)\s/) || [])[0] || 0;
+  if (n) {
+    const per = base.price / n;
+    E.variants = [9, 15, 25, 51, 101].filter(k => k >= n / 3 && k <= n * 2.2).concat(n).filter((k, i, a) => a.indexOf(k) === i).sort((a, b) => a - b)
+      .map(k => k === n ? { label: String(k), price: base.price, photo: base.photo } : { label: String(k), price: round(per * k * Math.pow(k / n, -0.2)), estimated: true, photo: base.photo });
+  } else {
+    E.variants = [{ label: 'S', price: round(base.price * .75), estimated: true }, { label: 'M', price: base.price }, { label: 'L', price: round(base.price * 1.45), estimated: true }];
+  }
+  renderVars();
+};
+function renderLens() {
+  $('#eLens').innerHTML = LENGTHS.map(L => `<button class="chip" data-len="${L}" aria-pressed="${E.lengths.includes(L)}">${L} см</button>`).join('');
+}
+$('#eLens').onclick = e => { const b = e.target.closest('[data-len]'); if (!b) return; const L = +b.dataset.len; E.lengths = E.lengths.includes(L) ? E.lengths.filter(x => x !== L) : [...E.lengths, L].sort((a, b) => a - b); renderLens(); };
+$('#eCancel').onclick = () => $('#ed').close();
+$('#eDel').onclick = safe(async () => {
+  if (!confirm(`Удалить «${E.rec.name}» насовсем? Если нужно временно убрать с сайта — используйте переключатель «На сайте».`)) return;
+  await api(`/api/collections/products/records/${E.rec.id}`, { method: 'DELETE' });
+  $('#ed').close(); toast('Товар удалён'); loadProducts();
+});
+$('#eSave').onclick = safe(async () => {
+  readVars();
+  const name = $('#eName').value.trim();
+  if (!name) return toast('Укажите название', true);
+  if (!E.photos.length) return toast('Добавьте хотя бы одно фото', true);
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('category', $('#eCat').value);
+  fd.append('bonus', +$('#eBonus').value || 0);
+  fd.append('badge', $('#eBadge').value);
+  fd.append('sort', +$('#eSort').value || 0);
+  fd.append('mood', $('#eMood').value.trim());
+  fd.append('tint', $('#eTint').value);
+  fd.append('description', $('#eDesc').value.trim());
+  fd.append('active', sw($('#eActive')));
+  fd.append('popular', sw($('#ePopular')));
+  fd.append('featured', sw($('#eFeatured')));
+  if (E.mode === 'lengths') {
+    if (!E.lengths.length) return toast('Отметьте хотя бы одну длину', true);
+    fd.append('lengths', JSON.stringify(E.lengths)); fd.append('variants', 'null'); fd.append('price', 0);
+  } else if (E.mode === 'variants') {
+    const vs = E.variants.filter(v => v.label && v.price > 0);
+    if (!vs.length) return toast('Добавьте размеры с ценой', true);
+    if (new Set(vs.map(v => v.label)).size !== vs.length) return toast('Названия кнопок размеров повторяются', true);
+    fd.append('variants', JSON.stringify(vs)); fd.append('lengths', 'null'); fd.append('price', Math.min(...vs.map(v => v.price)));
+  } else {
+    if (!(+$('#ePrice').value > 0)) return toast('Укажите цену', true);
+    fd.append('price', +$('#ePrice').value); fd.append('variants', 'null'); fd.append('lengths', 'null');
+  }
+  E.photos.filter(p => p.file).forEach(p => fd.append(E.rec ? 'photo+' : 'photo', p.file));
+  E.removed.forEach(n => fd.append('photo-', n));
+  if (E.cutFile) fd.append('cutout', E.cutFile);
+  else if (E.cutRemoved) fd.append('cutout', '');
+  const r = E.rec
+    ? await api(`/api/collections/products/records/${E.rec.id}`, { method: 'PATCH', body: fd })
+    : await api(`/api/collections/products/records`, { method: 'POST', body: fd });
+  $('#ed').close(); toast('Сохранено'); loadProducts();
+  return r;
+});
+
+/* ---------- доставка ---------- */
+let ZONES = [], INTS = [], CLOSED = [];
+const loadDelivery = safe(async () => {
+  await loadSettings0();
+  sw($('#dAccepting'), S.accepting);
+  $('#dMin').value = S.min_order || 0; $('#dLead').value = S.lead_hours || 0; $('#dDays').value = S.days_ahead || 14; $('#dNotice').value = S.notice || '';
+  CLOSED = Array.isArray(S.closed_dates) ? [...S.closed_dates] : [];
+  renderClosed();
+  ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
+  renderZones(); renderInts();
+});
+function renderClosed() {
+  CLOSED.sort();
+  $('#dClosed').innerHTML = CLOSED.length ? CLOSED.map((d, i) => `<span>${new Date(d + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}<button data-rmd="${i}" aria-label="Убрать">×</button></span>`).join('') : '<span class="hint" style="background:none;color:var(--ink-3);padding:0">Нет</span>';
+}
+$('#dClosedBtn').onclick = () => { const v = $('#dClosedAdd').value; if (v && !CLOSED.includes(v)) { CLOSED.push(v); renderClosed(); } };
+$('#dClosed').onclick = e => { const b = e.target.closest('[data-rmd]'); if (b) { CLOSED.splice(+b.dataset.rmd, 1); renderClosed(); } };
+$('#dSave').onclick = safe(async () => {
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: {
+    accepting: sw($('#dAccepting')), min_order: +$('#dMin').value || 0, lead_hours: +$('#dLead').value || 0,
+    days_ahead: +$('#dDays').value || 14, notice: $('#dNotice').value.trim(), closed_dates: CLOSED } });
+  toast('Сохранено');
+});
+function renderZones() {
+  $('#zones').innerHTML = `<tr><th>Зона</th><th>Цена, ₽</th><th>Бесплатно от, ₽</th><th>Вкл.</th><th></th></tr>` + ZONES.map((z, i) => `<tr>
+    <td><input class="in sm" data-z="name" data-i="${i}" value="${esc(z.name)}" style="min-width:170px"></td>
+    <td><input class="in sm num" data-z="price" data-i="${i}" type="number" min="0" step="10" value="${z.price}" style="width:100px"></td>
+    <td><input class="in sm num" data-z="free_from" data-i="${i}" type="number" min="0" step="100" value="${z.free_from}" style="width:110px"></td>
+    <td><input type="checkbox" data-z="active" data-i="${i}"${z.active ? ' checked' : ''} aria-label="Включена"></td>
+    <td><button class="btn btn-d btn-s" data-rmz="${i}">Удалить</button></td></tr>`).join('');
+}
+function renderInts() {
+  $('#ints').innerHTML = `<tr><th>С</th><th>До</th><th>Доплата, ₽</th><th>Вкл.</th><th></th></tr>` + INTS.map((z, i) => `<tr>
+    <td><input class="in sm num" data-it="start" data-i="${i}" type="time" value="${esc(z.start)}" style="width:110px"></td>
+    <td><input class="in sm num" data-it="end" data-i="${i}" type="time" value="${esc(z.end)}" style="width:110px"></td>
+    <td><input class="in sm num" data-it="extra" data-i="${i}" type="number" min="0" step="50" value="${z.extra || 0}" style="width:100px"></td>
+    <td><input type="checkbox" data-it="active" data-i="${i}"${z.active ? ' checked' : ''} aria-label="Включён"></td>
+    <td><button class="btn btn-d btn-s" data-rmi="${i}">Удалить</button></td></tr>`).join('');
+}
+const readRows = (sel, key, arr) => $$(sel).forEach(el => { const r = arr[+el.dataset.i], k = el.dataset[key]; r[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value || 0 : el.value.trim(); });
+$('#zAdd').onclick = () => { readRows('#zones [data-z]', 'z', ZONES); ZONES.push({ name: '', price: 0, free_from: 0, active: true, sort: ZONES.length }); renderZones(); };
+$('#iAdd').onclick = () => { readRows('#ints [data-it]', 'it', INTS); INTS.push({ start: '21:00', end: '23:00', extra: 0, active: true, sort: INTS.length }); renderInts(); };
+$('#zones').addEventListener('click', safe(async e => {
+  const b = e.target.closest('[data-rmz]'); if (!b) return;
+  readRows('#zones [data-z]', 'z', ZONES);
+  const [z] = ZONES.splice(+b.dataset.rmz, 1);
+  if (z.id) { if (!confirm(`Удалить зону «${z.name}»?`)) { ZONES.splice(+b.dataset.rmz, 0, z); return; } await api(`/api/collections/delivery_zones/records/${z.id}`, { method: 'DELETE' }); }
+  renderZones();
+}));
+$('#ints').addEventListener('click', safe(async e => {
+  const b = e.target.closest('[data-rmi]'); if (!b) return;
+  readRows('#ints [data-it]', 'it', INTS);
+  const [z] = INTS.splice(+b.dataset.rmi, 1);
+  if (z.id) await api(`/api/collections/delivery_intervals/records/${z.id}`, { method: 'DELETE' });
+  renderInts();
+}));
+async function saveRows(col, arr, fields) {
+  for (const [i, r] of arr.entries()) {
+    const body = Object.fromEntries(fields.map(f => [f, r[f]])); body.sort = i;
+    const saved = r.id ? await api(`/api/collections/${col}/records/${r.id}`, { method: 'PATCH', body }) : await api(`/api/collections/${col}/records`, { method: 'POST', body });
+    arr[i] = saved;
+  }
+}
+$('#zSave').onclick = safe(async () => { readRows('#zones [data-z]', 'z', ZONES); if (ZONES.some(z => !z.name)) return toast('У каждой зоны должно быть название', true); await saveRows('delivery_zones', ZONES, ['name', 'price', 'free_from', 'active']); renderZones(); toast('Зоны сохранены'); });
+$('#iSave').onclick = safe(async () => { readRows('#ints [data-it]', 'it', INTS); await saveRows('delivery_intervals', INTS, ['start', 'end', 'extra', 'active']); renderInts(); toast('Интервалы сохранены'); });
+
+/* ---------- прайс роз ---------- */
+const loadPrices = safe(async () => {
+  await loadSettings0();
+  const rp = S.rose_prices || {};
+  const lens = [...new Set([40, 50, 60, ...Object.keys(rp).map(Number)])].sort((a, b) => a - b);
+  $('#rp').innerHTML = `<span></span>` + COUNTS.map(c => `<b>${c} шт</b>`).join('') +
+    lens.map(L => `<b>${L} см</b>` + COUNTS.map(C => `<input class="in num" data-l="${L}" data-c="${C}" type="number" min="0" step="10" value="${rp[L] && rp[L][C] || ''}" aria-label="${L} см, ${C} шт">`).join('')).join('');
+});
+$('#rpSave').onclick = safe(async () => {
+  const rp = {};
+  $$('#rp input').forEach(el => { if (+el.value > 0) { (rp[el.dataset.l] = rp[el.dataset.l] || {})[el.dataset.c] = +el.value; } });
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { rose_prices: rp } });
+  toast('Прайс сохранён — цены на сайте обновлены');
+});
+
+/* ---------- настройки ---------- */
+const loadSettings = safe(async () => {
+  await loadSettings0();
+  $('#sPhone').value = S.phone || ''; $('#sUrl').value = S.site_url || location.origin;
+  $('#sTok').value = ''; $('#sTok').placeholder = S.tg_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ от @BotFather';
+  $('#sAdm').value = S.tg_admins || '';
+});
+$('#sSave').onclick = safe(async () => { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { phone: $('#sPhone').value.trim(), site_url: $('#sUrl').value.trim().replace(/\/$/, '') } }); toast('Сохранено'); });
+$('#tSave').onclick = safe(async () => {
+  const body = { tg_admins: $('#sAdm').value.trim(), site_url: S.site_url || location.origin };
+  const tok = $('#sTok').value.trim();
+  if (tok) { if (!/^\d+:[\w-]{20,}$/.test(tok)) return toast('Ключ выглядит неправильно. Скопируйте его из @BotFather целиком', true); body.tg_token = tok; }
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
+  $('#sTok').value = ''; loadSettings(); toast('Сохранено');
+});
+$('#tTest').onclick = safe(async () => {
+  const r = await api('/api/shop/tg-test', { method: 'POST' });
+  toast(r.admins ? `Бот @${r.bot} подключён — проверьте Телеграм` : `Бот @${r.bot} подключён. Добавьте свой номер в «Кто может управлять ботом»`);
+});
+$('#mSave').onclick = safe(async () => {
+  const oldPassword = $('#mOld').value, password = $('#mNew').value;
+  if (password.length < 10) return toast('Новый пароль — от 10 символов', true);
+  await api(`/api/collections/managers/records/${auth.id}`, { method: 'PATCH', body: { oldPassword, password, passwordConfirm: password } });
+  $('#mOld').value = $('#mNew').value = ''; toast('Пароль изменён — войдите заново'); setTimeout(logout, 1500);
+});
+
+/* ---------- старт ---------- */
+async function start() {
+  $('#login').hidden = true; $('#app').hidden = false;
+  try { const r = await api('/api/collections/managers/auth-refresh', { method: 'POST' }); auth.token = r.token; localStorage.setItem('vk.admin', JSON.stringify(auth)); } catch {}
+  show('orders');
+}
+if (auth) start(); else logout();
+})();
+</script>
+</body>
+</html>
