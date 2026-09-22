@@ -403,11 +403,11 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
           <div class="floor"></div>
           <img class="bouquet" id="sImg" alt="">
           <div id="petals"></div>
-          <button class="heart-round" id="sFav" aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
+          <button class="heart-round" id="sFav" hidden aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
           <div class="steps"><div class="steps-bar"><span></span><span></span><span></span></div><div class="steps-text" id="stepText">Выбираем самые красивые</div></div>
           <div class="ready">
             <div class="ready-note"><svg class="i"><use href="#i-check"/></svg>Тот самый букет. Для того самого человека.</div>
-            <button class="btn btn-primary btn-wide" id="choose"><span>Выбрать букет</span><span style="display:flex;gap:10px;align-items:center" class="num"><span id="sPrice"></span><svg class="i"><use href="#i-arrow"/></svg></span></button>
+            <button class="btn btn-primary btn-wide" id="choose"><span>Выбрать розы в каталоге</span><svg class="i"><use href="#i-arrow"/></svg></button>
             <div class="ready-row">
               <button class="btn btn-ghost btn-sm" id="other"><svg class="i"><use href="#i-left"/></svg>Другой букет</button>
               <button class="btn btn-ghost btn-sm" id="again"><svg class="i"><use href="#i-redo"/></svg>Ещё раз</button>
@@ -436,7 +436,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
     <div class="wrap">
       <div class="sec-head"><div><p class="eyebrow">Просто и прозрачно</p><h2 class="h2" style="margin-top:10px">Как мы доставляем</h2></div></div>
       <ol>
-        <li><span class="n">01</span><b>Выбираете букет</b><p>Готовый из каталога, поштучно или в студии — как удобно.</p></li>
+        <li><span class="n">01</span><b>Выбираете букет</b><p>Кенийские или французские розы, гортензии — как вам нравится.</p></li>
         <li><span class="n">02</span><b>Оформляете заказ</b><p>Адрес, удобный интервал и текст открытки — за минуту.</p></li>
         <li><span class="n">03</span><b>Согласуем фото</b><p>Собираем букет и присылаем фото перед отправкой.</p></li>
         <li><span class="n">04</span><b>Доставляем</b><p>По всей Москве, в выбранный вами интервал.</p></li>
@@ -479,7 +479,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       <div class="pd-info">
         <div><p class="eyebrow" id="pdCat"></p><h1 id="pdName"></h1></div>
         <div class="pd-price num"><b id="pdPrice"></b><span class="bonus" id="pdBonus"></span></div>
-        <div id="pdOptsWrap"><p class="label">Количество стеблей</p><div class="opts" id="pdOpts"></div></div>
+        <div id="pdOptsWrap"><p class="label" id="pdOptsLabel">Количество цветов</p><div class="opts" id="pdOpts"></div></div>
         <div id="pdQtyWrap"><p class="label">Количество</p><div class="qty"><button id="pdMinus" aria-label="Меньше"><svg class="i"><use href="#i-minus"/></svg></button><span class="num" id="pdQty">1</span><button id="pdPlus" aria-label="Больше"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
         <div class="pd-buy">
           <button class="btn btn-primary" id="pdAdd">В корзину · <span class="num" id="pdTotal"></span></button>
@@ -535,39 +535,35 @@ const store = {
 };
 
 const CATS = [
-  ['roses', 'Розы'], ['mono', 'Монобукеты'], ['boxes', 'Коробочки и композиции'],
-  ['baskets', 'Корзины'], ['stems', 'Поштучно'], ['cards', 'Открытки'], ['toys', 'Игрушки']
+  ['kenya', 'Кенийские розы'], ['french', 'Французские розы'], ['hydrangea', 'Гортензии'],
+  ['cards', 'Открытки'], ['toys', 'Игрушки']
 ];
 const catName = Object.fromEntries(CATS);
-const STEMS = [5, 9, 15, 25, 51];
 const isStem = p => p.cat === 'stems';
 const ADDONS = P.filter(p => p.cat === 'cards' || p.cat === 'toys');
-/* one card per rose line; each size is a real store product with its own price and photo */
-const GROUPS = [
-  { title: 'Красные розы 40 см',        ids: ['3159', '2177', '3180'] },
-  { title: 'Розовые розы 40 см',        ids: ['3137', '3163'] },
-  { title: 'Розы яркий микс',           ids: ['2178', '2172'] },
-  { title: 'Красные розы Эквадор',      ids: ['3151', '3181'] },
-  { title: 'Красные французские розы',  ids: ['3178', '3162', '3173'] },
-  { title: 'Белые французские розы',    ids: ['3176', '3157'] }
-].map(g => ({ ...g, ids: g.ids.filter(id => byId[id]) })).filter(g => g.ids.length > 1);
-const groupOf = {};
-GROUPS.forEach((g, gi) => g.ids.forEach(id => groupOf[id] = gi));
-const nOf = id => +(byId[id].name.match(/^\d+/) || [0])[0];
-const varSel = {};    // group index -> chosen product id
-const isHiddenVariant = p => p.id in groupOf && GROUPS[groupOf[p.id]].ids[0] !== p.id;
-const count = P.reduce((m, p) => (isHiddenVariant(p) || (m[p.cat] = (m[p.cat] || 0) + 1), m), {});
+const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
 
-/* ---------- cart: key = id or id×stems ---------- */
+/* ---------- sizes: every bouquet has variants [{label, price, photo?}] ---------- */
+const sel = {};   // product id -> chosen label
+const defLabel = p => (p.variants.find(v => !v.est) || p.variants[0]).label;
+const curLabel = p => p.variants ? (sel[p.id] || defLabel(p)) : '';
+const variant = (p, label) => p.variants && p.variants.find(v => v.label === label);
+const labelText = l => /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
+const photoOf = (p, label) => { const v = variant(p, label); return img(v && v.photo ? v.photo : p.id); };
+
+/* ---------- cart: key = id or id|label ---------- */
 let cart = store.get('cart', {});
 let favs = new Set(store.get('favs', []));
-const parseKey = k => { const [id, s] = k.split('x'); return { id, stems: s ? +s : 0 }; };
-for (const k of Object.keys(cart)) if (!byId[parseKey(k).id]) delete cart[k];
-const keyPrice = k => { const { id, stems } = parseKey(k); return byId[id].price * (stems || 1); };
-const keyBonus = k => { const { id, stems } = parseKey(k); return stems ? 0 : byId[id].bonus; };
-const keyName = k => { const { id, stems } = parseKey(k); return byId[id].name + (stems ? ` · ${stems} шт` : ''); };
-const stemSel = {};   // id -> chosen stems on cards
-const cardKey = p => isStem(p) ? `${p.id}x${stemSel[p.id] || 9}` : p.id;
+const parseKey = k => { const [id, label = ''] = k.split('|'); return { id, label }; };
+const cardKey = p => p.variants ? `${p.id}|${curLabel(p)}` : p.id;
+for (const k of Object.keys(cart)) {
+  const { id, label } = parseKey(k), p = byId[id];
+  if (!p || (p.variants ? !variant(p, label) : label)) delete cart[k];
+}
+const keyPrice = k => { const { id, label } = parseKey(k), p = byId[id]; return label ? variant(p, label).price : p.price; };
+const keyBonus = k => byId[parseKey(k).id].bonus || 0;
+const keyName = k => { const { id, label } = parseKey(k); return byId[id].name + (label ? ` · ${labelText(label)}` : ''); };
+const keyImg = k => { const { id, label } = parseKey(k); return photoOf(byId[id], label); };
 
 function setQty(k, n) {
   if (n <= 0) delete cart[k]; else cart[k] = n;
@@ -595,41 +591,41 @@ function buyHTML(p) {
     ? `<div class="buy in"><button data-dec="${k}" aria-label="Убрать один">${icon('minus')}</button><span class="num">${n} × ${rub(keyPrice(k))}</span><button data-inc="${k}" aria-label="Добавить ещё">${icon('plus')}</button></div>`
     : `<button class="buy num" data-inc="${k}">${icon('bag')}${rub(keyPrice(k))}</button>`;
 }
+function sizesHTML(p, cls = 'sizes') {
+  if (!p.variants) return '';
+  const cur = curLabel(p);
+  return `<div class="${cls}" role="group" aria-label="${/^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер букета'}">${p.variants.map(v =>
+    `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === cur}">${esc(v.label)}</button>`).join('')}</div>`;
+}
 function card(p) {
-  const gi = groupOf[p.id], g = GROUPS[gi];
-  if (g) p = byId[varSel[gi] || p.id];
   const f = favs.has(p.id);
   const tag = p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>' : '';
-  const sizes = g
-    ? `<div class="sizes" role="group" aria-label="Количество стеблей">${g.ids.map(v => `<button data-var="${v}" data-group="${gi}" aria-pressed="${v === p.id}">${nOf(v)}</button>`).join('')}</div>`
-    : isStem(p) ? `<div class="sizes" role="group" aria-label="Количество стеблей">${STEMS.map(s => `<button data-stem="${p.id}" data-n="${s}" aria-pressed="${(stemSel[p.id] || 9) === s}">${s}</button>`).join('')}</div>` : '';
-  const title = g ? g.title : p.name;
-  return `<article class="card" data-id="${p.id}"${g ? ` data-group="${gi}"` : ''}>
-    <a class="card-img" href="#/p/${p.id}" aria-label="${esc(title)}"><img src="${img(p.id)}" alt="" loading="lazy" width="560" height="560">${tag}</a>
+  return `<article class="card" data-id="${p.id}">
+    <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}</a>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
-    <h3><a href="#/p/${p.id}">${esc(title)}</a></h3>
+    <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : ''}
-    ${sizes}
+    ${sizesHTML(p)}
     <div class="buy-slot">${buyHTML(p)}</div>
   </article>`;
 }
 function refreshBuy(id) { const p = byId[id]; $$(`[data-id="${id}"] .buy-slot`).forEach(el => el.innerHTML = buyHTML(p)); if (route.name === 'product' && route.id === id) pdSync(); }
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
-  if (t.dataset.var && t.dataset.group) {
-    const gi = +t.dataset.group; varSel[gi] = t.dataset.var;
-    $$(`.card[data-group="${gi}"]`).forEach(el => el.outerHTML = card(byId[t.dataset.var]));
+  if (t.dataset.size && t.dataset.pid) {
+    const p = byId[t.dataset.pid]; sel[p.id] = t.dataset.size;
+    $$(`.card[data-id="${p.id}"]`).forEach(el => el.outerHTML = card(p));
+    if (route.name === 'product' && route.id === p.id) pdSync();
   }
   else if (t.dataset.fav) toggleFav(t.dataset.fav);
-  else if (t.dataset.stem) { stemSel[t.dataset.stem] = +t.dataset.n; $$(`[data-stem="${t.dataset.stem}"]`).forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === +t.dataset.n)); refreshBuy(t.dataset.stem); }
   else if (t.dataset.inc && !t.closest('dialog')) addToCart(t.dataset.inc, 1);
   else if (t.dataset.dec && !t.closest('dialog')) setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1);
 });
 
 /* ---------- home ---------- */
-const POPULAR = ['3156', '3177', '3159', '3068', '3013', '3035', '3153', '2979'].filter(id => byId[id]);
+const POPULAR = ['3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = POPULAR.map(id => card(byId[id])).join('');
-const TILE_IMG = { roses: '3151', mono: '2118', boxes: '3000', baskets: '2979', stems: '2978' };
+const TILE_IMG = { kenya: '3159', french: '3173', hydrangea: '3035' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
   const pic = TILE_IMG[k] || (P.find(p => p.cat === k) || {}).id;
   return `<a href="#/catalog/${k}"><div><b>${label}</b><br><small class="num">${count[k] || 0} ${plural(count[k] || 0, 'позиция', 'позиции', 'позиций')}</small></div>${pic ? `<img src="${img(pic)}" alt="" loading="lazy">` : ''}</a>`;
@@ -638,7 +634,7 @@ $('#tiles').innerHTML = CATS.map(([k, label]) => {
 /* ---------- catalog ---------- */
 const state = { cat: 'all', q: '', sort: 'pop', favOnly: false };
 function renderChips() {
-  let html = `<button class="chip" data-cat="all" aria-pressed="${!state.favOnly && state.cat === 'all'}">Все <small class="num">${P.filter(p => !isHiddenVariant(p)).length - ADDONS.length}</small></button>`;
+  let html = `<button class="chip" data-cat="all" aria-pressed="${!state.favOnly && state.cat === 'all'}">Все <small class="num">${P.length - ADDONS.length}</small></button>`;
   html += CATS.map(([k, label]) => `<button class="chip" data-cat="${k}" aria-pressed="${!state.favOnly && state.cat === k}">${label} <small class="num">${count[k] || 0}</small></button>`).join('');
   if (favs.size) html += `<button class="chip" data-favonly aria-pressed="${state.favOnly}">${icon('heart')}Избранное <small class="num">${favs.size}</small></button>`;
   $('#chips').innerHTML = html;
@@ -650,10 +646,10 @@ $('#chips').addEventListener('click', e => {
 });
 function list() {
   const q = state.q.trim().toLowerCase().replace(/ё/g, 'е');
-  let r = P.filter(p => (state.favOnly || !isHiddenVariant(p)) &&
+  let r = P.filter(p =>
     (state.favOnly ? favs.has(p.id) : state.cat === 'all' ? !(p.cat === 'cards' || p.cat === 'toys') : p.cat === state.cat) &&
     (!q || p.name.toLowerCase().replace(/ё/g, 'е').includes(q)));
-  if (q && !state.favOnly && state.cat === 'all') r = P.filter(p => !isHiddenVariant(p) && p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
+  if (q && !state.favOnly && state.cat === 'all') r = P.filter(p => p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
   if (state.sort === 'asc') r = [...r].sort((a, b) => a.price - b.price);
   if (state.sort === 'desc') r = [...r].sort((a, b) => b.price - a.price);
   return r;
@@ -669,19 +665,19 @@ $('#q').addEventListener('input', e => { state.q = e.target.value; renderGrid();
 $('#sort').addEventListener('change', e => { state.sort = e.target.value; renderGrid(); });
 
 /* ---------- product page ---------- */
-let pd = { id: null, stems: 9, qty: 1 };
-function pdKey() { const p = byId[pd.id]; return isStem(p) ? `${p.id}x${pd.stems}` : p.id; }
+let pd = { id: null, qty: 1 };
 function pdSync() {
-  const p = byId[pd.id];
-  $('#pdPrice').textContent = rub(p.price) + (isStem(p) ? ' / шт' : '');
-  $('#pdTotal').textContent = rub(keyPrice(pdKey()) * pd.qty);
+  const p = byId[pd.id], k = cardKey(p), label = curLabel(p);
+  $('#pdPrice').textContent = rub(keyPrice(k));
+  $('#pdTotal').textContent = rub(keyPrice(k) * pd.qty);
   $('#pdQty').textContent = pd.qty;
-  if (isStem(byId[pd.id])) $$('#pdOpts button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === pd.stems));
+  $('#pdImg').src = photoOf(p, label);
+  $$('#pdOpts button').forEach(b => b.setAttribute('aria-pressed', b.dataset.size === label));
   const f = favs.has(p.id); $('#pdFav').setAttribute('aria-pressed', f); $('#pdFav').dataset.fav = p.id;
 }
 function showProduct(id) {
   const p = byId[id]; if (!p) return go404();
-  pd = { id, stems: 9, qty: 1 };
+  pd = { id, qty: 1 };
   document.title = `${p.name} — venikoff.net`;
   $('#pdCrumb').textContent = p.name;
   $('#pdImg').src = img(id); $('#pdImg').alt = p.name;
@@ -689,11 +685,11 @@ function showProduct(id) {
   $('#pdCat').textContent = catName[p.cat];
   $('#pdName').textContent = p.name;
   $('#pdBonus').hidden = !p.bonus; $('#pdBonus').textContent = `+${p.bonus} бонусов`;
-  const gi = groupOf[id], g = GROUPS[gi];
-  $('#pdOptsWrap').hidden = !isStem(p) && !g;
-  $('#pdOpts').innerHTML = g
-    ? g.ids.map(v => `<button class="num" data-var="${v}" aria-pressed="${v === id}">${nOf(v)}</button>`).join('')
-    : STEMS.map(s => `<button class="num" data-n="${s}">${s}</button>`).join('');
+  $('#pdOptsWrap').hidden = !p.variants;
+  if (p.variants) {
+    $('#pdOptsLabel').textContent = /^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер';
+    $('#pdOpts').innerHTML = p.variants.map(v => `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}">${esc(v.label)}</button>`).join('');
+  }
   pdSync();
   const isAddon = p.cat === 'cards' || p.cat === 'toys';
   $('#addonsSec').hidden = isAddon;
@@ -701,18 +697,13 @@ function showProduct(id) {
     const pick = [...ADDONS].sort((a, b) => (a.id * 7 + +id) % 13 - (b.id * 7 + +id) % 13).slice(0, 10);
     $('#addons').innerHTML = pick.map(a => `<div class="addon" data-id="${a.id}"><a class="ph" href="#/p/${a.id}"><img src="${img(a.id)}" alt="" loading="lazy"></a><h4>${esc(a.name)}</h4><div class="buy-slot">${buyHTML(a)}</div></div>`).join('');
   }
-  const sim = P.filter(x => x.cat === p.cat && x.id !== id && !isHiddenVariant(x) && (g ? groupOf[x.id] !== gi : true)).slice(0, 4);
+  const sim = P.filter(x => x.cat === p.cat && x.id !== id).slice(0, 4);
   $('#similar').innerHTML = sim.map(card).join('');
   $('#simMore').href = '#/catalog/' + p.cat;
 }
-$('#pdOpts').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.var) { keepScroll = true; location.replace('#/p/' + b.dataset.var); return; }
-  pd.stems = +b.dataset.n; pdSync();
-});
 $('#pdMinus').onclick = () => { pd.qty = Math.max(1, pd.qty - 1); pdSync(); };
 $('#pdPlus').onclick = () => { pd.qty++; pdSync(); };
-$('#pdAdd').onclick = () => addToCart(pdKey(), pd.qty);
+$('#pdAdd').onclick = () => addToCart(cardKey(byId[pd.id]), pd.qty);
 
 /* ---------- router ---------- */
 let route = { name: 'home' }, keepScroll = false;
@@ -769,8 +760,8 @@ function layout() {
   });
 }
 function meta() {
-  const f = FEATURED[current()], p = byId[f.id];
-  $('#cName').textContent = f.name; $('#cPrice').textContent = rub(p.price);
+  const f = FEATURED[current()];
+  $('#cName').textContent = f.name; $('#cPrice').textContent = f.mood;
   $('#studioIdx').textContent = `${current() + 1} / ${N}`;
   $$('#dots button').forEach((b, i) => b.setAttribute('aria-current', i === current()));
   studio.style.setProperty('--glow', f.tint + '22');
@@ -826,12 +817,11 @@ const STEPS = ['Выбираем самые красивые', 'Собираем
 function setStep(n) { $('#stepText').textContent = STEPS[n]; $$('.steps-bar span').forEach((s, i) => s.classList.toggle('on', i <= n)); }
 function assemble() {
   clearTimers();
-  const f = FEATURED[current()], p = byId[f.id];
+  const f = FEATURED[current()];
   scene.classList.remove('revealed');
   $('#sEyebrow').textContent = 'Немного цветочной магии';
   $('#sName').textContent = f.name; $('#sMood').textContent = f.mood;
   $('#sImg').src = `img/cut/${f.id}.png`; $('#sImg').alt = f.name;
-  $('#sPrice').textContent = rub(p.price);
   syncStudioFav(); setStep(0);
   studio.dataset.phase = 'assembling';
   later(150, () => flyPetals(f));
@@ -844,7 +834,7 @@ function resetStudio() { clearTimers(); studio.dataset.phase = 'choosing'; scene
 function syncStudioFav() { const on = favs.has(FEATURED[current()].id); $('#sFav').setAttribute('aria-pressed', on); $('#sFav').setAttribute('aria-label', on ? 'Убрать из избранного' : 'В избранное'); }
 $('#assemble').onclick = assemble; $('#again').onclick = assemble; $('#other').onclick = resetStudio;
 $('#sFav').onclick = () => toggleFav(FEATURED[current()].id);
-$('#choose').onclick = () => { addToCart(FEATURED[current()].id, 1, false); openCart(); };
+$('#choose').onclick = () => { location.hash = '#/catalog/kenya'; };
 meta();
 
 /* ---------- toast ---------- */
@@ -871,7 +861,7 @@ function renderCart() {
       foot.hidden = true; return;
     }
     body.innerHTML = Object.entries(cart).map(([k, n]) => `
-      <div class="line"><img src="${img(parseKey(k).id)}" alt="">
+      <div class="line"><img src="${keyImg(k)}" alt="">
         <div><div class="line-name">${esc(keyName(k))}</div><div class="line-price num">${rub(keyPrice(k))}${n > 1 ? ` × ${n}` : ''}</div></div>
         <div class="mini"><button data-dec="${k}" aria-label="Меньше">${icon('minus')}</button><span class="num">${n}</span><button data-inc="${k}" aria-label="Больше">${icon('plus')}</button></div>
       </div>`).join('');
