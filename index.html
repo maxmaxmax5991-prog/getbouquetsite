@@ -535,7 +535,7 @@ const store = {
 };
 
 const CATS = [
-  ['mixed', 'Сборные букеты'], ['roses', 'Розы'], ['mono', 'Монобукеты'], ['boxes', 'Коробочки и композиции'],
+  ['roses', 'Розы'], ['mono', 'Монобукеты'], ['boxes', 'Коробочки и композиции'],
   ['baskets', 'Корзины'], ['stems', 'Поштучно'], ['cards', 'Открытки'], ['toys', 'Игрушки']
 ];
 const catName = Object.fromEntries(CATS);
@@ -627,9 +627,9 @@ document.addEventListener('click', e => {
 });
 
 /* ---------- home ---------- */
-const POPULAR = ['2204', '2203', '3151', '3148', '2229', '3013', '3137', '2231'].filter(id => byId[id]);
+const POPULAR = ['3156', '3177', '3159', '3068', '3013', '3035', '3153', '2979'].filter(id => byId[id]);
 $('#popular').innerHTML = POPULAR.map(id => card(byId[id])).join('');
-const TILE_IMG = { mixed: '2186', roses: '3151', mono: '2118', boxes: '3000', baskets: '2979', stems: '2978' };
+const TILE_IMG = { roses: '3151', mono: '2118', boxes: '3000', baskets: '2979', stems: '2978' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
   const pic = TILE_IMG[k] || (P.find(p => p.cat === k) || {}).id;
   return `<a href="#/catalog/${k}"><div><b>${label}</b><br><small class="num">${count[k] || 0} ${plural(count[k] || 0, 'позиция', 'позиции', 'позиций')}</small></div>${pic ? `<img src="${img(pic)}" alt="" loading="lazy">` : ''}</a>`;
@@ -742,11 +742,11 @@ $('#favBtn').onclick = () => { location.hash = '#/favorites'; if (!favs.size) to
 
 /* ---------- studio ---------- */
 const FEATURED = [
-  { id: '2204', name: 'Райское облако',        mood: 'Для самых нежных чувств',      tint: '#AC6388', w: 575 },
-  { id: '2203', name: 'Рената',                mood: 'Маленькое красивое признание', tint: '#727AA0', w: 352 },
-  { id: '2222', name: 'Летняя поляна',         mood: 'Солнечный день в ваших руках', tint: '#B99843', w: 596 },
-  { id: '2226', name: 'Летний луг',            mood: 'Просто так. От всего сердца',  tint: '#A86C64', w: 550 },
-  { id: '2230', name: 'Подготовка к свиданию', mood: 'Когда всё понятно без слов',   tint: '#9A976D', w: 687 }
+  { id: '3177', name: 'Совершенство',     mood: 'Когда нужно сказать главное',  tint: '#9B2C3A', w: 720, h: 684 },
+  { id: '3153', name: 'Талея',            mood: 'Нежность без лишних слов',     tint: '#B9A77A', w: 720, h: 634 },
+  { id: '3146', name: 'Элегантность',     mood: 'Классика, которая не стареет', tint: '#A0414B', w: 684, h: 720 },
+  { id: '3156', name: 'Высокие чувства',  mood: '101 роза — и всё понятно',     tint: '#B24A6E', w: 703, h: 720 },
+  { id: '3068', name: 'Шарли',            mood: 'Яркий повод улыбнуться',       tint: '#C4577E', w: 624, h: 720 }
 ];
 const N = FEATURED.length;
 const studio = $('#studio'), carousel = $('#carousel'), scene = $('#scene');
@@ -808,7 +808,7 @@ const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
 const SPOTS = [[.35, .18], [.62, .25], [.48, .12], [.68, .15]];
 function flyPetals(f) {
   const box = $('#petals'); box.innerHTML = ''; if (reduce) return;
-  const bw = 72 / 0.2, bh = bw * 720 / f.w;
+  const bw = 72 / 0.2, bh = bw * f.h / f.w;
   for (let i = 0; i < 8; i++) {
     const [cx, cy] = SPOTS[i % 4], el = document.createElement('span'), s = 0.8 + (i % 3) * 0.18;
     el.className = 'petal';
