@@ -404,11 +404,11 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
           <div class="floor"></div>
           <img class="bouquet" id="sImg" alt="">
           <div id="petals"></div>
-          <button class="heart-round" id="sFav" hidden aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
+          <button class="heart-round" id="sFav" aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
           <div class="steps"><div class="steps-bar"><span></span><span></span><span></span></div><div class="steps-text" id="stepText">Выбираем самые красивые</div></div>
           <div class="ready">
             <div class="ready-note"><svg class="i"><use href="#i-check"/></svg>Тот самый букет. Для того самого человека.</div>
-            <button class="btn btn-primary btn-wide" id="choose"><span>Выбрать розы в каталоге</span><svg class="i"><use href="#i-arrow"/></svg></button>
+            <button class="btn btn-primary btn-wide" id="choose"><span>Выбрать букет</span><svg class="i"><use href="#i-arrow"/></svg></button>
             <div class="ready-row">
               <button class="btn btn-ghost btn-sm" id="other"><svg class="i"><use href="#i-left"/></svg>Другой букет</button>
               <button class="btn btn-ghost btn-sm" id="again"><svg class="i"><use href="#i-redo"/></svg>Ещё раз</button>
@@ -517,12 +517,19 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
-<script src="data.js?v=1790083548"></script>
+<script src="data.js?v=1790084155"></script>
 <script>
 (() => {
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const P = window.PRODUCTS || [];
+/* одноголовые розы: цена по прайсу «длина × количество» */
+const RP = window.ROSE_PRICES || {}, COUNTS = [25, 51, 101];
+P.forEach(p => {
+  if (!p.lengths) return;
+  p.variants = p.lengths.flatMap(L => COUNTS.map(C => ({ label: `${L}-${C}`, price: RP[L][C], len: L, cnt: C })));
+  p.price = Math.min(...p.variants.map(v => v.price));
+});
 const byId = Object.fromEntries(P.map(p => [p.id, p]));
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rub = n => n.toLocaleString('ru-RU') + ' ₽';
@@ -536,7 +543,7 @@ const store = {
 };
 
 const CATS = [
-  ['kenya', 'Кенийские розы'], ['french', 'Французские розы'], ['hydrangea', 'Гортензии'],
+  ['single', 'Одноголовые розы'], ['kenya', 'Кенийские розы'], ['french', 'Французские розы'], ['hydrangea', 'Гортензии'],
   ['cards', 'Открытки'], ['toys', 'Игрушки']
 ];
 const catName = Object.fromEntries(CATS);
@@ -546,11 +553,11 @@ const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
 
 /* ---------- sizes: every bouquet has variants [{label, price, photo?}] ---------- */
 const sel = {};   // product id -> chosen label
-const defLabel = p => (p.variants.find(v => !v.est) || p.variants[0]).label;
+const defLabel = p => p.lengths ? `${p.lengths[0]}-51` : (p.variants.find(v => !v.est) || p.variants[0]).label;
 const curLabel = p => p.variants ? (sel[p.id] || defLabel(p)) : '';
 const variant = (p, label) => p.variants && p.variants.find(v => v.label === label);
-const labelText = l => /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
-const photoOf = (p, label) => { const v = variant(p, label); return img(v && v.photo ? v.photo : p.id); };
+const labelText = l => /^\d+-\d+$/.test(l) ? `${l.split('-')[1]} шт · ${l.split('-')[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
+const photoOf = (p, label) => { const v = variant(p, label); return v && v.photo ? img(v.photo) : (p.img || img(p.id)); };
 
 /* ---------- cart: key = id or id|label ---------- */
 let cart = store.get('cart', {});
@@ -594,6 +601,12 @@ function buyHTML(p) {
 }
 function sizesHTML(p, cls = 'sizes') {
   if (!p.variants) return '';
+  if (p.lengths) {
+    const v = variant(p, curLabel(p));
+    const row = (label, items) => `<div class="${cls}" role="group" aria-label="${label}">${items}</div>`;
+    return row('Длина', p.lengths.map(L => `<button class="num" data-size="${L}-${v.cnt}" data-pid="${p.id}" aria-pressed="${L === v.len}">${L} см</button>`).join('')) +
+           row('Количество', COUNTS.map(C => `<button class="num" data-size="${v.len}-${C}" data-pid="${p.id}" aria-pressed="${C === v.cnt}">${C}</button>`).join(''));
+  }
   const cur = curLabel(p);
   return `<div class="${cls}" role="group" aria-label="${/^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер букета'}">${p.variants.map(v =>
     `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === cur}">${esc(v.label)}</button>`).join('')}</div>`;
@@ -605,7 +618,7 @@ function card(p) {
     <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}</a>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
     <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
-    ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : ''}
+    ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : p.lengths ? `<div class="sub">Одноголовая роза</div>` : ''}
     ${sizesHTML(p)}
     <div class="buy-slot">${buyHTML(p)}</div>
   </article>`;
@@ -624,12 +637,12 @@ document.addEventListener('click', e => {
 });
 
 /* ---------- home ---------- */
-const POPULAR = ['3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
+const POPULAR = ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = POPULAR.map(id => card(byId[id])).join('');
-const TILE_IMG = { kenya: '3159', french: '3173', hydrangea: '3035' };
+const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
   const pic = TILE_IMG[k] || (P.find(p => p.cat === k) || {}).id;
-  return `<a href="#/catalog/${k}"><div><b>${label}</b><br><small class="num">${count[k] || 0} ${plural(count[k] || 0, 'позиция', 'позиции', 'позиций')}</small></div>${pic ? `<img src="${img(pic)}" alt="" loading="lazy">` : ''}</a>`;
+  return `<a href="#/catalog/${k}"><div><b>${label}</b><br><small class="num">${count[k] || 0} ${plural(count[k] || 0, 'позиция', 'позиции', 'позиций')}</small></div>${pic && byId[pic] ? `<img src="${photoOf(byId[pic], '')}" alt="" loading="lazy">` : ''}</a>`;
 }).join('');
 
 /* ---------- catalog ---------- */
@@ -673,7 +686,7 @@ function pdSync() {
   $('#pdTotal').textContent = rub(keyPrice(k) * pd.qty);
   $('#pdQty').textContent = pd.qty;
   $('#pdImg').src = photoOf(p, label);
-  $$('#pdOpts button').forEach(b => b.setAttribute('aria-pressed', b.dataset.size === label));
+  if (p.variants) $('#pdOpts').innerHTML = p.lengths ? sizesHTML(p, 'opts') : p.variants.map(v => `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === label}">${esc(v.label)}</button>`).join('');
   const f = favs.has(p.id); $('#pdFav').setAttribute('aria-pressed', f); $('#pdFav').dataset.fav = p.id;
 }
 function showProduct(id) {
@@ -681,15 +694,14 @@ function showProduct(id) {
   pd = { id, qty: 1 };
   document.title = `${p.name} — venikoff.net`;
   $('#pdCrumb').textContent = p.name;
-  $('#pdImg').src = img(id); $('#pdImg').alt = p.name;
+  $('#pdImg').alt = p.name;
   $('#pdTag').hidden = !(p.sale || p.author); $('#pdTag').textContent = p.sale ? 'Акция' : 'Авторский'; $('#pdTag').className = 'tag' + (p.sale ? '' : ' author');
   $('#pdCat').textContent = catName[p.cat];
   $('#pdName').textContent = p.name;
   $('#pdBonus').hidden = !p.bonus; $('#pdBonus').textContent = `+${p.bonus} бонусов`;
   $('#pdOptsWrap').hidden = !p.variants;
   if (p.variants) {
-    $('#pdOptsLabel').textContent = /^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер';
-    $('#pdOpts').innerHTML = p.variants.map(v => `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}">${esc(v.label)}</button>`).join('');
+    $('#pdOptsLabel').textContent = p.lengths ? 'Длина и количество' : /^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер';
   }
   pdSync();
   const isAddon = p.cat === 'cards' || p.cat === 'toys';
@@ -734,6 +746,11 @@ $('#favBtn').onclick = () => { location.hash = '#/favorites'; if (!favs.size) to
 
 /* ---------- studio ---------- */
 const FEATURED = [
+  { id: 'sweet-avalanche', name: 'Свит Аваланж', mood: 'Нежность в каждом лепестке',   tint: '#E8A3B0', w: 640, h: 533 },
+  { id: 'abigail',         name: 'Абигейл',      mood: 'Ярко, как первое свидание',    tint: '#E0418A', w: 640, h: 481 },
+  { id: 'miss-piggy',      name: 'Мисс Пигги',   mood: 'Тёплый персиковый привет',     tint: '#F09A7A', w: 640, h: 494 },
+  { id: 'eltoro',          name: 'Эльторо',      mood: 'Красные розы. Всё понятно',    tint: '#C8102E', w: 640, h: 464 },
+  { id: 'peach-avalanche', name: 'Пич Аваланж',  mood: 'Мягкий свет персика',          tint: '#F2B98A', w: 640, h: 476 },
   { id: '3177', name: 'Совершенство',     mood: 'Когда нужно сказать главное',  tint: '#9B2C3A', w: 720, h: 684 },
   { id: '3153', name: 'Талея',            mood: 'Нежность без лишних слов',     tint: '#B9A77A', w: 720, h: 634 },
   { id: '3146', name: 'Элегантность',     mood: 'Классика, которая не стареет', tint: '#A0414B', w: 684, h: 720 },
@@ -762,7 +779,7 @@ function layout() {
 }
 function meta() {
   const f = FEATURED[current()];
-  $('#cName').textContent = f.name; $('#cPrice').textContent = f.mood;
+  $('#cName').textContent = f.name; $('#cPrice').textContent = byId[f.id] ? `от ${rub(byId[f.id].price)}` : f.mood;
   $('#studioIdx').textContent = `${current() + 1} / ${N}`;
   $$('#dots button').forEach((b, i) => b.setAttribute('aria-current', i === current()));
   studio.style.setProperty('--glow', f.tint + '22');
@@ -835,7 +852,7 @@ function resetStudio() { clearTimers(); studio.dataset.phase = 'choosing'; scene
 function syncStudioFav() { const on = favs.has(FEATURED[current()].id); $('#sFav').setAttribute('aria-pressed', on); $('#sFav').setAttribute('aria-label', on ? 'Убрать из избранного' : 'В избранное'); }
 $('#assemble').onclick = assemble; $('#again').onclick = assemble; $('#other').onclick = resetStudio;
 $('#sFav').onclick = () => toggleFav(FEATURED[current()].id);
-$('#choose').onclick = () => { location.hash = '#/catalog/kenya'; };
+$('#choose').onclick = () => { const f = FEATURED[current()]; location.hash = byId[f.id] ? '#/p/' + f.id : '#/catalog/single'; };
 meta();
 
 /* ---------- toast ---------- */
