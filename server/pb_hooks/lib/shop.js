@@ -5,7 +5,7 @@ const STATUS = {
   new: "Новый", confirmed: "Подтверждён", assembling: "Собирается", photo: "Фото отправлено",
   delivering: "В пути", done: "Доставлен", cancelled: "Отменён",
 };
-const COUNTS = [25, 51, 101];
+const COUNTS = [25, 51, 101];   // если прайс не настроен
 
 const rub = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " ₽";
 // JSON-поля записи: читаем как строку и разбираем (напрямую приходят байтами)
@@ -44,13 +44,23 @@ function estimateVariants(name, price) {
   ];
 }
 
-// Итоговые варианты товара: для одноголовых роз — из прайса «длина × количество», иначе — сохранённые
+// Прайсы «длина × количество»: отдельно для одноголовых, кустовых и т.д.
+function priceTables(s) {
+  const t = jget(s, "price_tables");
+  if (Array.isArray(t) && t.length) return t;
+  return [{ id: "single", name: "Одноголовые розы", counts: COUNTS, prices: jget(s, "rose_prices") || {} }];
+}
+
+// Итоговые варианты товара: по прайсу (если заданы длины) или сохранённые размеры
 function variantsOf(p, s) {
   const lengths = jget(p, "lengths");
   if (Array.isArray(lengths) && lengths.length) {
-    const prices = jget(s, "rose_prices") || {};
+    const tables = priceTables(s);
+    const t = tables.find((x) => x.id === p.get("price_table")) || tables[0];
+    const counts = Array.isArray(t.counts) && t.counts.length ? t.counts : COUNTS;
+    const prices = t.prices || {};
     const out = [];
-    lengths.forEach((L) => COUNTS.forEach((C) => {
+    lengths.forEach((L) => counts.forEach((C) => {
       const price = prices[L] && prices[L][C];
       if (price) out.push({ label: `${L}-${C}`, price: +price, len: +L, cnt: C });
     }));
@@ -93,11 +103,11 @@ function catalog(app) {
   const zones = app.findRecordsByFilter("delivery_zones", "active = true", "sort", 100, 0)
     .map((z) => ({ id: z.id, name: z.get("name"), price: z.get("price"), free_from: z.get("free_from") }));
   const intervals = app.findRecordsByFilter("delivery_intervals", "active = true", "sort,start", 100, 0)
-    .map((i) => ({ label: `${i.get("start")}–${i.get("end")}`, start: i.get("start"), extra: i.get("extra") || 0 }));
+    .map((i) => ({ label: `${i.get("start")}–${i.get("end")}`, start: i.get("start"), extra: i.get("extra") || 0, kind: i.get("kind") || "both" }));
   return {
     categories: cats.map((c) => ({ slug: c.get("slug"), name: c.get("name"), addon: c.get("addon") })),
     products,
-    rose_prices: jget(s, "rose_prices") || {},
+    price_tables: priceTables(s),
     delivery: {
       zones, intervals,
       min_order: s.get("min_order") || 0,
@@ -106,11 +116,12 @@ function catalog(app) {
       closed_dates: jget(s, "closed_dates") || [],
       accepting: s.get("accepting"),
     },
-payment: {
-  card: !!(s.get("pay_card") && s.get("cp_public_id")),
-  on_delivery: !!s.get("pay_on_delivery"),
-  public_id: s.get("pay_card") ? (s.get("cp_public_id") || "") : "",
-},
+    pickup: s.get("pickup") ? { address: s.get("pickup_address") || "", hours: s.get("pickup_hours") || "" } : null,
+    payment: {
+      card: !!(s.get("pay_card") && s.get("cp_public_id")),
+      on_delivery: !!(s.get("pay_on_delivery") && s.get("pickup")),   // при получении — только самовывоз
+      public_id: s.get("pay_card") ? (s.get("cp_public_id") || "") : "",
+    },
 phone: s.get("phone") || "",
     notice: s.get("notice") || "",
   };
@@ -152,14 +163,19 @@ function prepareOrder(app, rec) {
   });
   if (sum < (s.get("min_order") || 0)) fail(`Минимальная сумма заказа — ${rub(s.get("min_order"))}.`);
 
+  const pickup = String(rec.get("delivery_type") || "delivery") === "pickup";
+  if (pickup && !s.get("pickup")) fail("Самовывоз сейчас недоступен.");
+  rec.set("delivery_type", pickup ? "pickup" : "delivery");
+  if (pickup) { rec.set("zone", ""); rec.set("address", s.get("pickup_address") || "Самовывоз"); }
+
   let delivery = 0;
-  const zoneId = rec.get("zone");
+  const zoneId = pickup ? "" : rec.get("zone");
   if (zoneId) {
     let z;
     try { z = app.findRecordById("delivery_zones", zoneId); } catch (_) { fail("Выберите зону доставки."); }
     if (!z.get("active")) fail("Выберите зону доставки.");
     delivery = (z.get("free_from") > 0 && sum >= z.get("free_from")) ? 0 : (z.get("price") || 0);
-  } else if (app.findRecordsByFilter("delivery_zones", "active = true", "", 1, 0).length) {
+  } else if (!pickup && app.findRecordsByFilter("delivery_zones", "active = true", "", 1, 0).length) {
     fail("Выберите зону доставки.");
   }
 
@@ -171,10 +187,11 @@ function prepareOrder(app, rec) {
   if (closed.indexOf(date) >= 0) fail("В этот день мы не доставляем. Выберите другую дату.");
 
   const interval = String(rec.get("interval") || "");
-  const ints = app.findRecordsByFilter("delivery_intervals", "active = true", "sort", 100, 0);
+  const ints = app.findRecordsByFilter("delivery_intervals", "active = true", "sort", 100, 0)
+    .filter((i) => { const k = i.get("kind") || "both"; return k === "both" || k === (pickup ? "pickup" : "delivery"); });
   if (ints.length) {
     const found = ints.find((i) => `${i.get("start")}–${i.get("end")}` === interval);
-    if (!found) fail("Выберите интервал доставки.");
+    if (!found) fail(pickup ? "Выберите время, когда заберёте букет." : "Выберите интервал доставки.");
     if (date === now.date && toMin(found.get("start")) - (s.get("lead_hours") || 0) * 60 < now.minutes) {
       fail("На этот интервал уже не успеем. Выберите более поздний.");
     }
@@ -182,12 +199,13 @@ function prepareOrder(app, rec) {
   }
 
 const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret"));
-const method = String(rec.get("payment_method") || "");
-if (card && !s.get("pay_on_delivery") && method !== "card") fail("Выберите оплату картой.");
-if (method === "card" && !card) fail("Оплата картой сейчас недоступна.");
-if (method !== "card" && !s.get("pay_on_delivery")) fail("Выберите способ оплаты.");
-rec.set("payment_method", method === "card" ? "card" : "on_delivery");
-rec.set("payment_status", "unpaid");
+  const method = String(rec.get("payment_method") || "");
+  if (method === "card" && !card) fail("Оплата картой сейчас недоступна.");
+  // при получении платят только на самовывозе; пока карта не подключена — оставляем оплату при получении
+  const onDeliveryOk = card ? (pickup && s.get("pay_on_delivery")) : true;
+  if (method !== "card" && !onDeliveryOk) fail(pickup ? "Выберите оплату картой." : "Доставку нужно оплатить картой на сайте. Оплата при получении — только при самовывозе.");
+  rec.set("payment_method", method === "card" ? "card" : "on_delivery");
+  rec.set("payment_status", "unpaid");
 
 const last = app.findRecordsByFilter("orders", "number > 0", "-number", 1, 0);
   rec.set("number", last.length ? last[0].get("number") + 1 : 1001);
@@ -234,7 +252,7 @@ function orderText(o) {
 o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳 Оплачено картой" : "💳 Ожидает оплаты картой") : "💵 Оплата при получении",
     "",
     `📅 ${o.get("date")}, ${o.get("interval") || "—"}`,
-    `📍 ${o.get("address")}`,
+    o.get("delivery_type") === "pickup" ? `🏪 Самовывоз: ${o.get("address")}` : `📍 ${o.get("address")}`,
     `👤 ${o.get("name")}, ${o.get("phone")}`,
     o.get("recipient") ? `🎁 Получатель: ${o.get("recipient")}` : "",
     o.get("note") ? `💌 Открытка: ${o.get("note")}` : "",
@@ -258,6 +276,6 @@ function notifyOrder(app, o) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, catalog, prepareOrder,
+  STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder,
   tg, adminIds, orderText, orderKeyboard, notifyOrder,
 };

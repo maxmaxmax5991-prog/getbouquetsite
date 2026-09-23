@@ -250,6 +250,16 @@ table.t td{padding:4px 6px;vertical-align:middle}
             <div><button class="btn btn-p" id="dSave">Сохранить</button></div>
           </div>
         </div>
+        <div class="card stack">
+          <h2>Самовывоз и режим работы</h2>
+          <div class="swl"><button class="sw" id="dPickup" role="switch" aria-checked="false" aria-label="Самовывоз"></button>Разрешить самовывоз</div>
+          <div class="row">
+            <label class="f" for="dPickAddr">Адрес, откуда забирать<input class="in" id="dPickAddr" placeholder="Москва, ул. Цветочная, 1"></label>
+            <label class="f" for="dPickHours">Режим работы<input class="in" id="dPickHours" placeholder="ежедневно 09:00–21:00"></label>
+          </div>
+          <p class="hint">Режим работы показывается покупателю при самовывозе. Оплата при получении возможна только на самовывозе: доставку оплачивают картой на сайте.</p>
+          <div><button class="btn btn-p" id="dPickSave">Сохранить</button></div>
+        </div>
         <div class="card">
           <h2>Зоны и стоимость доставки</h2>
           <div class="scroll"><table class="t" id="zones"></table></div>
@@ -267,11 +277,11 @@ table.t td{padding:4px 6px;vertical-align:middle}
 
     <!-- Прайс роз -->
     <section id="tab-prices" hidden>
-      <div class="card">
-        <h2>Одноголовые розы: цена по длине и количеству</h2>
-        <p class="hint" style="margin-bottom:14px">Цена действует для всех сортов раздела «Одноголовые розы». Какие длины есть у сорта — отмечается в самом товаре.</p>
-        <div class="grid3" id="rp"></div>
-        <div class="bar" style="margin-top:16px"><button class="btn btn-p" id="rpSave">Сохранить прайс</button></div>
+      <p class="hint" style="margin:0 0 12px">Прайс — это цена за букет: длина стебля × количество цветов. Таблиц может быть несколько: например, отдельно одноголовые и кустовые розы. В карточке товара выбирается, по какому прайсу он считается.</p>
+      <div id="rpTables"></div>
+      <div class="bar" style="margin-top:14px">
+        <button class="btn btn-g" id="rpAddTable">+ Новый прайс</button>
+        <button class="btn btn-p" id="rpSave">Сохранить прайсы</button>
       </div>
     </section>
 
@@ -359,8 +369,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <p class="hint">Жёлтым отмечены расчётные цены — проверьте и снимите отметку. Фото размера меняет картинку на сайте при выборе кнопки.</p>
       </div>
       <div id="mLengths">
+        <label class="f" for="eTable" style="max-width:280px;margin-bottom:10px">Прайс<select class="in" id="eTable"></select></label>
         <div class="bar" id="eLens"></div>
-        <p class="hint">Цены берутся из вкладки «Прайс роз».</p>
+        <p class="hint">Цены берутся из выбранного прайса на вкладке «Прайс роз».</p>
       </div>
       <div id="mSingle"><input class="in num" id="ePrice" type="number" min="0" step="10" style="max-width:200px"></div>
     </div>
@@ -479,7 +490,7 @@ function orderHTML(o) {
     <ul>${(o.items || []).map(it => `<li>${esc(it.name)}${it.label_text ? ' · ' + esc(it.label_text) : ''} × ${it.qty} — <span class="num">${rub(it.sum)}</span></li>`).join('')}</ul>
     <div class="meta">
       <div><span>Когда</span><b>${new Date(o.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })}</b>, ${esc(o.interval || '—')}</div>
-      <div><span>Куда</span>${esc(o.address)}${o.expand && o.expand.zone ? ` <span style="display:inline">(${esc(o.expand.zone.name)}, доставка ${rub(o.delivery_price)})</span>` : ''}</div>
+      <div><span>${o.delivery_type === 'pickup' ? 'Самовывоз' : 'Куда'}</span>${esc(o.address)}${o.expand && o.expand.zone ? ` <span style="display:inline">(${esc(o.expand.zone.name)}, доставка ${rub(o.delivery_price)})</span>` : ''}</div>
       <div><span>Заказчик</span>${esc(o.name)}, <a href="tel:${esc(o.phone.replace(/[^\d+]/g, ''))}">${esc(o.phone)}</a></div>
       ${o.recipient ? `<div><span>Получатель</span>${esc(o.recipient)}</div>` : ''}
       ${o.note ? `<div><span>Открытка</span>${esc(o.note)}</div>` : ''}
@@ -517,8 +528,9 @@ let PRODS = [];
 const fileUrl = (p, name, thumb) => `/api/files/products/${p.id}/${name}${thumb ? '?thumb=' + thumb : ''}`;
 function priceOf(p) {
   if (p.lengths && p.lengths.length) {
-    const rp = S.rose_prices || {}; const all = p.lengths.flatMap(L => COUNTS.map(C => rp[L] && rp[L][C]).filter(Boolean));
-    return all.length ? 'от ' + rub(Math.min(...all)) + ` · ${p.lengths.join('/')} см` : '—';
+    const t = tablesOf(S).find(x => x.id === p.price_table) || tablesOf(S)[0] || { prices: {}, counts: COUNTS };
+    const all = p.lengths.flatMap(L => (t.counts || COUNTS).map(C => (t.prices[L] || {})[C]).filter(Boolean));
+    return all.length ? 'от ' + rub(Math.min(...all)) + ` · ${p.lengths.join('/')} см · ${esc(t.name || '')}` : '<span class="pill est">нет цены в прайсе</span>';
   }
   if (p.variants && p.variants.length) {
     const est = p.variants.filter(v => v.estimated).length;
@@ -595,6 +607,7 @@ function openEditor(p) {
     mode: p && p.lengths && p.lengths.length ? 'lengths' : p && p.variants && p.variants.length ? 'variants' : (p ? 'single' : 'variants'),
     variants: p && p.variants ? JSON.parse(JSON.stringify(p.variants)) : [],
     lengths: p && p.lengths ? [...p.lengths] : [50, 60],
+    table: (p && p.price_table) || (tablesOf(S)[0] || {}).id || "single",
   };
   $('#edTitle').textContent = p ? 'Товар' : 'Новый товар';
   $('#eName').value = p ? p.name : '';
@@ -677,8 +690,13 @@ $('#eVarAuto').onclick = () => {
   renderVars();
 };
 function renderLens() {
-  $('#eLens').innerHTML = LENGTHS.map(L => `<button class="chip" data-len="${L}" aria-pressed="${E.lengths.includes(L)}">${L} см</button>`).join('');
+  const tables = tablesOf(S);
+  $('#eTable').innerHTML = tables.map(t => `<option value="${t.id}"${t.id === E.table ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+  const t = tables.find(x => x.id === E.table) || tables[0] || {};
+  const lens = [...new Set([...LENGTHS, ...Object.keys(t.prices || {}).map(Number)])].filter(Boolean).sort((a, b) => a - b);
+  $('#eLens').innerHTML = lens.map(L => `<button class="chip" data-len="${L}" aria-pressed="${E.lengths.includes(L)}">${L} см</button>`).join('');
 }
+$('#eTable').onchange = e => { E.table = e.target.value; renderLens(); };
 $('#eLens').onclick = e => { const b = e.target.closest('[data-len]'); if (!b) return; const L = +b.dataset.len; E.lengths = E.lengths.includes(L) ? E.lengths.filter(x => x !== L) : [...E.lengths, L].sort((a, b) => a - b); renderLens(); };
 $('#eCancel').onclick = () => $('#ed').close();
 $('#eDel').onclick = safe(async () => {
@@ -705,7 +723,7 @@ $('#eSave').onclick = safe(async () => {
   fd.append('featured', sw($('#eFeatured')));
   if (E.mode === 'lengths') {
     if (!E.lengths.length) return toast('Отметьте хотя бы одну длину', true);
-    fd.append('lengths', JSON.stringify(E.lengths)); fd.append('variants', 'null'); fd.append('price', 0);
+    fd.append('lengths', JSON.stringify(E.lengths)); fd.append('variants', 'null'); fd.append('price', 0); fd.append('price_table', E.table);
   } else if (E.mode === 'variants') {
     const vs = E.variants.filter(v => v.label && v.price > 0);
     if (!vs.length) return toast('Добавьте размеры с ценой', true);
@@ -816,10 +834,18 @@ const loadDelivery = safe(async () => {
   await loadSettings0();
   sw($('#dAccepting'), S.accepting);
   $('#dMin').value = S.min_order || 0; $('#dLead').value = S.lead_hours || 0; $('#dDays').value = S.days_ahead || 14; $('#dNotice').value = S.notice || '';
+  sw($('#dPickup'), S.pickup);
+  $('#dPickAddr').value = S.pickup_address || ''; $('#dPickHours').value = S.pickup_hours || '';
   CLOSED = Array.isArray(S.closed_dates) ? [...S.closed_dates] : [];
   renderClosed();
   ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
   renderZones(); renderInts();
+});
+$('#dPickSave').onclick = safe(async () => {
+  const on = sw($('#dPickup'));
+  if (on && !$('#dPickAddr').value.trim()) return toast('Укажите адрес, откуда забирать букет', true);
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { pickup: on, pickup_address: $('#dPickAddr').value.trim(), pickup_hours: $('#dPickHours').value.trim() } });
+  toast('Сохранено');
 });
 function renderClosed() {
   CLOSED.sort();
@@ -842,16 +868,17 @@ function renderZones() {
     <td><button class="btn btn-d btn-s" data-rmz="${i}">Удалить</button></td></tr>`).join('');
 }
 function renderInts() {
-  $('#ints').innerHTML = `<tr><th>С</th><th>До</th><th>Доплата, ₽</th><th>Вкл.</th><th></th></tr>` + INTS.map((z, i) => `<tr>
+  $('#ints').innerHTML = `<tr><th>С</th><th>До</th><th>Для чего</th><th>Доплата, ₽</th><th>Вкл.</th><th></th></tr>` + INTS.map((z, i) => `<tr>
     <td><input class="in sm num" data-it="start" data-i="${i}" type="time" value="${esc(z.start)}" style="width:110px"></td>
     <td><input class="in sm num" data-it="end" data-i="${i}" type="time" value="${esc(z.end)}" style="width:110px"></td>
+    <td><select class="in sm" data-it="kind" data-i="${i}" style="width:150px">${[['both', 'Доставка и самовывоз'], ['delivery', 'Только доставка'], ['pickup', 'Только самовывоз']].map(([k, t]) => `<option value="${k}"${(z.kind || 'both') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></td>
     <td><input class="in sm num" data-it="extra" data-i="${i}" type="number" min="0" step="50" value="${z.extra || 0}" style="width:100px"></td>
     <td><input type="checkbox" data-it="active" data-i="${i}"${z.active ? ' checked' : ''} aria-label="Включён"></td>
     <td><button class="btn btn-d btn-s" data-rmi="${i}">Удалить</button></td></tr>`).join('');
 }
 const readRows = (sel, key, arr) => $$(sel).forEach(el => { const r = arr[+el.dataset.i], k = el.dataset[key]; r[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value || 0 : el.value.trim(); });
 $('#zAdd').onclick = () => { readRows('#zones [data-z]', 'z', ZONES); ZONES.push({ name: '', price: 0, free_from: 0, active: true, sort: ZONES.length }); renderZones(); };
-$('#iAdd').onclick = () => { readRows('#ints [data-it]', 'it', INTS); INTS.push({ start: '21:00', end: '23:00', extra: 0, active: true, sort: INTS.length }); renderInts(); };
+$('#iAdd').onclick = () => { readRows('#ints [data-it]', 'it', INTS); INTS.push({ start: '21:00', end: '23:00', kind: 'both', extra: 0, active: true, sort: INTS.length }); renderInts(); };
 $('#zones').addEventListener('click', safe(async e => {
   const b = e.target.closest('[data-rmz]'); if (!b) return;
   readRows('#zones [data-z]', 'z', ZONES);
@@ -874,22 +901,84 @@ async function saveRows(col, arr, fields) {
   }
 }
 $('#zSave').onclick = safe(async () => { readRows('#zones [data-z]', 'z', ZONES); if (ZONES.some(z => !z.name)) return toast('У каждой зоны должно быть название', true); await saveRows('delivery_zones', ZONES, ['name', 'price', 'free_from', 'active']); renderZones(); toast('Зоны сохранены'); });
-$('#iSave').onclick = safe(async () => { readRows('#ints [data-it]', 'it', INTS); await saveRows('delivery_intervals', INTS, ['start', 'end', 'extra', 'active']); renderInts(); toast('Интервалы сохранены'); });
+$('#iSave').onclick = safe(async () => { readRows('#ints [data-it]', 'it', INTS); await saveRows('delivery_intervals', INTS, ['start', 'end', 'kind', 'extra', 'active']); renderInts(); toast('Интервалы сохранены'); });
 
-/* ---------- прайс роз ---------- */
-const loadPrices = safe(async () => {
-  await loadSettings0();
-  const rp = S.rose_prices || {};
-  const lens = [...new Set([40, 50, 60, ...Object.keys(rp).map(Number)])].sort((a, b) => a - b);
-  $('#rp').innerHTML = `<span></span>` + COUNTS.map(c => `<b>${c} шт</b>`).join('') +
-    lens.map(L => `<b>${L} см</b>` + COUNTS.map(C => `<input class="in num" data-l="${L}" data-c="${C}" type="number" min="0" step="10" value="${rp[L] && rp[L][C] || ''}" aria-label="${L} см, ${C} шт">`).join('')).join('');
+/* ---------- прайсы «длина × количество» ---------- */
+let TABLES = [];
+const loadPrices = safe(async () => { await loadSettings0(); TABLES = tablesOf(S); renderTables(); });
+function tablesOf(s) {
+  const t = s && s.price_tables;
+  if (Array.isArray(t) && t.length) return JSON.parse(JSON.stringify(t));
+  return [{ id: 'single', name: 'Одноголовые розы', counts: COUNTS, prices: (s && s.rose_prices) || {} }];
+}
+function renderTables() {
+  $('#rpTables').innerHTML = TABLES.map((t, ti) => {
+    const counts = (t.counts && t.counts.length ? t.counts : COUNTS);
+    const lens = Object.keys(t.prices || {}).map(Number).filter(Boolean).sort((a, b) => a - b);
+    const rows = (lens.length ? lens : [40, 50, 60]).map(L => `<b>${L} см <button class="btn btn-d btn-s" data-rml="${ti}:${L}" title="Убрать длину">×</button></b>` +
+      counts.map(C => `<input class="in num" data-t="${ti}" data-l="${L}" data-c="${C}" type="number" min="0" step="10" value="${(t.prices[L] || {})[C] || ''}" aria-label="${L} см, ${C} шт">`).join('')).join('');
+    return `<div class="card" style="margin-bottom:12px">
+      <div class="bar" style="margin-bottom:10px">
+        <input class="in" data-tname="${ti}" value="${esc(t.name || '')}" style="max-width:280px" placeholder="Название прайса">
+        <button class="btn btn-d btn-s" data-rmt="${ti}">Удалить прайс</button>
+      </div>
+      <label class="f" style="max-width:280px">Количество цветов (через запятую)
+        <input class="in num" data-tcounts="${ti}" value="${counts.join(', ')}" placeholder="25, 51, 101"></label>
+      <div class="scroll"><div class="grid3" style="margin-top:12px;grid-template-columns:auto repeat(${counts.length}, minmax(80px,1fr))">
+        <span></span>${counts.map(c => `<b>${c} шт</b>`).join('')}${rows}
+      </div></div>
+      <div class="bar" style="margin-top:10px">
+        <input class="in num" data-newlen="${ti}" type="number" min="10" max="200" step="5" placeholder="Длина, см" style="width:130px">
+        <button class="btn btn-g btn-s" data-addlen="${ti}">+ Длина</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function readTables() {
+  $$('#rpTables [data-tname]').forEach(el => TABLES[+el.dataset.tname].name = el.value.trim());
+  $$('#rpTables [data-tcounts]').forEach(el => {
+    const counts = el.value.split(/[^\d]+/).filter(Boolean).map(Number).filter(n => n > 0);
+    if (counts.length) TABLES[+el.dataset.tcounts].counts = counts;
+  });
+  const keep = TABLES.map(t => Object.keys(t.prices || {}));
+  TABLES.forEach((t, i) => { t.prices = {}; keep[i].forEach(L => t.prices[L] = {}); });
+  $$('#rpTables input[data-t]').forEach(el => {
+    if (+el.value > 0) { const t = TABLES[+el.dataset.t]; (t.prices[el.dataset.l] = t.prices[el.dataset.l] || {})[el.dataset.c] = +el.value; }
+  });
+}
+$('#rpTables').addEventListener('click', e => {
+  const add = e.target.closest('[data-addlen]'), rm = e.target.closest('[data-rml]'), rmt = e.target.closest('[data-rmt]');
+  if (!add && !rm && !rmt) return;
+  readTables();
+  if (add) {
+    const ti = +add.dataset.addlen, L = +$(`[data-newlen="${ti}"]`).value;
+    if (!(L > 0)) return toast('Укажите длину в сантиметрах', true);
+    TABLES[ti].prices[L] = TABLES[ti].prices[L] || {};
+  }
+  if (rm) { const [ti, L] = rm.dataset.rml.split(':'); delete TABLES[+ti].prices[L]; }
+  if (rmt) {
+    const ti = +rmt.dataset.rmt;
+    if (TABLES.length < 2) return toast('Нужен хотя бы один прайс', true);
+    if (!confirm(`Удалить прайс «${TABLES[ti].name}»? Товары, которые считались по нему, останутся без цены.`)) return;
+    TABLES.splice(ti, 1);
+  }
+  renderTables();
 });
+$('#rpTables').addEventListener('change', () => { readTables(); renderTables(); });
+$('#rpAddTable').onclick = () => {
+  readTables();
+  TABLES.push({ id: 't' + Date.now().toString(36), name: 'Новый прайс', counts: [9, 15, 25, 51], prices: { 40: {}, 50: {} } });
+  renderTables();
+};
 $('#rpSave').onclick = safe(async () => {
-  const rp = {};
-  $$('#rp input').forEach(el => { if (+el.value > 0) { (rp[el.dataset.l] = rp[el.dataset.l] || {})[el.dataset.c] = +el.value; } });
-  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { rose_prices: rp } });
-  toast('Прайс сохранён — цены на сайте обновлены');
+  readTables();
+  if (TABLES.some(t => !t.name)) return toast('У каждого прайса должно быть название', true);
+  TABLES.forEach(t => { if (!t.id) t.id = 't' + Math.random().toString(36).slice(2, 8); });
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { price_tables: TABLES } });
+  TABLES = tablesOf(S); renderTables();
+  toast('Прайсы сохранены — цены на сайте обновлены');
 });
+
 
 /* ---------- настройки ---------- */
 const loadSettings = safe(async () => {

@@ -279,6 +279,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .addon h4{margin:4px 0 0;font-size:13px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
 .addon .buy{height:38px;font-size:14px;margin-top:2px}
 
+.pickup-note{margin:0;padding:12px 14px;border-radius:12px;background:var(--accent-soft);color:var(--accent-text);font-size:13.5px;font-weight:600}
 .pay-seg{display:flex;gap:6px;margin-top:6px}
 .pay-seg button{flex:1;height:46px;border-radius:12px;border:1px solid var(--line-2);background:var(--ground);font-weight:600;font-size:14px}
 .pay-seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -524,7 +525,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790167810"></script>
+<script src="data.js?v=1790168440"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -909,14 +910,19 @@ function renderCart() {
     const closedNote = DEL && !DEL.accepting ? `<p class="demo-note" style="color:var(--sale);font-size:13.5px">Сейчас мы не принимаем заказы через сайт${API && API.phone ? ` — позвоните: ${esc(API.phone)}` : ''}.</p>` : '';
     body.innerHTML = `<button class="back" id="toList">${icon('left')}К корзине</button>${closedNote}
       <form class="form" id="orderForm" novalidate>
+        ${PICKUP ? `<div><span class="lbl">Как получить</span><div class="pay-seg" id="getSeg">
+          <button type="button" data-get="delivery" aria-pressed="true">Доставка</button>
+          <button type="button" data-get="pickup" aria-pressed="false">Самовывоз</button>
+        </div></div>` : ''}
         <label for="fName">Ваше имя<input id="fName" name="name" required autocomplete="name" placeholder="Анна" maxlength="120"></label>
         <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[+0-9 ()\\-]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
-        <label for="fAddr">Адрес в Москве<input id="fAddr" name="addr" required autocomplete="street-address" placeholder="Улица, дом, квартира" maxlength="400"></label>
-        ${zones.length ? `<label for="fZone">Зона доставки<select id="fZone" name="zone" required>${zones.map(z => `<option value="${z.id}">${esc(z.name)} — ${zonePrice(z, t.sum) ? rub(zonePrice(z, t.sum)) : 'бесплатно'}</option>`).join('')}</select></label>` : ''}
+        <div id="addrBox"><label for="fAddr">Адрес в Москве<input id="fAddr" name="addr" required autocomplete="street-address" placeholder="Улица, дом, квартира" maxlength="400"></label></div>
+        ${PICKUP ? `<p class="pickup-note" id="pickupNote" hidden>Забрать: ${esc(PICKUP.address || 'адрес уточним')}${PICKUP.hours ? `, ${esc(PICKUP.hours)}` : ''}</p>` : ''}
+        ${zones.length ? `<label for="fZone" id="zoneBox">Зона доставки<select id="fZone" name="zone" required>${zones.map(z => `<option value="${z.id}">${esc(z.name)} — ${zonePrice(z, t.sum) ? rub(zonePrice(z, t.sum)) : 'бесплатно'}</option>`).join('')}</select></label>` : ''}
         <div class="two">
           <label for="fDate">Дата<input id="fDate" name="date" type="date" required min="${today}" max="${DEL ? addDays(today, DEL.days_ahead) : ''}" value="${today}"></label>
-          <label for="fTime">Интервал<select id="fTime" name="time" required></select></label>
+          <label for="fTime" id="timeLabel">Интервал<select id="fTime" name="time" required></select></label>
         </div>
 ${payChoice()}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
@@ -926,14 +932,22 @@ ${payChoice()}
     foot.innerHTML = `<div class="total"><span>К оплате<small class="num" id="fDelivery"></small></span><b class="num" id="fTotal">${rub(t.sum)}</b></div>
       <button class="btn btn-primary btn-wide" type="submit" form="orderForm" id="fSubmit"${DEL && !DEL.accepting ? ' disabled' : ''}><span>Подтвердить заказ</span>${icon('arrow')}</button>
       ${API ? '<p class="demo-note">Нажимая кнопку, вы соглашаетесь на обработку данных для доставки заказа.</p>' : '<p class="demo-note">Демо-версия: заказ пока не отправляется.</p>'}`;
-payMethod = PAY && PAY.card ? 'card' : 'on_delivery';
-const seg = $('.pay-seg');
-if (seg) seg.onclick = e => {
-  const b = e.target.closest('[data-pay]'); if (!b) return;
-  payMethod = b.dataset.pay;
-  $$('.pay-seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
-};
-fillIntervals(); recalc();
+    payMethod = PAY && PAY.card ? 'card' : 'on_delivery';
+    bindPaySeg();
+    const getSeg = $('#getSeg');
+    if (getSeg) getSeg.onclick = e => {
+      const b = e.target.closest('[data-get]'); if (!b) return;
+      getType = b.dataset.get;
+      $$('#getSeg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+      const pickup = getType === 'pickup';
+      $('#addrBox').hidden = pickup;
+      $('#fAddr').required = !pickup;
+      if ($('#zoneBox')) $('#zoneBox').hidden = pickup;
+      if ($('#pickupNote')) $('#pickupNote').hidden = !pickup;
+      if (PAY && PAY.card && $('#payBox')) { $('#payBox').outerHTML = payChoice(); bindPaySeg(); }
+      fillIntervals(); recalc();
+    };
+    fillIntervals(); recalc();
     $('#fDate').onchange = () => { fillIntervals(); recalc(); };
     if ($('#fZone')) $('#fZone').onchange = recalc;
     $('#fTime').onchange = recalc;
@@ -955,14 +969,17 @@ cartDlg.addEventListener('click', e => {
   else if (t.id === 'toList') { view = 'list'; renderCart(); }
   else if ('close' in t.dataset) { cartDlg.close(); if (t.dataset.go) location.hash = t.dataset.go; }
 });
-/* оплата */
+/* оплата и способ получения */
 const PAY = API ? API.payment : null;
+const PICKUP = API ? API.pickup : null;
+let getType = 'delivery';
 function payChoice() {
   if (!PAY || !PAY.card) return '';
-  if (!PAY.on_delivery) return '<p class="demo-note" style="text-align:left;font-size:13.5px">Оплата картой на сайте: после подтверждения откроется окно оплаты.</p>';
-  return `<div><span class="lbl">Оплата</span><div class="pay-seg">
-    <button type="button" data-pay="card" aria-pressed="true">Картой на сайте</button>
-    <button type="button" data-pay="on_delivery" aria-pressed="false">При получении</button>
+  const onDelivery = PAY.on_delivery && getType === 'pickup';
+  if (!onDelivery) return `<div id="payBox"><p class="demo-note" style="text-align:left;font-size:13.5px">Оплата картой на сайте: после подтверждения откроется окно оплаты.${PICKUP && PAY.on_delivery ? ' При самовывозе можно заплатить на месте.' : ''}</p></div>`;
+  return `<div id="payBox"><span class="lbl">Оплата</span><div class="pay-seg" id="paySeg">
+    <button type="button" data-pay="card" aria-pressed="${payMethod !== 'on_delivery'}">Картой на сайте</button>
+    <button type="button" data-pay="on_delivery" aria-pressed="${payMethod === 'on_delivery'}">При получении</button>
   </div></div>`;
 }
 let payMethod = 'on_delivery';
@@ -1008,14 +1025,24 @@ function fillIntervals() {
   const date = $('#fDate').value, now = mskNow(), lead = DEL ? DEL.lead_hours * 60 : 0;
   const closed = DEL && DEL.closed_dates.includes(date);
   const list = (DEL && DEL.intervals.length ? DEL.intervals : INTERVALS_DEMO)
+    .filter(i => !i.kind || i.kind === 'both' || i.kind === getType)
     .filter(i => date !== now.date || (+i.start.slice(0, 2) * 60 + +i.start.slice(3)) - lead >= now.min);
   const prev = $('#fTime').value;
   $('#fTime').innerHTML = closed || !list.length
-    ? `<option value="">${closed ? 'В этот день не доставляем' : 'На сегодня уже не успеем'}</option>`
+    ? `<option value="">${closed ? 'В этот день не работаем' : 'На сегодня уже не успеем'}</option>`
     : list.map(i => `<option value="${i.label}"${i.label === prev ? ' selected' : ''}>${i.label}${i.extra ? ` (+${rub(i.extra)})` : ''}</option>`).join('');
+}
+function bindPaySeg() {
+  const seg = $('#paySeg');
+  if (seg) seg.onclick = e => {
+    const b = e.target.closest('[data-pay]'); if (!b) return;
+    payMethod = b.dataset.pay;
+    $$('#paySeg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  };
 }
 function recalc() {
   const sum = totals().sum;
+  if (getType === 'pickup') { $('#fDelivery').textContent = 'самовывоз'; $('#fTotal').textContent = rub(sum); return; }
   const z = DEL && $('#fZone') ? DEL.zones.find(x => x.id === $('#fZone').value) : null;
   const it = DEL ? DEL.intervals.find(i => i.label === $('#fTime').value) : null;
   const del = (z ? zonePrice(z, sum) : 0) + (it ? it.extra : 0);
@@ -1035,8 +1062,9 @@ cartDlg.addEventListener('submit', async e => {
     const btn = $('#fSubmit'); btn.disabled = true;
     try {
       const res = await fetch('/api/collections/orders/records', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
-        name: v('name').trim(), phone: v('phone').trim(), recipient: v('to').trim(), address: v('addr').trim(),
-        zone: $('#fZone') ? v('zone') : '', date: v('date'), interval: v('time'), note: v('note').trim(), payment_method: payMethod,
+        name: v('name').trim(), phone: v('phone').trim(), recipient: v('to').trim(), address: getType === 'pickup' ? 'Самовывоз' : v('addr').trim(),
+        zone: getType === 'pickup' || !$('#fZone') ? '' : v('zone'), date: v('date'), interval: v('time'), note: v('note').trim(),
+        delivery_type: getType, payment_method: payMethod,
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { btn.disabled = false; return err(res.status === 429 ? 'Слишком много попыток. Подождите минуту.' : (data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.')); }
