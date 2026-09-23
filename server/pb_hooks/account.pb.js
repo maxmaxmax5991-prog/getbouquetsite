@@ -5,13 +5,19 @@
 routerAdd("POST", "/api/shop/login-start", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const s = shop.settings($app);
-  const bot = s.get("tg_bot");
-  if (!bot) return e.json(400, { message: "Вход через Телеграм пока не настроен." });
+  const bot = s.get("tg_client_bot") || s.get("tg_bot");
+  const maxBot = s.get("max_token") ? (s.get("max_bot") || "") : "";
+  if (!bot && !maxBot) return e.json(400, { message: "Вход через мессенджер пока не настроен." });
   const code = $security.randomString(24);
   const rec = new Record($app.findCollectionByNameOrId("logins"));
   rec.set("code", code);
   $app.save(rec);
-  return e.json(200, { code, link: `https://t.me/${bot}?start=l${code}` });
+  // В MAX ссылок с заранее заданным кодом нет, поэтому покупатель присылает код сообщением.
+  return e.json(200, {
+    code,
+    link: bot ? `https://t.me/${bot}?start=l${code}` : "",
+    max_link: maxBot ? `https://max.ru/${maxBot}` : "",
+  });
 });
 
 // 2. Сайт ждёт подтверждения из бота
@@ -71,19 +77,24 @@ routerAdd("POST", "/api/shop/broadcast", (e) => {
   if (text.length < 3) return e.json(400, { message: "Напишите текст сообщения" });
   const s = shop.settings($app);
   const token = shop.clientToken(s);
-  if (!token) return e.json(400, { message: "Бот не подключён" });
-  const list = $app.findRecordsByFilter("customers", "tg_chat != ''", "-created", 2000, 0);
+  const maxToken = s.get("max_token");
+  if (!token && !maxToken) return e.json(400, { message: "Бот не подключён" });
+  // рассылка уходит и в Телеграм, и в MAX — каждому туда, где он подписан
+  const list = $app.findRecordsByFilter("customers", "tg_chat != '' || max_chat != ''", "-created", 2000, 0);
+  const mx = maxToken ? require(`${__hooks}/lib/max.js`) : null;
   let sent = 0, failed = 0;
   list.forEach((c) => {
-    const r = shop.tg(token, "sendMessage", { chat_id: c.get("tg_chat"), text });
-    if (r && r.ok) sent++; else failed++;
+    let ok = false;
+    if (token && c.get("tg_chat")) { const r = shop.tg(token, "sendMessage", { chat_id: c.get("tg_chat"), text }); ok = !!(r && r.ok); }
+    if (mx && c.get("max_chat")) { const r = mx.send(maxToken, c.get("max_chat"), text); ok = ok || !!(r && r.ok); }
+    if (ok) sent++; else failed++;
   });
   return e.json(200, { sent, failed, total: list.length });
 }, $apis.requireAuth("managers"));
 
 // 7. Сколько получателей у рассылки
 routerAdd("GET", "/api/shop/broadcast", (e) => {
-  const list = $app.findRecordsByFilter("customers", "tg_chat != ''", "", 2000, 0);
+  const list = $app.findRecordsByFilter("customers", "tg_chat != '' || max_chat != ''", "", 2000, 0);
   return e.json(200, { total: list.length });
 }, $apis.requireAuth("managers"));
 

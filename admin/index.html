@@ -368,6 +368,18 @@ table.t td{padding:4px 6px;vertical-align:middle}
   <p class="hint">Сообщение придёт всем, кто хоть раз входил в кабинет или подписывался на статусы через клиентского бота.</p>
 </div>
 <div class="card stack">
+  <h2>Мессенджер MAX</h2>
+  <ol class="steps">
+    <li>В MAX откройте <b>@MasterBot</b> и создайте бота — он выдаст ключ.</li>
+    <li>Вставьте ключ ниже и нажмите «Сохранить», затем «Проверить» — имя бота подставится само.</li>
+    <li>На сайте у покупателя появится выбор: Телеграм или MAX.</li>
+  </ol>
+  <label class="f" for="mxTok">Ключ бота MAX<input class="in" id="mxTok" type="password" autocomplete="off" placeholder="Вставьте ключ бота MAX"></label>
+  <label class="f" for="mxName">Имя бота для ссылки<input class="in" id="mxName" placeholder="venikoffnet" autocomplete="off"></label>
+  <div class="bar"><button class="btn btn-p" id="mxSave">Сохранить</button><button class="btn btn-g" id="mxTest">Проверить</button></div>
+  <p class="hint"><b>Чем MAX отличается от Телеграма:</b> ссылок с готовым кодом там нет, поэтому покупатель открывает бота и присылает код сообщением — сайт так и пишет. Кнопок под фото букета тоже нет: покупатель отвечает «да» или пишет, что поправить.<br><b>Важно:</b> публиковать ботов в MAX разрешено только верифицированным юрлицам РФ — ИП и самозанятые не подойдут.</p>
+</div>
+<div class="card stack">
   <h2>Телеграм-бот</h2>
           <ol class="steps">
             <li>В Телеграме откройте <b>@BotFather</b>, отправьте <b>/newbot</b>, придумайте имя и адрес бота (должен заканчиваться на bot).</li>
@@ -1102,6 +1114,8 @@ msFill(S.ms_org_id, S.ms_org_name, S.ms_store_id, S.ms_store_name);
 sw($('#msOn'), S.ms_enabled);
 $('#msPrefix').value = S.ms_prefix || '';
 $('#cTok').value = ''; $('#cTok').placeholder = S.tg_client_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ второго бота';
+$('#mxTok').value = ''; $('#mxTok').placeholder = S.max_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ бота MAX';
+$('#mxName').value = S.max_bot || '';
 api('/api/shop/broadcast').then(r => $('#bcCount').textContent = `получателей: ${r.total}`).catch(() => {});
 $('#msDeliv').value = S.ms_delivery_name || '';
 $('#pPub').value = S.cp_public_id || '';
@@ -1121,6 +1135,20 @@ $('#cSaveBot').onclick = safe(async () => {
 $('#cTestBot').onclick = safe(async () => {
   const r = await api('/api/shop/client-bot-check', { method: 'POST' });
   toast(`Бот для покупателей: @${r.bot}`);
+});
+$('#mxSave').onclick = safe(async () => {
+  const body = { max_bot: $('#mxName').value.trim().replace(/^@/, '') };
+  const tok = $('#mxTok').value.trim();
+  if (tok) body.max_token = tok;
+  if (!tok && !S.max_token) return toast('Вставьте ключ бота MAX', true);
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
+  $('#mxTok').value = '';
+  loadSettings(); toast('MAX сохранён');
+});
+$('#mxTest').onclick = safe(async () => {
+  const r = await api('/api/shop/max-check', { method: 'POST' });
+  loadSettings();
+  toast(`Бот MAX подключён: ${r.name || r.username || 'без имени'}`);
 });
 $('#bcSend').onclick = safe(async () => {
   const text = $('#bcText').value.trim();

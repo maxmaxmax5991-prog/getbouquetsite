@@ -27,6 +27,7 @@ function ordersOf(app, c) {
   const phone = String(c.get("phone") || "").replace(/\D/g, "").slice(-10);
   const parts = [`customer = "${c.id}"`];
   if (c.get("tg_chat")) parts.push(`tg_chat = "${c.get("tg_chat")}"`);
+  if (c.get("max_chat")) parts.push(`max_chat = "${c.get("max_chat")}"`);
   if (phone.length === 10) parts.push(`phone ~ "${phone}"`);
   const list = app.findRecordsByFilter("orders", parts.join(" || "), "-created", 50, 0);
   return list.map((o) => ({
@@ -45,7 +46,7 @@ function ordersOf(app, c) {
     note: o.get("note"),
     payment_method: o.get("payment_method"),
     payment_status: o.get("payment_status"),
-    subscribed: !!o.get("tg_chat"),
+    subscribed: !!(o.get("tg_chat") || o.get("max_chat")),
     tg_code: o.get("tg_code"),
   }));
 }

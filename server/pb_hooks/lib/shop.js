@@ -140,6 +140,7 @@ function catalog(app) {
       public_id: s.get("pay_card") ? (s.get("cp_public_id") || "") : "",
     },
     bot: s.get("tg_client_bot") || s.get("tg_bot") || "",
+    maxBot: s.get("max_token") ? (s.get("max_bot") || "") : "",
     phone: s.get("phone") || "",
     notice: s.get("notice") || "",
   };
@@ -305,7 +306,7 @@ o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳
     `👤 ${o.get("name")}, ${o.get("phone")}`,
     o.get("recipient") ? `🎁 Получатель: ${o.get("recipient")}` : "",
     o.get("note") ? `💌 Открытка: ${o.get("note")}` : "",
-    o.get("tg_chat") ? "📱 Клиент подписан на статусы в Телеграме" : "",
+    o.get("tg_chat") ? "📱 Клиент подписан на статусы в Телеграме" : o.get("max_chat") ? "📱 Клиент подписан на статусы в MAX" : "",
     o.get("photo_status") === "approved" ? "👍 Клиент одобрил фото" : o.get("photo_status") === "rework" ? `👎 Клиент просит поправить: ${o.get("photo_comment") || "без комментария"}` : o.get("photo_status") === "waiting" ? "⏳ Ждём ответ клиента по фото" : "",
   ].filter((x) => x !== "").join("\n");
 }
@@ -336,13 +337,20 @@ const CUSTOMER_TEXT = {
     : `Заказ №${o.get("number")} доставлен. Спасибо, что выбрали venikoff.net!`,
   cancelled: (o) => `Заказ №${o.get("number")} отменён. Если это ошибка — позвоните нам.`,
 };
+// Покупатель мог подписаться в Телеграме или в MAX — пишем туда, где он есть.
 function notifyCustomer(app, o, status) {
-  const chat = o.get("tg_chat");
-  if (!chat) return;
   const make = CUSTOMER_TEXT[status];
   if (!make) return;
+  const tgChat = o.get("tg_chat"), maxChat = o.get("max_chat");
+  if (!tgChat && !maxChat) return;
   const s = settings(app);
-  tg(clientToken(s), "sendMessage", { chat_id: chat, text: make(o) });
+  const text = make(o);
+  if (tgChat) tg(clientToken(s), "sendMessage", { chat_id: tgChat, text });
+  if (maxChat) {
+    // подключаем здесь, а не сверху: иначе два модуля требуют друг друга
+    try { require(`${__hooks}/lib/max.js`).send(s.get("max_token"), maxChat, text); }
+    catch (err) { console.log("max notify", err); }
+  }
 }
 
 module.exports = {

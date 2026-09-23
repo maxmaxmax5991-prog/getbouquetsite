@@ -828,11 +828,13 @@ async function renderMe() {
     tools.innerHTML = '';
     body.innerHTML = `<div class="me-card">
       <h3>Вход без пароля</h3>
-      <p class="hint" style="margin:0 0 14px">Нажмите кнопку — откроется наш бот, подтвердите вход одной кнопкой. Туда же будут приходить статусы заказа и фото букета.</p>
+      <p class="hint" style="margin:0 0 14px">Нажмите кнопку — откроется наш бот, подтвердите вход. Туда же будут приходить статусы заказа и фото букета.</p>
       <button class="btn btn-primary" id="meLogin">Войти через Телеграм ${icon('arrow')}</button>
-      <p class="demo-note" id="meWait" style="text-align:left;margin-top:12px" hidden>Ждём подтверждения в Телеграме…</p>
+      ${API && API.maxBot ? `<button class="btn btn-ghost" id="meLoginMax" style="margin-top:8px">Войти через MAX ${icon('arrow')}</button>` : ''}
+      <p class="demo-note" id="meWait" style="text-align:left;margin-top:12px" hidden></p>
     </div>`;
-    $('#meLogin').onclick = startLogin;
+    $('#meLogin').onclick = () => startLogin('tg');
+    if ($('#meLoginMax')) $('#meLoginMax').onclick = () => startLogin('max');
     return;
   }
   $('#meSub').textContent = ME.name ? `Здравствуйте, ${ME.name}` : '';
@@ -885,13 +887,22 @@ $$("[data-pay-order]").forEach(b => b.onclick = async () => {
     } catch (_) { toast('Не получилось сохранить', true); }
   };
 }
-async function startLogin() {
+// В Телеграме код уходит ссылкой сам, в MAX таких ссылок нет — код показываем покупателю
+async function startLogin(how) {
   try {
     const r = await fetch('/api/shop/login-start', { method: 'POST' });
     const d = await r.json();
     if (!r.ok) return toast(d.message || 'Вход пока недоступен', true);
-    window.open(d.link, '_blank', 'noopener');
-    $('#meWait').hidden = false;
+    const wait = $('#meWait');
+    if (how === 'max') {
+      if (!d.max_link) return toast('Вход через MAX пока не настроен', true);
+      window.open(d.max_link, '_blank', 'noopener');
+      wait.innerHTML = `Откройте бота в MAX и пришлите ему этот код:<br><b style="font-size:18px;letter-spacing:.05em">${esc(d.code)}</b><br>Ждём подтверждения…`;
+    } else {
+      window.open(d.link, '_blank', 'noopener');
+      wait.textContent = 'Ждём подтверждения в Телеграме…';
+    }
+    wait.hidden = false;
     const started = Date.now();
     const timer = setInterval(async () => {
       if (Date.now() - started > 180000) return clearInterval(timer);
@@ -1119,13 +1130,13 @@ ${payChoice()}
     body.innerHTML = `<div class="done"><div class="seal">${icon("check")}</div><h3>Спасибо!</h3>
       <p>${lastOrder.number ? `Заказ №${lastOrder.number} на ${rub(lastOrder.sum)} принят` : `${esc(lastOrder.name)}, заказ на ${rub(lastOrder.sum)} оформлен`} — ${esc(lastOrder.when)}.</p>
       <p>${!lastOrder.number ? "Это демо-версия: заказ не отправлен." : lastOrder.paid ? "Оплата прошла." : lastOrder.payError ? esc(lastOrder.payError) : "Мы свяжемся с вами для подтверждения."}</p>
-      ${botLink ? `<div class="sub-box">
+      ${botLink || (API && API.maxBot) ? `<div class="sub-box">
         <b>Следите за заказом в мессенджере</b>
-        <span>Пришлём фото букета перед доставкой, а вы ответите, всё ли нравится.</span>
+        <span>Пришлём фото букета перед доставкой, а вы ответите, всё ли нравится.${API && API.maxBot ? " В MAX откройте бота и пришлите ему код с кнопки ниже." : ""}</span>
       </div>` : ""}</div>`;
     foot.hidden = false;
     foot.innerHTML = `${botLink ? `<a class="btn btn-primary btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Открыть бота и получать статусы</span>${icon("arrow")}</a>` : ""}
-      ${botLink && API.maxBot && lastOrder.code ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${API.maxBot}?start=o${lastOrder.code}" target="_blank" rel="noopener"><span>Открыть в MAX</span>${icon("arrow")}</a>` : ""}
+      ${API && API.maxBot && lastOrder.code ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${esc(API.maxBot)}" target="_blank" rel="noopener"><span>Следить в MAX — код ${esc(lastOrder.code)}</span>${icon("arrow")}</a>` : ""}
       <button class="btn ${botLink ? "btn-ghost" : "btn-primary"} btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon("arrow")}</button>`;
   }
 }

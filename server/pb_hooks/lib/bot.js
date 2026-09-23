@@ -413,6 +413,16 @@ function handle(app, secret, upd) {
         reply_markup: { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] } });
       return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
     }
+    if (ord.get("max_chat")) {
+      // в MAX кнопок под фото нет — покупатель отвечает сообщением, ответ разбирает lib/max.js
+      ord.set("photo_status", "waiting");
+      app.save(ord);
+      const mx = require(`${__hooks}/lib/max.js`);
+      const url = photoUrl(app, s, token, fileId, ord.id);
+      mx.send(s.get("max_token"), ord.get("max_chat"),
+        `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\n${url || ""}\n\nНравится? Ответьте «да» — или напишите, что поправить.`);
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту в MAX: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
+    }
     return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото сохранено. Клиент ${ord.get("name")}, ${ord.get("phone")} не подписан на бота — отправьте фото сами.` });
   }
 

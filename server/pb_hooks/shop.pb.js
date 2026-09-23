@@ -112,6 +112,19 @@ routerAdd("POST", "/api/shop/geo-test", (e) => {
   return e.json(200, { km: r.km, price: r.price, address: r.found, from: s.get("origin_address") });
 }, $apis.requireAuth("managers"));
 
+// Кнопка «Проверить» у мессенджера MAX: заодно подставляем имя бота для ссылки
+routerAdd("POST", "/api/shop/max-check", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const mx = require(`${__hooks}/lib/max.js`);
+  const s = shop.settings($app);
+  const r = mx.me(s.get("max_token"));
+  if (!r.ok) return e.json(400, { message: r.error });
+  const d = r.data || {};
+  const username = d.username || "";
+  if (username && username !== s.get("max_bot")) { s.set("max_bot", username); $app.save(s); }
+  return e.json(200, { name: d.name || d.first_name || "", username });
+}, $apis.requireAuth("managers"));
+
 // Кнопка «Проверить бота» в админке
 routerAdd("POST", "/api/shop/tg-test", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
