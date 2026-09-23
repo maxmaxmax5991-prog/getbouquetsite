@@ -1034,6 +1034,8 @@ function msFill(orgId, orgName, storeId, storeName) {
   $('#msStore').innerHTML = opts(MSREFS && MSREFS.stores, storeId, storeName);
 }
 $('#msTest').onclick = safe(async () => {
+  const tok = $('#msTok').value.trim();
+  if (tok) { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { ms_token: tok } }); $('#msTok').value = ''; $('#msTok').placeholder = 'Токен сохранён. Вставьте новый, чтобы заменить'; }
   MSREFS = await api('/api/shop/ms-test', { method: 'POST' });
   msFill(S.ms_org_id, S.ms_org_name, S.ms_store_id, S.ms_store_name);
   toast(`Токен подходит: организаций ${MSREFS.organizations.length}, складов ${MSREFS.stores.length}`);
@@ -1058,8 +1060,20 @@ $('#pSave').onclick = safe(async () => {
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
   $('#pSec').value = ''; loadSettings(); toast('Сохранено');
 });
-$('#pTest').onclick = safe(async () => { await api('/api/shop/cp-test', { method: 'POST' }); toast('Ключи подходят — оплата картой готова'); });
+$('#pTest').onclick = safe(async () => {
+  const pub = $('#pPub').value.trim(), sec = $('#pSec').value.trim();
+  if (pub || sec) {
+    const body = {}; if (pub) body.cp_public_id = pub; if (sec) body.cp_secret = sec;
+    S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body }); $('#pSec').value = '';
+  }
+  await api('/api/shop/cp-test', { method: 'POST' });
+  toast('Ключи подходят — оплата картой готова');
+});
 $('#tTest').onclick = safe(async () => {
+  const tok = ($('#sTok').value.match(/\d{5,}:[A-Za-z0-9_-]{20,}/) || [])[0];
+  const adm = $('#sAdm').value.split(/[^\d]+/).filter(Boolean).join(', ');
+  const body = {}; if (tok) body.tg_token = tok; if (adm) body.tg_admins = adm;
+  if (Object.keys(body).length) { body.site_url = S.site_url || location.origin; S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body }); $('#sTok').value = ''; }
   const r = await api('/api/shop/tg-test', { method: 'POST' });
   toast(r.admins ? `Бот @${r.bot} подключён — проверьте Телеграм` : `Бот @${r.bot} подключён. Добавьте свой номер в «Кто может управлять ботом»`);
 });
