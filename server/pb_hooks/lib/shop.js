@@ -122,7 +122,8 @@ function catalog(app) {
       on_delivery: !!(s.get("pay_on_delivery") && s.get("pickup")),   // при получении — только самовывоз
       public_id: s.get("pay_card") ? (s.get("cp_public_id") || "") : "",
     },
-phone: s.get("phone") || "",
+    bot: s.get("tg_bot") || "",
+    phone: s.get("phone") || "",
     notice: s.get("notice") || "",
   };
 }
@@ -216,6 +217,7 @@ const last = app.findRecordsByFilter("orders", "number > 0", "-number", 1, 0);
   rec.set("total", sum + delivery);
   rec.set("bonus", bonus);
   rec.set("comment", "");
+  rec.set("tg_code", $security.randomString(10));   // по нему покупатель подпишется на статусы в боте
 }
 
 // ---------- Телеграм ----------
@@ -256,6 +258,7 @@ o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳
     `👤 ${o.get("name")}, ${o.get("phone")}`,
     o.get("recipient") ? `🎁 Получатель: ${o.get("recipient")}` : "",
     o.get("note") ? `💌 Открытка: ${o.get("note")}` : "",
+    o.get("tg_chat") ? "📱 Клиент подписан на статусы в Телеграме" : "",
   ].filter((x) => x !== "").join("\n");
 }
 
@@ -266,6 +269,7 @@ function orderKeyboard(o) {
   for (let i = 0; i < next.length; i += 2) {
     rows.push(next.slice(i, i + 2).map(([st, t]) => ({ text: (o.get("status") === st ? "● " : "") + t, callback_data: `o:${o.id}:${st}` })));
   }
+  rows.push([{ text: "📷 Отправить фото букета клиенту", callback_data: `fo:${o.id}` }]);
   return { inline_keyboard: rows };
 }
 
@@ -275,7 +279,26 @@ function notifyOrder(app, o) {
   adminIds(s).forEach((chat) => tg(token, "sendMessage", { chat_id: chat, text: orderText(o), reply_markup: orderKeyboard(o) }));
 }
 
+// Сообщения покупателю в Телеграм (если он подписался)
+const CUSTOMER_TEXT = {
+  confirmed: (o) => `Заказ №${o.get("number")} подтверждён. Соберём и пришлём фото перед доставкой.`,
+  photo: (o) => `Заказ №${o.get("number")}: букет собран, фото отправим вам следом.`,
+  delivering: (o) => `Заказ №${o.get("number")} в пути. Курьер приедет ${o.get("date")}, ${o.get("interval") || ""}.`,
+  done: (o) => o.get("delivery_type") === "pickup"
+    ? `Заказ №${o.get("number")} выдан. Спасибо, что выбрали venikoff.net!`
+    : `Заказ №${o.get("number")} доставлен. Спасибо, что выбрали venikoff.net!`,
+  cancelled: (o) => `Заказ №${o.get("number")} отменён. Если это ошибка — позвоните нам.`,
+};
+function notifyCustomer(app, o, status) {
+  const chat = o.get("tg_chat");
+  if (!chat) return;
+  const make = CUSTOMER_TEXT[status];
+  if (!make) return;
+  const s = settings(app);
+  tg(s.get("tg_token"), "sendMessage", { chat_id: chat, text: make(o) });
+}
+
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder,
+  STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer,
   tg, adminIds, orderText, orderKeyboard, notifyOrder,
 };

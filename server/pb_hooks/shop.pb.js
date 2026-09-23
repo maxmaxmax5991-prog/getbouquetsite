@@ -33,6 +33,15 @@ onRecordAfterCreateSuccess((e) => {
   e.next();
 }, "orders");
 
+// Покупателю — сообщение о смене статуса
+onRecordAfterUpdateSuccess((e) => {
+  try {
+    const shop = require(`${__hooks}/lib/shop.js`);
+    shop.notifyCustomer($app, e.record, e.record.get("status"));
+  } catch (err) { console.log("customer notify", err); }
+  e.next();
+}, "orders");
+
 // Телеграм: входящие сообщения бота. Всегда отвечаем 200, иначе Телеграм будет повторять запрос.
 routerAdd("POST", "/api/tg/{secret}", (e) => {
   try {

@@ -6,6 +6,7 @@ const PAGE = 8;
 // метка товара в подсказке к ответу — по ней узнаём, к чему относится ответ
 const TAG = (id) => `[id:${id}]`;
 const idFromReply = (m) => (String(m && m.text || "").match(/\[id:([\w]+)\]/) || [])[1];
+const orderFromReply = (m) => (String(m && m.text || "").match(/\[ord:([\w]+)\]/) || [])[1];
 
 const HELP = [
   "Как добавить товар:",
@@ -221,6 +222,12 @@ function handle(app, secret, upd) {
     } else if (kind === "p") {
       sendList(app, s, chat, +a || 0, "", cb.message.message_id);
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+    } else if (kind === "fo") {
+      const ord = app.findRecordById("orders", a);
+      shop.tg(token, "sendMessage", { chat_id: chat,
+        text: `Пришлите фото букета для заказа №${ord.get("number")} [ord:${ord.id}]\n\nОтветьте на это сообщение фотографией — отправим её клиенту${ord.get("tg_chat") ? "" : " (клиент пока не подписан на бота, тогда просто сохраним фото)"}.`,
+        reply_markup: { force_reply: true } });
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
     } else if (kind === "o") {
       const o = app.findRecordById("orders", a);
       o.set("status", b);
@@ -234,11 +241,46 @@ function handle(app, secret, upd) {
   const msg = upd.message;
   if (!msg) return;
   const chat = msg.chat.id, text = String(msg.text || "").trim();
+  // покупатель пришёл по ссылке из сайта: /start o<код>
+  const payload = (text.match(/^\/start\s+o([A-Za-z0-9]+)$/) || [])[1];
+  if (payload) {
+    let order = null;
+    try { order = app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: payload }); } catch (_) {}
+    if (order) {
+      order.set("tg_chat", String(chat));
+      app.save(order);
+      const when = `${order.get("date")}, ${order.get("interval") || ""}`;
+      admins.forEach((adm) => shop.tg(token, "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));
+      return shop.tg(token, "sendMessage", { chat_id: chat,
+        text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${when}.\n\nБудем присылать сюда статусы: подтверждение, фото букета, отправку и доставку.` });
+    }
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: "Не нашёл такой заказ. Проверьте ссылку с сайта." });
+  }
+
   if (admins.indexOf(String(msg.from.id)) < 0) {
     if (text.indexOf("/start") === 0) {
       shop.tg(token, "sendMessage", { chat_id: chat, text: `Здравствуйте! Ваш номер в Телеграме: ${msg.from.id}\n\nЧтобы управлять магазином, добавьте этот номер в админке: Настройки → Телеграм → «Кто может управлять ботом».` });
     }
     return;
+  }
+
+  // фото готового букета для клиента
+  const ordId = msg.reply_to_message && orderFromReply(msg.reply_to_message);
+  if (ordId) {
+    if (!msg.photo || !msg.photo.length) return shop.tg(token, "sendMessage", { chat_id: chat, text: "Пришлите именно фотографию в ответ на то сообщение." });
+    let ord;
+    try { ord = app.findRecordById("orders", ordId); } catch (_) { return shop.tg(token, "sendMessage", { chat_id: chat, text: "Заказ не найден." }); }
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+    ord.set("photo_file_id", fileId);
+    const st = ord.get("status");
+    if (st === "new" || st === "confirmed" || st === "assembling") ord.set("status", "photo");
+    app.save(ord);
+    if (ord.get("tg_chat")) {
+      shop.tg(token, "sendPhoto", { chat_id: ord.get("tg_chat"), photo: fileId,
+        caption: `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${ord.get("date")}, ${ord.get("interval") || ""}.` });
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
+    }
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото сохранено. Клиент ${ord.get("name")}, ${ord.get("phone")} не подписан на бота — отправьте фото сами.` });
   }
 
   // ответ на вопрос бота: новая цена, название или фото
@@ -288,9 +330,12 @@ function handle(app, secret, upd) {
 
 // Сообщения забирает задание tg-poll (сервер сам опрашивает Телеграм), webhook не используется.
 function setup(app, s) {
+  // имя бота нужно сайту для ссылки подписки
   const token = s.get("tg_token");
   if (!token) return { ok: false, error: "Укажите ключ бота." };
   shop.tg(token, "deleteWebhook", { drop_pending_updates: false });
+  const me = shop.tg(token, "getMe", {});
+  if (me && me.ok && me.result && me.result.username) { s.set("tg_bot", me.result.username); app.save(s); }
   shop.tg(token, "setMyCommands", { commands: [
     { command: "start", description: "Меню" }, { command: "products", description: "Товары" },
     { command: "orders", description: "Заказы" }, { command: "help", description: "Как добавить товар" }] });

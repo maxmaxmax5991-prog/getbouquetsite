@@ -527,7 +527,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790170966"></script>
+<script src="data.js?v=1790171907"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -973,7 +973,9 @@ ${payChoice()}
       <p>${lastOrder.number ? `Заказ №${lastOrder.number} на ${rub(lastOrder.sum)} принят` : `${esc(lastOrder.name)}, заказ на ${rub(lastOrder.sum)} оформлен`} — ${esc(lastOrder.when)}.</p>
       <p>${!lastOrder.number ? 'Это демо-версия: заказ не отправлен.' : lastOrder.paid ? 'Оплата прошла. Перед доставкой пришлём фото букета.' : lastOrder.payError ? esc(lastOrder.payError) : 'Мы свяжемся с вами для подтверждения, а перед доставкой пришлём фото букета.'}</p></div>`;
     foot.hidden = false;
-    foot.innerHTML = `<button class="btn btn-primary btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon('arrow')}</button>`;
+    const botLink = API && API.bot && lastOrder.code ? `https://t.me/${API.bot}?start=o${lastOrder.code}` : '';
+    foot.innerHTML = `${botLink ? `<a class="btn btn-primary btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Статусы заказа в Телеграме</span>${icon('arrow')}</a>` : ''}
+      <button class="btn ${botLink ? 'btn-ghost' : 'btn-primary'} btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon('arrow')}</button>`;
   }
 }
 cartDlg.addEventListener('click', e => {
@@ -1084,7 +1086,7 @@ cartDlg.addEventListener('submit', async e => {
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { btn.disabled = false; return err(res.status === 429 ? 'Слишком много попыток. Подождите минуту.' : (data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.')); }
-lastOrder = { number: data.number, sum: data.total, when };
+lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code };
 if (payMethod === 'card') {
   const res = await payCard(data, v('name').trim(), v('phone').trim());
   lastOrder.paid = res.paid;
@@ -1100,6 +1102,10 @@ if (payMethod === 'card') {
   view = 'done'; renderCart();
 });
 
+if (!API) {
+  const live = "https://147-45-141-23.sslip.io/";
+  $("main").insertAdjacentHTML("afterbegin", `<div class="wrap"><p class="notice">Это копия сайта для просмотра — заказ здесь оформить нельзя. Рабочий сайт: <a href="${live}">${live}</a></p></div>`);
+}
 if (API && API.notice) $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice">${esc(API.notice)}</p></div>`);
 if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href="tel:${esc(API.phone.replace(/[^\d+]/g, ''))}" class="num">${esc(API.phone)}</a>`);
 badges(); router();
