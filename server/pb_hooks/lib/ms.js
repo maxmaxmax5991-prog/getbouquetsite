@@ -9,11 +9,14 @@ function ms(s, method, path, body) {
   const token = s.get("ms_token");
   if (!token) return { ok: false, error: "Не указан токен МоегоСклада." };
   try {
+    // Accept-Encoding не ставим: Go сам просит gzip (МойСклад без него отвечает 415) и сам распаковывает
+    const headers = { "Authorization": "Bearer " + token };
+    if (body) headers["content-type"] = "application/json;charset=utf-8";   // на GET МойСклад отвечает 415
     const res = $http.send({
       url: BASE + path,
       method,
       body: body ? JSON.stringify(body) : undefined,
-      headers: { "Authorization": "Bearer " + token, "content-type": "application/json;charset=utf-8", "Accept-Encoding": "gzip" },
+      headers,
       timeout: 40,
     });
     if (res.statusCode === 401) return { ok: false, error: "Токен МоегоСклада не подошёл." };
@@ -21,6 +24,7 @@ function ms(s, method, path, body) {
       const msg = res.json && res.json.errors && res.json.errors[0] ? res.json.errors[0].error : `ошибка ${res.statusCode}`;
       return { ok: false, error: `МойСклад: ${msg}` };
     }
+    if (!res.json) return { ok: false, error: "МойСклад ответил непонятно. Попробуйте ещё раз." };
     return { ok: true, data: res.json };
   } catch (err) {
     console.log("moysklad", path, err);
