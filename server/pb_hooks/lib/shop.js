@@ -262,6 +262,7 @@ o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳
     o.get("recipient") ? `🎁 Получатель: ${o.get("recipient")}` : "",
     o.get("note") ? `💌 Открытка: ${o.get("note")}` : "",
     o.get("tg_chat") ? "📱 Клиент подписан на статусы в Телеграме" : "",
+    o.get("photo_status") === "approved" ? "👍 Клиент одобрил фото" : o.get("photo_status") === "rework" ? `👎 Клиент просит поправить: ${o.get("photo_comment") || "без комментария"}` : o.get("photo_status") === "waiting" ? "⏳ Ждём ответ клиента по фото" : "",
   ].filter((x) => x !== "").join("\n");
 }
 
@@ -285,8 +286,12 @@ function notifyOrder(app, o) {
 // Сообщения покупателю в Телеграм (если он подписался)
 const CUSTOMER_TEXT = {
   confirmed: (o) => `Заказ №${o.get("number")} подтверждён. Соберём и пришлём фото перед доставкой.`,
-  photo: (o) => `Заказ №${o.get("number")}: букет собран, фото отправим вам следом.`,
-  delivering: (o) => `Заказ №${o.get("number")} в пути. Курьер приедет ${o.get("date")}, ${o.get("interval") || ""}.`,
+  assembling: (o) => `Заказ №${o.get("number")}: начали собирать ваш букет.`,
+  photo: (o) => o.get("delivery_type") === "pickup"
+    ? `Заказ №${o.get("number")}: букет готов, ждём вас ${o.get("date")}, ${o.get("interval") || ""}.`
+    : `Заказ №${o.get("number")}: букет собран, фото отправим следом.`,
+  delivering: (o) => `Заказ №${o.get("number")} в пути. Доставим ${o.get("date")}, ${o.get("interval") || ""}.` +
+    (o.get("comment") ? `\nКурьер: ${o.get("comment")}` : ""),
   done: (o) => o.get("delivery_type") === "pickup"
     ? `Заказ №${o.get("number")} выдан. Спасибо, что выбрали venikoff.net!`
     : `Заказ №${o.get("number")} доставлен. Спасибо, что выбрали venikoff.net!`,

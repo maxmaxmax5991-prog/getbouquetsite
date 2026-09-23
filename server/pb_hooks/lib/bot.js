@@ -108,6 +108,13 @@ function applyPrice(app, p, line) {
 }
 const jsonLengths = (p) => { try { const s = p.getString("lengths"); const v = s ? JSON.parse(s) : null; return Array.isArray(v) && v.length ? v : null; } catch (_) { return null; } };
 
+// ссылка на фото в Телеграме — по ней его заберёт клиентский бот
+function photoUrl(token, fileId) {
+  const info = shop.tg(token, "getFile", { file_id: fileId });
+  if (!info || !info.ok) return null;
+  return `https://api.telegram.org/file/bot${token}/${info.result.file_path}`;
+}
+
 function photoFile(token, msg) {
   const photo = msg.photo[msg.photo.length - 1];
   const info = shop.tg(token, "getFile", { file_id: photo.file_id });
@@ -184,10 +191,65 @@ function addProduct(app, s, chat, msg) {
 function handleClient(app, upd) {
   const s = shop.settings(app);
   const token = shop.clientToken(s);
+
+  // клиент оценил фото букета
+  if (upd.callback_query) {
+    const cb = upd.callback_query, cbChat = cb.message.chat.id;
+    const parts = String(cb.data || "").split(":");
+    let ord = null;
+    try { ord = app.findRecordById("orders", parts[1]); } catch (_) {}
+    if (!ord) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+    if (parts[0] === "ap") {
+      ord.set("photo_status", "approved");
+      app.save(ord);
+      shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `👍 Клиент одобрил фото по заказу №${ord.get("number")}` }));
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Спасибо!" });
+      return shop.tg(token, "sendMessage", { chat_id: cbChat, text: "Спасибо! Везём ваш букет." });
+    }
+    if (parts[0] === "rw") {
+      ord.set("photo_status", "rework");
+      app.save(ord);
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+      return shop.tg(token, "sendMessage", { chat_id: cbChat, text: "Что поправить?", reply_markup: { inline_keyboard: [
+        [{ text: "🎨 Не те цвета", callback_data: `rr:${ord.id}:1` }, { text: "🌸 Не те цветы", callback_data: `rr:${ord.id}:2` }],
+        [{ text: "📏 Маловат букет", callback_data: `rr:${ord.id}:3` }, { text: "🎁 Другая упаковка", callback_data: `rr:${ord.id}:4` }],
+        [{ text: "✍️ Напишу сам", callback_data: `rr:${ord.id}:0` }],
+      ] } });
+    }
+    if (parts[0] === "rr") {
+      const REASONS = { "1": "не те цвета", "2": "не те цветы", "3": "маловат букет", "4": "другая упаковка" };
+      const reason = REASONS[parts[2]];
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+      if (!reason) {
+        return shop.tg(token, "sendMessage", { chat_id: cbChat, text: `Напишите, что поправить в букете по заказу №${ord.get("number")} [ord:${ord.id}]`, reply_markup: { force_reply: true } });
+      }
+      ord.set("photo_comment", reason);
+      ord.set("photo_status", "rework");
+      app.save(ord);
+      shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `👎 Заказ №${ord.get("number")}: клиенту не подошло — ${reason}` }));
+      return shop.tg(token, "sendMessage", { chat_id: cbChat, text: "Передали флористу. Пришлём новое фото." });
+    }
+    return;
+  }
+
   const msg = upd.message;
   if (!msg) return;
   const chat = msg.chat.id, text = String(msg.text || "").trim();
   const acc = require(`${__hooks}/lib/account.js`);
+
+  // клиент написал, что поправить
+  const wish = msg.reply_to_message && (String(msg.reply_to_message.text || "").match(/\[ord:([\w]+)\]/) || [])[1];
+  if (wish && text) {
+    let ord = null;
+    try { ord = app.findRecordById("orders", wish); } catch (_) {}
+    if (ord) {
+      ord.set("photo_comment", text.slice(0, 1000));
+      ord.set("photo_status", "rework");
+      app.save(ord);
+      shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `👎 Заказ №${ord.get("number")}: клиент просит поправить букет\n\n«${text.slice(0, 500)}»` }));
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: "Передали флористу. Пришлём новое фото." });
+    }
+  }
 
   const login = (text.match(/^\/start\s+l([A-Za-z0-9]+)$/) || [])[1];
   if (login) {
@@ -327,8 +389,11 @@ function handle(app, secret, upd) {
     if (st === "new" || st === "confirmed" || st === "assembling") ord.set("status", "photo");
     app.save(ord);
     if (ord.get("tg_chat")) {
-      shop.tg(token, "sendPhoto", { chat_id: ord.get("tg_chat"), photo: fileId,
-        caption: `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${ord.get("date")}, ${ord.get("interval") || ""}.` });
+      ord.set("photo_status", "waiting");
+      app.save(ord);
+      shop.tg(shop.clientToken(s), "sendPhoto", { chat_id: ord.get("tg_chat"), photo: photoUrl(token, fileId) || fileId,
+        caption: `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${ord.get("date")}, ${ord.get("interval") || ""}.\n\nНравится?`,
+        reply_markup: { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] } });
       return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
     }
     return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото сохранено. Клиент ${ord.get("name")}, ${ord.get("phone")} не подписан на бота — отправьте фото сами.` });

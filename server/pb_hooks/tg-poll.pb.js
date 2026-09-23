@@ -17,7 +17,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
   while (Date.now() < until) {
     let res;
     try {
-      res = $http.send({ url: `https://api.telegram.org/bot${token}/getUpdates?timeout=20&offset=${offset}&allowed_updates=["message"]`, method: "GET", timeout: 30 });
+      res = $http.send({ url: `https://api.telegram.org/bot${token}/getUpdates?timeout=20&offset=${offset}&allowed_updates=["message","callback_query"]`, method: "GET", timeout: 30 });
     } catch (err) { return; }
     if (res.statusCode === 409) { $http.send({ url: `https://api.telegram.org/bot${token}/deleteWebhook`, method: "POST", timeout: 15 }); continue; }
     if (res.statusCode !== 200 || !res.json || !res.json.ok) return;
