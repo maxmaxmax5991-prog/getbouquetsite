@@ -88,7 +88,11 @@ function catalog(app) {
     .filter((p) => catById[p.get("category")])
     .map((p) => {
       const photos = p.get("photo") || [];
-      const variants = variantsOf(p, s).map((v) => Object.assign({}, v, v.photo ? { img: fileUrl(p, v.photo, "560x0") } : {}));
+      // сколько цветов на самом снимке — подпись поверх фото берётся отсюда, а не из выбранного размера
+      const counts = jget(p, "photo_counts") || {};
+      const cntOf = (name) => (name && +counts[name] > 0 ? +counts[name] : undefined);
+      const variants = variantsOf(p, s).map((v) => Object.assign({}, v,
+        v.photo ? { img: fileUrl(p, v.photo, "560x0"), cnt: cntOf(v.photo) } : {}));
       const lengths = jget(p, "lengths");
       const cut = p.get("cutout");
       return {
@@ -99,6 +103,7 @@ function catalog(app) {
         bonus: p.get("bonus") || 0,
         img: photos.length ? fileUrl(p, photos[0], "560x0") : "",
         big: photos.length ? fileUrl(p, photos[0]) : "",
+        cnt: photos.length ? cntOf(photos[0]) : undefined,
         variants: variants.length ? variants : undefined,
         lengths: Array.isArray(lengths) && lengths.length ? lengths : undefined,
         sale: p.get("badge") === "sale" ? 1 : undefined,
@@ -280,15 +285,10 @@ o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳
   ].filter((x) => x !== "").join("\n");
 }
 
+// Статус заказа меняется только в МоёмСкладе (ms-status.pb.js тянет его раз в минуту),
+// поэтому кнопок смены статуса в боте нет — иначе бот и МойСклад перебивали бы друг друга.
 function orderKeyboard(o) {
-  const next = [["confirmed", "Подтвердить"], ["assembling", "Собирается"], ["photo", "Фото отправлено"],
-    ["delivering", "В пути"], ["done", "Доставлен"], ["cancelled", "Отменить"]];
-  const rows = [];
-  for (let i = 0; i < next.length; i += 2) {
-    rows.push(next.slice(i, i + 2).map(([st, t]) => ({ text: (o.get("status") === st ? "● " : "") + t, callback_data: `o:${o.id}:${st}` })));
-  }
-  rows.push([{ text: "📷 Отправить фото букета клиенту", callback_data: `fo:${o.id}` }]);
-  return { inline_keyboard: rows };
+  return { inline_keyboard: [[{ text: "📷 Отправить фото букета клиенту", callback_data: `fo:${o.id}` }]] };
 }
 
 function notifyOrder(app, o) {

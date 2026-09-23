@@ -348,11 +348,8 @@ function handle(app, secret, upd) {
         reply_markup: { force_reply: true } });
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
     } else if (kind === "o") {
-      const o = app.findRecordById("orders", a);
-      o.set("status", b);
-      app.save(o);
-      shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id, text: shop.orderText(o), reply_markup: shop.orderKeyboard(o) });
-      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: shop.STATUS[b] });
+      // старые сообщения могли остаться с кнопками статусов — статус теперь только из МоегоСклада
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Статус меняется в МоёмСкладе" });
     }
     return;
   }

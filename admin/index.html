@@ -129,7 +129,9 @@ dialog::backdrop{background:rgba(10,12,14,.5)}
 .ed-b{padding:18px;display:grid;gap:16px}
 .ed-f{position:sticky;bottom:0;background:var(--paper);display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
 .ed-f .sp{flex:1}
-.photos{display:flex;gap:8px;flex-wrap:wrap}
+.photos{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+.ph-box{display:grid;gap:4px;justify-items:center}
+.ph-cnt{width:86px;text-align:center;font-size:12px;padding:4px 2px}
 .ph{position:relative;width:86px;height:86px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid var(--line)}
 .ph img{width:100%;height:100%;object-fit:cover}
 .ph button{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1}
@@ -640,7 +642,7 @@ function openEditor(p) {
   const cat = p ? p.category : (CATS.find(c => !c.addon) || CATS[0]).id;
   E = {
     rec: p, removed: [], cutFile: null, cutRemoved: false,
-    photos: p ? (p.photo || []).map(name => ({ name })) : [],
+    photos: p ? (p.photo || []).map(name => ({ name, cnt: ((p.photo_counts || {})[name]) || '' })) : [],
     mode: p && p.lengths && p.lengths.length ? 'lengths' : p && p.variants && p.variants.length ? 'variants' : (p ? 'single' : 'variants'),
     variants: p && p.variants ? JSON.parse(JSON.stringify(p.variants)) : [],
     lengths: p && p.lengths ? [...p.lengths] : [50, 60],
@@ -662,13 +664,21 @@ function openEditor(p) {
   $('#ed').showModal();
 }
 function photoSrc(ph) { return ph.url || fileUrl(E.rec, ph.name, '160x160'); }
+// число под фото — сколько цветов на этом снимке; из него берётся подпись на сайте
+function readCounts() {
+  $$('#ePhotos [data-cnt]').forEach(el => { const ph = E.photos[+el.dataset.cnt]; if (ph) ph.cnt = el.value; });
+}
 function renderPhotos() {
-  $('#ePhotos').innerHTML = E.photos.map((ph, i) => `<div class="ph${ph.file ? ' new' : ''}"><img src="${photoSrc(ph)}" alt=""><button data-rmph="${i}" aria-label="Убрать фото">×</button></div>`).join('') +
+  $('#ePhotos').innerHTML = E.photos.map((ph, i) => `<div class="ph-box">
+      <div class="ph${ph.file ? ' new' : ''}"><img src="${photoSrc(ph)}" alt=""><button data-rmph="${i}" aria-label="Убрать фото">×</button></div>
+      <input class="in sm ph-cnt" data-cnt="${i}" type="number" min="0" step="1" value="${ph.cnt || ''}" placeholder="шт" title="Сколько цветов на этом снимке">
+    </div>`).join('') +
     `<label class="add-ph">+ фото<input type="file" accept="image/*" multiple hidden id="ePhAdd"></label>`;
-  $('#ePhAdd').onchange = e => { [...e.target.files].forEach(f => E.photos.push({ file: f, url: URL.createObjectURL(f) })); renderPhotos(); if (E.mode === 'variants') renderVars(); };
+  $('#ePhAdd').onchange = e => { readCounts(); [...e.target.files].forEach(f => E.photos.push({ file: f, url: URL.createObjectURL(f) })); renderPhotos(); if (E.mode === 'variants') renderVars(); };
 }
 $('#ePhotos').addEventListener('click', e => {
   const b = e.target.closest('[data-rmph]'); if (!b) return;
+  readCounts();
   const [ph] = E.photos.splice(+b.dataset.rmph, 1); if (ph.name) E.removed.push(ph.name);
   E.variants.forEach(v => { if (v.photo === ph.name) delete v.photo; });
   renderPhotos(); if (E.mode === 'variants') renderVars();
@@ -741,7 +751,7 @@ $('#eDel').onclick = safe(async () => {
   $('#ed').close(); toast('Товар удалён'); loadProducts();
 });
 $('#eSave').onclick = safe(async () => {
-  readVars();
+  readVars(); readCounts();
   const name = $('#eName').value.trim();
   if (!name) return toast('Укажите название', true);
   if (!E.photos.length) return toast('Добавьте хотя бы одно фото', true);
@@ -770,11 +780,27 @@ $('#eSave').onclick = safe(async () => {
   }
   E.photos.filter(p => p.file).forEach(p => fd.append(E.rec ? 'photo+' : 'photo', p.file));
   E.removed.forEach(n => fd.append('photo-', n));
+  // числа «шт на фото» у уже загруженных снимков; для новых имя появится только после сохранения
+  const savedCounts = {};
+  E.photos.filter(p => p.name && +p.cnt > 0).forEach(p => savedCounts[p.name] = +p.cnt);
+  fd.append('photo_counts', JSON.stringify(savedCounts));
   if (E.cutFile) fd.append('cutout', E.cutFile);
   else if (E.cutRemoved) fd.append('cutout', '');
   const r = E.rec
     ? await api(`/api/collections/products/records/${E.rec.id}`, { method: 'PATCH', body: fd })
     : await api(`/api/collections/products/records`, { method: 'POST', body: fd });
+  // новые фото получили имена только сейчас — дописываем их числа вторым запросом
+  const fresh = E.photos.filter(p => p.file);
+  if (r && fresh.some(p => +p.cnt > 0)) {
+    const counts = {}, was = {};
+    E.photos.filter(p => p.name).forEach(p => was[p.name] = +p.cnt || 0);
+    let k = 0;
+    (r.photo || []).forEach(n => {
+      const c = (n in was) ? was[n] : +((fresh[k++] || {}).cnt) || 0;
+      if (c > 0) counts[n] = c;
+    });
+    await api(`/api/collections/products/records/${r.id}`, { method: 'PATCH', body: { photo_counts: counts } });
+  }
   $('#ed').close(); toast('Сохранено'); loadProducts();
   return r;
 });
