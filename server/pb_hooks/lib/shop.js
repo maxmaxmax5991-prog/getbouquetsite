@@ -122,7 +122,7 @@ function catalog(app) {
       on_delivery: !!(s.get("pay_on_delivery") && s.get("pickup")),   // при получении — только самовывоз
       public_id: s.get("pay_card") ? (s.get("cp_public_id") || "") : "",
     },
-    bot: s.get("tg_bot") || "",
+    bot: s.get("tg_client_bot") || s.get("tg_bot") || "",
     phone: s.get("phone") || "",
     notice: s.get("notice") || "",
   };
@@ -239,6 +239,9 @@ function tg(token, method, payload) {
   }
 }
 
+// ключ клиентского бота (если не задан — общий)
+function clientToken(s) { return s.get("tg_client_token") || s.get("tg_token"); }
+
 function adminIds(s) {
   return String(s.get("tg_admins") || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
 }
@@ -295,10 +298,10 @@ function notifyCustomer(app, o, status) {
   const make = CUSTOMER_TEXT[status];
   if (!make) return;
   const s = settings(app);
-  tg(s.get("tg_token"), "sendMessage", { chat_id: chat, text: make(o) });
+  tg(clientToken(s), "sendMessage", { chat_id: chat, text: make(o) });
 }
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer,
-  tg, adminIds, orderText, orderKeyboard, notifyOrder,
+  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder,
 };

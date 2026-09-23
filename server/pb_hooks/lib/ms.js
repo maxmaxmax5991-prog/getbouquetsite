@@ -110,6 +110,7 @@ function matchProduct(s, item) {
     if (len && (n.indexOf(len + "см") >= 0 || n.indexOf(len + " см") >= 0)) score += 6;
     if (len && (n.indexOf((+len + 10) + "см") >= 0 || n.indexOf((+len - 10) + "см") >= 0)) score -= 4;   // другая длина — хуже
     if (!len && size && n.indexOf(norm(size)) >= 0) score += 6;
+    if (item.wantPrice && n.indexOf(String(item.wantPrice)) >= 0) score += 8;
     if (score > bestScore) { bestScore = score; best = r; }
   });
   if (!best || bestScore < 3) return { ok: false, error: `Не нашёл подходящую номенклатуру для «${wanted}».` };
@@ -125,7 +126,17 @@ function assortment(app, s, item) {
   if (p) { try { ids = JSON.parse(p.getString("ms_ids") || "{}") || {}; } catch (_) { ids = {}; } }
   if (ids[key]) return { ok: true, id: ids[key] };
 
-  const m = matchProduct(s, item);
+  let m = matchProduct(s, item);
+  // запасной вариант для открыток и игрушек: ищем по разделу и цене, например «ЛФ-Открытка 200»
+  if (!m.ok && p) {
+    let catName = "";
+    try { catName = app.findRecordById("categories", p.get("category")).get("name"); } catch (_) {}
+    if (catName) {
+      const single = catName.replace(/и$/i, "а").replace(/ки$/i, "ка");
+      m = matchProduct(s, { name: `${single} ${Math.round(item.price)}`, label: "", price: item.price }) ;
+      if (!m.ok) m = matchProduct(s, { name: single, label: "", price: item.price, wantPrice: Math.round(item.price) });
+    }
+  }
   if (!m.ok) return m;
   if (p) { ids[key] = m.id; p.set("ms_ids", ids); app.save(p); }
   return { ok: true, id: m.id };

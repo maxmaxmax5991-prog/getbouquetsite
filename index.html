@@ -281,6 +281,16 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .addon h4{margin:4px 0 0;font-size:13px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
 .addon .buy{height:38px;font-size:14px;margin-top:2px}
 
+.me-card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:12px}
+.me-card h3{font:600 17px var(--display);letter-spacing:-.03em;margin:0 0 6px}
+.me-row{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:14px;color:var(--ink-2)}
+.me-items{margin:10px 0 0;padding-left:18px;font-size:14px}
+.me-status{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:8px;font-size:12.5px;font-weight:700;background:var(--accent-soft);color:var(--accent-text)}
+.me-status.done{background:var(--leaf-soft);color:var(--leaf)}
+.me-status.off{background:var(--soft);color:var(--ink-2)}
+.me-form{display:grid;gap:12px;max-width:420px}
+.me-form label{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.me-form input{height:48px;border-radius:12px;border:1px solid var(--line-2);background:var(--ground);padding:0 14px;font-size:16px;outline:0;color:var(--ink)}
 .pickup-note{margin:0;padding:12px 14px;border-radius:12px;background:var(--accent-soft);color:var(--accent-text);font-size:13.5px;font-weight:600}
 .pay-seg{display:flex;gap:6px;margin-top:6px}
 .pay-seg button{flex:1;height:46px;border-radius:12px;border:1px solid var(--line-2);background:var(--ground);font-weight:600;font-size:14px}
@@ -345,6 +355,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-sprig" viewBox="0 0 24 24"><path d="M12 21V11M12 13l-5-5M12 13l5-5"/><circle cx="12" cy="7" r="2.6"/><circle cx="6" cy="6.5" r="2"/><circle cx="18" cy="6.5" r="2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.7"/><path d="M4.5 20c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5"/></symbol>
   <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></symbol>
   <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-8-4.6-8-10.2A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.8C20 15.4 12 20 12 20z"/></symbol>
   <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
@@ -377,6 +388,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
     <div class="top-actions">
       <a class="icon-btn only-m" href="#/catalog" aria-label="Каталог"><svg class="i"><use href="#i-grid"/></svg></a>
       <button class="icon-btn" id="favBtn" aria-label="Избранное"><svg class="i"><use href="#i-heart"/></svg><span class="badge num" id="favCount" hidden>0</span></button>
+      <button class="icon-btn" id="meBtn" aria-label="Личный кабинет"><svg class="i"><use href="#i-user"/></svg></button>
       <button class="icon-btn" id="cartBtn" aria-label="Корзина"><svg class="i"><use href="#i-bag"/></svg><span class="badge num" id="cartCount" hidden>0</span></button>
     </div>
   </div>
@@ -480,6 +492,15 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   </div>
 </div>
 
+<!-- ============ КАБИНЕТ ============ -->
+<div id="viewMe" hidden>
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Личный кабинет</span></nav>
+    <div class="cat-head"><div><h1>Личный кабинет</h1><p id="meSub"></p></div><div class="tools" id="meTools"></div></div>
+    <div id="meBody"></div>
+  </div>
+</div>
+
 <!-- ============ PRODUCT ============ -->
 <div id="viewProduct" hidden>
   <div class="wrap">
@@ -527,7 +548,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790171907"></script>
+<script src="data.js?v=1790172753"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -752,9 +773,10 @@ function go404() { location.hash = '#/catalog'; }
 function router() {
   const h = location.hash.replace(/^#\/?/, '');
   const [a, b] = h.split('/');
-  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct') };
+  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe') };
   let name = 'home', scrollTo = null;
-  if (a === 'catalog' || a === 'favorites') {
+  if (a === 'me') { name = 'me'; document.title = 'Личный кабинет — venikoff.net'; renderMe(); }
+  else if (a === 'catalog' || a === 'favorites') {
     name = 'catalog';
     state.favOnly = a === 'favorites'; state.cat = state.favOnly ? 'all' : (b && catName[b] ? b : 'all');
     renderChips(); renderGrid();
@@ -771,6 +793,90 @@ function router() {
 function scrollTo0() { window.scrollTo(0, 0); }
 addEventListener('hashchange', router);
 $('#favBtn').onclick = () => { location.hash = '#/favorites'; if (!favs.size) toast('Отмечайте букеты сердечком', false); };
+$('#meBtn').onclick = () => { location.hash = '#/me'; };
+
+/* ---------- личный кабинет ---------- */
+let ME = null, meToken = store.get('token', '');
+const meHeaders = () => meToken ? { 'X-Customer-Token': meToken } : {};
+async function loadMe() {
+  if (!meToken) { ME = null; return; }
+  try {
+    const r = await fetch('/api/shop/my', { headers: meHeaders(), cache: 'no-store' });
+    if (r.status === 401) { meToken = ''; store.set('token', ''); ME = null; return; }
+    ME = await r.json();
+  } catch (_) { ME = null; }
+}
+const ORDER_STATUS = { new: 'Новый', confirmed: 'Подтверждён', assembling: 'Собираем', photo: 'Фото отправлено', delivering: 'В пути', done: 'Доставлен', cancelled: 'Отменён' };
+async function renderMe() {
+  const body = $('#meBody'), tools = $('#meTools');
+  if (!API) { $('#meSub').textContent = ''; tools.innerHTML = ''; body.innerHTML = '<div class="me-card">Кабинет работает только на рабочем сайте.</div>'; return; }
+  body.innerHTML = '<div class="me-card">Загружаем…</div>';
+  await loadMe();
+  if (!ME) {
+    $('#meSub').textContent = 'Войдите, чтобы видеть свои заказы и статусы';
+    tools.innerHTML = '';
+    body.innerHTML = `<div class="me-card">
+      <h3>Вход без пароля</h3>
+      <p class="hint" style="margin:0 0 14px">Нажмите кнопку — откроется наш бот, подтвердите вход одной кнопкой. Туда же будут приходить статусы заказа и фото букета.</p>
+      <button class="btn btn-primary" id="meLogin">Войти через Телеграм ${icon('arrow')}</button>
+      <p class="demo-note" id="meWait" style="text-align:left;margin-top:12px" hidden>Ждём подтверждения в Телеграме…</p>
+    </div>`;
+    $('#meLogin').onclick = startLogin;
+    return;
+  }
+  $('#meSub').textContent = ME.name ? `Здравствуйте, ${ME.name}` : '';
+  tools.innerHTML = `<button class="btn btn-ghost btn-sm" id="meOut">Выйти</button>`;
+  $('#meOut').onclick = () => { meToken = ''; store.set('token', ''); ME = null; renderMe(); };
+  const orders = ME.orders || [];
+  body.innerHTML = `
+    <div class="me-card">
+      <h3>Мои данные</h3>
+      <div class="me-form">
+        <label for="meName">Имя<input id="meName" value="${esc(ME.name)}" maxlength="120"></label>
+        <label for="mePhone">Телефон<input id="mePhone" value="${esc(ME.phone)}" maxlength="40" placeholder="+7 900 000-00-00"></label>
+        <div><button class="btn btn-primary btn-sm" id="meSave">Сохранить</button></div>
+      </div>
+      <p class="hint">Телефон нужен, чтобы подтянуть сюда заказы, сделанные раньше, и не вводить его при оформлении.</p>
+    </div>
+    <h2 class="h2" style="margin:22px 0 12px">Мои заказы</h2>
+    ${orders.length ? orders.map(o => `
+      <div class="me-card">
+        <div class="me-row"><b style="font:600 16px var(--display)">Заказ №${o.number}</b>
+          <span class="me-status ${o.status === 'done' ? 'done' : o.status === 'cancelled' ? 'off' : ''}">${ORDER_STATUS[o.status] || o.status}</span>
+          <span style="margin-left:auto;font-weight:700;color:var(--ink)" class="num">${rub(o.total)}</span></div>
+        <ul class="me-items">${(o.items || []).map(it => `<li>${esc(it.name)}${it.label_text ? ' · ' + esc(it.label_text) : ''} × ${it.qty}</li>`).join('')}</ul>
+        <div class="me-row" style="margin-top:8px">
+          <span>${o.delivery_type === 'pickup' ? 'Самовывоз' : 'Доставка'}: ${new Date(o.date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}, ${esc(o.interval || '')}</span>
+          <span>${o.payment_status === 'paid' ? 'Оплачено' : o.payment_method === 'card' ? 'Ждёт оплаты' : 'Оплата при получении'}</span>
+        </div>
+        ${!o.subscribed && API.bot && o.tg_code ? `<div style="margin-top:10px"><a class="btn btn-ghost btn-sm" href="https://t.me/${API.bot}?start=o${o.tg_code}" target="_blank" rel="noopener">Получать статусы в Телеграме</a></div>` : ''}
+      </div>`).join('') : '<div class="me-card">Заказов пока нет. <a href="#/catalog">Перейти в каталог</a></div>'}`;
+  $('#meSave').onclick = async () => {
+    try {
+      await fetch('/api/shop/my', { method: 'POST', headers: { 'content-type': 'application/json', ...meHeaders() },
+        body: JSON.stringify({ name: $('#meName').value.trim(), phone: $('#mePhone').value.trim() }) });
+      toast('Сохранено'); renderMe();
+    } catch (_) { toast('Не получилось сохранить', true); }
+  };
+}
+async function startLogin() {
+  try {
+    const r = await fetch('/api/shop/login-start', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) return toast(d.message || 'Вход пока недоступен', true);
+    window.open(d.link, '_blank', 'noopener');
+    $('#meWait').hidden = false;
+    const started = Date.now();
+    const timer = setInterval(async () => {
+      if (Date.now() - started > 180000) return clearInterval(timer);
+      try {
+        const c = await fetch('/api/shop/login-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: d.code }) });
+        const cd = await c.json();
+        if (cd.token) { clearInterval(timer); meToken = cd.token; store.set('token', meToken); renderMe(); toast('Вы вошли'); }
+      } catch (_) {}
+    }, 2000);
+  } catch (_) { toast('Нет связи с сервером', true); }
+}
 
 /* ---------- studio ---------- */
 const FEATURED = [
@@ -948,6 +1054,7 @@ ${payChoice()}
     foot.innerHTML = `<div class="total"><span>К оплате<small class="num" id="fDelivery"></small></span><b class="num" id="fTotal">${rub(t.sum)}</b></div>
       <button class="btn btn-primary btn-wide" type="submit" form="orderForm" id="fSubmit"${DEL && !DEL.accepting ? ' disabled' : ''}><span>Подтвердить заказ</span>${icon('arrow')}</button>
       ${API ? '<p class="demo-note">Нажимая кнопку, вы соглашаетесь на обработку данных для доставки заказа.</p>' : '<p class="demo-note">Демо-версия: заказ пока не отправляется.</p>'}`;
+    if (ME) { if (ME.name) $('#fName').value = ME.name; if (ME.phone) $('#fPhone').value = ME.phone; }
     payMethod = PAY && PAY.card ? 'card' : 'on_delivery';
     bindPaySeg();
     const getSeg = $('#getSeg');
@@ -1079,7 +1186,7 @@ cartDlg.addEventListener('submit', async e => {
   if (API) {
     const btn = $('#fSubmit'); btn.disabled = true;
     try {
-      const res = await fetch('/api/collections/orders/records', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+      const res = await fetch('/api/collections/orders/records', { method: 'POST', headers: { 'content-type': 'application/json', ...meHeaders() }, body: JSON.stringify({
         name: v('name').trim(), phone: v('phone').trim(), recipient: v('to').trim(), address: getType === 'pickup' ? 'Самовывоз' : v('addr').trim(),
         zone: getType === 'pickup' || !$('#fZone') ? '' : v('zone'), date: v('date'), interval: v('time'), note: v('note').trim(),
         delivery_type: getType, payment_method: payMethod,
@@ -1108,7 +1215,7 @@ if (!API) {
 }
 if (API && API.notice) $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice">${esc(API.notice)}</p></div>`);
 if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href="tel:${esc(API.phone.replace(/[^\d+]/g, ''))}" class="num">${esc(API.phone)}</a>`);
-badges(); router();
+loadMe().then(() => { badges(); router(); });
 })();
 </script>
 </body>

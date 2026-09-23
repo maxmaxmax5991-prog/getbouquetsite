@@ -180,6 +180,43 @@ function addProduct(app, s, chat, msg) {
   });
 }
 
+// Клиентский бот: только вход в кабинет, подписка на заказ и приветствие
+function handleClient(app, upd) {
+  const s = shop.settings(app);
+  const token = shop.clientToken(s);
+  const msg = upd.message;
+  if (!msg) return;
+  const chat = msg.chat.id, text = String(msg.text || "").trim();
+  const acc = require(`${__hooks}/lib/account.js`);
+
+  const login = (text.match(/^\/start\s+l([A-Za-z0-9]+)$/) || [])[1];
+  if (login) {
+    let rec = null;
+    try { rec = app.findFirstRecordByFilter("logins", "code = {:c}", { c: login }); } catch (_) {}
+    if (!rec) return shop.tg(token, "sendMessage", { chat_id: chat, text: "Ссылка устарела. Нажмите «Войти» на сайте ещё раз." });
+    const who = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(" ");
+    const c = acc.byChat(app, chat, who);
+    rec.set("customer", c.id);
+    app.save(rec);
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Готово, ${who || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.` });
+  }
+
+  const sub = (text.match(/^\/start\s+o([A-Za-z0-9]+)$/) || [])[1];
+  if (sub) {
+    let order = null;
+    try { order = app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: sub }); } catch (_) {}
+    if (!order) return shop.tg(token, "sendMessage", { chat_id: chat, text: "Не нашёл такой заказ. Проверьте ссылку с сайта." });
+    order.set("tg_chat", String(chat));
+    app.save(order);
+    shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${order.get("date")}, ${order.get("interval") || ""}.\n\nБудем присылать сюда статусы и фото букета.` });
+  }
+
+  const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  return shop.tg(token, "sendMessage", { chat_id: chat,
+    text: `Здравствуйте! Это бот магазина venikoff.net.\n\nЗдесь приходят статусы заказа и фото букета перед доставкой.${site ? `\n\nКаталог и личный кабинет: ${site}` : ""}` });
+}
+
 function handle(app, secret, upd) {
   const s = shop.settings(app);
   if (!s.get("tg_secret") || secret !== s.get("tg_secret")) return;
@@ -241,6 +278,20 @@ function handle(app, secret, upd) {
   const msg = upd.message;
   if (!msg) return;
   const chat = msg.chat.id, text = String(msg.text || "").trim();
+  // покупатель входит в личный кабинет: /start l<код>
+  const login = (text.match(/^\/start\s+l([A-Za-z0-9]+)$/) || [])[1];
+  if (login) {
+    const acc = require(`${__hooks}/lib/account.js`);
+    let rec = null;
+    try { rec = app.findFirstRecordByFilter("logins", "code = {:c}", { c: login }); } catch (_) {}
+    if (!rec) return shop.tg(token, "sendMessage", { chat_id: chat, text: "Ссылка устарела. Нажмите «Войти» на сайте ещё раз." });
+    const who = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(" ");
+    const c = acc.byChat(app, chat, who);
+    rec.set("customer", c.id);
+    app.save(rec);
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Готово, ${who || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.` });
+  }
+
   // покупатель пришёл по ссылке из сайта: /start o<код>
   const payload = (text.match(/^\/start\s+o([A-Za-z0-9]+)$/) || [])[1];
   if (payload) {
@@ -342,4 +393,4 @@ function setup(app, s) {
   return { ok: true };
 }
 
-module.exports = { handle, setup };
+module.exports = { handle, handleClient, setup };

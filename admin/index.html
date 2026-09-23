@@ -336,6 +336,18 @@ table.t td{padding:4px 6px;vertical-align:middle}
   <div class="bar"><button class="btn btn-p" id="msSave">Сохранить</button><button class="btn btn-g" id="msTest">Проверить и получить списки</button></div>
 </div>
 <div class="card stack">
+  <h2>Бот для покупателей и рассылка</h2>
+  <ol class="steps">
+    <li>Создайте <b>второго</b> бота в @BotFather (например venikoff_bot) — он для покупателей, ваш рабочий бот остаётся служебным.</li>
+    <li>Вставьте его ключ ниже и нажмите «Сохранить». Покупатели будут входить через него в личный кабинет и получать статусы и фото букета.</li>
+  </ol>
+  <label class="f" for="cTok">Ключ клиентского бота<input class="in" id="cTok" type="password" autocomplete="off" placeholder="Вставьте ключ второго бота"></label>
+  <div class="bar"><button class="btn btn-p" id="cSaveBot">Сохранить</button><button class="btn btn-g" id="cTestBot">Проверить</button></div>
+  <label class="f" for="bcText">Сообщение всем покупателям<textarea class="in" id="bcText" rows="3" placeholder="Например: 8 марта принимаем заказы до 18:00"></textarea></label>
+  <div class="bar"><button class="btn btn-p" id="bcSend">Отправить рассылку</button><span class="hint" id="bcCount"></span></div>
+  <p class="hint">Сообщение придёт всем, кто хоть раз входил в кабинет или подписывался на статусы через клиентского бота.</p>
+</div>
+<div class="card stack">
   <h2>Телеграм-бот</h2>
           <ol class="steps">
             <li>В Телеграме откройте <b>@BotFather</b>, отправьте <b>/newbot</b>, придумайте имя и адрес бота (должен заканчиваться на bot).</li>
@@ -1013,12 +1025,35 @@ $('#msTok').value = ''; $('#msTok').placeholder = S.ms_token ? 'Токен со�
 msFill(S.ms_org_id, S.ms_org_name, S.ms_store_id, S.ms_store_name);
 sw($('#msOn'), S.ms_enabled);
 $('#msPrefix').value = S.ms_prefix || '';
+$('#cTok').value = ''; $('#cTok').placeholder = S.tg_client_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ второго бота';
+api('/api/shop/broadcast').then(r => $('#bcCount').textContent = `получателей: ${r.total}`).catch(() => {});
 $('#msDeliv').value = S.ms_delivery_name || '';
 $('#pPub').value = S.cp_public_id || '';
 $('#pSec').value = ''; $('#pSec').placeholder = S.cp_secret ? 'Секрет сохранён. Вставьте новый, чтобы заменить' : 'Вставьте секрет';
 sw($('#pCard'), S.pay_card); sw($('#pDeliv'), S.pay_on_delivery);
 });
 $('#sSave').onclick = safe(async () => { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { phone: $('#sPhone').value.trim(), site_url: $('#sUrl').value.trim().replace(/\/$/, '') } }); toast('Сохранено'); });
+$('#cSaveBot').onclick = safe(async () => {
+  const raw = $('#cTok').value.trim();
+  const found = raw.match(/\d{5,}:[A-Za-z0-9_-]{20,}/);
+  if (!found) return toast('Не нашёл ключ. Скопируйте его из @BotFather целиком', true);
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { tg_client_token: found[0] } });
+  $('#cTok').value = '';
+  await api('/api/shop/client-bot-check', { method: 'POST' }).catch(() => {});
+  loadSettings(); toast('Клиентский бот сохранён');
+});
+$('#cTestBot').onclick = safe(async () => {
+  const r = await api('/api/shop/client-bot-check', { method: 'POST' });
+  toast(`Бот для покупателей: @${r.bot}`);
+});
+$('#bcSend').onclick = safe(async () => {
+  const text = $('#bcText').value.trim();
+  if (text.length < 3) return toast('Напишите текст сообщения', true);
+  if (!confirm('Отправить это сообщение всем покупателям?')) return;
+  const r = await api('/api/shop/broadcast', { method: 'POST', body: { text } });
+  $('#bcText').value = '';
+  toast(`Отправлено: ${r.sent}${r.failed ? `, не дошло: ${r.failed}` : ''}`);
+});
 $('#tSave').onclick = safe(async () => {
   const admins = $('#sAdm').value.split(/[^\d]+/).filter(Boolean).join(', ');
   if ($('#sAdm').value.trim() && !admins) return toast('Номер — это только цифры, например 512345678. Узнать свой: бот @userinfobot', true);
