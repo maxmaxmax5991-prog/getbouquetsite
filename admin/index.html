@@ -286,8 +286,27 @@ table.t td{padding:4px 6px;vertical-align:middle}
           </div>
           <div><button class="btn btn-p" id="sSave">Сохранить</button></div>
         </div>
-        <div class="card stack">
-          <h2>Телеграм-бот</h2>
+<div class="card stack">
+  <h2>Оплата картой (CloudPayments)</h2>
+  <ol class="steps">
+    <li>Зарегистрируйтесь на <b>cloudpayments.ru</b> и войдите в личный кабинет.</li>
+    <li>Раздел <b>Сайты</b> → ваш сайт → там два значения: <b>Public ID</b> и <b>Пароль для API</b> (API-секрет).</li>
+    <li>Вставьте их ниже и нажмите «Сохранить», затем «Проверить оплату».</li>
+    <li>Пока идёт проверка документов, CloudPayments даёт тестовые ключи — сайт с ними работает так же, деньги не списываются.</li>
+  </ol>
+  <div class="row">
+    <label class="f" for="pPub">Public ID<input class="in" id="pPub" autocomplete="off" placeholder="pk_xxxxxxxxxxxxxxxxxxxxx"></label>
+    <label class="f" for="pSec">Пароль для API<input class="in" id="pSec" type="password" autocomplete="off" placeholder="Вставьте секрет"></label>
+  </div>
+  <div class="bar" style="gap:18px">
+    <div class="swl"><button class="sw" id="pCard" role="switch" aria-checked="false" aria-label="Оплата картой"></button>Принимать оплату картой на сайте</div>
+    <div class="swl"><button class="sw" id="pDeliv" role="switch" aria-checked="true" aria-label="Оплата при получении"></button>Разрешить оплату при получении</div>
+  </div>
+  <p class="hint">Если включить только оплату картой, заказ можно будет оформить лишь с оплатой сразу.</p>
+  <div class="bar"><button class="btn btn-p" id="pSave">Сохранить</button><button class="btn btn-g" id="pTest">Проверить оплату</button></div>
+</div>
+<div class="card stack">
+  <h2>Телеграм-бот</h2>
           <ol class="steps">
             <li>В Телеграме откройте <b>@BotFather</b>, отправьте <b>/newbot</b>, придумайте имя и адрес бота (должен заканчиваться на bot).</li>
             <li>BotFather пришлёт ключ вида <code>123456:ABC…</code> — скопируйте и вставьте его ниже.</li>
@@ -295,8 +314,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
             <li>Нажмите «Сохранить», затем «Проверить бота» — в Телеграм придёт сообщение.</li>
           </ol>
           <label class="f" for="sTok">Ключ бота<input class="in" id="sTok" type="password" autocomplete="off" placeholder="Вставьте ключ от @BotFather"></label>
-          <label class="f" for="sAdm">Кто может управлять ботом (номера через запятую)<input class="in num" id="sAdm" placeholder="123456789, 987654321"></label>
-          <p class="hint">Этим людям приходят уведомления о заказах, и только они могут добавлять и скрывать товары через бота.</p>
+          <label class="f" for="sAdm">Кто может управлять ботом (номера через запятую)<input class="in num" id="sAdm" placeholder="512345678"></label>
+          <p class="hint"><b>Что за номер:</b> личный номер аккаунта в Телеграме (не телефон). Узнать свой — откройте бота <b>@userinfobot</b> и нажмите Start, он пришлёт строку «Id: 512345678». Или после сохранения ключа напишите своему боту — он ответит вашим номером.<br>Этим людям приходят уведомления о заказах, и только они могут менять товары через бота.</p>
           <div class="bar"><button class="btn btn-p" id="tSave">Сохранить</button><button class="btn btn-g" id="tTest">Проверить бота</button></div>
         </div>
         <div class="card stack">
@@ -407,8 +426,13 @@ $('#loginForm').addEventListener('submit', async e => {
   e.preventDefault(); $('#lErr').hidden = true;
   try {
     const r = await fetch('/api/collections/managers/auth-with-password', { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ identity: $('#lEmail').value.trim(), password: $('#lPass').value }) });
+      body: JSON.stringify({ identity: $('#lEmail').value.trim(), password: $('#lPass').value }) }).catch(() => null);
+    if (!r) throw new Error('Нет связи с сервером. Проверьте интернет.');
+    if (r.status === 404 || !String(r.headers.get('content-type') || '').includes('json')) {
+      throw new Error('Админка открыта не по тому адресу. Нужен https://147-45-141-23.sslip.io/admin/');
+    }
     const d = await r.json();
+    if (r.status === 429) throw new Error('Слишком много попыток входа. Подождите минуту.');
     if (!r.ok) throw new Error('Неверная почта или пароль');
     auth = { token: d.token, id: d.record.id, email: d.record.email };
     try { localStorage.setItem('vk.admin', JSON.stringify(auth)); } catch {}
@@ -431,20 +455,25 @@ async function loadSettings0() { S = (await list('settings'))[0]; CATS = await l
 
 /* ---------- заказы ---------- */
 let oFilter = 'active';
-const OF = [['active', 'Активные'], ['new', 'Новые'], ['done', 'Доставленные'], ['cancelled', 'Отменённые'], ['all', 'Все']];
+const OF = [['active', 'Активные'], ['new', 'Новые'], ['unpaid', 'Ждут оплаты'], ['done', 'Доставленные'], ['cancelled', 'Отменённые'], ['all', 'Все']];
 function renderOF() { $('#orderFilters').innerHTML = OF.map(([k, t]) => `<button class="chip" data-f="${k}" aria-pressed="${oFilter === k}">${t}</button>`).join(''); }
 $('#orderFilters').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { oFilter = b.dataset.f; loadOrders(); } };
 const loadOrders = safe(async () => {
   renderOF();
-  const f = { active: "status!='done'&&status!='cancelled'", new: "status='new'", done: "status='done'", cancelled: "status='cancelled'", all: '' }[oFilter];
+  const f = { active: "status!='done'&&status!='cancelled'", new: "status='new'", unpaid: "payment_method='card'&&payment_status='unpaid'", done: "status='done'", cancelled: "status='cancelled'", all: '' }[oFilter];
   const items = await list('orders', `&sort=-created${f ? '&filter=' + encodeURIComponent(f) : ''}&expand=zone`);
   $('#orders').innerHTML = items.length ? items.map(orderHTML).join('') : `<div class="empty">Заказов нет.</div>`;
   countNew();
 });
+const payPill = o => o.payment_method === 'card'
+  ? (o.payment_status === 'paid' ? '<span class="pill st-done">Оплачено картой</span>'
+    : o.payment_status === 'failed' ? '<span class="pill st-cancelled">Оплата не прошла</span>'
+    : '<span class="pill st-new">Ждёт оплаты</span>')
+  : '<span class="pill" style="background:var(--ground);color:var(--ink-2)">Оплата при получении</span>';
 function orderHTML(o) {
   const created = new Date(o.created.replace(' ', 'T'));
   return `<article class="order${o.status === 'new' ? ' is-new' : ''}" data-id="${o.id}">
-    <div class="order-h"><b>№${o.number}</b><span class="pill st-${o.status}">${STATUS[o.status]}</span>
+    <div class="order-h"><b>№${o.number}</b><span class="pill st-${o.status}">${STATUS[o.status]}</span>${payPill(o)}
       <span class="hint" style="margin:0">создан ${created.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
       <span class="sum num">${rub(o.total)}</span></div>
     <ul>${(o.items || []).map(it => `<li>${esc(it.name)}${it.label_text ? ' · ' + esc(it.label_text) : ''} × ${it.qty} — <span class="num">${rub(it.sum)}</span></li>`).join('')}</ul>
@@ -867,16 +896,35 @@ const loadSettings = safe(async () => {
   await loadSettings0();
   $('#sPhone').value = S.phone || ''; $('#sUrl').value = S.site_url || location.origin;
   $('#sTok').value = ''; $('#sTok').placeholder = S.tg_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ от @BotFather';
-  $('#sAdm').value = S.tg_admins || '';
+$('#sAdm').value = S.tg_admins || '';
+$('#pPub').value = S.cp_public_id || '';
+$('#pSec').value = ''; $('#pSec').placeholder = S.cp_secret ? 'Секрет сохранён. Вставьте новый, чтобы заменить' : 'Вставьте секрет';
+sw($('#pCard'), S.pay_card); sw($('#pDeliv'), S.pay_on_delivery);
 });
 $('#sSave').onclick = safe(async () => { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { phone: $('#sPhone').value.trim(), site_url: $('#sUrl').value.trim().replace(/\/$/, '') } }); toast('Сохранено'); });
 $('#tSave').onclick = safe(async () => {
-  const body = { tg_admins: $('#sAdm').value.trim(), site_url: S.site_url || location.origin };
-  const tok = $('#sTok').value.trim();
-  if (tok) { if (!/^\d+:[\w-]{20,}$/.test(tok)) return toast('Ключ выглядит неправильно. Скопируйте его из @BotFather целиком', true); body.tg_token = tok; }
+  const admins = $('#sAdm').value.split(/[^\d]+/).filter(Boolean).join(', ');
+  if ($('#sAdm').value.trim() && !admins) return toast('Номер — это только цифры, например 512345678. Узнать свой: бот @userinfobot', true);
+  const body = { tg_admins: admins, site_url: S.site_url || location.origin };
+  const raw = $('#sTok').value.trim();
+  if (raw) {
+    const found = raw.match(/\d{5,}:[A-Za-z0-9_-]{20,}/);   // ключ могли вставить вместе с текстом сообщения
+    if (!found) return toast('Не нашёл ключ в том, что вставлено. Он выглядит так: 123456789:AAE... — скопируйте его целиком из сообщения @BotFather', true);
+    body.tg_token = found[0];
+  }
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
   $('#sTok').value = ''; loadSettings(); toast('Сохранено');
 });
+$('#pSave').onclick = safe(async () => {
+  const body = { cp_public_id: $('#pPub').value.trim(), pay_card: sw($('#pCard')), pay_on_delivery: sw($('#pDeliv')) };
+  const sec = $('#pSec').value.trim();
+  if (sec) body.cp_secret = sec;
+  if (body.pay_card && !body.cp_public_id) return toast('Для оплаты картой нужен Public ID', true);
+  if (!body.pay_card && !body.pay_on_delivery) return toast('Оставьте хотя бы один способ оплаты', true);
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
+  $('#pSec').value = ''; loadSettings(); toast('Сохранено');
+});
+$('#pTest').onclick = safe(async () => { await api('/api/shop/cp-test', { method: 'POST' }); toast('Ключи подходят — оплата картой готова'); });
 $('#tTest').onclick = safe(async () => {
   const r = await api('/api/shop/tg-test', { method: 'POST' });
   toast(r.admins ? `Бот @${r.bot} подключён — проверьте Телеграм` : `Бот @${r.bot} подключён. Добавьте свой номер в «Кто может управлять ботом»`);

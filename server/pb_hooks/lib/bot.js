@@ -286,14 +286,15 @@ function handle(app, secret, upd) {
   if (text && text[0] !== "/") return sendList(app, s, chat, 0, text.slice(0, 60));
 }
 
+// Сообщения забирает задание tg-poll (сервер сам опрашивает Телеграм), webhook не используется.
 function setup(app, s) {
-  const token = s.get("tg_token"), url = String(s.get("site_url") || "").replace(/\/$/, "");
-  if (!token || !url || !s.get("tg_secret")) return { ok: false, error: "Укажите ключ бота и адрес сайта." };
-  const hook = shop.tg(token, "setWebhook", { url: `${url}/api/tg/${s.get("tg_secret")}`, allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
+  const token = s.get("tg_token");
+  if (!token) return { ok: false, error: "Укажите ключ бота." };
+  shop.tg(token, "deleteWebhook", { drop_pending_updates: false });
   shop.tg(token, "setMyCommands", { commands: [
     { command: "start", description: "Меню" }, { command: "products", description: "Товары" },
     { command: "orders", description: "Заказы" }, { command: "help", description: "Как добавить товар" }] });
-  return hook || { ok: false, error: "Телеграм не ответил. Проверьте ключ бота." };
+  return { ok: true };
 }
 
 module.exports = { handle, setup };

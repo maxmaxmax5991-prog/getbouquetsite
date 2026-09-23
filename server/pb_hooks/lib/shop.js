@@ -106,7 +106,12 @@ function catalog(app) {
       closed_dates: jget(s, "closed_dates") || [],
       accepting: s.get("accepting"),
     },
-    phone: s.get("phone") || "",
+payment: {
+  card: !!(s.get("pay_card") && s.get("cp_public_id")),
+  on_delivery: !!s.get("pay_on_delivery"),
+  public_id: s.get("pay_card") ? (s.get("cp_public_id") || "") : "",
+},
+phone: s.get("phone") || "",
     notice: s.get("notice") || "",
   };
 }
@@ -176,7 +181,15 @@ function prepareOrder(app, rec) {
     delivery += found.get("extra") || 0;
   }
 
-  const last = app.findRecordsByFilter("orders", "number > 0", "-number", 1, 0);
+const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret"));
+const method = String(rec.get("payment_method") || "");
+if (card && !s.get("pay_on_delivery") && method !== "card") fail("Выберите оплату картой.");
+if (method === "card" && !card) fail("Оплата картой сейчас недоступна.");
+if (method !== "card" && !s.get("pay_on_delivery")) fail("Выберите способ оплаты.");
+rec.set("payment_method", method === "card" ? "card" : "on_delivery");
+rec.set("payment_status", "unpaid");
+
+const last = app.findRecordsByFilter("orders", "number > 0", "-number", 1, 0);
   rec.set("number", last.length ? last[0].get("number") + 1 : 1001);
   rec.set("status", "new");
   rec.set("items", items);
@@ -217,7 +230,8 @@ function orderText(o) {
     "",
     items,
     `Доставка: ${rub(o.get("delivery_price") || 0)}`,
-    `Итого: ${rub(o.get("total") || 0)}`,
+`Итого: ${rub(o.get("total") || 0)}`,
+o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳 Оплачено картой" : "💳 Ожидает оплаты картой") : "💵 Оплата при получении",
     "",
     `📅 ${o.get("date")}, ${o.get("interval") || "—"}`,
     `📍 ${o.get("address")}`,
