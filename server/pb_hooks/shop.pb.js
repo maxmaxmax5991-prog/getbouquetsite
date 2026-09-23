@@ -22,6 +22,14 @@ onRecordAfterCreateSuccess((e) => {
   } catch (err) {
     console.log("notify error", err);
   }
+  try {
+    // сразу отправляем в МойСклад; если не вышло — заказ подхватит очередь (раз в минуту)
+    const msl = require(`${__hooks}/lib/ms.js`);
+    const r = msl.pushOrder($app, e.record);
+    if (!r.ok && r.error !== "Интеграция выключена.") { e.record.set("ms_error", r.error); $app.save(e.record); }
+  } catch (err) {
+    console.log("ms push error", err);
+  }
   e.next();
 }, "orders");
 

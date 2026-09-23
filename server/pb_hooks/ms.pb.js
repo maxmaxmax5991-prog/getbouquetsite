@@ -32,5 +32,6 @@ routerAdd("POST", "/api/shop/ms-push", (e) => {
   try { o = $app.findRecordById("orders", String(body.order || "")); } catch (_) { return e.json(404, { message: "Заказ не найден" }); }
   const r = msl.pushOrder($app, o);
   if (!r.ok) { o.set("ms_error", r.error); $app.save(o); return e.json(400, { message: r.error }); }
+  if (o.get("payment_status") === "paid") msl.markPaid($app, o);   // синхронизируем статус оплаты
   return e.json(200, { ok: true, ms_id: r.id });
 }, $apis.requireAuth("managers"));

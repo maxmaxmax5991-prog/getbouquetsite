@@ -79,6 +79,10 @@ function checkOrder(app, o) {
   shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", {
     chat_id: chat, text: `💳 Заказ №${o.get("number")} оплачен картой — ${shop.rub(o.get("total"))}`,
   }));
+  try {
+    const msl = require(`${__hooks}/lib/ms.js`);
+    msl.markPaid(app, o);   // в МоёмСкладе статус станет «Принят, Оплачен»
+  } catch (err) { console.log("ms markPaid", err); }
   return true;
 }
 

@@ -323,6 +323,10 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <li>Выберите организацию и склад, снова «Сохранить» и включите переключатель.</li>
   </ol>
   <label class="f" for="msTok">Токен<input class="in" id="msTok" type="password" autocomplete="off" placeholder="Вставьте токен из МоегоСклада"></label>
+  <label class="f" for="msPrefix" style="max-width:280px">Приставка к названию товара<input class="in" id="msPrefix" placeholder="ЛФ-"></label>
+  <label class="f" for="msDeliv" style="max-width:340px">Услуга доставки в МоёмСкладе<input class="in" id="msDeliv" placeholder="ЛФ-Доставка Москва"></label>
+  <p class="hint">Доставка добавляется в заказ отдельной строкой с вашей ценой. Статус заказа ставится сам: «Принят, Оплачен» — если оплачено картой, иначе «Принят, Не оплачен».</p>
+  <p class="hint">Новые товары создаются так: «ЛФ-Пич Аваланж 60см 51шт». Каждый размер — отдельный товар.</p>
   <div class="row">
     <label class="f" for="msOrg">Организация<select class="in" id="msOrg"></select></label>
     <label class="f" for="msStore">Склад<select class="in" id="msStore"></select></label>
@@ -1008,6 +1012,8 @@ $('#sAdm').value = S.tg_admins || '';
 $('#msTok').value = ''; $('#msTok').placeholder = S.ms_token ? 'Токен сохранён. Вставьте новый, чтобы заменить' : 'Вставьте токен из МоегоСклада';
 msFill(S.ms_org_id, S.ms_org_name, S.ms_store_id, S.ms_store_name);
 sw($('#msOn'), S.ms_enabled);
+$('#msPrefix').value = S.ms_prefix || '';
+$('#msDeliv').value = S.ms_delivery_name || '';
 $('#pPub').value = S.cp_public_id || '';
 $('#pSec').value = ''; $('#pSec').placeholder = S.cp_secret ? 'Секрет сохранён. Вставьте новый, чтобы заменить' : 'Вставьте секрет';
 sw($('#pCard'), S.pay_card); sw($('#pDeliv'), S.pay_on_delivery);
@@ -1041,7 +1047,7 @@ $('#msTest').onclick = safe(async () => {
   toast(`Токен подходит: организаций ${MSREFS.organizations.length}, складов ${MSREFS.stores.length}`);
 });
 $('#msSave').onclick = safe(async () => {
-  const body = { ms_enabled: sw($('#msOn')) };
+  const body = { ms_enabled: sw($('#msOn')), ms_prefix: $('#msPrefix').value.trim(), ms_delivery_name: $('#msDeliv').value.trim() };
   const tok = $('#msTok').value.trim();
   if (tok) body.ms_token = tok;
   const org = $('#msOrg'), store = $('#msStore');
