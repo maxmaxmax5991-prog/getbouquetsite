@@ -268,7 +268,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <p class="hint">Когда включено, зоны доставки на сайте не показываются: покупатель вводит улицу, дом, корпус, квартиру, этаж и домофон, адрес проверяется по картам, и цена считается от расстояния. Бесплатной доставки от суммы заказа здесь нет.</p>
           <div class="row">
             <label class="f" for="dOrigin">Откуда считаем<input class="in" id="dOrigin" placeholder="Москва, Маленковская улица, 14к1"></label>
-            <label class="f" for="dYkey">Ключ Яндекс.Карт<input class="in" id="dYkey" placeholder="вставьте ключ геокодера" autocomplete="off"></label>
+            <label class="f" for="dYkey">Ключ Яндекса: Геокодер<input class="in" id="dYkey" placeholder="ключ сервиса «Геокодер»" autocomplete="off"></label>
+            <label class="f" for="dYsug">Ключ Яндекса: Подсказки<input class="in" id="dYsug" placeholder="ключ сервиса «Геосаджест»" autocomplete="off"></label>
           </div>
           <div class="row">
             <label class="f" for="dKmPrice">Цена за километр, ₽<input class="in num" id="dKmPrice" type="number" min="0" step="10"></label>
@@ -276,7 +277,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
             <label class="f" for="dKmFactor">Поправка к прямой<input class="in num" id="dKmFactor" type="number" min="1" step="0.05"></label>
             <label class="f" for="dKmMax">Дальше не возим, км<input class="in num" id="dKmMax" type="number" min="0" step="1"></label>
           </div>
-          <p class="hint">Расстояние считается по прямой между точками и умножается на поправку — улицы не прямые, 1,3 близко к настоящему пробегу. «Дальше не возим» 0 — без ограничения. Ключ хранится на сервере и в браузер покупателя не попадает.</p>
+          <p class="hint">Расстояние считается по прямой между точками и умножается на поправку — улицы не прямые, 1,3 близко к настоящему пробегу. «Дальше не возим» 0 — без ограничения. Ключи хранятся на сервере и в браузер покупателя не попадают.<br><b>Ключей у Яндекса два:</b> «Геокодер» проверяет адрес и находит координаты — без него не работает ничего; «Геосаджест» подсказывает улицы при вводе — без него поле просто не подсказывает. Оба берутся в кабинете разработчика Яндекса, у каждого свой бесплатный лимит.</p>
           <div class="bar"><button class="btn btn-p" id="dKmSave">Сохранить</button><button class="btn btn-g" id="dKmTest">Проверить адрес</button></div>
           <p class="hint" id="dKmResult" hidden></p>
         </div>
@@ -932,6 +933,7 @@ const loadDelivery = safe(async () => {
   sw($('#dKm'), S.km_mode);
   $('#dOrigin').value = S.origin_address || 'Москва, Маленковская улица, 14к1';
   $('#dYkey').value = S.ymaps_key || '';
+  $('#dYsug').value = S.ymaps_suggest_key || '';
   $('#dKmPrice').value = S.km_price || 0; $('#dKmMin').value = S.km_min || 0;
   $('#dKmFactor').value = S.km_factor || 1.3; $('#dKmMax').value = S.km_max || 0;
   ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
@@ -945,7 +947,7 @@ $('#dKmSave').onclick = safe(async () => {
   const origin = $('#dOrigin').value.trim();
   const body = { km_mode: on, km_price: price, km_min: +$('#dKmMin').value || 0,
     km_factor: +$('#dKmFactor').value || 1.3, km_max: +$('#dKmMax').value || 0,
-    ymaps_key: $('#dYkey').value.trim(), origin_address: origin };
+    ymaps_key: $('#dYkey').value.trim(), ymaps_suggest_key: $('#dYsug').value.trim(), origin_address: origin };
   // адрес точки поменялся — старые координаты сбрасываем, сервер найдёт заново
   if (origin !== (S.origin_address || '')) { body.origin_lat = 0; body.origin_lon = 0; }
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });

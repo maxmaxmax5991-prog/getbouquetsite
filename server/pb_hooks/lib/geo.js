@@ -60,9 +60,11 @@ function geocode(s, text) {
   return { ok: true, lat, lon, precision, exact: EXACT.indexOf(precision) >= 0, address: found };
 }
 
-// Подсказки при вводе улицы
+// Подсказки при вводе улицы.
+// У Яндекса это отдельный сервис (Геосаджест) со своим ключом; если он не заведён,
+// пробуем ключом геокодера — иногда владелец берёт один ключ на оба.
 function suggest(s, q) {
-  const key = s.get("ymaps_key");
+  const key = s.get("ymaps_suggest_key") || s.get("ymaps_key");
   if (!key || !q) return [];
   const r = get(`${SUGGEST}?apikey=${enc(key)}&text=${enc(CITY + ", " + q)}&lang=ru&results=7&types=street,house&ll=37.6173,55.7558&spn=1.2,0.8`);
   if (!r.ok || !r.data || !r.data.results) return [];
