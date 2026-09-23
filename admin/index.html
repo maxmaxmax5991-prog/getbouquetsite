@@ -262,6 +262,24 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <p class="hint">Режим работы показывается покупателю при самовывозе. Оплата при получении возможна только на самовывозе: доставку оплачивают картой на сайте.</p>
           <div><button class="btn btn-p" id="dPickSave">Сохранить</button></div>
         </div>
+        <div class="card stack">
+          <h2>Доставка по километрам</h2>
+          <div class="swl"><button class="sw" id="dKm" role="switch" aria-checked="false" aria-label="Считать по километрам"></button>Считать доставку по километрам от магазина</div>
+          <p class="hint">Когда включено, зоны доставки на сайте не показываются: покупатель вводит улицу, дом, корпус, квартиру, этаж и домофон, адрес проверяется по картам, и цена считается от расстояния. Бесплатной доставки от суммы заказа здесь нет.</p>
+          <div class="row">
+            <label class="f" for="dOrigin">Откуда считаем<input class="in" id="dOrigin" placeholder="Москва, Маленковская улица, 14к1"></label>
+            <label class="f" for="dYkey">Ключ Яндекс.Карт<input class="in" id="dYkey" placeholder="вставьте ключ геокодера" autocomplete="off"></label>
+          </div>
+          <div class="row">
+            <label class="f" for="dKmPrice">Цена за километр, ₽<input class="in num" id="dKmPrice" type="number" min="0" step="10"></label>
+            <label class="f" for="dKmMin">Минимум за доставку, ₽<input class="in num" id="dKmMin" type="number" min="0" step="50"></label>
+            <label class="f" for="dKmFactor">Поправка к прямой<input class="in num" id="dKmFactor" type="number" min="1" step="0.05"></label>
+            <label class="f" for="dKmMax">Дальше не возим, км<input class="in num" id="dKmMax" type="number" min="0" step="1"></label>
+          </div>
+          <p class="hint">Расстояние считается по прямой между точками и умножается на поправку — улицы не прямые, 1,3 близко к настоящему пробегу. «Дальше не возим» 0 — без ограничения. Ключ хранится на сервере и в браузер покупателя не попадает.</p>
+          <div class="bar"><button class="btn btn-p" id="dKmSave">Сохранить</button><button class="btn btn-g" id="dKmTest">Проверить адрес</button></div>
+          <p class="hint" id="dKmResult" hidden></p>
+        </div>
         <div class="card">
           <h2>Зоны и стоимость доставки</h2>
           <div class="scroll"><table class="t" id="zones"></table></div>
@@ -899,8 +917,40 @@ const loadDelivery = safe(async () => {
   $('#dPickAddr').value = S.pickup_address || ''; $('#dPickHours').value = S.pickup_hours || '';
   CLOSED = Array.isArray(S.closed_dates) ? [...S.closed_dates] : [];
   renderClosed();
+  sw($('#dKm'), S.km_mode);
+  $('#dOrigin').value = S.origin_address || 'Москва, Маленковская улица, 14к1';
+  $('#dYkey').value = S.ymaps_key || '';
+  $('#dKmPrice').value = S.km_price || 0; $('#dKmMin').value = S.km_min || 0;
+  $('#dKmFactor').value = S.km_factor || 1.3; $('#dKmMax').value = S.km_max || 0;
   ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
   renderZones(); renderInts();
+});
+$('#dKmSave').onclick = safe(async () => {
+  const on = sw($('#dKm'));
+  const price = +$('#dKmPrice').value || 0;
+  if (on && !$('#dYkey').value.trim()) return toast('Без ключа Яндекс.Карт адрес проверить нечем', true);
+  if (on && !price) return toast('Укажите цену за километр', true);
+  const origin = $('#dOrigin').value.trim();
+  const body = { km_mode: on, km_price: price, km_min: +$('#dKmMin').value || 0,
+    km_factor: +$('#dKmFactor').value || 1.3, km_max: +$('#dKmMax').value || 0,
+    ymaps_key: $('#dYkey').value.trim(), origin_address: origin };
+  // адрес точки поменялся — старые координаты сбрасываем, сервер найдёт заново
+  if (origin !== (S.origin_address || '')) { body.origin_lat = 0; body.origin_lon = 0; }
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
+  toast('Сохранено');
+});
+$('#dKmTest').onclick = safe(async () => {
+  const out = $('#dKmResult');
+  const raw = prompt('Проверить какой адрес? Например: Тверская 12 или Ленинский 45к2');
+  if (!raw) return;
+  // «Тверская 12к2» → улица «Тверская», дом «12», корпус «2»
+  const m = String(raw).trim().match(/^(.*?)[,\s]+(\d+[а-яa-z]?)(?:\s*к(?:орп\.?|орпус)?\s*(\d+[а-яa-z]?))?$/i);
+  const body = m ? { street: m[1].trim(), house: m[2], block: m[3] || '' } : { street: raw, house: '' };
+  out.hidden = false; out.textContent = 'Проверяем…';
+  try {
+    const r = await api('/api/shop/geo-test', { method: 'POST', body });
+    out.textContent = `${r.address} — ${r.km} км от «${r.from}», доставка ${r.price} ₽`;
+  } catch (err) { out.textContent = err.message; }
 });
 $('#dPickSave').onclick = safe(async () => {
   const on = sw($('#dPickup'));

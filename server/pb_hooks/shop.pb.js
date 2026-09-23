@@ -8,6 +8,32 @@ routerAdd("GET", "/api/shop/catalog", (e) => {
   return e.json(200, shop.catalog($app));
 });
 
+// Подсказки адреса при вводе. Ключ Яндекса остаётся на сервере — сайт спрашивает нас.
+routerAdd("GET", "/api/shop/suggest", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const geo = require(`${__hooks}/lib/geo.js`);
+  const q = String(e.request.url.query().get("q") || "").trim();
+  if (q.length < 3) return e.json(200, { items: [] });
+  return e.json(200, { items: geo.suggest(shop.settings($app), q.slice(0, 120)) });
+});
+
+// Проверка адреса и стоимость доставки — показать покупателю до оформления.
+// Это только подсказка: при создании заказа всё считается заново (prepareOrder).
+routerAdd("POST", "/api/shop/address", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const geo = require(`${__hooks}/lib/geo.js`);
+  const s = shop.settings($app);
+  if (!s.get("km_mode")) return e.json(400, { message: "Расчёт по километрам выключен." });
+  const b = e.requestInfo().body || {};
+  const r = geo.check($app, s, {
+    street: String(b.street || "").slice(0, 200),
+    house: String(b.house || "").slice(0, 20),
+    block: String(b.block || "").slice(0, 20),
+  });
+  if (!r.ok) return e.json(400, { message: r.error });
+  return e.json(200, { km: r.km, price: r.price, address: r.found });
+});
+
 // Заказ с сайта: пересчитываем цены, доставку и проверяем дату/интервал на сервере
 onRecordCreateRequest((e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
@@ -69,6 +95,22 @@ onRecordAfterUpdateSuccess((e) => {
   }
   e.next();
 }, "settings");
+
+// Кнопка «Проверить адрес» в админке: работает и когда расчёт по километрам ещё выключен
+routerAdd("POST", "/api/shop/geo-test", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const geo = require(`${__hooks}/lib/geo.js`);
+  const s = shop.settings($app);
+  if (!s.get("ymaps_key")) return e.json(400, { message: "Сначала сохраните ключ Яндекс.Карт." });
+  const b = e.requestInfo().body || {};
+  const r = geo.check($app, s, {
+    street: String(b.street || "").slice(0, 200),
+    house: String(b.house || "").slice(0, 20),
+    block: String(b.block || "").slice(0, 20),
+  });
+  if (!r.ok) return e.json(400, { message: r.error });
+  return e.json(200, { km: r.km, price: r.price, address: r.found, from: s.get("origin_address") });
+}, $apis.requireAuth("managers"));
 
 // Кнопка «Проверить бота» в админке
 routerAdd("POST", "/api/shop/tg-test", (e) => {

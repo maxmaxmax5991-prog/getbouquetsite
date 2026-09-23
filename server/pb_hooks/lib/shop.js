@@ -123,7 +123,10 @@ function catalog(app) {
     products,
     price_tables: priceTables(s),
     delivery: {
-      zones, intervals,
+      zones: s.get("km_mode") ? [] : zones,
+      intervals,
+      // расчёт по километрам: сайт показывает поля адреса и спрашивает цену у сервера
+      km: s.get("km_mode") ? { on: true, from: s.get("origin_address") || "", max: +s.get("km_max") || 0 } : null,
       min_order: s.get("min_order") || 0,
       lead_hours: s.get("lead_hours") || 0,
       days_ahead: s.get("days_ahead") || 14,
@@ -184,14 +187,35 @@ function prepareOrder(app, rec) {
   if (pickup) { rec.set("zone", ""); rec.set("address", s.get("pickup_address") || "Самовывоз"); }
 
   let delivery = 0;
-  const zoneId = pickup ? "" : rec.get("zone");
-  if (zoneId) {
-    let z;
-    try { z = app.findRecordById("delivery_zones", zoneId); } catch (_) { fail("Выберите зону доставки."); }
-    if (!z.get("active")) fail("Выберите зону доставки.");
-    delivery = (z.get("free_from") > 0 && sum >= z.get("free_from")) ? 0 : (z.get("price") || 0);
-  } else if (!pickup && app.findRecordsByFilter("delivery_zones", "active = true", "", 1, 0).length) {
-    fail("Выберите зону доставки.");
+  if (!pickup && s.get("km_mode")) {
+    // Доставка по километрам от торговой точки. Адрес проверяем здесь заново:
+    // цену, которую посчитал браузер, не принимаем на веру.
+    const geo = require(`${__hooks}/lib/geo.js`);
+    const parts = {
+      street: String(rec.get("street") || "").trim(),
+      house: String(rec.get("house") || "").trim(),
+      block: String(rec.get("block") || "").trim(),
+      flat: String(rec.get("flat") || "").trim(),
+      floor: String(rec.get("floor") || "").trim(),
+      intercom: String(rec.get("intercom") || "").trim(),
+    };
+    const r = geo.check(app, s, parts);
+    if (!r.ok) fail(r.error);
+    rec.set("zone", "");
+    rec.set("address", r.address);
+    rec.set("lat", r.lat); rec.set("lon", r.lon);
+    rec.set("distance_km", r.km);
+    delivery = r.price;
+  } else if (!pickup) {
+    const zoneId = rec.get("zone");
+    if (zoneId) {
+      let z;
+      try { z = app.findRecordById("delivery_zones", zoneId); } catch (_) { fail("Выберите зону доставки."); }
+      if (!z.get("active")) fail("Выберите зону доставки.");
+      delivery = (z.get("free_from") > 0 && sum >= z.get("free_from")) ? 0 : (z.get("price") || 0);
+    } else if (app.findRecordsByFilter("delivery_zones", "active = true", "", 1, 0).length) {
+      fail("Выберите зону доставки.");
+    }
   }
 
   const date = String(rec.get("date"));
@@ -276,7 +300,8 @@ function orderText(o) {
 o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳 Оплачено картой" : "💳 Ожидает оплаты картой") : "💵 Оплата при получении",
     "",
     `📅 ${dateRu(o.get("date"))}, ${o.get("interval") || "—"}`,
-    o.get("delivery_type") === "pickup" ? `🏪 Самовывоз: ${o.get("address")}` : `📍 ${o.get("address")}`,
+    o.get("delivery_type") === "pickup" ? `🏪 Самовывоз: ${o.get("address")}` :
+      `📍 ${o.get("address")}${o.get("distance_km") ? ` (${o.get("distance_km")} км)` : ""}`,
     `👤 ${o.get("name")}, ${o.get("phone")}`,
     o.get("recipient") ? `🎁 Получатель: ${o.get("recipient")}` : "",
     o.get("note") ? `💌 Открытка: ${o.get("note")}` : "",
