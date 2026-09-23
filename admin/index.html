@@ -102,6 +102,24 @@ label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .prow .s{font-size:12.5px;color:var(--ink-2)}
 .prow.off{opacity:.55}
 .prow.off .n::after{content:" · скрыт";color:var(--bad);font-weight:600}
+.prow.drag{opacity:.4}
+.prow.over{box-shadow:0 -2px 0 var(--accent)}
+.grip{display:flex;flex-direction:column;gap:2px;padding:4px;cursor:grab;color:var(--ink-3)}
+.grip button{width:26px;height:20px;border-radius:5px;line-height:1;font-size:11px;color:var(--ink-2)}
+.grip button:hover{background:var(--ground)}
+.prow{grid-template-columns:auto 56px 1fr auto}
+
+/* статистика */
+.tiles4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.tile span{display:block;font-size:12.5px;color:var(--ink-2)}
+.tile b{font:700 22px var(--display);letter-spacing:-.04em}
+.chart{width:100%;height:220px;display:block;overflow:visible}
+.chart .bar{fill:var(--accent)}
+.chart .bar:hover{fill:var(--accent-text)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart text{fill:var(--ink-3);font-size:11px;font-family:var(--body)}
+.chart text.val{fill:var(--ink);font-weight:700}
 
 /* editor */
 dialog{border:0;padding:0;background:var(--paper);color:var(--ink);border-radius:20px;width:min(760px,calc(100% - 20px));max-height:calc(100% - 20px)}
@@ -161,8 +179,10 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="orders" aria-selected="true">Заказы <span class="dot" id="newCount" hidden>0</span></button>
       <button role="tab" data-tab="products">Товары</button>
+      <button role="tab" data-tab="cats">Разделы</button>
       <button role="tab" data-tab="delivery">Доставка</button>
       <button role="tab" data-tab="prices">Прайс роз</button>
+      <button role="tab" data-tab="stats">Статистика</button>
       <button role="tab" data-tab="settings">Настройки</button>
     </nav>
   </div>
@@ -183,6 +203,30 @@ table.t td{padding:4px 6px;vertical-align:middle}
       </div>
       <p class="hint" style="margin:-4px 0 12px">Нажмите на товар, чтобы изменить. Переключатель справа — показать или скрыть на сайте. Товары можно добавлять и через Телеграм-бота.</p>
       <div class="plist" id="plist"></div>
+    </section>
+
+    <!-- Разделы -->
+    <section id="tab-cats" hidden>
+      <div class="card">
+        <h2>Разделы каталога</h2>
+        <p class="hint" style="margin-bottom:12px">Порядок разделов на сайте — как в этом списке. «Дополнение» — раздел показывается в блоке «Добавить к букету» на странице товара, а не в каталоге.</p>
+        <div class="scroll"><table class="t" id="cats"></table></div>
+        <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="cAdd">+ Раздел</button><button class="btn btn-p btn-s" id="cSave">Сохранить разделы</button></div>
+      </div>
+    </section>
+
+    <!-- Статистика -->
+    <section id="tab-stats" hidden>
+      <div class="bar" id="statRange"></div>
+      <div class="tiles4" id="statTiles"></div>
+      <div class="card" style="margin-top:12px">
+        <h2>Выручка по дням</h2>
+        <div id="statChart"></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Что покупают</h2>
+        <div class="scroll"><table class="t" id="statTop"></table></div>
+      </div>
     </section>
 
     <!-- Доставка -->
@@ -379,7 +423,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ orders: loadOrders, products: loadProducts, delivery: loadDelivery, prices: loadPrices, settings: loadSettings })[t]();
+  ({ orders: loadOrders, products: loadProducts, cats: loadCats, delivery: loadDelivery, prices: loadPrices, stats: loadStats, settings: loadSettings })[t]();
 }
 
 let S = null, CATS = [];
@@ -456,11 +500,34 @@ function priceOf(p) {
 function renderProducts() {
   const q = $('#pSearch').value.trim().toLowerCase(), c = $('#pCat').value;
   const r = PRODS.filter(p => (!c || p.category === c) && (!q || p.name.toLowerCase().includes(q)));
-  $('#plist').innerHTML = r.length ? r.map(p => `<div class="prow${p.active ? '' : ' off'}" data-id="${p.id}">
+  const sortable = !q;
+  $('#plist').innerHTML = r.length ? r.map(p => `<div class="prow${p.active ? '' : ' off'}" data-id="${p.id}"${sortable ? ' draggable="true"' : ''}>
+    <div class="grip">${sortable ? `<button data-up="${p.id}" aria-label="Выше">▲</button><button data-down="${p.id}" aria-label="Ниже">▼</button>` : ''}</div>
     ${p.photo && p.photo[0] ? `<img src="${fileUrl(p, p.photo[0], '160x160')}" alt="" loading="lazy">` : '<div class="ph" style="width:56px;height:56px"></div>'}
     <div><div class="n">${esc(p.name)}</div><div class="s">${esc((CATS.find(x => x.id === p.category) || {}).name || '')} · ${priceOf(p)}</div></div>
     <button class="sw" data-toggle="${p.id}" role="switch" aria-checked="${p.active}" aria-label="На сайте"></button>
   </div>`).join('') : `<div class="empty">Ничего не нашлось.</div>`;
+}
+/* порядок товаров: перетаскиванием на компьютере, стрелками на телефоне */
+let dragId = null;
+$('#plist').addEventListener('dragstart', e => { const r = e.target.closest('.prow'); if (!r) return; dragId = r.dataset.id; r.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; });
+$('#plist').addEventListener('dragend', () => { dragId = null; $$('.prow').forEach(r => r.classList.remove('drag', 'over')); });
+$('#plist').addEventListener('dragover', e => { const r = e.target.closest('.prow'); if (!r || !dragId) return; e.preventDefault(); $$('.prow').forEach(x => x.classList.toggle('over', x === r)); });
+$('#plist').addEventListener('drop', safe(async e => {
+  const r = e.target.closest('.prow'); if (!r || !dragId) return;
+  e.preventDefault();
+  await moveTo(dragId, PRODS.findIndex(p => p.id === r.dataset.id));
+}));
+async function moveTo(id, to) {
+  const from = PRODS.findIndex(p => p.id === id);
+  if (from < 0 || to < 0 || from === to) return;
+  const [p] = PRODS.splice(from, 1);
+  PRODS.splice(to, 0, p);
+  renderProducts();
+  const changed = PRODS.slice(Math.min(from, to), Math.max(from, to) + 1);
+  for (const [i, x] of PRODS.entries()) x.sort = i;
+  for (const x of changed) await api(`/api/collections/products/records/${x.id}`, { method: 'PATCH', body: { sort: x.sort } });
+  toast('Порядок сохранён');
 }
 const loadProducts = safe(async () => {
   await loadSettings0();
@@ -471,6 +538,12 @@ const loadProducts = safe(async () => {
 $('#pSearch').oninput = renderProducts;
 $('#pCat').onchange = renderProducts;
 $('#plist').addEventListener('click', safe(async e => {
+  const up = e.target.closest('[data-up]'), dn = e.target.closest('[data-down]');
+  if (up || dn) {
+    const id = (up || dn).dataset[up ? 'up' : 'down'];
+    const i = PRODS.findIndex(p => p.id === id);
+    return moveTo(id, up ? Math.max(0, i - 1) : Math.min(PRODS.length - 1, i + 1));
+  }
   const t = e.target.closest('[data-toggle]');
   if (t) {
     const p = PRODS.find(x => x.id === t.dataset.toggle);
@@ -623,6 +696,90 @@ $('#eSave').onclick = safe(async () => {
   $('#ed').close(); toast('Сохранено'); loadProducts();
   return r;
 });
+
+/* ---------- разделы каталога ---------- */
+const slugify = s => s.toLowerCase().replace(/[^a-zа-яё0-9]+/g, '-').replace(/^-|-$/g, '')
+  .replace(/[а-яё]/g, c => ({ а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya' }[c] || '')).slice(0, 40) || 'razdel';
+let CATUSE = [];
+const loadCats = safe(async () => { await loadSettings0(); CATUSE = await list("products", "&fields=id,category"); renderCats(); });
+function renderCats() {
+  const used = id => CATUSE.filter(p => p.category === id).length;
+  $('#cats').innerHTML = `<tr><th></th><th>Название</th><th>Дополнение</th><th>Показывать</th><th>Товаров</th><th></th></tr>` + CATS.map((c, i) => `<tr>
+    <td><button class="btn btn-g btn-s" data-cup="${i}" aria-label="Выше"${i ? '' : ' disabled'}>▲</button></td>
+    <td><input class="in sm" data-c="name" data-i="${i}" value="${esc(c.name)}" style="min-width:170px"></td>
+    <td><input type="checkbox" data-c="addon" data-i="${i}"${c.addon ? ' checked' : ''} aria-label="Дополнение"></td>
+    <td><input type="checkbox" data-c="active" data-i="${i}"${c.active ? ' checked' : ''} aria-label="Показывать"></td>
+    <td class="num">${c.id ? used(c.id) : 0}</td>
+    <td><button class="btn btn-d btn-s" data-rmc="${i}">Удалить</button></td></tr>`).join('');
+}
+$('#cAdd').onclick = () => { readRows('#cats [data-c]', 'c', CATS); CATS.push({ name: '', addon: false, active: true, sort: CATS.length }); renderCats(); };
+$('#cats').addEventListener('click', safe(async e => {
+  const up = e.target.closest('[data-cup]'), rm = e.target.closest('[data-rmc]');
+  readRows('#cats [data-c]', 'c', CATS);
+  if (up) { const i = +up.dataset.cup; [CATS[i - 1], CATS[i]] = [CATS[i], CATS[i - 1]]; return renderCats(); }
+  if (!rm) return;
+  const i = +rm.dataset.rmc, c = CATS[i];
+  if (c.id && CATUSE.some(p => p.category === c.id)) return toast('Сначала перенесите товары в другой раздел', true);
+  CATS.splice(i, 1);
+  if (c.id) { if (!confirm(`Удалить раздел «${c.name}»?`)) { CATS.splice(i, 0, c); return; } await api(`/api/collections/categories/records/${c.id}`, { method: 'DELETE' }); }
+  renderCats();
+}));
+$('#cSave').onclick = safe(async () => {
+  readRows('#cats [data-c]', 'c', CATS);
+  if (CATS.some(c => !c.name)) return toast('У каждого раздела должно быть название', true);
+  for (const [i, c] of CATS.entries()) {
+    const body = { name: c.name, addon: !!c.addon, active: !!c.active, sort: i, slug: c.slug || slugify(c.name) };
+    CATS[i] = c.id ? await api(`/api/collections/categories/records/${c.id}`, { method: 'PATCH', body }) : await api(`/api/collections/categories/records`, { method: 'POST', body });
+  }
+  renderCats(); toast('Разделы сохранены');
+});
+
+/* ---------- статистика ---------- */
+let statDays = 14;
+const loadStats = safe(async () => {
+  $('#statRange').innerHTML = [[7, '7 дней'], [14, '14 дней'], [30, '30 дней'], [90, '3 месяца']]
+    .map(([d, t]) => `<button class="chip" data-days="${d}" aria-pressed="${statDays === d}">${t}</button>`).join('');
+  const from = new Date(Date.now() - (statDays - 1) * 864e5).toISOString().slice(0, 10);
+  const orders = await list('orders', `&sort=created&filter=${encodeURIComponent(`created>="${from} 00:00:00" && status!="cancelled"`)}`);
+  const byDay = {}, byItem = {};
+  for (let i = 0; i < statDays; i++) byDay[new Date(Date.now() - (statDays - 1 - i) * 864e5).toISOString().slice(0, 10)] = 0;
+  let sum = 0;
+  orders.forEach(o => {
+    const d = o.created.slice(0, 10);
+    if (d in byDay) byDay[d] += o.total;
+    sum += o.total;
+    (o.items || []).forEach(it => {
+      const k = it.name + (it.label_text ? ' · ' + it.label_text : '');
+      byItem[k] = byItem[k] || { qty: 0, sum: 0 };
+      byItem[k].qty += it.qty; byItem[k].sum += it.sum;
+    });
+  });
+  const avg = orders.length ? Math.round(sum / orders.length) : 0;
+  const delivered = orders.filter(o => o.status === 'done').length;
+  $('#statTiles').innerHTML = [
+    ['Заказов', orders.length], ['Выручка', rub(sum)], ['Средний чек', rub(avg)], ['Доставлено', delivered],
+  ].map(([t, v]) => `<div class="tile"><span>${t}</span><b class="num">${v}</b></div>`).join('');
+  $('#statChart').innerHTML = chartHTML(byDay);
+  const top = Object.entries(byItem).sort((a, b) => b[1].sum - a[1].sum).slice(0, 10);
+  $('#statTop').innerHTML = top.length
+    ? `<tr><th>Товар</th><th>Штук</th><th>Сумма</th></tr>` + top.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.qty}</td><td class="num">${rub(v.sum)}</td></tr>`).join('')
+    : `<tr><td class="hint">Пока нет продаж за этот период.</td></tr>`;
+});
+$('#statRange').onclick = e => { const b = e.target.closest('[data-days]'); if (b) { statDays = +b.dataset.days; loadStats(); } };
+function chartHTML(byDay) {
+  const days = Object.entries(byDay), max = Math.max(1, ...days.map(([, v]) => v));
+  const W = 700, H = 200, pad = 26, bw = (W - pad) / days.length;
+  const y = v => H - 24 - (v / max) * (H - 48);
+  const fmtDay = d => new Date(d + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  const ticks = [0, max / 2, max].map(v => `<line class="grid" x1="${pad}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="0" y="${y(v) + 4}">${Math.round(v / 1000) ? Math.round(v / 1000) + 'к' : Math.round(v)}</text>`).join('');
+  const bars = days.map(([d, v], i) => {
+    const h = Math.max(v > 0 ? 3 : 0, H - 24 - y(v)), x = pad + i * bw + bw * 0.15, w = bw * 0.7;
+    const label = (i === days.length - 1 || v === max) && v > 0 ? `<text class="val" x="${x + w / 2}" y="${y(v) - 6}" text-anchor="middle">${rub(v)}</text>` : '';
+    return `<g><title>${fmtDay(d)} — ${rub(v)}</title><rect class="bar" x="${x}" y="${y(v)}" width="${w}" height="${h}" rx="4"/></g>${label}` +
+      (i % Math.ceil(days.length / 7) === 0 ? `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${fmtDay(d)}</text>` : '');
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Выручка по дням">${ticks}${bars}</svg>`;
+}
 
 /* ---------- доставка ---------- */
 let ZONES = [], INTS = [], CLOSED = [];
