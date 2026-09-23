@@ -107,7 +107,8 @@ function matchProduct(s, item) {
   rows.forEach((r) => {
     const n = norm(r.name);
     let score = words.filter((w) => n.indexOf(w) >= 0).length * 3;
-    if (len && new RegExp(`\b${len}\s*см`).test(n)) score += 6;
+    if (len && (n.indexOf(len + "см") >= 0 || n.indexOf(len + " см") >= 0)) score += 6;
+    if (len && (n.indexOf((+len + 10) + "см") >= 0 || n.indexOf((+len - 10) + "см") >= 0)) score -= 4;   // другая длина — хуже
     if (!len && size && n.indexOf(norm(size)) >= 0) score += 6;
     if (score > bestScore) { bestScore = score; best = r; }
   });
@@ -155,6 +156,73 @@ function deliveryService(s) {
   return rows.length ? rows[0].id : null;
 }
 
+// Доп. поля заказа: ищем по названию, значения справочников — по названию значения
+function attrMeta(id) {
+  return { meta: { href: `${BASE}/entity/customerorder/metadata/attributes/${id}`, type: "attributemetadata", mediaType: "application/json" } };
+}
+function customValue(s, attr, valueName) {
+  if (!attr.customEntityMeta || !valueName) return null;
+  const dict = String(attr.customEntityMeta.href).split("/").pop();
+  const list = ms(s, "GET", `/entity/customentity/${dict}?limit=100`);
+  if (!list.ok) return null;
+  const want = norm(valueName);
+  const row = (list.data.rows || []).find((r) => norm(r.name) === want) ||
+              (list.data.rows || []).find((r) => norm(r.name).indexOf(want) >= 0);
+  if (!row) return null;
+  return { meta: { href: `${BASE}/entity/customentity/${dict}/${row.id}`, type: "customentity", mediaType: "application/json" } };
+}
+function buildAttributes(s, o) {
+  const md = ms(s, "GET", "/entity/customerorder/metadata/attributes");
+  if (!md.ok) return [];
+  const rows = md.data.rows || [];
+  const byName = (name) => rows.find((r) => norm(r.name) === norm(name));
+  const pickup = o.get("delivery_type") === "pickup";
+  const paidCard = o.get("payment_method") === "card";
+  const out = [];
+  const add = (name, value) => {
+    const a = byName(name);
+    if (!a || value === null || value === undefined || value === "") return;
+    out.push(Object.assign(attrMeta(a.id), { value: a.type === "customentity" ? customValue(s, a, value) : value }));
+  };
+  const addEntity = (name, valueName) => {
+    const a = byName(name);
+    if (!a) return;
+    const v = customValue(s, a, valueName);
+    if (v) out.push(Object.assign(attrMeta(a.id), { value: v }));
+  };
+  addEntity("Способ доставки", pickup ? "Самовывоз" : "Доставка");
+  addEntity("Тип Оплаты", paidCard ? (s.get("ms_pay_card") || "CloudPayments") : (s.get("ms_pay_cash") || "Наличные/карта на ТТ"));
+  add("Время доставки", o.get("interval") || "");
+  add("Получатель", o.get("recipient") || "");
+  add("Текст открытки", o.get("note") || "");
+  add("Имя покупателя", o.get("name") || "");
+  add("Телефон покупателя", o.get("phone") || "");
+  const delivery = o.get("delivery_price") || 0;
+  if (delivery > 0) add("Стоимость доставки", delivery);
+  return out.filter((x) => x.value !== null && x.value !== undefined);
+}
+
+// Канал продаж
+function channelId(s) {
+  const name = (s.get("ms_channel") || "").trim();
+  if (!name) return null;
+  const list = ms(s, "GET", `/entity/saleschannel?limit=100`);
+  if (!list.ok) return null;
+  const want = norm(name);
+  const row = (list.data.rows || []).find((r) => norm(r.name) === want) || (list.data.rows || []).find((r) => norm(r.name).indexOf(want) >= 0);
+  return row ? row.id : null;
+}
+
+// Адрес доставки как структурированное поле
+function addressFull(o) {
+  if (o.get("delivery_type") === "pickup") return null;
+  const raw = String(o.get("address") || "").trim();
+  if (!raw) return null;
+  const hasCity = /москва/i.test(raw);
+  const street = hasCity ? raw.replace(/^\s*(г\.?\s*)?москва\s*,?\s*/i, "") : raw;
+  return { city: hasCity ? "Москва" : "", street: street || raw, comment: "" };
+}
+
 function orderDescription(o) {
   const parts = [
     `Заказ №${o.get("number")} с сайта venikoff.net`,
@@ -176,6 +244,10 @@ function pushOrder(app, o) {
   const s = shop.settings(app);
   if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция выключена." };
   if (o.get("ms_id")) return { ok: true, id: o.get("ms_id") };
+  // доставку оформляем в МоёмСкладе только после оплаты; самовывоз — сразу
+  if (o.get("delivery_type") !== "pickup" && o.get("payment_status") !== "paid") {
+    return { ok: false, wait: true, error: "Ждём оплату — заказ уйдёт в МойСклад после неё." };
+  }
   if (!s.get("ms_org_id") || !s.get("ms_store_id")) return { ok: false, error: "Не выбраны организация и склад." };
 
   const a = agent(s, o);
@@ -183,16 +255,23 @@ function pushOrder(app, o) {
 
   const items = shop.jget(o, "items") || [];
   const positions = [];
+  let posKop = 0, itemsKop = 0;
   for (const it of items) {
     const as = assortment(app, s, it);
     if (!as.ok) return as;
-    const st = stemsOf(it);   // в МоёмСкладе номенклатура — стебель, поэтому количество стеблей и цена за стебель
-    positions.push({ quantity: st.cnt * it.qty, price: Math.round(st.price * 100), assortment: meta("product", as.id) });
+    const st = stemsOf(it);   // в МоёмСкладе номенклатура — стебель: количество стеблей и цена за стебель
+    const qty = st.cnt * it.qty;
+    const priceKop = Math.round(st.price * 100);
+    positions.push({ quantity: qty, price: priceKop, assortment: meta("product", as.id) });
+    posKop += priceKop * qty;
+    itemsKop += Math.round(it.price * 100) * it.qty;
   }
 const delivery = o.get("delivery_price") || 0;
 if (delivery > 0) {
   const svc = deliveryService(s);
-  if (svc) positions.push({ quantity: 1, price: Math.round(delivery * 100), assortment: meta("service", svc) });
+  // копейки, потерянные при делении цены букета на стебли, добавляем к доставке — итог сходится с сайтом
+  const kop = Math.round(delivery * 100) + (itemsKop - posKop);
+  if (svc) positions.push({ quantity: 1, price: kop, assortment: meta("service", svc) });
 }
 
   const body = {
@@ -205,7 +284,12 @@ if (delivery > 0) {
     positions,
     shipmentAddress: o.get("delivery_type") === "pickup" ? "" : o.get("address") || "",
   vatEnabled: false,
+attributes: buildAttributes(s, o),
 };
+const ch = channelId(s);
+if (ch) body.salesChannel = meta("saleschannel", ch);
+const addr = addressFull(o);
+if (addr) body.shipmentAddressFull = addr;
 const st = stateId(s, o.get("payment_status") === "paid");
 if (st) body.state = meta("state", st);
 
@@ -213,6 +297,27 @@ if (st) body.state = meta("state", st);
   if (!created.ok) return created;
   o.set("ms_id", created.data.id);
   o.set("ms_error", "");
+  app.save(o);
+  return { ok: true, id: created.data.id };
+}
+
+// Входящий платёж в МоёмСкладе, привязанный к заказу покупателя
+function addPayment(app, o) {
+  const s = shop.settings(app);
+  if (!o.get("ms_id") || !s.get("ms_token") || o.get("ms_payment_id")) return { ok: false };
+  const ord = ms(s, "GET", `/entity/customerorder/${o.get("ms_id")}`);
+  if (!ord.ok) return ord;
+  const agentHref = ord.data.agent && ord.data.agent.meta && ord.data.agent.meta.href;
+  if (!agentHref) return { ok: false, error: "У заказа в МоёмСкладе нет контрагента." };
+  const created = ms(s, "POST", "/entity/paymentin", {
+    organization: meta("organization", s.get("ms_org_id")),
+    agent: { meta: { href: agentHref, type: "counterparty", mediaType: "application/json" } },
+    sum: Math.round((o.get("total") || 0) * 100),
+    paymentPurpose: `Оплата заказа №${o.get("number")} на сайте venikoff.net (CloudPayments${o.get("payment_id") ? ", операция " + o.get("payment_id") : ""})`,
+    operations: [{ meta: { href: `${BASE}/entity/customerorder/${o.get("ms_id")}`, type: "customerorder", mediaType: "application/json" }, linkedSum: Math.round((o.get("total") || 0) * 100) }],
+  });
+  if (!created.ok) return created;
+  o.set("ms_payment_id", created.data.id);
   app.save(o);
   return { ok: true, id: created.data.id };
 }
@@ -226,4 +331,4 @@ function markPaid(app, o) {
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { state: meta("state", st) });
 }
 
-module.exports = { ms, refs, pushOrder, msName, matchProduct, stemsOf, markPaid, deliveryService };
+module.exports = { ms, refs, pushOrder, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };

@@ -81,8 +81,10 @@ function checkOrder(app, o) {
   }));
   try {
     const msl = require(`${__hooks}/lib/ms.js`);
-    msl.markPaid(app, o);   // в МоёмСкладе статус станет «Принят, Оплачен»
-  } catch (err) { console.log("ms markPaid", err); }
+    if (o.get("ms_id")) msl.markPaid(app, o);   // уже там — просто меняем статус
+    else msl.pushOrder(app, o);                 // доставку создаём только сейчас, после оплаты
+    msl.addPayment(app, o);                     // и входящий платёж, привязанный к заказу
+  } catch (err) { console.log("ms after pay", err); }
   return true;
 }
 
