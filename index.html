@@ -291,6 +291,9 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .me-form{display:grid;gap:12px;max-width:420px}
 .me-form label{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .me-form input{height:48px;border-radius:12px;border:1px solid var(--line-2);background:var(--ground);padding:0 14px;font-size:16px;outline:0;color:var(--ink)}
+.sub-box{margin:18px auto 0;max-width:34ch;padding:14px 16px;border-radius:14px;background:var(--accent-soft);text-align:left}
+.sub-box b{display:block;font-size:14.5px;margin-bottom:4px;color:var(--accent-text)}
+.sub-box span{font-size:13px;color:var(--ink-2)}
 .pickup-note{margin:0;padding:12px 14px;border-radius:12px;background:var(--accent-soft);color:var(--accent-text);font-size:13.5px;font-weight:600}
 .pay-seg{display:flex;gap:6px;margin-top:6px}
 .pay-seg button{flex:1;height:46px;border-radius:12px;border:1px solid var(--line-2);background:var(--ground);font-weight:600;font-size:14px}
@@ -548,7 +551,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790173711"></script>
+<script src="data.js?v=1790173818"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -858,6 +861,11 @@ $$("[data-pay-order]").forEach(b => b.onclick = async () => {
   if (res.paid) {
     try { await fetch("/api/shop/pay-check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ order: b.dataset.payOrder }) }); } catch (_) {}
     toast("Оплата прошла");
+    const ord = (ME.orders || []).find(x => x.id === b.dataset.payOrder);
+    if (ord && !ord.subscribed && API.bot && ord.tg_code) {
+      lastOrder = { number: ord.number, sum: ord.total, when: `${ord.date}, ${ord.interval || ""}`, paid: true, code: ord.tg_code };
+      view = "done"; renderCart(); cartDlg.showModal();   // окно с кнопкой «Открыть бота»
+    }
     renderMe();
   } else { b.disabled = false; toast(res.error || "Оплата не прошла", true); }
 });
@@ -1085,14 +1093,19 @@ ${payChoice()}
     if ($('#fZone')) $('#fZone').onchange = recalc;
     $('#fTime').onchange = recalc;
   } else {
-    $('#cartTitle').textContent = 'Готово';
-    body.innerHTML = `<div class="done"><div class="seal">${icon('check')}</div><h3>Спасибо!</h3>
+    $("#cartTitle").textContent = "Готово";
+    const botLink = API && API.bot && lastOrder.code ? `https://t.me/${API.bot}?start=o${lastOrder.code}` : "";
+    body.innerHTML = `<div class="done"><div class="seal">${icon("check")}</div><h3>Спасибо!</h3>
       <p>${lastOrder.number ? `Заказ №${lastOrder.number} на ${rub(lastOrder.sum)} принят` : `${esc(lastOrder.name)}, заказ на ${rub(lastOrder.sum)} оформлен`} — ${esc(lastOrder.when)}.</p>
-      <p>${!lastOrder.number ? 'Это демо-версия: заказ не отправлен.' : lastOrder.paid ? 'Оплата прошла. Перед доставкой пришлём фото букета.' : lastOrder.payError ? esc(lastOrder.payError) : 'Мы свяжемся с вами для подтверждения, а перед доставкой пришлём фото букета.'}</p></div>`;
+      <p>${!lastOrder.number ? "Это демо-версия: заказ не отправлен." : lastOrder.paid ? "Оплата прошла." : lastOrder.payError ? esc(lastOrder.payError) : "Мы свяжемся с вами для подтверждения."}</p>
+      ${botLink ? `<div class="sub-box">
+        <b>Следите за заказом в мессенджере</b>
+        <span>Пришлём фото букета перед доставкой, а вы ответите, всё ли нравится.</span>
+      </div>` : ""}</div>`;
     foot.hidden = false;
-    const botLink = API && API.bot && lastOrder.code ? `https://t.me/${API.bot}?start=o${lastOrder.code}` : '';
-    foot.innerHTML = `${botLink ? `<a class="btn btn-primary btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Статусы заказа в Телеграме</span>${icon('arrow')}</a>` : ''}
-      <button class="btn ${botLink ? 'btn-ghost' : 'btn-primary'} btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon('arrow')}</button>`;
+    foot.innerHTML = `${botLink ? `<a class="btn btn-primary btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Открыть бота и получать статусы</span>${icon("arrow")}</a>` : ""}
+      ${botLink && API.maxBot && lastOrder.code ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${API.maxBot}?start=o${lastOrder.code}" target="_blank" rel="noopener"><span>Открыть в MAX</span>${icon("arrow")}</a>` : ""}
+      <button class="btn ${botLink ? "btn-ghost" : "btn-primary"} btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon("arrow")}</button>`;
   }
 }
 cartDlg.addEventListener('click', e => {
