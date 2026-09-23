@@ -551,7 +551,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790174031"></script>
+<script src="data.js?v=1790175118"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1055,7 +1055,7 @@ function renderCart() {
           <button type="button" data-get="pickup" aria-pressed="false">Самовывоз</button>
         </div></div>` : ''}
         <label for="fName">Ваше имя<input id="fName" name="name" required autocomplete="name" placeholder="Анна" maxlength="120"></label>
-        <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[+0-9 ()\\-]{10,}" maxlength="40"></label>
+        <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[-+0-9 ()]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
         <div id="addrBox"><label for="fAddr">Адрес в Москве<input id="fAddr" name="addr" required autocomplete="street-address" placeholder="Улица, дом, квартира" maxlength="400"></label></div>
         ${PICKUP ? `<p class="pickup-note" id="pickupNote" hidden>Забрать: ${esc(PICKUP.address || 'адрес уточним')}${PICKUP.hours ? `, ${esc(PICKUP.hours)}` : ''}</p>` : ''}
@@ -1145,6 +1145,8 @@ function payCard(order, name, phone) {
   return loadWidget().then(ok => {
     if (!ok || !window.cp) return { paid: false, error: 'Не удалось открыть окно оплаты. Мы свяжемся с вами для оплаты.' };
     return new Promise(resolve => {
+      let answered = false;
+      const done = (r) => { if (!answered) { answered = true; resolve(r); } };
       new window.cp.CloudPayments().pay('charge', {
         publicId: PAY.public_id,
         description: `Заказ №${order.number} — venikoff.net`,
@@ -1155,8 +1157,10 @@ function payCard(order, name, phone) {
         skin: 'mini',
         data: { orderId: order.id, name },
       }, {
-        onSuccess: () => resolve({ paid: true }),
-        onFail: (reason) => resolve({ paid: false, error: 'Оплата не прошла: ' + (reason || 'попробуйте другую карту') }),
+        onSuccess: () => done({ paid: true }),
+        onFail: (reason) => done({ paid: false, error: 'Оплата не прошла: ' + (reason || 'попробуйте другую карту') }),
+        // страховка: если покупатель просто закрыл окно оплаты, без неё сайт завис бы на «Подтвердить заказ»
+        onComplete: () => setTimeout(() => done({ paid: false, error: 'Оплата не завершена. Её можно провести позже в «Мои заказы».' }), 300),
       });
     });
   });
@@ -1202,7 +1206,10 @@ cartDlg.addEventListener('submit', async e => {
   const f = e.target, v = k => f.elements.namedItem(k).value;
   const err = m => { $('#fErr').textContent = m; $('#fErr').hidden = !m; };
   err('');
-  if (!f.checkValidity()) { f.querySelector(':invalid').focus(); f.reportValidity(); return; }
+  // проверку формы оборачиваем: в некоторых браузерах она может упасть и оборвать оформление заказа
+  let ok = true;
+  try { ok = f.checkValidity(); } catch (_) { ok = true; }
+  if (!ok) { const bad = f.querySelector(':invalid'); if (bad) bad.focus(); try { f.reportValidity(); } catch (_) {} return; }
   if (!v('time')) return err('Выберите другую дату — на эту нет свободных интервалов.');
   const d = new Date(v('date') + 'T12:00');
   const when = `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}, ${v('time')}`;
@@ -1216,15 +1223,19 @@ cartDlg.addEventListener('submit', async e => {
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { btn.disabled = false; return err(res.status === 429 ? 'Слишком много попыток. Подождите минуту.' : (data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.')); }
-lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code };
-if (payMethod === 'card') {
-  cartDlg.close();   // корзина открыта поверх всего, окно оплаты было бы под ней
-  const res = await payCard(data, v('name').trim(), v('phone').trim());
-  lastOrder.paid = res.paid;
-  lastOrder.payError = res.error;
-  if (res.paid) { try { await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: data.id }) }); } catch (_) {} }
-  if (!cartDlg.open) cartDlg.showModal();
-}
+      lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code };
+      if (payMethod === 'card') {
+        cartDlg.close();   // корзина открыта поверх всего, окно оплаты было бы под ней
+        const res = await payCard(data, v('name').trim(), v('phone').trim());
+        lastOrder.paid = res.paid;
+        lastOrder.payError = res.error;
+        if (res.paid) { try { await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: data.id }) }); } catch (_) {} }
+        cart = {}; store.set('cart', cart); badges();
+        $$('.buy-slot').forEach(el => { const id = el.closest('[data-id]').dataset.id; el.innerHTML = buyHTML(byId[id]); });
+        view = 'done'; renderCart();
+        if (!cartDlg.open) cartDlg.showModal();   // окно «Готово» с кнопкой «Открыть бота»
+        return;
+      }
     } catch (_) { btn.disabled = false; return err('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.'); }
   } else {
     lastOrder = { name: v('name').trim(), sum: totals().sum, when };

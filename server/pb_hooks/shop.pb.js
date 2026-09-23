@@ -53,11 +53,17 @@ routerAdd("POST", "/api/tg/{secret}", (e) => {
   return e.json(200, { ok: true });
 });
 
-// После сохранения настроек — подключаем бота к сайту
+// После сохранения настроек — подключаем бота к сайту.
+// Важно: только когда ключ бота поменялся. Настройки сохраняются часто (опрос Телеграма пишет
+// в них позицию), а сам setup тоже сохраняет настройки — без этой проверки получался бесконечный
+// круг и сотни обращений к Телеграму, из-за которых бот замолкал.
 onRecordAfterUpdateSuccess((e) => {
   try {
     const bot = require(`${__hooks}/lib/bot.js`);
-    if (e.record.get("tg_token")) bot.setup($app, e.record);
+    const token = e.record.get("tg_token");
+    let was = "";
+    try { was = e.record.original().get("tg_token") || ""; } catch (_) {}
+    if (token && (token !== was || !e.record.get("tg_bot"))) bot.setup($app, e.record);
   } catch (err) {
     console.log("bot setup error", err);
   }

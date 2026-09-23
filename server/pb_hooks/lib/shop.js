@@ -230,22 +230,27 @@ const last = app.findRecordsByFilter("orders", "number > 0", "-number", 1, 0);
 }
 
 // ---------- Телеграм ----------
+// Одна попытка может не дойти (связь с Телеграмом иногда подвисает), поэтому пробуем дважды —
+// иначе уведомление о заказе теряется совсем.
 function tg(token, method, payload) {
   if (!token) return null;
-  try {
-    const res = $http.send({
-      url: `https://api.telegram.org/bot${token}/${method}`,
-      method: "POST",
-      body: JSON.stringify(payload || {}),
-      headers: { "content-type": "application/json" },
-      timeout: 20,
-    });
-    if (res.statusCode !== 200) console.log("telegram", method, res.statusCode, toString(res.body));
-    return res.json;
-  } catch (err) {
-    console.log("telegram error", method, err);
-    return null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = $http.send({
+        url: `https://api.telegram.org/bot${token}/${method}`,
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+        headers: { "content-type": "application/json" },
+        timeout: 20,
+      });
+      if (res.statusCode !== 200) console.log("telegram", method, res.statusCode, toString(res.body));
+      return res.json;
+    } catch (err) {
+      console.log("telegram error", method, attempt, err);
+      if (attempt === 2) return null;
+    }
   }
+  return null;
 }
 
 // ключ клиентского бота (если не задан — общий)
