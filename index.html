@@ -179,6 +179,8 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .card-img{position:relative;display:block;aspect-ratio:4/5;border-radius:16px;overflow:hidden;background:var(--tile);max-width:100%}
 .card-img img{width:100%;height:100%;object-fit:cover;transition:transform .5s ease-out}
 .card:hover .card-img img{transform:scale(1.03)}
+.count-tag{position:absolute;left:10px;bottom:10px;padding:5px 11px;border-radius:9px;background:rgba(255,255,255,.92);color:#15181A;font-size:12.5px;font-weight:700;backdrop-filter:blur(6px)}
+.pd-img .count-tag{left:16px;bottom:16px;font-size:14px;padding:7px 14px}
 .tag{position:absolute;left:10px;top:10px;padding:4px 9px;border-radius:8px;font-size:11px;font-weight:700;background:var(--sale);color:#fff;letter-spacing:.02em}
 .tag.author{background:#14171A}
 .fav{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.85);color:#6B7079;backdrop-filter:blur(8px);z-index:2}
@@ -428,7 +430,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       <div class="perks">
         <div class="perk"><span class="ic"><svg class="i"><use href="#i-camera"/></svg></span><div><b>Фото перед доставкой</b><span>Вы видите букет до того, как его увидят</span></div></div>
         <div class="perk"><span class="ic"><svg class="i"><use href="#i-truck"/></svg></span><div><b>Доставка по Москве</b><span>В удобный вам интервал</span></div></div>
-        <div class="perk"><span class="ic"><svg class="i"><use href="#i-gift"/></svg></span><div><b>Бонусы с каждого заказа</b><span>Копятся и тратятся на следующий</span></div></div>
+        <div class="perk"><span class="ic"><svg class="i"><use href="#i-gift"/></svg></span><div><b>Открытка с вашим текстом</b><span>Напишем от руки и вложим в букет</span></div></div>
       </div>
     </div>
   </section>
@@ -483,7 +485,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span><a href="#/catalog">Каталог</a></span><span id="pdCrumb"></span></nav>
     <div class="pd">
-      <div class="pd-img"><img id="pdImg" alt=""><span class="tag" id="pdTag" hidden></span></div>
+      <div class="pd-img"><img id="pdImg" alt=""><span class="tag" id="pdTag" hidden></span><span class="count-tag" id="pdCount" hidden></span></div>
       <div class="pd-info">
         <div><p class="eyebrow" id="pdCat"></p><h1 id="pdName"></h1></div>
         <div class="pd-price num"><b id="pdPrice"></b><span class="bonus" id="pdBonus"></span></div>
@@ -525,7 +527,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790168440"></script>
+<script src="data.js?v=1790168716"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -536,9 +538,9 @@ const P = window.PRODUCTS || [];
 /* одноголовые розы: цена по прайсу «длина × количество» */
 const RP = window.ROSE_PRICES || {}, COUNTS = [25, 51, 101];
 P.forEach(p => {
-  if (!p.lengths) return;
-  p.variants = p.lengths.flatMap(L => COUNTS.map(C => ({ label: `${L}-${C}`, price: RP[L][C], len: L, cnt: C })));
-  p.price = Math.min(...p.variants.map(v => v.price));
+  if (!p.lengths || p.variants) return;   // с сервера варианты приходят готовыми
+  p.variants = p.lengths.flatMap(L => COUNTS.map(C => (RP[L] && RP[L][C]) ? { label: `${L}-${C}`, price: RP[L][C], len: L, cnt: C } : null)).filter(Boolean);
+  if (p.variants.length) p.price = Math.min(...p.variants.map(v => v.price)); else delete p.variants;
 });
 const byId = Object.fromEntries(P.map(p => [p.id, p]));
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -569,6 +571,18 @@ const sel = {};   // product id -> chosen label
 const defLabel = p => p.lengths ? `${p.lengths[0]}-51` : (p.variants.find(v => !v.est) || p.variants[0]).label;
 const curLabel = p => p.variants ? (sel[p.id] || defLabel(p)) : '';
 const variant = (p, label) => p.variants && p.variants.find(v => v.label === label);
+const FLOWER = [[/роз/i, ['роза', 'розы', 'роз']], [/гортенз/i, ['гортензия', 'гортензии', 'гортензий']],
+  [/тюльпан/i, ['тюльпан', 'тюльпана', 'тюльпанов']], [/пион/i, ['пион', 'пиона', 'пионов']],
+  [/хризантем/i, ['хризантема', 'хризантемы', 'хризантем']], [/ирис/i, ['ирис', 'ириса', 'ирисов']],
+  [/гербер/i, ['гербера', 'герберы', 'гербер']], [/альстромер/i, ['альстромерия', 'альстромерии', 'альстромерий']]];
+// сколько цветов на фото — подпись поверх снимка
+function countText(p, label) {
+  const n = +(String(label || '').match(/(\d+)$/) || [])[1];
+  if (!n) return '';
+  const src = `${p.name} ${catName[p.cat] || ''}`;   // слово берём из названия или раздела
+  const w = (FLOWER.find(([re]) => re.test(src)) || [])[1] || ['штука', 'штуки', 'штук'];
+  return `${n} ${plural(n, w[0], w[1], w[2])}`;
+}
 const labelText = l => /^\d+-\d+$/.test(l) ? `${l.split('-')[1]} шт · ${l.split('-')[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
 const photoOf = (p, label) => { const v = variant(p, label); return v && v.img ? v.img : v && v.photo ? img(v.photo) : (p.img || img(p.id)); };
 
@@ -628,7 +642,7 @@ function card(p) {
   const f = favs.has(p.id);
   const tag = p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>' : '';
   return `<article class="card" data-id="${p.id}">
-    <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}</a>
+    <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
     <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : p.lengths ? `<div class="sub">Одноголовая роза</div>` : ''}
@@ -699,6 +713,8 @@ function pdSync() {
   $('#pdTotal').textContent = rub(keyPrice(k) * pd.qty);
   $('#pdQty').textContent = pd.qty;
   $('#pdImg').src = photoOf(p, label);
+  const ct = countText(p, label);
+  $('#pdCount').hidden = !ct; $('#pdCount').textContent = ct;
   if (p.variants) $('#pdOpts').innerHTML = p.lengths ? sizesHTML(p, 'opts') : p.variants.map(v => `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === label}">${esc(v.label)}</button>`).join('');
   const f = favs.has(p.id); $('#pdFav').setAttribute('aria-pressed', f); $('#pdFav').dataset.fav = p.id;
 }
@@ -711,7 +727,7 @@ function showProduct(id) {
   $('#pdTag').hidden = !(p.sale || p.author); $('#pdTag').textContent = p.sale ? 'Акция' : 'Авторский'; $('#pdTag').className = 'tag' + (p.sale ? '' : ' author');
   $('#pdCat').textContent = catName[p.cat];
   $('#pdName').textContent = p.name;
-  $('#pdBonus').hidden = !p.bonus; $('#pdBonus').textContent = `+${p.bonus} бонусов`;
+  $('#pdBonus').hidden = true;
   $('#pdOptsWrap').hidden = !p.variants;
   if (p.variants) {
     $('#pdOptsLabel').textContent = p.lengths ? 'Длина и количество' : /^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер';
@@ -901,7 +917,7 @@ function renderCart() {
         <div class="mini"><button data-dec="${k}" aria-label="Меньше">${icon('minus')}</button><span class="num">${n}</span><button data-inc="${k}" aria-label="Больше">${icon('plus')}</button></div>
       </div>`).join('');
     foot.hidden = false;
-    foot.innerHTML = `<div class="total"><span>Итого${t.bonus ? `<small class="num">+${t.bonus} бонусов на счёт</small>` : ''}</span><b class="num">${rub(t.sum)}</b></div>
+    foot.innerHTML = `<div class="total"><span>Итого</span><b class="num">${rub(t.sum)}</b></div>
       <button class="btn btn-primary btn-wide" id="toCheckout"><span>Оформить заказ</span>${icon('arrow')}</button>`;
   } else if (view === 'form') {
     $('#cartTitle').textContent = 'Доставка';
