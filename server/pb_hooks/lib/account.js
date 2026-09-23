@@ -30,6 +30,7 @@ function ordersOf(app, c) {
   if (phone.length === 10) parts.push(`phone ~ "${phone}"`);
   const list = app.findRecordsByFilter("orders", parts.join(" || "), "-created", 50, 0);
   return list.map((o) => ({
+    id: o.id,
     number: o.get("number"),
     created: o.get("created"),
     status: o.get("status"),
