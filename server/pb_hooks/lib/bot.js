@@ -108,11 +108,24 @@ function applyPrice(app, p, line) {
 }
 const jsonLengths = (p) => { try { const s = p.getString("lengths"); const v = s ? JSON.parse(s) : null; return Array.isArray(v) && v.length ? v : null; } catch (_) { return null; } };
 
-// ссылка на фото в Телеграме — по ней его заберёт клиентский бот
-function photoUrl(token, fileId) {
+// Кладём фото к себе на сервер и отдаём клиентскому боту свою ссылку:
+// файл другого бота Телеграм скачать не может («failed to get HTTP URL content»).
+function photoUrl(app, s, token, fileId, orderId) {
   const info = shop.tg(token, "getFile", { file_id: fileId });
   if (!info || !info.ok) return null;
-  return `https://api.telegram.org/file/bot${token}/${info.result.file_path}`;
+  try {
+    const file = $filesystem.fileFromURL(`https://api.telegram.org/file/bot${token}/${info.result.file_path}`, 60);
+    file.name = "bouquet.jpg";
+    const rec = new Record(app.findCollectionByNameOrId("order_photos"));
+    rec.set("order", orderId);
+    rec.set("photo", file);
+    app.save(rec);
+    const site = String(s.get("site_url") || "").replace(/\/$/, "");
+    return `${site}/api/files/order_photos/${rec.id}/${rec.get("photo")}`;
+  } catch (err) {
+    console.log("photoUrl", err);
+    return null;
+  }
 }
 
 function photoFile(token, msg) {
@@ -271,10 +284,17 @@ function handleClient(app, upd) {
     order.set("tg_chat", String(chat));
     app.save(order);
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));
-    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${order.get("date")}, ${order.get("interval") || ""}.\n\nБудем присылать сюда статусы и фото букета.` });
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.` });
   }
 
+  // обычное сообщение: показываем состояние последнего заказа
   const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  let last = null;
+  try { last = app.findFirstRecordByFilter("orders", "tg_chat = {:c}", { c: String(chat) }); } catch (_) {}
+  if (last) {
+    return shop.tg(token, "sendMessage", { chat_id: chat,
+      text: `Заказ №${last.get("number")} — ${shop.STATUS[last.get("status")] || last.get("status")}\n${last.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(last)}\nСумма: ${shop.rub(last.get("total"))}${last.get("payment_status") === "paid" ? " (оплачено)" : ""}${site ? `\n\nВсе заказы: ${site}/#/me` : ""}` });
+  }
   return shop.tg(token, "sendMessage", { chat_id: chat,
     text: `Здравствуйте! Это бот магазина venikoff.net.\n\nЗдесь приходят статусы заказа и фото букета перед доставкой.${site ? `\n\nКаталог и личный кабинет: ${site}` : ""}` });
 }
@@ -362,7 +382,7 @@ function handle(app, secret, upd) {
     if (order) {
       order.set("tg_chat", String(chat));
       app.save(order);
-      const when = `${order.get("date")}, ${order.get("interval") || ""}`;
+      const when = `${shop.whenText(order)}`;
       admins.forEach((adm) => shop.tg(token, "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));
       return shop.tg(token, "sendMessage", { chat_id: chat,
         text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${when}.\n\nБудем присылать сюда статусы: подтверждение, фото букета, отправку и доставку.` });
@@ -391,8 +411,8 @@ function handle(app, secret, upd) {
     if (ord.get("tg_chat")) {
       ord.set("photo_status", "waiting");
       app.save(ord);
-      shop.tg(shop.clientToken(s), "sendPhoto", { chat_id: ord.get("tg_chat"), photo: photoUrl(token, fileId) || fileId,
-        caption: `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${ord.get("date")}, ${ord.get("interval") || ""}.\n\nНравится?`,
+      shop.tg(shop.clientToken(s), "sendPhoto", { chat_id: ord.get("tg_chat"), photo: photoUrl(app, s, token, fileId, ord.id) || fileId,
+        caption: `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`,
         reply_markup: { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] } });
       return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
     }

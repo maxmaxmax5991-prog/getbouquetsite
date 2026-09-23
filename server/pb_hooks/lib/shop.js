@@ -20,6 +20,15 @@ function fileUrl(rec, name, thumb) {
   return `/api/files/${rec.collection().name}/${rec.id}/${name}` + (thumb ? `?thumb=${thumb}` : "");
 }
 
+// «2026-09-24» → «24 сентября»
+const MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+function dateRu(iso) {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return String(iso || "");
+  return `${+m[3]} ${MONTHS[+m[2] - 1]}`;
+}
+const whenText = (o) => `${dateRu(o.get("date"))}${o.get("interval") ? ", " + o.get("interval") : ""}`;
+
 const labelText = (l) => /^\d+-\d+$/.test(l) ? `${l.split("-")[1]} шт · ${l.split("-")[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
 
 // Кнопки размеров «по умолчанию» для букета с одной известной ценой (помечаются estimated).
@@ -256,7 +265,7 @@ function orderText(o) {
 `Итого: ${rub(o.get("total") || 0)}`,
 o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳 Оплачено картой" : "💳 Ожидает оплаты картой") : "💵 Оплата при получении",
     "",
-    `📅 ${o.get("date")}, ${o.get("interval") || "—"}`,
+    `📅 ${dateRu(o.get("date"))}, ${o.get("interval") || "—"}`,
     o.get("delivery_type") === "pickup" ? `🏪 Самовывоз: ${o.get("address")}` : `📍 ${o.get("address")}`,
     `👤 ${o.get("name")}, ${o.get("phone")}`,
     o.get("recipient") ? `🎁 Получатель: ${o.get("recipient")}` : "",
@@ -288,9 +297,9 @@ const CUSTOMER_TEXT = {
   confirmed: (o) => `Заказ №${o.get("number")} подтверждён. Соберём и пришлём фото перед доставкой.`,
   assembling: (o) => `Заказ №${o.get("number")}: начали собирать ваш букет.`,
   photo: (o) => o.get("delivery_type") === "pickup"
-    ? `Заказ №${o.get("number")}: букет готов, ждём вас ${o.get("date")}, ${o.get("interval") || ""}.`
+    ? `Заказ №${o.get("number")}: букет готов, ждём вас ${whenText(o)}.`
     : `Заказ №${o.get("number")}: букет собран, фото отправим следом.`,
-  delivering: (o) => `Заказ №${o.get("number")} в пути. Доставим ${o.get("date")}, ${o.get("interval") || ""}.` +
+  delivering: (o) => `Заказ №${o.get("number")} в пути. Доставим ${whenText(o)}.` +
     (o.get("comment") ? `\nКурьер: ${o.get("comment")}` : ""),
   done: (o) => o.get("delivery_type") === "pickup"
     ? `Заказ №${o.get("number")} выдан. Спасибо, что выбрали venikoff.net!`
@@ -308,5 +317,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer,
-  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder,
+  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText,
 };

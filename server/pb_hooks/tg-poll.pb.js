@@ -11,8 +11,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
   try { s = shop.settings($app); } catch (_) { return; }
   const token = s.get("tg_client_token");
   if (!token) return;   // клиентского бота нет — всё идёт через рабочий
-  const key = "tg_offset_client";
-  let offset = $app.store().get(key) || 0;
+  let offset = s.get("tg_offset_client") || 0;
   const until = Date.now() + 52000;
   while (Date.now() < until) {
     let res;
@@ -23,7 +22,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
     if (res.statusCode !== 200 || !res.json || !res.json.ok) return;
     for (const upd of (res.json.result || [])) {
       offset = upd.update_id + 1;
-      $app.store().set(key, offset);
+      s.set("tg_offset_client", offset); $app.save(s);   // запоминаем в базе, иначе после перезапуска бот повторится
       try { bot.handleClient($app, upd); } catch (err) { console.log("client bot", err); }
     }
   }
@@ -39,8 +38,7 @@ cronAdd("tg-poll", "* * * * *", () => {
   if (!token) return;
 
   const secret = s.get("tg_secret");
-  const key = "tg_offset";
-  let offset = $app.store().get(key) || 0;
+  let offset = s.get("tg_offset") || 0;
   const until = Date.now() + 52000;
 
   while (Date.now() < until) {
@@ -61,7 +59,7 @@ cronAdd("tg-poll", "* * * * *", () => {
     const updates = res.json.result || [];
     for (const upd of updates) {
       offset = upd.update_id + 1;
-      $app.store().set(key, offset);
+      s.set("tg_offset", offset); $app.save(s);
       try { bot.handle($app, secret, upd); } catch (err) { console.log("bot error", err); }
     }
   }
