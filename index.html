@@ -557,7 +557,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790252214"></script>
+<script src="data.js?v=1790252749"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1078,7 +1078,7 @@ function renderCart() {
         <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[-+0-9 ()]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
         <div id="addrBox">
-          <label for="fStreet">Улица в Москве<input id="fStreet" name="street" required autocomplete="address-line1" list="streetList" placeholder="Маленковская улица" maxlength="200"></label>
+          <label for="fStreet">Улица<input id="fStreet" name="street" required autocomplete="address-line1" list="streetList" placeholder="Маленковская улица" maxlength="200"></label>
           <datalist id="streetList"></datalist>
           <div class="three">
             <label for="fHouse">Дом<input id="fHouse" name="house" required placeholder="14" maxlength="20"></label>

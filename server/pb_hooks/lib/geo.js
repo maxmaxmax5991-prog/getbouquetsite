@@ -23,23 +23,34 @@ function get(url) {
   }
 }
 
-// Строка адреса из частей заказа: то, что уходит курьеру и в МойСклад.
-function addressLine(o) {
+// Подъезд, этаж, квартира, домофон — то, что картам неинтересно, а курьеру нужно.
+function detailsLine(o) {
   const part = (label, v) => (v ? `, ${label} ${v}` : "");
   return [
-    `${CITY}, ${o.street || ""}`,
-    o.house ? `, д. ${o.house}` : "",
-    part("к.", o.block),
     part("подъезд", o.entrance),
     part("этаж", o.floor),
     part("кв.", o.flat),
     o.intercom ? `, домофон ${o.intercom}` : "",
+  ].join("");
+}
+
+// Строка адреса из частей заказа: то, что уходит курьеру и в МойСклад.
+// Город подставляем только когда покупатель его не написал сам: в поле улицы можно
+// указать и «Химки, Молодёжная улица» — возим не только внутри Москвы.
+function addressLine(o) {
+  const street = String(o.street || "").trim();
+  const city = street.indexOf(",") >= 0 ? "" : `${CITY}, `;
+  return [
+    `${city}${street}`,
+    o.house ? `, д. ${o.house}` : "",
+    o.block ? `, к. ${o.block}` : "",
+    detailsLine(o),
   ].join("").replace(/\s+/g, " ").trim();
 }
 
-// То, что отдаём геокодеру: только улица, дом и корпус — квартира и этаж на координаты не влияют.
+// То, что отдаём картам: только улица, дом и корпус — квартира и этаж на координаты не влияют.
 function geoQuery(o) {
-  return `${CITY}, ${o.street || ""} ${o.house || ""}${o.block ? " к" + o.block : ""}`.replace(/\s+/g, " ").trim();
+  return `${o.street || ""} ${o.house || ""}${o.block ? " к" + o.block : ""}`.replace(/\s+/g, " ").trim();
 }
 
 function geocode(s, text) {
@@ -64,15 +75,48 @@ function geocode(s, text) {
 // Подсказки при вводе улицы.
 // У Яндекса это отдельный сервис (Геосаджест) со своим ключом; если он не заведён,
 // пробуем ключом геокодера — иногда владелец берёт один ключ на оба.
+function suggestKey(s) { return s.get("ymaps_suggest_key") || s.get("ymaps_key"); }
+
 function suggest(s, q) {
-  const key = s.get("ymaps_suggest_key") || s.get("ymaps_key");
+  const key = suggestKey(s);
   if (!key || !q) return [];
-  const r = get(`${SUGGEST}?apikey=${enc(key)}&text=${enc(CITY + ", " + q)}&lang=ru&results=7&types=street,house&ll=37.6173,55.7558&spn=1.2,0.8`);
+  // город покупатель может назвать сам («Химки, Молодёжная»); если не назвал — ищем в Москве
+  const text = q.indexOf(",") >= 0 ? q : `${CITY}, ${q}`;
+  const r = get(`${SUGGEST}?apikey=${enc(key)}&text=${enc(text)}&lang=ru&results=7&types=street,house&ll=37.6173,55.7558&spn=1.2,0.8`);
   if (!r.ok || !r.data || !r.data.results) return [];
   return r.data.results.map((x) => ({
     title: (x.title && x.title.text) || "",
     subtitle: (x.subtitle && x.subtitle.text) || "",
   })).filter((x) => x.title);
+}
+
+// Расстояние без геокодера. Подсказки Яндекса возвращают, насколько найденный дом
+// удалён от точки, которую мы им передали, — передаём координаты магазина и получаем
+// готовые километры. Так хватает одного ключа (Геосаджест) вместо двух.
+function distanceBySuggest(app, s, o) {
+  const key = suggestKey(s);
+  if (!key) return { ok: false, error: "Не указан ключ Яндекс.Карт." };
+  const org = origin(app, s);
+  if (!org.ok) return org;
+  // Город покупатель может написать сам («Химки, Молодёжная улица»). Если не написал —
+  // сначала ищем в Москве, иначе одинаковые названия улиц уводят в другие области.
+  const q = geoQuery(o);
+  const tries = String(o.street || "").indexOf(",") >= 0 ? [q] : [`${CITY}, ${q}`, q];
+  let hit = null, r = null;
+  for (let i = 0; i < tries.length && !hit; i++) {
+    r = get(`${SUGGEST}?apikey=${enc(key)}&text=${enc(tries[i])}&lang=ru&results=1&types=house&print_address=1&ll=${org.lon},${org.lat}&spn=1.5,1.0`);
+    if (!r.ok) return r;
+    const first = ((r.data && r.data.results) || [])[0];
+    if (first && first.distance) hit = first;
+  }
+  if (!hit) return { ok: false, error: "Такой адрес не найден. Проверьте улицу и дом." };
+  const comp = (hit.address && hit.address.component) || [];
+  const kind = (k) => (comp.find((c) => (c.kind || []).indexOf(k) >= 0) || {}).name || "";
+  if (!kind("HOUSE")) return { ok: false, error: "Не нашли такой дом. Проверьте номер дома и корпус." };
+  // за город не пускаем не по названию, а по кругам: докуда возим, задаёт самая большая зона
+  const factor = +s.get("km_factor") > 0 ? +s.get("km_factor") : 1.3;
+  const km = (hit.distance.value / 1000) * factor;
+  return { ok: true, km: Math.round(km * 10) / 10, address: (hit.address && hit.address.formatted_address) || "" };
 }
 
 // Расстояние по прямой между двумя точками, километры
@@ -89,6 +133,7 @@ function origin(app, s) {
   const lat = +s.get("origin_lat"), lon = +s.get("origin_lon");
   if (lat && lon) return { ok: true, lat, lon };
   const addr = s.get("origin_address") || `${CITY}, Маленковская улица, 14к1`;
+  if (!s.get("ymaps_key")) return { ok: false, error: "Не заданы координаты магазина. Впишите их в админке: Доставка → «Координаты магазина»." };
   const g = geocode(s, addr);
   if (!g.ok) return g;
   s.set("origin_lat", g.lat);
@@ -132,15 +177,26 @@ function priceFor(app, s, km, sum) {
 function check(app, s, o, sum) {
   if (!o.street) return { ok: false, error: "Укажите улицу." };
   if (!o.house) return { ok: false, error: "Укажите дом." };
-  const g = geocode(s, geoQuery(o));
-  if (!g.ok) return g;
-  if (!g.exact) return { ok: false, error: "Не нашли такой дом. Проверьте номер дома и корпус." };
-  const d = distance(app, s, g.lat, g.lon);
-  if (!d.ok) return d;
-  const p = priceFor(app, s, d.km, +sum || 0);
+
+  // Сначала геокодер: он точнее и даёт координаты для курьера.
+  // Нет ключа или он не подошёл — считаем по подсказкам, там тоже есть расстояние.
+  let lat = 0, lon = 0, km = 0, found = "";
+  const g = s.get("ymaps_key") ? geocode(s, geoQuery(o)) : { ok: false, error: "" };
+  if (g.ok && g.exact) {
+    const d = distance(app, s, g.lat, g.lon);
+    if (!d.ok) return d;
+    lat = g.lat; lon = g.lon; km = d.km; found = g.address;
+  } else {
+    const sg = distanceBySuggest(app, s, o);
+    if (!sg.ok) return sg;
+    km = sg.km; found = sg.address;
+  }
+
+  const p = priceFor(app, s, km, +sum || 0);
   if (!p.ok) return p;
-  return { ok: true, lat: g.lat, lon: g.lon, km: d.km, price: p.price, zone: p.zone, zoneName: p.zoneName,
-    address: addressLine(o), found: g.address };
+  // адрес для курьера берём в том виде, в каком его знают карты, и дописываем подъезд с квартирой
+  const address = found ? `${found}${detailsLine(o)}` : addressLine(o);
+  return { ok: true, lat, lon, km, price: p.price, zone: p.zone, zoneName: p.zoneName, address, found };
 }
 
-module.exports = { geocode, suggest, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };
+module.exports = { geocode, suggest, distanceBySuggest, detailsLine, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };

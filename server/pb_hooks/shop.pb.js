@@ -101,7 +101,7 @@ routerAdd("POST", "/api/shop/geo-test", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const geo = require(`${__hooks}/lib/geo.js`);
   const s = shop.settings($app);
-  if (!s.get("ymaps_key")) return e.json(400, { message: "Сначала сохраните ключ Яндекс.Карт." });
+  if (!s.get("ymaps_key") && !s.get("ymaps_suggest_key")) return e.json(400, { message: "Сначала сохраните ключ Яндекс.Карт." });
   const b = e.requestInfo().body || {};
   const r = geo.check($app, s, {
     street: String(b.street || "").slice(0, 200),

@@ -270,11 +270,12 @@ table.t td{padding:4px 6px;vertical-align:middle}
             <label class="f" for="dOrigin">Откуда считаем<input class="in" id="dOrigin" placeholder="Москва, Маленковская улица, 14к1"></label>
             <label class="f" for="dYkey">Ключ Яндекса: Геокодер<input class="in" id="dYkey" placeholder="ключ сервиса «Геокодер»" autocomplete="off"></label>
             <label class="f" for="dYsug">Ключ Яндекса: Подсказки<input class="in" id="dYsug" placeholder="ключ сервиса «Геосаджест»" autocomplete="off"></label>
+            <label class="f" for="dOriginLL">Координаты магазина<input class="in" id="dOriginLL" placeholder="55.790647, 37.672414" autocomplete="off"></label>
           </div>
           <div class="row">
             <label class="f" for="dKmFactor">Поправка к прямой<input class="in num" id="dKmFactor" type="number" min="1" step="0.05"></label>
           </div>
-          <p class="hint">Расстояние считается по прямой между точками и умножается на поправку — улицы не прямые, 1,3 близко к настоящему пробегу. Дальше самого большого круга доставка не оформляется. Ключи хранятся на сервере и в браузер покупателя не попадают.<br><b>Ключей у Яндекса два:</b> «Геокодер» проверяет адрес и находит координаты — без него не работает ничего; «Геосаджест» подсказывает улицы при вводе — без него поле просто не подсказывает. Оба берутся в кабинете разработчика Яндекса, у каждого свой бесплатный лимит.</p>
+          <p class="hint">Расстояние считается по прямой между точками и умножается на поправку — улицы не прямые, 1,3 близко к настоящему пробегу. Дальше самого большого круга доставка не оформляется. Ключи хранятся на сервере и в браузер покупателя не попадают.<br><b>Достаточно одного ключа — «Геосаджест»:</b> он и подсказывает улицы при вводе, и сообщает, насколько дом далеко от магазина. «Геокодер» нужен только для более точной проверки адреса, без него всё работает. Координаты магазина — широта и долгота через запятую, их можно взять в Яндекс.Картах: правая кнопка по своей точке → «Что здесь?».</p>
           <div class="bar"><button class="btn btn-p" id="dKmSave">Сохранить</button><button class="btn btn-g" id="dKmTest">Проверить адрес</button></div>
           <p class="hint" id="dKmResult" hidden></p>
         </div>
@@ -932,6 +933,7 @@ const loadDelivery = safe(async () => {
   $('#dYkey').value = S.ymaps_key || '';
   $('#dYsug').value = S.ymaps_suggest_key || '';
   $('#dKmFactor').value = S.km_factor || 1.3;
+  $('#dOriginLL').value = (S.origin_lat && S.origin_lon) ? `${S.origin_lat}, ${S.origin_lon}` : '';
   ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
   renderZones(); renderInts();
 });
@@ -947,13 +949,15 @@ $('#dKmSave').onclick = safe(async () => {
     return true;
   };
   if (badKey($('#dYkey'), 'Геокодера') || badKey($('#dYsug'), 'Геосаджеста')) return;
-  if (on && !$('#dYkey').value.trim()) return toast('Без ключа Яндекс.Карт адрес проверить нечем', true);
+  if (on && !$('#dYkey').value.trim() && !$('#dYsug').value.trim()) return toast('Без ключа Яндекс.Карт адрес проверить нечем', true);
   if (on && !ZONES.some(z => +z.radius_km > 0 && z.active)) return toast('Проставьте радиусы зонам ниже — по ним считается доставка', true);
+  const ll = $('#dOriginLL').value.trim();
+  const m = ll.match(/^\s*(-?\d+[.,]?\d*)\s*,\s*(-?\d+[.,]?\d*)\s*$/);
+  if (ll && !m) return toast('Координаты пишутся так: 55.790647, 37.672414', true);
   const origin = $('#dOrigin').value.trim();
   const body = { km_mode: on, km_factor: +$('#dKmFactor').value || 1.3,
-    ymaps_key: $('#dYkey').value.trim(), ymaps_suggest_key: $('#dYsug').value.trim(), origin_address: origin };
-  // адрес точки поменялся — старые координаты сбрасываем, сервер найдёт заново
-  if (origin !== (S.origin_address || '')) { body.origin_lat = 0; body.origin_lon = 0; }
+    ymaps_key: $('#dYkey').value.trim(), ymaps_suggest_key: $('#dYsug').value.trim(), origin_address: origin,
+    origin_lat: m ? +m[1].replace(',', '.') : 0, origin_lon: m ? +m[2].replace(',', '.') : 0 };
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
   toast('Сохранено');
 });
