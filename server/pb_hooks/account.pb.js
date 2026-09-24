@@ -56,17 +56,37 @@ routerAdd("POST", "/api/shop/my", (e) => {
   return e.json(200, { ok: true });
 });
 
-// 5. Заказ от вошедшего покупателя — сразу привязан к кабинету и к боту
+// 5. Заказ от вошедшего покупателя — сразу привязан к кабинету и к боту.
+// Если покупатель не вошёл, но его телефон нам уже знаком, привязываем по телефону:
+// иначе бот потом не знает, кому слать фото букета.
+const onlyDigits = (v) => String(v || "").replace(/\D/g, "").replace(/^8/, "7");
+
 onRecordCreateRequest((e) => {
   try {
     const acc = require(`${__hooks}/lib/account.js`);
-    const c = acc.byToken($app, e.request ? e.request.header.get("X-Customer-Token") : null);
+    let c = acc.byToken($app, e.request ? e.request.header.get("X-Customer-Token") : null);
+    if (!c) {
+      const phone = onlyDigits(e.record.get("phone"));
+      if (phone.length >= 10) {
+        try {
+          c = $app.findRecordsByFilter("customers", "phone != ''", "-created", 500, 0)
+            .find((x) => onlyDigits(x.get("phone")) === phone) || null;
+        } catch (_) { c = null; }
+      }
+    }
     if (c) {
       e.record.set("customer", c.id);
       // чат запоминаем в самом заказе: фото и статусы уходят именно по этому заказу,
       // даже если потом покупатель сделает второй
       if (c.get("tg_chat")) e.record.set("tg_chat", c.get("tg_chat"));
       if (c.get("max_chat")) e.record.set("max_chat", c.get("max_chat"));
+      // запоминаем телефон покупателю: по нему узнаем его в следующий раз,
+      // даже если он закажет не входя в кабинет
+      if (!c.get("phone") && e.record.get("phone")) {
+        c.set("phone", e.record.get("phone"));
+        if (!c.get("name") && e.record.get("name")) c.set("name", e.record.get("name"));
+        try { $app.save(c); } catch (_) {}
+      }
     }
   } catch (err) { console.log("bind customer", err); }
   e.next();
