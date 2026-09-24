@@ -577,7 +577,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790265801"></script>
+<script src="data.js?v=1790266316"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -884,12 +884,11 @@ async function renderMe() {
     body.innerHTML = `<div class="me-card">
       <h3>Вход без пароля</h3>
       <p class="hint" style="margin:0 0 14px">Нажмите кнопку — откроется наш бот, подтвердите вход. Туда же будут приходить статусы заказа и фото букета.</p>
-      <button class="btn btn-primary" id="meLogin">Войти через Телеграм ${icon('arrow')}</button>
-      ${API && API.maxBot ? `<button class="btn btn-ghost" id="meLoginMax" style="margin-top:8px">Войти через MAX ${icon('arrow')}</button>` : ''}
+      <a class="btn btn-primary" id="meLogin" target="_blank" rel="noopener" hidden>Войти через Телеграм ${icon('arrow')}</a>
+      ${API && API.maxBot ? `<a class="btn btn-ghost" id="meLoginMax" target="_blank" rel="noopener" style="margin-top:8px" hidden>Войти через MAX ${icon('arrow')}</a>` : ''}
       <p class="demo-note" id="meWait" style="text-align:left;margin-top:12px" hidden></p>
     </div>`;
-    $('#meLogin').onclick = () => startLogin('tg');
-    if ($('#meLoginMax')) $('#meLoginMax').onclick = () => startLogin('max');
+    prepLogin('#meLogin', '#meLoginMax', '#meWait', null);
     return;
   }
   $('#meSub').textContent = ME.name ? `Здравствуйте, ${ME.name}` : '';
@@ -942,6 +941,56 @@ $$("[data-pay-order]").forEach(b => b.onclick = async () => {
     } catch (_) { toast('Не получилось сохранить', true); }
   };
 }
+/* Вход без пароля. Раньше окно бота открывалось уже после запроса к серверу —
+   браузер считал его всплывающим и блокировал, особенно на телефоне.
+   Поэтому код берём заранее, а кнопка — обычная ссылка, по ней браузер идёт сам. */
+async function prepLogin(tgSel, maxSel, waitSel, done) {
+  const tg = $(tgSel), mx = $(maxSel);
+  if (!tg && !mx) return;
+  let d;
+  try {
+    const r = await fetch('/api/shop/login-start', { method: 'POST' });
+    d = await r.json();
+    if (!r.ok) throw new Error(d.message || 'Вход пока недоступен');
+  } catch (err) {
+    if (tg) { tg.hidden = true; }
+    if (mx) { mx.hidden = true; }
+    const w = $(waitSel); if (w) { w.hidden = false; w.textContent = err.message || 'Вход пока недоступен'; }
+    return;
+  }
+  if (tg) {
+    if (d.link) { tg.href = d.link; tg.hidden = false; } else tg.hidden = true;
+    tg.onclick = () => waitLogin(d.code, waitSel, done, 'Ждём подтверждения в Телеграме…');
+  }
+  if (mx) {
+    if (d.max_link) { mx.href = d.max_link; mx.hidden = false; } else mx.hidden = true;
+    mx.onclick = () => waitLogin(d.code, waitSel, done,
+      `Откройте бота в MAX и пришлите ему этот код:<br><b style="font-size:18px;letter-spacing:.05em">${esc(d.code)}</b><br>Ждём подтверждения…`, true);
+  }
+}
+
+// ждём, пока покупатель подтвердит вход в боте
+function waitLogin(code, waitSel, done, text, html) {
+  const wait = $(waitSel);
+  if (wait) { wait.hidden = false; wait[html ? 'innerHTML' : 'textContent'] = text; }
+  const started = Date.now();
+  const timer = setInterval(async () => {
+    if (Date.now() - started > 180000) { clearInterval(timer); if (wait) wait.textContent = 'Время вышло. Нажмите «Войти» ещё раз.'; return; }
+    try {
+      const c = await fetch('/api/shop/login-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+      const cd = await c.json();
+      if (cd.token) {
+        clearInterval(timer);
+        meToken = cd.token; store.set('token', meToken);
+        await loadMe();
+        if (wait) wait.hidden = true;
+        toast('Вы вошли');
+        if (done) done(); else renderMe();
+      }
+    } catch (_) {}
+  }, 2000);
+}
+
 // В Телеграме код уходит ссылкой сам, в MAX таких ссылок нет — код показываем покупателю
 async function startLogin(how, waitSel, done) {
   try {
@@ -1164,8 +1213,8 @@ ${payChoice()}
           <b>Подтвердите, что это вы</b>
           <span>Заказ сразу попадёт в ваш кабинет: после оплаты вы увидите его статус, фото букета и сможете доплатить, если что-то пойдёт не так.</span>
           <div class="bar" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-            ${API.bot ? `<button class="btn btn-ghost btn-sm" type="button" id="idTg">Войти через Телеграм</button>` : ""}
-            ${API.maxBot ? `<button class="btn btn-ghost btn-sm" type="button" id="idMax">Войти через MAX</button>` : ""}
+            ${API.bot ? `<a class="btn btn-ghost btn-sm" id="idTg" target="_blank" rel="noopener" hidden>Войти через Телеграм</a>` : ""}
+            ${API.maxBot ? `<a class="btn btn-ghost btn-sm" id="idMax" target="_blank" rel="noopener" hidden>Войти через MAX</a>` : ""}
           </div>
           <p class="addr-hint" id="idWait" hidden></p>
         </div>` : ""}
@@ -1201,8 +1250,7 @@ ${payChoice()}
       }
       const e = $('#fErr'); if (e) { e.textContent = ''; e.hidden = true; }
     };
-    if ($('#idTg')) $('#idTg').onclick = () => startLogin('tg', '#idWait', afterLogin);
-    if ($('#idMax')) $('#idMax').onclick = () => startLogin('max', '#idWait', afterLogin);
+    prepLogin('#idTg', '#idMax', '#idWait', afterLogin);
     if (PAY && PAY.card) loadWidget();      // пока заполняют форму, окно оплаты уже готово
     bindAddress();
     fillIntervals(); recalc();
@@ -1293,7 +1341,11 @@ function payCard(order, name, phone) {
         invoiceId: String(order.number),
         accountId: phone,
         skin: 'mini',
-        data: { orderId: order.id, name },
+        // куда вернуть покупателя: без этих адресов кнопка «Вернуться в магазин»
+        // в окне оплаты ничего не делает — ей просто некуда идти
+        successRedirectUrl: `${location.origin}/?paid=1`,
+        failRedirectUrl: `${location.origin}/?paid=0`,
+        data: { orderId: order.id, name, successRedirectUrl: `${location.origin}/?paid=1`, failRedirectUrl: `${location.origin}/?paid=0` },
       }, {
         onSuccess: () => done({ paid: true }),
         onFail: (reason) => done({ paid: false, error: 'Оплата не прошла: ' + (reason || 'попробуйте другую карту') }),
@@ -1579,7 +1631,10 @@ function saveLastOrder() {
   try { store.set('last', lastOrder && lastOrder.number ? { ...lastOrder, at: Date.now() } : null); } catch (_) {}
 }
 async function resumeOrder() {
+  const back = new URLSearchParams(location.search).get('paid');
+  if (back !== null) history.replaceState(null, '', location.pathname + location.hash);
   const saved = store.get('last', null);
+
   if (!saved || !saved.number || Date.now() - (saved.at || 0) > 6 * 3600e3) return;
   lastOrder = saved;
   // спрашиваем сервер, оплачен ли он: могли оплатить и не вернуться на сайт
@@ -1590,7 +1645,13 @@ async function resumeOrder() {
       if (d && d.paid) { lastOrder.paid = true; saveLastOrder(); }
     } catch (_) {}
   }
-  if (lastOrder.paid) return;
+  if (lastOrder.paid) {
+    // вернулись из окна оплаты — покажем «Готово» с кнопкой на бота
+    if (back === '1') { view = 'done'; renderCart(); cartDlg.showModal(); }
+    return;
+  }
+  if (back !== null) { view = 'done'; renderCart(); cartDlg.showModal(); }
+
   $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice resume">Заказ №${esc(String(lastOrder.number))} на ${rub(lastOrder.sum)} ждёт оплаты — без неё мы не возьмём его в работу.
     <button class="btn btn-primary btn-sm" id="resumePay">Оплатить</button></p></div>`);
   const btn = $('#resumePay');
