@@ -52,7 +52,10 @@ onRecordCreateRequest((e) => {
 onRecordAfterCreateSuccess((e) => {
   try {
     const shop = require(`${__hooks}/lib/shop.js`);
-    shop.notifyOrder($app, e.record);
+    // Заказ с оплатой картой показываем флористу только после оплаты (это сделает lib/pay.js).
+    // Иначе в боте висели заказы, к оплате которых покупатель ещё даже не приступил,
+    // и часть из них так и не оплачивалась.
+    if (e.record.get("payment_method") !== "card") shop.notifyOrder($app, e.record);
   } catch (err) {
     console.log("notify error", err);
   }

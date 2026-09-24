@@ -75,10 +75,12 @@ function checkOrder(app, o) {
   o.set("paid_at", new Date().toISOString());
   if (o.get("status") === "new") o.set("status", "confirmed");
   app.save(o);
+  // Полную карточку заказа флорист получает именно сейчас: до оплаты заказа как бы и нет
   const token = s.get("tg_token");
   shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", {
-    chat_id: chat, text: `💳 Заказ №${o.get("number")} оплачен картой — ${shop.rub(o.get("total"))}`,
+    chat_id: chat, text: `💳 Оплачено картой — ${shop.rub(o.get("total"))}`,
   }));
+  try { shop.notifyOrder(app, o); } catch (err) { console.log("notify after pay", err); }
   try {
     const msl = require(`${__hooks}/lib/ms.js`);
     if (o.get("ms_id")) msl.markPaid(app, o);   // уже там — просто меняем статус

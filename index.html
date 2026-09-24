@@ -589,7 +589,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790268814"></script>
+<script src="data.js?v=1790273155"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1362,8 +1362,26 @@ async function payCard(order, name, phone) {
   return loadWidget().then(ok => {
     if (!ok || !window.cp) return { paid: false, error: 'Не удалось открыть окно оплаты. Мы свяжемся с вами для оплаты.' };
     return new Promise(resolve => {
-      let answered = false;
-      const done = (r) => { if (!answered) { answered = true; resolve(r); } };
+      let answered = false, poll = 0;
+      const stop = () => { if (poll) { clearInterval(poll); poll = 0; } };
+      const done = (r) => { stop(); if (!answered) { answered = true; resolve(r); } };
+      // Уводим покупателя обратно к нам: корзину чистим, оплату помечаем, страница перезагрузится
+      const goPaid = () => {
+        stop();
+        answered = true;   // окно закроется следом, и обработчик «не завершено» уже ничего не перепишет
+        try { store.set('cart', {}); } catch (_) {}
+        try { const l = store.get('last', null); if (l) { l.paid = true; store.set('last', l); } } catch (_) {}
+        location.href = '/?paid=1';
+      };
+      // Сторож: часть способов оплаты (СБП, оплата частями) уводит покупателя на чужую страницу,
+      // и onSuccess у нас уже не выполняется — а кнопка «Вернуться в магазин» там не работала.
+      // Поэтому пока окно открыто, сами спрашиваем сервер: как увидим оплату — вернём на сайт.
+      let left = 75;                                  // примерно пять минут
+      poll = setInterval(() => {
+        if (--left < 0) return stop();
+        fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: order.id }) })
+          .then(r => r.json()).then(d => { if (d && d.paid) goPaid(); }).catch(() => {});
+      }, 4000);
       new window.cp.CloudPayments().pay('charge', {
         publicId: PAY.public_id,
         description: `Заказ №${order.number} — venikoff.net`,
@@ -1380,12 +1398,7 @@ async function payCard(order, name, phone) {
       }, {
         // Возвращаемся на сайт сами. Кнопка «Вернуться в магазин» в окне оплаты
         // у нас не срабатывала, и покупатель оставался на чужом экране с их рекламой бонуса.
-        onSuccess: () => {
-          try { store.set('cart', {}); } catch (_) {}
-          try { const l = store.get('last', null); if (l) { l.paid = true; store.set('last', l); } } catch (_) {}
-          location.href = '/?paid=1';
-          done({ paid: true });
-        },
+        onSuccess: () => goPaid(),
         onFail: (reason) => done({ paid: false, error: 'Оплата не прошла: ' + (reason || 'попробуйте другую карту') }),
         // страховка: если покупатель просто закрыл окно оплаты, без неё сайт завис бы на «Подтвердить заказ»
         onComplete: () => setTimeout(() => done({ paid: false, error: 'Оплата не завершена. Её можно провести позже в «Мои заказы».' }), 300),
