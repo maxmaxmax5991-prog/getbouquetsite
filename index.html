@@ -432,13 +432,13 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       <div class="hero-copy">
         <p class="eyebrow">Оптовые цены в розницу · Москва</p>
         <h1>Не веник. <em>Букет.</em></h1>
-        <p class="lede">Возим розы с плантаций сами, поэтому отдаём их по оптовым ценам — хоть один букет. И присылаем фото перед доставкой.</p>
+        <p class="lede">Берём цветы напрямую от производителей, поэтому отдаём их по оптовым ценам — хоть один букет. И присылаем фото перед доставкой.</p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="#/catalog">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
           <a class="btn btn-ghost" href="#/delivery">Как мы доставляем</a>
         </div>
         <ul class="perks">
-          <li><b>Оптовые цены</b>розы берём напрямую с плантаций</li>
+          <li><b>Оптовые цены</b>цветы напрямую от производителей</li>
           <li><b>Без наценки за красоту</b>платите за цветы, а не за витрину</li>
           <li><b>Фото перед доставкой</b>увидите букет до того, как он поедет</li>
         </ul>
@@ -514,7 +514,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Каталог</span></nav>
     <div class="cat-head">
-      <div><h1 id="catTitle">Каталог</h1><p id="count" class="num"></p><p class="cat-note">Оптовые цены в розницу — берём розы с плантаций сами</p></div>
+      <div><h1 id="catTitle">Каталог</h1><p id="count" class="num"></p><p class="cat-note">Оптовые цены в розницу — цветы напрямую от производителей</p></div>
       <div class="tools">
         <label class="field"><span class="sr">Поиск по каталогу</span><svg class="i"><use href="#i-search"/></svg><input class="search" id="q" type="search" placeholder="Розы, тюльпаны, мишка…" autocomplete="off"></label>
         <label><span class="sr">Сортировка</span>
@@ -549,7 +549,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       <div class="pd-info">
         <div><p class="eyebrow" id="pdCat"></p><h1 id="pdName"></h1></div>
         <div class="pd-price num"><b id="pdPrice"></b><span class="bonus" id="pdBonus"></span></div>
-        <p class="price-note">Оптовая цена: розы приходят к нам напрямую с плантаций, без посредников</p>
+        <p class="price-note">Оптовая цена: цветы приходят напрямую от производителей, без посредников</p>
         <div id="pdOptsWrap"><p class="label" id="pdOptsLabel">Количество цветов</p><div class="opts" id="pdOpts"></div></div>
         <div id="pdQtyWrap"><p class="label">Количество</p><div class="qty"><button id="pdMinus" aria-label="Меньше"><svg class="i"><use href="#i-minus"/></svg></button><span class="num" id="pdQty">1</span><button id="pdPlus" aria-label="Больше"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
         <div class="pd-buy">
@@ -588,7 +588,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790267641"></script>
+<script src="data.js?v=1790267708"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
