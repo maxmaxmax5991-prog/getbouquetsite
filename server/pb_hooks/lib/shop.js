@@ -384,7 +384,35 @@ function tg(token, method, payload) {
   return null;
 }
 
+// Фото отправляем файлом, а не ссылкой: Телеграм до нашего сервера не достукивается
+// (по той же причине не работают их webhook'и), и на ссылку отвечал «failed to get HTTP URL content».
+function tgPhoto(token, chat, path, caption, keyboard) {
+  if (!token || !chat || !path) return null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const form = new FormData();
+      form.append("chat_id", String(chat));
+      if (caption) form.append("caption", String(caption).slice(0, 1000));
+      if (keyboard) form.append("reply_markup", JSON.stringify(keyboard));
+      form.append("photo", $filesystem.fileFromPath(path));
+      const res = $http.send({
+        url: `https://api.telegram.org/bot${token}/sendPhoto`,
+        method: "POST",
+        body: form,
+        timeout: 60,
+      });
+      if (res.statusCode !== 200) console.log("telegram sendPhoto", res.statusCode, toString(res.body));
+      return res.json;
+    } catch (err) {
+      console.log("telegram sendPhoto error", attempt, err);
+      if (attempt === 2) return null;
+    }
+  }
+  return null;
+}
+
 // ключ клиентского бота (если не задан — общий)
+
 function clientToken(s) { return s.get("tg_client_token") || s.get("tg_token"); }
 
 function adminIds(s) {
@@ -456,5 +484,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer,
-  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  tg, tgPhoto, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

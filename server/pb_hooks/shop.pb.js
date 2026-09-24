@@ -67,11 +67,15 @@ onRecordAfterCreateSuccess((e) => {
   e.next();
 }, "orders");
 
-// Покупателю — сообщение о смене статуса
+// Покупателю — сообщение о смене статуса. Именно о смене: заказ сохраняется много раз
+// (фото, оплата, МойСклад), и без этой проверки клиенту приходило одно и то же по три раза.
 onRecordAfterUpdateSuccess((e) => {
   try {
     const shop = require(`${__hooks}/lib/shop.js`);
-    shop.notifyCustomer($app, e.record, e.record.get("status"));
+    const now = e.record.get("status");
+    let was = now;
+    try { was = e.record.original().get("status"); } catch (_) {}
+    if (now && now !== was) shop.notifyCustomer($app, e.record, now);
   } catch (err) { console.log("customer notify", err); }
   e.next();
 }, "orders");
@@ -134,6 +138,30 @@ routerAdd("POST", "/api/shop/max-check", (e) => {
 }, $apis.requireAuth("managers"));
 
 // Кнопка «Проверить бота» в админке
+// Отправить клиенту сохранённое фото ещё раз: если первая попытка не дошла,
+// не нужно заново просить флориста фотографировать.
+routerAdd("POST", "/api/shop/photo-resend", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const b = e.requestInfo().body || {};
+  const s = shop.settings($app);
+
+  let ord;
+  try { ord = $app.findRecordById("orders", String(b.order || "")); } catch (_) { return e.json(404, { message: "Заказ не найден" }); }
+  const chat = String(b.chat || ord.get("tg_chat") || "");
+  if (!chat) return e.json(400, { message: "Покупатель не подписан на бота" });
+
+  let photo;
+  try { photo = $app.findFirstRecordByFilter("order_photos", "order = {:o}", { o: ord.id }); } catch (_) {}
+  if (!photo) return e.json(404, { message: "Для этого заказа фото ещё не присылали" });
+
+  const path = `${$app.dataDir()}/storage/${photo.collection().id}/${photo.id}/${photo.get("photo")}`;
+  const sent = shop.tgPhoto(shop.clientToken(s), chat, path,
+    `Ваш букет по заказу №${ord.get("number")} готов.\n\nНравится?`,
+    { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] });
+  if (!sent || !sent.ok) return e.json(502, { message: "Телеграм не принял фото", answer: sent });
+  return e.json(200, { ok: true });
+}, $apis.requireAuth("managers"));
+
 // Проверка бота без телефона: подсовываем боту сообщение и смотрим, что он сделает.
 // Нужна, чтобы чинить вход и подписку, не прося владельца жать кнопки.
 routerAdd("POST", "/api/shop/tg-sim", (e) => {

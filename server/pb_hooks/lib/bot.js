@@ -121,7 +121,10 @@ function photoUrl(app, s, token, fileId, orderId) {
     rec.set("photo", file);
     app.save(rec);
     const site = String(s.get("site_url") || "").replace(/\/$/, "");
-    return `${site}/api/files/order_photos/${rec.id}/${rec.get("photo")}`;
+    return {
+      url: `${site}/api/files/order_photos/${rec.id}/${rec.get("photo")}`,
+      path: `${app.dataDir()}/storage/${rec.collection().id}/${rec.id}/${rec.get("photo")}`,
+    };
   } catch (err) {
     console.log("photoUrl", err);
     return null;
@@ -413,9 +416,16 @@ function handle(app, secret, upd) {
     if (ord.get("tg_chat")) {
       ord.set("photo_status", "waiting");
       app.save(ord);
-      shop.tg(shop.clientToken(s), "sendPhoto", { chat_id: ord.get("tg_chat"), photo: photoUrl(app, s, token, fileId, ord.id) || fileId,
-        caption: `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`,
-        reply_markup: { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] } });
+      const saved = photoUrl(app, s, token, fileId, ord.id);
+      const caption = `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`;
+      const keys = { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] };
+      // файлом, а не ссылкой: до нашего сервера Телеграм не достукивается
+      const sent = saved && saved.path
+        ? shop.tgPhoto(shop.clientToken(s), ord.get("tg_chat"), saved.path, caption, keys)
+        : null;
+      if (!sent || !sent.ok) {
+        return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото не ушло клиенту — попробуйте отправить ещё раз. Если повторится, скажите мне.` });
+      }
       return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
     }
     if (ord.get("max_chat")) {
@@ -423,7 +433,8 @@ function handle(app, secret, upd) {
       ord.set("photo_status", "waiting");
       app.save(ord);
       const mx = require(`${__hooks}/lib/max.js`);
-      const url = photoUrl(app, s, token, fileId, ord.id);
+      const saved = photoUrl(app, s, token, fileId, ord.id);
+      const url = saved && saved.url;
       mx.send(s.get("max_token"), ord.get("max_chat"),
         `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\n${url || ""}\n\nНравится? Ответьте «да» — или напишите, что поправить.`);
       return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту в MAX: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });

@@ -39,8 +39,7 @@ cronAdd("ms-status", "* * * * *", () => {
       const attrs = r.data.attributes || [];
       const courier = attrs.find((a) => String(a.name || "").toLowerCase().indexOf("курьер") >= 0);
       if (courier && courier.value) o.set("comment", String(courier.value).slice(0, 2000));
-      $app.save(o);
-      shop.notifyCustomer($app, o, next);
+      $app.save(o);   // сообщение клиенту отправит хук на смену статуса
       const token = s.get("tg_token");
       shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", {
         chat_id: chat, text: `🔄 Заказ №${o.get("number")}: ${name} (из МоегоСклада)`,

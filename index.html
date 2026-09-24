@@ -347,6 +347,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.notice.paid{border-color:var(--leaf);color:var(--ink)}
 .notice.resume{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-color:var(--sale);color:var(--ink)}
 .sub-box.warn{border-color:var(--sale);background:rgba(224,23,138,.07)}
 .sub-box.warn b{color:var(--sale)}
@@ -430,17 +431,17 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <section class="hero" id="studio-sec">
     <div class="wrap">
       <div class="hero-copy">
-        <p class="eyebrow">Оптовые цены в розницу · Москва</p>
-        <h1>Не веник. <em>Букет.</em></h1>
-        <p class="lede">Берём цветы напрямую от производителей, поэтому отдаём их по оптовым ценам — хоть один букет. И присылаем фото перед доставкой.</p>
+        <p class="eyebrow">Оптовые цены в розницу · Москва 🌷</p>
+        <h1>Букет, <em>а не веник.</em></h1>
+        <p class="lede">Тот самый цветочный: оптовые цены, невероятный ассортимент. Берём цветы напрямую от производителей и присылаем фото букета перед доставкой.</p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="#/catalog">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
           <a class="btn btn-ghost" href="#/delivery">Как мы доставляем</a>
         </div>
         <ul class="perks">
-          <li><b>Оптовые цены</b>цветы напрямую от производителей</li>
-          <li><b>Без наценки за красоту</b>платите за цветы, а не за витрину</li>
-          <li><b>Фото перед доставкой</b>увидите букет до того, как он поедет</li>
+          <li><b>💰 Оптовые цены</b>цветы напрямую от производителей</li>
+          <li><b>🌸 Невероятный ассортимент</b>розы, гортензии, французские — и всё свежее</li>
+          <li><b>📸 Фото перед доставкой</b>увидите букет до того, как он поедет</li>
         </ul>
       </div>
 
@@ -588,7 +589,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790267708"></script>
+<script src="data.js?v=1790268814"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1205,7 +1206,7 @@ function renderCart() {
           <button type="button" data-get="pickup" aria-pressed="false">Самовывоз</button>
         </div></div>` : ''}
         <label for="fName">Ваше имя<input id="fName" name="name" required autocomplete="name" placeholder="Анна" maxlength="120"></label>
-        <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[-+0-9 ()]{10,}" maxlength="40"></label>
+        <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[0-9+\-\(\) ]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
         <div id="addrBox">
           <label for="fStreet" class="sugg-wrap">Улица<input id="fStreet" name="street" required autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="streetSugg" placeholder="Начните вводить улицу" maxlength="200"><ul class="sugg" id="streetSugg" role="listbox" hidden></ul></label>
@@ -1681,7 +1682,12 @@ async function resumeOrder() {
   }
   if (lastOrder.paid) {
     // вернулись из окна оплаты — покажем «Готово» с кнопкой на бота
-    if (back === '1') { view = 'done'; renderCart(); cartDlg.showModal(); }
+    if (back === '1') { view = 'done'; renderCart(); cartDlg.showModal(); return; }
+    // иначе просто скажем, что всё хорошо: человек мог вернуться как угодно
+    if (!saved.told) {
+      lastOrder.told = true; saveLastOrder();
+      $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice paid">✅ Заказ №${esc(String(lastOrder.number))} оплачен. Статусы и фото букета придут в мессенджер.</p></div>`);
+    }
     return;
   }
   if (back !== null) { view = 'done'; renderCart(); cartDlg.showModal(); }

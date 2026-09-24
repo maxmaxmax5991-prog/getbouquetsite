@@ -59,12 +59,22 @@ routerAdd("POST", "/api/shop/my", (e) => {
 // 5. Заказ от вошедшего покупателя — сразу привязан к кабинету и к боту.
 // Если покупатель не вошёл, но его телефон нам уже знаком, привязываем по телефону:
 // иначе бот потом не знает, кому слать фото букета.
-const onlyDigits = (v) => String(v || "").replace(/\D/g, "").replace(/^8/, "7");
-
 onRecordCreateRequest((e) => {
   try {
     const acc = require(`${__hooks}/lib/account.js`);
-    let c = acc.byToken($app, e.request ? e.request.header.get("X-Customer-Token") : null);
+    // объявляем внутри: обработчики PocketBase не видят код верхнего уровня
+    const onlyDigits = (v) => String(v || "").replace(/\D/g, "").replace(/^8/, "7");
+    // ключ читаем двумя способами: в хуке создания записи e.request.header пустой,
+    // а в обычном маршруте — наоборот, requestInfo бывает недоступен
+    let key = "";
+    try { key = e.request && e.request.header ? e.request.header.get("X-Customer-Token") : ""; } catch (_) {}
+    if (!key) {
+      try {
+        const h = e.requestInfo().headers || {};
+        key = h.x_customer_token || h["x-customer-token"] || "";
+      } catch (_) {}
+    }
+    let c = acc.byToken($app, key);
     if (!c) {
       const phone = onlyDigits(e.record.get("phone"));
       if (phone.length >= 10) {
