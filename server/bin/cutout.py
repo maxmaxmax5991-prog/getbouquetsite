@@ -33,7 +33,7 @@ def main(src, dst, flowers=False):
         out = out.crop(box)
     if out.width > WIDTH:
         out = out.resize((WIDTH, round(out.height * WIDTH / out.width)), Image.LANCZOS)
-    out.save(dst, "PNG", optimize=True)
+    out.save(dst, "WEBP", quality=88, method=6)
     print(f"{out.width}x{out.height}")
 
 if __name__ == "__main__":

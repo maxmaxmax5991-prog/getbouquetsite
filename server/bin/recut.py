@@ -32,7 +32,7 @@ def cut(session, src, flowers=False):
     if out.width > WIDTH:
         out = out.resize((WIDTH, round(out.height * WIDTH / out.width)), Image.LANCZOS)
     buf = io.BytesIO()
-    out.save(buf, "PNG", optimize=True)
+    out.save(buf, "WEBP", quality=88, method=6)
     return buf.getvalue(), out.size
 
 def main(base, token, only_missing):
@@ -66,7 +66,7 @@ def main(base, token, only_missing):
             up = requests.patch(
                 f"{base}/api/collections/products/records/{p['id']}",
                 headers=head,
-                files={"cutout": (f"cut_{p['id']}.png", data, "image/png")},
+                files={"cutout": (f"cut_{p['id']}.webp", data, "image/webp")},
                 data={"cut_done": "true"},
                 timeout=120,
             )

@@ -61,7 +61,7 @@ cronAdd("cutout", "* * * * *", () => {
 
   // фото лежит на диске: <данные>/storage/<коллекция>/<запись>/<файл>
   const src = `${$app.dataDir()}/storage/${rec.collection().id}/${rec.id}/${photos[0]}`;
-  const dst = `${$app.dataDir()}/../cut-${rec.id}.png`;
+  const dst = `${$app.dataDir()}/../cut-${rec.id}.webp`;   // WebP с прозрачностью весит впятеро меньше PNG
 
   try {
     const out = toString($os.cmd(PY, SCRIPT, src, dst).output());

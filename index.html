@@ -8,9 +8,9 @@
 <title>venikoff.net</title>
 <meta name="description" content="venikoff.net — букеты, розы, коробочки и корзины с доставкой по Москве. Фото букета перед доставкой.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23E0178A'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M16 27V15M16 17l-6-6M16 17l6-6'/%3E%3Ccircle cx='16' cy='10' r='3.4'/%3E%3Ccircle cx='9' cy='9' r='2.6'/%3E%3Ccircle cx='23' cy='9' r='2.6'/%3E%3C/g%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<link rel="preload" href="/fonts/manrope-500-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/unbounded-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/fonts/fonts.css">
 <style>
 body{margin:0}img{max-width:100%}[hidden]{display:none!important}
 :root{
@@ -575,8 +575,8 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
-<script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790263893"></script>
+<script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
+<script src="data.js?v=1790264517"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -749,7 +749,10 @@ $('#popular').innerHTML = POPULAR.map(id => card(byId[id])).join('');
 const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
   const pic = (!API && TILE_IMG[k]) || (P.find(p => p.cat === k) || {}).id;
-  return `<a href="#/catalog/${k}"><div><b>${label}</b><br><small class="num">${count[k] || 0} ${plural(count[k] || 0, 'позиция', 'позиции', 'позиций')}</small></div>${pic && byId[pic] ? `<img src="${photoOf(byId[pic], '')}" alt="" loading="lazy">` : ''}</a>`;
+  // считаем то, что есть в наличии; пусто — обещаем привезти, а не пишем «0 позиций»
+  const n = count[k] || 0;
+  const note = n ? `${n} ${plural(n, 'позиция', 'позиции', 'позиций')}` : 'скоро подвезём';
+  return `<a href="#/catalog/${k}"><div><b>${label}</b><br><small class="num">${note}</small></div>${pic && byId[pic] ? `<img src="${photoOf(byId[pic], '')}" alt="" loading="lazy">` : ''}</a>`;
 }).join('');
 
 /* ---------- catalog ---------- */
@@ -993,7 +996,8 @@ const studio = $('#studio'), carousel = $('#carousel'), scene = $('#scene');
 let pos = 0, drag = 0, spacing = 160;
 const wrapD = d => { d = ((d % N) + N) % N; return d > N / 2 ? d - N : d; };
 const current = () => ((Math.round(pos) % N) + N) % N;
-carousel.innerHTML = FEATURED.map((f, i) => `<div class="c-item" role="option" data-i="${i}" aria-label="${f.name}"><img src="${f.cut || `img/cut/${f.id}.png`}" alt="" draggable="false" onload="this.dataset.w=this.naturalWidth;this.dataset.h=this.naturalHeight"></div>`).join('');
+// первые три букета нужны сразу, остальные подгрузятся, пока листают
+carousel.innerHTML = FEATURED.map((f, i) => `<div class="c-item" role="option" data-i="${i}" aria-label="${f.name}"><img src="${f.cut || `img/cut/${f.id}.png`}" alt="" draggable="false" ${i < 3 ? 'fetchpriority="high"' : 'loading="lazy"'} onload="this.dataset.w=this.naturalWidth;this.dataset.h=this.naturalHeight"></div>`).join('');
 $('#dots').innerHTML = FEATURED.map((f, i) => `<button data-i="${i}" aria-label="${f.name}"></button>`).join('');
 const items = [...carousel.children];
 function layout() {
