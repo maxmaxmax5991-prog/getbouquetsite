@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Добавить товар — venikoff.net</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23E0178A'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M16 23V10M10 16h12'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#F6F7F3; --paper:#fff; --ink:#14171A; --ink-2:rgba(20,23,26,.64); --ink-3:rgba(20,23,26,.42);
+  --line:rgba(20,30,20,.1); --line-2:rgba(20,30,20,.18);
+  --accent:#E0178A; --accent-text:#C0106F; --accent-soft:rgba(224,23,138,.09);
+  --ok:#1F7A4D; --ok-soft:rgba(31,122,77,.1); --bad:#C62D3A; --bad-soft:rgba(198,45,58,.1);
+  --display:"Unbounded","Arial Black",system-ui,sans-serif;
+  --body:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ground:#0F1113; --paper:#181B1F; --ink:#EEF0EC; --ink-2:rgba(238,240,236,.68); --ink-3:rgba(238,240,236,.44);
+  --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.18);
+  --accent:#F0339E; --accent-text:#FF7CC4; --accent-soft:rgba(240,51,158,.14);
+  --ok:#5FD39B; --ok-soft:rgba(95,211,155,.14); --bad:#FF8A8A; --bad-soft:rgba(255,138,138,.14);
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--ground);color:var(--ink);font:500 16px/1.45 var(--body);padding:0 0 40px}
+header{padding:20px 16px 12px}
+h1{font:700 22px/1.1 var(--display);margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--ink-2);font-size:14px}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+label.f{display:grid;gap:6px;font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:12px}
+input,select,textarea,button{font-family:inherit;font-size:16px}
+.in{height:50px;border-radius:13px;border:1px solid var(--line-2);background:var(--ground);padding:0 14px;color:var(--ink);font-weight:500;outline:0;width:100%}
+textarea.in{height:84px;padding:12px 14px;resize:vertical}
+.in:focus{border-color:var(--accent)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{border:0;border-radius:999px;padding:14px 20px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn-p{background:var(--accent);color:#fff;width:100%;font-size:17px}
+.btn-p:disabled{opacity:.5}
+.btn-g{background:transparent;border:1px solid var(--line-2);color:var(--ink);padding:9px 14px;font-size:14px}
+.chip{border:1px solid var(--line-2);background:transparent;color:var(--ink);border-radius:999px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:15px}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.bar{display:flex;gap:8px;flex-wrap:wrap}
+.drop{border:2px dashed var(--line-2);border-radius:16px;padding:22px 16px;text-align:center;color:var(--ink-2);cursor:pointer;background:var(--ground)}
+.drop b{display:block;color:var(--ink);font-size:16px;margin-bottom:2px}
+.shots{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.shots figure{margin:0;position:relative;width:74px;height:74px;border-radius:12px;overflow:hidden;border:1px solid var(--line-2)}
+.shots img{width:100%;height:100%;object-fit:cover;display:block}
+.shots button{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:14px;line-height:1;padding:0}
+.hint{font-size:13px;color:var(--ink-2);background:var(--ground);border-radius:12px;padding:10px 12px;margin:10px 0 0}
+.msg{border-radius:13px;padding:12px 14px;font-weight:600;font-size:14.5px;margin-bottom:12px}
+.msg.ok{background:var(--ok-soft);color:var(--ok)}
+.msg.bad{background:var(--bad-soft);color:var(--bad)}
+.item{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.item:first-of-type{border-top:0}
+.item img{width:54px;height:54px;border-radius:11px;object-fit:cover;background:var(--ground);flex:none}
+.item .nm{flex:1;min-width:0}
+.item .nm b{display:block;font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .nm small{color:var(--ink-3);font-size:12.5px}
+.item .in{height:40px;width:96px;font-size:15px;padding:0 10px}
+h2{font:700 16px/1.2 var(--display);margin:0 0 12px}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <h1>Добавить товар</h1>
+  <p class="sub">venikoff.net — фото, название, цена. Появится на сайте сразу.</p>
+</header>
+
+<main class="wrap">
+  <div id="msg" hidden></div>
+
+  <section class="card" id="need" hidden>
+    <h2>Нужна ссылка с ключом</h2>
+    <p class="sub">Откройте страницу по ссылке, которую дал владелец: она заканчивается на <code>?k=…</code>. Ключ запомнится, и дальше можно заходить просто по адресу.</p>
+  </section>
+
+  <form class="card" id="form" hidden>
+    <h2>Новый товар</h2>
+
+    <div class="drop" id="drop">
+      <b>Фото букета</b>
+      Нажмите, чтобы выбрать или снять. До 5 штук.
+      <input type="file" id="file" accept="image/*,.heic,.heif" multiple hidden>
+    </div>
+    <div class="shots" id="shots"></div>
+
+    <label class="f" for="name" style="margin-top:14px">Название<input class="in" id="name" maxlength="200" placeholder="Букет «Рассвет»" required></label>
+    <label class="f" for="cat">Раздел<select class="in" id="cat"></select></label>
+
+    <div id="plain">
+      <label class="f" for="price">Цена, ₽<input class="in" id="price" type="number" min="0" step="10" inputmode="numeric" placeholder="4990"></label>
+    </div>
+
+    <div id="roses" hidden>
+      <label class="f" for="table">Прайс<select class="in" id="table"></select></label>
+      <span class="f" style="display:block">Длины</span>
+      <div class="bar" id="lens"></div>
+      <p class="hint">Цены возьмутся из прайса. Выключите длину, которой нет в наличии.</p>
+    </div>
+
+    <label class="f" for="desc" style="margin-top:12px">Описание, если нужно<textarea class="in" id="desc" maxlength="2000" placeholder="Что внутри, как ухаживать"></textarea></label>
+
+    <button class="btn btn-p" id="send" type="submit">Добавить на сайт</button>
+    <p class="hint">Фон для карусели вырежем сами — ничего готовить не нужно.</p>
+  </form>
+
+  <section class="card" id="recentBox" hidden>
+    <h2>Последние добавленные</h2>
+    <div id="recent"></div>
+    <p class="hint">Цену можно поправить прямо здесь. «Скрыть» убирает товар с сайта, не удаляя его.</p>
+  </section>
+</main>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ключ берём из ссылки и запоминаем, чтобы не открывать её каждый раз
+const url = new URL(location.href);
+let KEY = url.searchParams.get('k') || '';
+try {
+  if (KEY) localStorage.setItem('vk.upload', KEY);
+  else KEY = localStorage.getItem('vk.upload') || '';
+} catch (_) {}
+if (url.searchParams.get('k')) history.replaceState(null, '', location.pathname);
+
+function say(text, bad) {
+  const el = $('#msg');
+  el.hidden = !text;
+  el.className = 'msg ' + (bad ? 'bad' : 'ok');
+  el.textContent = text || '';
+  if (text) window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+let CATS = [], TABLES = [], shots = [], lens = [50, 60];
+
+async function load() {
+  if (!KEY) { $('#need').hidden = false; return; }
+  let d;
+  try {
+    const r = await fetch(`/api/shop/upload-meta?k=${encodeURIComponent(KEY)}`);
+    d = await r.json();
+    if (!r.ok) throw new Error(d.message || 'Не получилось открыть страницу');
+  } catch (err) {
+    $('#need').hidden = false;
+    say(err.message, true);
+    return;
+  }
+  CATS = d.categories || []; TABLES = d.tables || [];
+  $('#cat').innerHTML = CATS.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('#table').innerHTML = TABLES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  $('#form').hidden = false;
+  renderRecent(d.recent || []);
+  catChanged();
+}
+
+// одноголовые розы продаются длинами по прайсу, остальное — простой ценой
+const isRoses = () => /однологов|одноголов/i.test((CATS.find(c => c.id === $('#cat').value) || {}).name || '');
+function catChanged() {
+  const roses = isRoses();
+  $('#roses').hidden = !roses;
+  $('#plain').hidden = roses;
+  renderLens();
+}
+$('#cat').onchange = catChanged;
+
+function renderLens() {
+  $('#lens').innerHTML = [40, 50, 60, 70, 80].map(L =>
+    `<button type="button" class="chip" data-len="${L}" aria-pressed="${lens.includes(L)}">${L} см</button>`).join('');
+}
+$('#lens').onclick = e => {
+  const b = e.target.closest('[data-len]'); if (!b) return;
+  const L = +b.dataset.len;
+  lens = lens.includes(L) ? lens.filter(x => x !== L) : [...lens, L].sort((a, b) => a - b);
+  renderLens();
+};
+
+/* ---------- фото ---------- */
+$('#drop').onclick = () => $('#file').click();
+$('#file').onchange = e => { addShots([...e.target.files]); e.target.value = ''; };
+function addShots(files) {
+  files.filter(f => /^image\//.test(f.type)).forEach(f => { if (shots.length < 5) shots.push(f); });
+  renderShots();
+}
+function renderShots() {
+  $('#shots').innerHTML = shots.map((f, i) =>
+    `<figure><img src="${URL.createObjectURL(f)}" alt=""><button type="button" data-rm="${i}" aria-label="Убрать">×</button></figure>`).join('');
+}
+$('#shots').onclick = e => {
+  const b = e.target.closest('[data-rm]'); if (!b) return;
+  shots.splice(+b.dataset.rm, 1); renderShots();
+};
+
+/* ---------- отправка ---------- */
+$('#form').onsubmit = async e => {
+  e.preventDefault();
+  say('');
+  if (!shots.length) return say('Добавьте хотя бы одно фото.', true);
+  if (!$('#name').value.trim()) return say('Напишите название.', true);
+  const roses = isRoses();
+  if (roses && !lens.length) return say('Выберите хотя бы одну длину.', true);
+  if (!roses && !(+$('#price').value > 0)) return say('Укажите цену.', true);
+
+  const fd = new FormData();
+  fd.append('k', KEY);
+  fd.append('name', $('#name').value.trim());
+  fd.append('category', $('#cat').value);
+  fd.append('description', $('#desc').value.trim());
+  if (roses) { fd.append('lengths', lens.join(',')); fd.append('table', $('#table').value); }
+  else fd.append('price', $('#price').value);
+  shots.forEach(f => fd.append('photo', f, f.name || 'photo.jpg'));
+
+  const btn = $('#send');
+  btn.disabled = true; btn.textContent = 'Загружаем…';
+  try {
+    const r = await fetch('/api/shop/upload', { method: 'POST', body: fd });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.message || 'Не получилось загрузить');
+    say(`«${d.name}» добавлен на сайт.`, false);
+    shots = []; renderShots();
+    $('#name').value = ''; $('#desc').value = ''; $('#price').value = '';
+    const meta = await (await fetch(`/api/shop/upload-meta?k=${encodeURIComponent(KEY)}`)).json();
+    renderRecent(meta.recent || []);
+  } catch (err) {
+    say(err.message, true);
+  }
+  btn.disabled = false; btn.textContent = 'Добавить на сайт';
+};
+
+/* ---------- последние товары ---------- */
+function renderRecent(list) {
+  $('#recentBox').hidden = !list.length;
+  $('#recent').innerHTML = list.map(p => `<div class="item" data-id="${p.id}">
+    <img src="${p.img || ''}" alt="" loading="lazy">
+    <div class="nm"><b>${esc(p.name)}</b><small>${p.lengths ? 'цена из прайса' : 'цена'}${p.active ? '' : ' · скрыт'}</small></div>
+    ${p.lengths ? '' : `<input class="in" type="number" min="0" step="10" value="${p.price}" data-price>`}
+    <button class="btn btn-g" data-hide>${p.active ? 'Скрыть' : 'Вернуть'}</button>
+  </div>`).join('');
+}
+
+$('#recent').addEventListener('change', async e => {
+  const inp = e.target.closest('[data-price]'); if (!inp) return;
+  await fix(inp.closest('.item').dataset.id, { price: +inp.value || 0 }, 'Цена сохранена.');
+});
+$('#recent').addEventListener('click', async e => {
+  const b = e.target.closest('[data-hide]'); if (!b) return;
+  const back = b.textContent === 'Вернуть';
+  await fix(b.closest('.item').dataset.id, { active: back }, back ? 'Товар снова на сайте.' : 'Товар убран с сайта.');
+  b.textContent = back ? 'Скрыть' : 'Вернуть';
+});
+
+async function fix(id, body, okText) {
+  try {
+    const r = await fetch('/api/shop/upload-fix', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ k: KEY, id, ...body }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.message || 'Не сохранилось');
+    say(okText, false);
+  } catch (err) { say(err.message, true); }
+}
+
+load();
+})();
+</script>
+</body>
+</html>

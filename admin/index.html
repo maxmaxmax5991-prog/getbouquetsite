@@ -430,6 +430,13 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div class="bar"><button class="btn btn-p" id="tSave">Сохранить</button><button class="btn btn-g" id="tTest">Проверить бота</button></div>
         </div>
         <div class="card stack">
+          <h2>Ссылка для загрузки товаров</h2>
+          <p class="hint">Дайте её управляющей: по ней можно добавить товар с фото, поправить цену и убрать товар с сайта. Заказы, настройки и деньги по этой ссылке недоступны. Фон для карусели сервер вырежет сам.</p>
+          <label class="f" for="dUpLink">Ссылка<input class="in" id="dUpLink" readonly onclick="this.select()"></label>
+          <div class="bar"><button class="btn btn-g" id="dUpCopy">Скопировать</button><button class="btn btn-d" id="dUpNew">Сменить ключ</button></div>
+          <p class="hint">«Сменить ключ» мгновенно ломает старую ссылку — на случай, если она попала не тем людям.</p>
+        </div>
+        <div class="card stack">
           <h2>Мой пароль</h2>
           <div class="row">
             <label class="f" for="mOld">Текущий пароль<input class="in" id="mOld" type="password" autocomplete="current-password"></label>
@@ -461,6 +468,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <button data-mode="lengths">Длина × количество</button>
         <button data-mode="single">Одна цена</button>
       </div>
+      <p class="hint" style="margin:0 0 10px">«Одна цена» — обычный букет. «Размеры (кнопки)» — когда у букета несколько размеров со своими ценами. «Длина × количество» — одноголовые розы, цены берутся из прайса.</p>
       <div id="mVariants">
         <div class="scroll"><table class="t" id="eVars"></table></div>
         <div class="bar" style="margin-top:8px">
@@ -710,7 +718,7 @@ function openEditor(p) {
   E = {
     rec: p, removed: [], cutFile: null, cutRemoved: false,
     photos: p ? (p.photo || []).map(name => ({ name, cnt: ((p.photo_counts || {})[name]) || '' })) : [],
-    mode: p && p.lengths && p.lengths.length ? 'lengths' : p && p.variants && p.variants.length ? 'variants' : (p ? 'single' : 'variants'),
+    mode: p && p.lengths && p.lengths.length ? 'lengths' : p && p.variants && p.variants.length ? 'variants' : 'single',
     variants: p && p.variants ? JSON.parse(JSON.stringify(p.variants)) : [],
     lengths: p && p.lengths ? [...p.lengths] : [50, 60],
     table: (p && p.price_table) || (tablesOf(S)[0] || {}).id || "single",
@@ -740,7 +748,7 @@ function renderPhotos() {
       <div class="ph${ph.file ? ' new' : ''}"><img src="${photoSrc(ph)}" alt=""><button data-rmph="${i}" aria-label="Убрать фото">×</button></div>
       <input class="in sm ph-cnt" data-cnt="${i}" type="number" min="0" step="1" value="${ph.cnt || ''}" placeholder="шт" title="Сколько цветов на этом снимке">
     </div>`).join('') +
-    `<label class="add-ph">+ фото<input type="file" accept="image/*" multiple hidden id="ePhAdd"></label>`;
+    `<label class="add-ph">+ фото<input type="file" accept="image/*,.heic,.heif" multiple hidden id="ePhAdd"></label>`;
   $('#ePhAdd').onchange = e => { readCounts(); [...e.target.files].forEach(f => E.photos.push({ file: f, url: URL.createObjectURL(f) })); renderPhotos(); if (E.mode === 'variants') renderVars(); };
 }
 $('#ePhotos').addEventListener('click', e => {
@@ -834,11 +842,11 @@ $('#eSave').onclick = safe(async () => {
   fd.append('popular', sw($('#ePopular')));
   fd.append('featured', sw($('#eFeatured')));
   if (E.mode === 'lengths') {
-    if (!E.lengths.length) return toast('Отметьте хотя бы одну длину', true);
+    if (!E.lengths.length) return toast('Выбран режим «Длина × количество»: отметьте хотя бы одну длину или переключитесь на «Одна цена»', true);
     fd.append('lengths', JSON.stringify(E.lengths)); fd.append('variants', 'null'); fd.append('price', 0); fd.append('price_table', E.table);
   } else if (E.mode === 'variants') {
     const vs = E.variants.filter(v => v.label && v.price > 0);
-    if (!vs.length) return toast('Добавьте размеры с ценой', true);
+    if (!vs.length) return toast('Выбран режим «Размеры (кнопки)»: заполните хотя бы одну кнопку с ценой или переключитесь на «Одна цена»', true);
     if (new Set(vs.map(v => v.label)).size !== vs.length) return toast('Названия кнопок размеров повторяются', true);
     fd.append('variants', JSON.stringify(vs)); fd.append('lengths', 'null'); fd.append('price', Math.min(...vs.map(v => v.price)));
   } else {
@@ -971,6 +979,7 @@ const loadDelivery = safe(async () => {
   $('#dYkey').value = S.ymaps_key || '';
   $('#dYsug').value = S.ymaps_suggest_key || '';
   $('#dKmFactor').value = S.km_factor || 1.3;
+  renderUpload();
   $('#dOriginLL').value = (S.origin_lat && S.origin_lon) ? `${S.origin_lat}, ${S.origin_lon}` : '';
   sw($('#dMkad'), S.mkad_mode);
   $('#dMkadPrice').value = S.mkad_price || 0; $('#dMkadKm').value = S.mkad_km_price || 0; $('#dMkadMax').value = S.mkad_max_km || 0;
@@ -1021,6 +1030,22 @@ function slotDemo() {
 }
 ['#dWorkFrom', '#dWorkTo', '#dDelTo', '#dSlotHours', '#dSlotStep', '#dSlotMin', '#dPrep', '#dPrepBig', '#dPrepFrom']
   .forEach(sel => $(sel).addEventListener('input', slotDemo));
+
+/* ---------- ссылка для загрузки товаров ---------- */
+const upLink = () => `${location.origin}/add/?k=${S.upload_key || ''}`;
+function renderUpload() { if ($('#dUpLink')) $('#dUpLink').value = S.upload_key ? upLink() : 'ключ ещё не создан — нажмите «Сменить ключ»'; }
+$('#dUpCopy').onclick = safe(async () => {
+  if (!S.upload_key) return toast('Сначала создайте ключ', true);
+  try { await navigator.clipboard.writeText(upLink()); toast('Ссылка скопирована'); }
+  catch (_) { $('#dUpLink').select(); toast('Выделено — скопируйте вручную'); }
+});
+$('#dUpNew').onclick = safe(async () => {
+  if (S.upload_key && !confirm('Старая ссылка перестанет работать. Сменить ключ?')) return;
+  const key = [...crypto.getRandomValues(new Uint8Array(18))].map(b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { upload_key: key } });
+  renderUpload();
+  toast('Ключ сменён, ссылка обновилась');
+});
 
 $('#dSlotSave').onclick = safe(async () => {
   const from = $('#dWorkFrom').value, to = $('#dWorkTo').value, till = $('#dDelTo').value || to;
@@ -1419,6 +1444,7 @@ $('#rpSave').onclick = safe(async () => {
 /* ---------- настройки ---------- */
 const loadSettings = safe(async () => {
   await loadSettings0();
+  renderUpload();
   $('#sPhone').value = S.phone || ''; $('#sUrl').value = S.site_url || location.origin;
   $('#sTok').value = ''; $('#sTok').placeholder = S.tg_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ от @BotFather';
 $('#sAdm').value = S.tg_admins || '';

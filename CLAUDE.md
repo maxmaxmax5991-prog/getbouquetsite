@@ -24,7 +24,15 @@
 - `server/deploy.sh` — выкладка на сервер.
 - Фото: `img/p` (товары), `img/v` (сорта), `img/cut` (без фона, для карусели). Фон удаляется локально через Apple Vision (`VNGenerateForegroundInstanceMaskRequest`).
 
+## Загрузка товаров и фото
+- `add/index.html` — отдельная страница для управляющей: `https://…/add/?k=<ключ>`. Вход по ключу (`settings.upload_key`), без аккаунта; можно добавить товар с фото, поправить цену, скрыть товар. Ссылка и кнопка «Сменить ключ» — в админке, Настройки.
+- **Фон для карусели вырезает сервер сам** (`cutout.pb.js`, раз в минуту, по одному товару): rembg + модель u2net в отдельном окружении `/opt/venikoff/bg`, скрипт `/opt/venikoff/bin/cutout.py` (исходник — `server/bin/cutout.py`). ~7 секунд и до 900 МБ памяти на снимок, поэтому строго по одному. Выключатель — `settings.auto_cut`, отметка сделанного — `products.cut_done`.
+- **HEIC с айфона** принимаем и переводим в JPEG (`heic-convert` в том же файле, скрипт `server/bin/tojpg.py`, pillow-heif). Сам PocketBase HEIC не уменьшает — без перевода на сайте была бы пустая картинка.
+- Скрипты выкладываются из `server/bin/` в `/opt/venikoff/bin/` (см. `deploy.sh`). Питон-окружение ставится руками один раз: `python3 -m venv /opt/venikoff/bg && /opt/venikoff/bg/bin/pip install rembg onnxruntime pillow pillow-heif`.
+- Размеры фото: карточка 560, страница товара 1080, оригинал хранится целиком.
+
 ## Сервер
+
 - VPS Timeweb Cloud, Москва: `root@147.45.141.23`, ключ `~/.ssh/venikoff_ed25519` (на другом компьютере — свой ключ, см. `ДОМА.md`).
 - Ubuntu, Caddy (HTTPS, отдаёт сайт из `/opt/venikoff/site`, `/api/*` → PocketBase), ufw (22, 80, 443).
 - PocketBase в `/opt/venikoff/pb`, служба `venikoff-pb`, `127.0.0.1:8090`, пользователь `venikoff`. Резервная копия базы — каждый день в 04:00, хранится 14 штук.
