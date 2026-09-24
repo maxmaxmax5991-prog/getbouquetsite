@@ -9,6 +9,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
 <style>
 body{margin:0}[hidden]{display:none!important}
+#zmap{height:440px;margin-top:14px;border-radius:14px;overflow:hidden;border:1px solid var(--line-2);background:var(--ground)}
+@media(max-width:700px){#zmap{height:320px}}
+.leaflet-container{font-family:var(--body)}
+.zmap-tip{font:600 12.5px var(--body)}
 :root{
   --ground:#F4F5F1; --paper:#fff; --ink:#15181A; --ink-2:rgba(21,24,26,.62); --ink-3:rgba(21,24,26,.4);
   --line:rgba(20,30,20,.1); --line-2:rgba(20,30,20,.18);
@@ -284,6 +288,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div class="scroll"><table class="t" id="zones"></table></div>
           <p class="hint">«Радиус» — до скольких километров от магазина действует эта зона. Круги считаются от меньшего к большему: адрес попадает в первый подходящий. Дальше самого большого круга заказ не оформится. Радиус нужен только когда включён режим «Доставка кругами от магазина», иначе покупатель выбирает зону сам.<br>«Бесплатно от» — при сумме букетов от этой суммы доставка бесплатная. 0 — всегда платно.</p>
           <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="zAdd">+ Зона</button><button class="btn btn-p btn-s" id="zSave">Сохранить зоны</button></div>
+          <div id="zmap"></div>
+          <p class="hint" id="zmapNote" hidden></p>
+          <p class="hint">Круги на карте — ваши зоны: чем больше круг, тем дороже. Они обновляются сразу, как правите радиус в таблице, — сохранять для этого не нужно. <b>Ткните в любое место карты</b>, и увидите, сколько туда километров и сколько будет стоить доставка. Круги нарисованы с учётом поправки к прямой, поэтому совпадают с тем, что посчитает сайт.</p>
         </div>
         <div class="card">
           <h2>Интервалы доставки</h2>
@@ -935,7 +942,7 @@ const loadDelivery = safe(async () => {
   $('#dKmFactor').value = S.km_factor || 1.3;
   $('#dOriginLL').value = (S.origin_lat && S.origin_lon) ? `${S.origin_lat}, ${S.origin_lon}` : '';
   ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
-  renderZones(); renderInts();
+  renderZones(); renderInts(); renderMap();
 });
 $('#dKmSave').onclick = safe(async () => {
   const on = sw($('#dKm'));
@@ -959,6 +966,7 @@ $('#dKmSave').onclick = safe(async () => {
     ymaps_key: $('#dYkey').value.trim(), ymaps_suggest_key: $('#dYsug').value.trim(), origin_address: origin,
     origin_lat: m ? +m[1].replace(',', '.') : 0, origin_lon: m ? +m[2].replace(',', '.') : 0 };
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
+  renderMap();
   toast('Сохранено');
 });
 $('#dKmTest').onclick = safe(async () => {
@@ -1034,7 +1042,100 @@ async function saveRows(col, arr, fields) {
     arr[i] = saved;
   }
 }
-$('#zSave').onclick = safe(async () => { readRows('#zones [data-z]', 'z', ZONES); if (ZONES.some(z => !z.name)) return toast('У каждой зоны должно быть название', true); await saveRows('delivery_zones', ZONES, ['name', 'radius_km', 'price', 'free_from', 'active']); renderZones(); toast('Зоны сохранены'); });
+/* ---------- карта зон ----------
+   Рисуем круги поверх обычной карты OpenStreetMap — ключ для неё не нужен.
+   Радиус зоны задан в «километрах с поправкой» (так считает сайт), а на карте
+   нужны настоящие метры по прямой, поэтому делим на поправку. */
+let MAP = null, MAPLAYER = null, LEAFLET = null;
+
+function loadLeaflet() {
+  if (LEAFLET) return LEAFLET;
+  LEAFLET = new Promise((done, fail) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
+    js.onload = () => done(window.L);
+    js.onerror = () => fail(new Error('нет связи'));
+    document.head.appendChild(js);
+  });
+  return LEAFLET;
+}
+
+// расстояние по прямой между двумя точками, километры
+function kmBetween(a, b) {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * rad, dLon = (b[1] - a[1]) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+const mapFactor = () => +$('#dKmFactor').value > 0 ? +$('#dKmFactor').value : (+S.km_factor || 1.3);
+const mapRings = () => ZONES.filter(z => z.active && +z.radius_km > 0).sort((a, b) => a.radius_km - b.radius_km);
+
+function drawRings(L) {
+  const lat = +S.origin_lat, lon = +S.origin_lon, f = mapFactor();
+  MAPLAYER.clearLayers();
+  L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 2, fillColor: '#E0178A', fillOpacity: 1 })
+    .bindTooltip('Магазин', { className: 'zmap-tip' }).addTo(MAPLAYER);
+
+  const rings = mapRings();
+  // рисуем от большого к маленькому, иначе крупный круг накроет мелкие
+  [...rings].reverse().forEach((z, i) => {
+    const step = rings.length > 1 ? i / (rings.length - 1) : 1;
+    L.circle([lat, lon], {
+      radius: (+z.radius_km / f) * 1000,
+      color: '#E0178A', weight: 2, opacity: .55 + .35 * step,
+      fillColor: '#E0178A', fillOpacity: .05 + .05 * step,
+    }).bindTooltip(`${z.name || 'Зона'} — ${z.radius_km} км, ${z.price} ₽`, { className: 'zmap-tip' }).addTo(MAPLAYER);
+  });
+
+  if (rings.length) {
+    const far = (+rings[rings.length - 1].radius_km / f) * 1000;
+    MAP.fitBounds(L.circle([lat, lon], { radius: far }).getBounds(), { padding: [20, 20] });
+  }
+}
+
+function pointText(latlng) {
+  const km = Math.round(kmBetween([+S.origin_lat, +S.origin_lon], [latlng.lat, latlng.lng]) * mapFactor() * 10) / 10;
+  const z = mapRings().find(x => km <= +x.radius_km);
+  return z
+    ? `${km} км → ${z.name || 'зона'}, ${z.price ? z.price + ' ₽' : 'бесплатно'}`
+    : `${km} км — дальше сюда не возим`;
+}
+
+async function renderMap() {
+  const box = $('#zmap'), note = $('#zmapNote');
+  const ready = +S.origin_lat && +S.origin_lon;
+  box.hidden = !ready;
+  note.hidden = ready;
+  if (!ready) { note.textContent = 'Чтобы увидеть карту, впишите координаты магазина выше и нажмите «Сохранить».'; return; }
+  let L;
+  try { L = await loadLeaflet(); } catch (_) {
+    box.hidden = true; note.hidden = false;
+    note.textContent = 'Карта не загрузилась — похоже, нет связи с интернетом.';
+    return;
+  }
+  if (!MAP) {
+    MAP = L.map(box, { scrollWheelZoom: false }).setView([+S.origin_lat, +S.origin_lon], 9);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(MAP);
+    MAPLAYER = L.layerGroup().addTo(MAP);
+    MAP.on('click', e => L.popup().setLatLng(e.latlng).setContent(pointText(e.latlng)).openOn(MAP));
+  }
+  drawRings(L);
+  setTimeout(() => MAP.invalidateSize(), 50);   // вкладка только что показалась, размер ещё не тот
+}
+
+// правим радиус в таблице — круги перерисовываются сразу
+$('#zones').addEventListener('input', () => {
+  if (!MAP) return;
+  readRows('#zones [data-z]', 'z', ZONES);
+  loadLeaflet().then(L => drawRings(L)).catch(() => {});
+});
+
+$('#zSave').onclick = safe(async () => { readRows('#zones [data-z]', 'z', ZONES); if (ZONES.some(z => !z.name)) return toast('У каждой зоны должно быть название', true); await saveRows('delivery_zones', ZONES, ['name', 'radius_km', 'price', 'free_from', 'active']); renderZones(); renderMap(); toast('Зоны сохранены'); });
 $('#iSave').onclick = safe(async () => { readRows('#ints [data-it]', 'it', INTS); await saveRows('delivery_intervals', INTS, ['start', 'end', 'kind', 'extra', 'active']); renderInts(); toast('Интервалы сохранены'); });
 
 /* ---------- прайсы «длина × количество» ---------- */
