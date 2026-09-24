@@ -577,7 +577,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790266853"></script>
+<script src="data.js?v=1790267186"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1336,7 +1336,17 @@ function loadWidget() {
   });
 }
 // Окно оплаты CloudPayments; деньги списывает их виджет, наш сервер потом сверяет платёж
-function payCard(order, name, phone) {
+async function payCard(order, name, phone) {
+  // сначала убеждаемся, что заказ на месте: иначе спишем деньги в никуда
+  try {
+    const r = await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: order.id }) });
+    if (r.status === 404) {
+      store.set('last', null);
+      return { paid: false, error: 'Этого заказа уже нет. Оформите заказ заново — деньги не списаны.' };
+    }
+    const d = await r.json().catch(() => ({}));
+    if (d && d.paid) return { paid: true };     // уже оплачен, второй раз не берём
+  } catch (_) {}
   return loadWidget().then(ok => {
     if (!ok || !window.cp) return { paid: false, error: 'Не удалось открыть окно оплаты. Мы свяжемся с вами для оплаты.' };
     return new Promise(resolve => {
