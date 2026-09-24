@@ -30,8 +30,9 @@ function addressLine(o) {
     `${CITY}, ${o.street || ""}`,
     o.house ? `, д. ${o.house}` : "",
     part("к.", o.block),
-    part("кв.", o.flat),
+    part("подъезд", o.entrance),
     part("этаж", o.floor),
+    part("кв.", o.flat),
     o.intercom ? `, домофон ${o.intercom}` : "",
   ].join("").replace(/\s+/g, " ").trim();
 }
@@ -105,15 +106,30 @@ function distance(app, s, lat, lon) {
   return { ok: true, km: Math.round(km * 10) / 10 };
 }
 
-// Стоимость доставки по километрам. Бесплатной доставки от суммы здесь нет — так решил владелец.
-function priceFor(s, km) {
-  const per = +s.get("km_price") || 0;
-  const min = +s.get("km_min") || 0;
-  return Math.max(min, Math.ceil(km * per / 10) * 10);
+// Зоны-круги от магазина: берём ближайший круг, в который попал адрес.
+// Зоны без радиуса в расчёте не участвуют — иначе можно случайно отдать доставку даром.
+function zonesByRadius(app) {
+  return app.findRecordsByFilter("delivery_zones", "active = true", "sort", 100, 0)
+    .filter((z) => +z.get("radius_km") > 0)
+    .sort((a, b) => +a.get("radius_km") - +b.get("radius_km"));
+}
+
+// Стоимость доставки по расстоянию: цена зоны, в чей круг попал адрес.
+function priceFor(app, s, km, sum) {
+  const zones = zonesByRadius(app);
+  if (!zones.length) return { ok: false, error: "Зоны доставки не настроены. Позвоните нам — оформим вручную." };
+  const z = zones.find((x) => km <= +x.get("radius_km"));
+  if (!z) {
+    const max = +zones[zones.length - 1].get("radius_km");
+    return { ok: false, error: `Пока не возим дальше ${max} км от магазина. Позвоните нам — договоримся.` };
+  }
+  const free = +z.get("free_from") || 0;
+  const price = (free > 0 && sum >= free) ? 0 : (+z.get("price") || 0);
+  return { ok: true, price, zone: z.id, zoneName: z.get("name") || "" };
 }
 
 // Полная проверка адреса: координаты, расстояние, цена. Одно место и для сайта, и для заказа.
-function check(app, s, o) {
+function check(app, s, o, sum) {
   if (!o.street) return { ok: false, error: "Укажите улицу." };
   if (!o.house) return { ok: false, error: "Укажите дом." };
   const g = geocode(s, geoQuery(o));
@@ -121,9 +137,10 @@ function check(app, s, o) {
   if (!g.exact) return { ok: false, error: "Не нашли такой дом. Проверьте номер дома и корпус." };
   const d = distance(app, s, g.lat, g.lon);
   if (!d.ok) return d;
-  const max = +s.get("km_max") || 0;
-  if (max > 0 && d.km > max) return { ok: false, error: `Пока не возим дальше ${max} км от магазина. Позвоните нам — договоримся.` };
-  return { ok: true, lat: g.lat, lon: g.lon, km: d.km, price: priceFor(s, d.km), address: addressLine(o), found: g.address };
+  const p = priceFor(app, s, d.km, +sum || 0);
+  if (!p.ok) return p;
+  return { ok: true, lat: g.lat, lon: g.lon, km: d.km, price: p.price, zone: p.zone, zoneName: p.zoneName,
+    address: addressLine(o), found: g.address };
 }
 
-module.exports = { geocode, suggest, distance, priceFor, check, addressLine, geoQuery, haversine, origin };
+module.exports = { geocode, suggest, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };

@@ -340,6 +340,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .form input:focus,.form select:focus,.form textarea:focus{border-color:var(--accent)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 @media(max-width:400px){.four{grid-template-columns:repeat(2,1fr)}}
 .addr-hint{font-size:13px;font-weight:500;margin:2px 0 0}
 .addr-hint.bad{color:var(--sale)}
@@ -556,7 +557,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790194267"></script>
+<script src="data.js?v=1790251946"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1076,18 +1077,21 @@ function renderCart() {
         <label for="fName">Ваше имя<input id="fName" name="name" required autocomplete="name" placeholder="Анна" maxlength="120"></label>
         <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[-+0-9 ()]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
-        <div id="addrBox">${DEL && DEL.km ? `
+        <div id="addrBox">
           <label for="fStreet">Улица в Москве<input id="fStreet" name="street" required autocomplete="address-line1" list="streetList" placeholder="Маленковская улица" maxlength="200"></label>
           <datalist id="streetList"></datalist>
-          <div class="four">
-            <label for="fHouse">Дом<input id="fHouse" name="house" required inputmode="numeric" placeholder="14" maxlength="20"></label>
+          <div class="three">
+            <label for="fHouse">Дом<input id="fHouse" name="house" required placeholder="14" maxlength="20"></label>
             <label for="fBlock">Корпус<input id="fBlock" name="block" placeholder="1" maxlength="20"></label>
-            <label for="fFlat">Квартира<input id="fFlat" name="flat" placeholder="25" maxlength="20"></label>
-            <label for="fFloor">Этаж<input id="fFloor" name="floor" inputmode="numeric" placeholder="3" maxlength="20"></label>
+            <label for="fEntrance">Подъезд<input id="fEntrance" name="entrance" inputmode="numeric" placeholder="2" maxlength="20"></label>
           </div>
-          <label for="fIntercom">Домофон<input id="fIntercom" name="intercom" placeholder="25К или «не работает»" maxlength="40"></label>
+          <div class="three">
+            <label for="fFloor">Этаж<input id="fFloor" name="floor" inputmode="numeric" placeholder="3" maxlength="20"></label>
+            <label for="fFlat">Квартира<input id="fFlat" name="flat" placeholder="25" maxlength="20"></label>
+            <label for="fIntercom">Домофон<input id="fIntercom" name="intercom" placeholder="25К" maxlength="40"></label>
+          </div>
           <p class="addr-hint" id="addrHint" hidden></p>
-        ` : `<label for="fAddr">Адрес в Москве<input id="fAddr" name="addr" required autocomplete="street-address" placeholder="Улица, дом, квартира" maxlength="400"></label>`}</div>
+        </div>
         ${PICKUP ? `<p class="pickup-note" id="pickupNote" hidden>Забрать: ${esc(PICKUP.address || 'адрес уточним')}${PICKUP.hours ? `, ${esc(PICKUP.hours)}` : ''}</p>` : ''}
         ${zones.length ? `<label for="fZone" id="zoneBox">Зона доставки<select id="fZone" name="zone" required>${zones.map(z => `<option value="${z.id}">${esc(z.name)} — ${zonePrice(z, t.sum) ? rub(zonePrice(z, t.sum)) : 'бесплатно'}</option>`).join('')}</select></label>` : ''}
         <div class="two">
@@ -1113,7 +1117,7 @@ ${payChoice()}
       const pickup = getType === 'pickup';
       $('#addrBox').hidden = pickup;
       // обязательные поля адреса зависят от способа получения; при километрах их несколько
-      ['#fAddr', '#fStreet', '#fHouse'].forEach(sel => { const el = $(sel); if (el) el.required = !pickup; });
+      ['#fStreet', '#fHouse'].forEach(sel => { const el = $(sel); if (el) el.required = !pickup; });
       if ($('#zoneBox')) $('#zoneBox').hidden = pickup;
       if ($('#pickupNote')) $('#pickupNote').hidden = !pickup;
       if (PAY && PAY.card && $('#payBox')) { $('#payBox').outerHTML = payChoice(); bindPaySeg(); }
@@ -1259,18 +1263,18 @@ const checkAddress = debounce(async () => {
   if (!f.street.trim() || !f.house.trim()) { addrSay('', false); recalc(); return; }
   addrBusy = true; addrSay('Проверяем адрес…', false); recalc();
   try {
-    const r = await fetch('/api/shop/address', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(f) });
+    const r = await fetch('/api/shop/address', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...f, sum: totals().sum }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { addrSay(d.message || 'Не нашли такой адрес.', true); }
-    else { addrInfo = { km: d.km, price: d.price }; addrSay(`${d.address || ''} · ${d.km} км от магазина · доставка ${rub(d.price)}`, false); }
+    else { addrInfo = { km: d.km, price: d.price }; addrSay(`${d.address || ''} · ${d.km} км от магазина · ${d.zone ? d.zone + ', ' : ''}доставка ${d.price ? rub(d.price) : 'бесплатно'}`, false); }
   } catch (_) { addrSay('Не получилось проверить адрес. Попробуйте ещё раз.', true); }
   addrBusy = false; recalc();
 }, 600);
 
 function bindAddress() {
-  if (!(DEL && DEL.km)) return;
   const st = $('#fStreet'); if (!st) return;
-  st.oninput = () => { loadSuggest(); checkAddress(); };
+  const hints = !!(API && API.suggest);          // ключ подсказок заведён
+  st.oninput = () => { if (hints) loadSuggest(); checkAddress(); };
   ['#fHouse', '#fBlock'].forEach(sel => { const el = $(sel); if (el) el.oninput = checkAddress; });
 }
 
@@ -1316,10 +1320,10 @@ cartDlg.addEventListener('submit', async e => {
     try {
       const res = await fetch('/api/collections/orders/records', { method: 'POST', headers: { 'content-type': 'application/json', ...meHeaders() }, body: JSON.stringify({
         name: v('name').trim(), phone: v('phone').trim(), recipient: v('to').trim(),
-        // при километрах адрес собирает сервер из частей — он же проверяет его по картам
-        address: getType === 'pickup' ? 'Самовывоз' : (km ? '' : v('addr').trim()),
-        ...(km ? { street: v('street').trim(), house: v('house').trim(), block: v('block').trim(),
-          flat: v('flat').trim(), floor: v('floor').trim(), intercom: v('intercom').trim() } : {}),
+        // адрес собирает сервер из частей — он же проверяет его по картам
+        address: getType === 'pickup' ? 'Самовывоз' : '',
+        ...(getType === 'pickup' ? {} : { street: v('street').trim(), house: v('house').trim(), block: v('block').trim(),
+          entrance: v('entrance').trim(), floor: v('floor').trim(), flat: v('flat').trim(), intercom: v('intercom').trim() }),
         zone: getType === 'pickup' || !$('#fZone') ? '' : v('zone'), date: v('date'), interval: v('time'), note: v('note').trim(),
         delivery_type: getType, payment_method: payMethod,
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });

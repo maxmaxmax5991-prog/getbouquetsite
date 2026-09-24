@@ -263,28 +263,25 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div><button class="btn btn-p" id="dPickSave">Сохранить</button></div>
         </div>
         <div class="card stack">
-          <h2>Доставка по километрам</h2>
-          <div class="swl"><button class="sw" id="dKm" role="switch" aria-checked="false" aria-label="Считать по километрам"></button>Считать доставку по километрам от магазина</div>
-          <p class="hint">Когда включено, зоны доставки на сайте не показываются: покупатель вводит улицу, дом, корпус, квартиру, этаж и домофон, адрес проверяется по картам, и цена считается от расстояния. Бесплатной доставки от суммы заказа здесь нет.</p>
+          <h2>Доставка кругами от магазина</h2>
+          <div class="swl"><button class="sw" id="dKm" role="switch" aria-checked="false" aria-label="Считать по расстоянию"></button>Определять зону по адресу, а не спрашивать покупателя</div>
+          <p class="hint">Когда включено, покупатель зону не выбирает: адрес проверяется по картам, считается расстояние от магазина, и берётся ближайший круг, в который адрес попал, — его цена и есть доставка. Радиус и цену каждого круга задайте ниже, в таблице «Зоны и стоимость доставки». Когда выключено, покупатель выбирает зону сам, как раньше.</p>
           <div class="row">
             <label class="f" for="dOrigin">Откуда считаем<input class="in" id="dOrigin" placeholder="Москва, Маленковская улица, 14к1"></label>
             <label class="f" for="dYkey">Ключ Яндекса: Геокодер<input class="in" id="dYkey" placeholder="ключ сервиса «Геокодер»" autocomplete="off"></label>
             <label class="f" for="dYsug">Ключ Яндекса: Подсказки<input class="in" id="dYsug" placeholder="ключ сервиса «Геосаджест»" autocomplete="off"></label>
           </div>
           <div class="row">
-            <label class="f" for="dKmPrice">Цена за километр, ₽<input class="in num" id="dKmPrice" type="number" min="0" step="10"></label>
-            <label class="f" for="dKmMin">Минимум за доставку, ₽<input class="in num" id="dKmMin" type="number" min="0" step="50"></label>
             <label class="f" for="dKmFactor">Поправка к прямой<input class="in num" id="dKmFactor" type="number" min="1" step="0.05"></label>
-            <label class="f" for="dKmMax">Дальше не возим, км<input class="in num" id="dKmMax" type="number" min="0" step="1"></label>
           </div>
-          <p class="hint">Расстояние считается по прямой между точками и умножается на поправку — улицы не прямые, 1,3 близко к настоящему пробегу. «Дальше не возим» 0 — без ограничения. Ключи хранятся на сервере и в браузер покупателя не попадают.<br><b>Ключей у Яндекса два:</b> «Геокодер» проверяет адрес и находит координаты — без него не работает ничего; «Геосаджест» подсказывает улицы при вводе — без него поле просто не подсказывает. Оба берутся в кабинете разработчика Яндекса, у каждого свой бесплатный лимит.</p>
+          <p class="hint">Расстояние считается по прямой между точками и умножается на поправку — улицы не прямые, 1,3 близко к настоящему пробегу. Дальше самого большого круга доставка не оформляется. Ключи хранятся на сервере и в браузер покупателя не попадают.<br><b>Ключей у Яндекса два:</b> «Геокодер» проверяет адрес и находит координаты — без него не работает ничего; «Геосаджест» подсказывает улицы при вводе — без него поле просто не подсказывает. Оба берутся в кабинете разработчика Яндекса, у каждого свой бесплатный лимит.</p>
           <div class="bar"><button class="btn btn-p" id="dKmSave">Сохранить</button><button class="btn btn-g" id="dKmTest">Проверить адрес</button></div>
           <p class="hint" id="dKmResult" hidden></p>
         </div>
         <div class="card">
           <h2>Зоны и стоимость доставки</h2>
           <div class="scroll"><table class="t" id="zones"></table></div>
-          <p class="hint">«Бесплатно от» — при сумме букетов от этой суммы доставка бесплатная. 0 — всегда платно.</p>
+          <p class="hint">«Радиус» — до скольких километров от магазина действует эта зона. Круги считаются от меньшего к большему: адрес попадает в первый подходящий. Дальше самого большого круга заказ не оформится. Радиус нужен только когда включён режим «Доставка кругами от магазина», иначе покупатель выбирает зону сам.<br>«Бесплатно от» — при сумме букетов от этой суммы доставка бесплатная. 0 — всегда платно.</p>
           <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="zAdd">+ Зона</button><button class="btn btn-p btn-s" id="zSave">Сохранить зоны</button></div>
         </div>
         <div class="card">
@@ -934,19 +931,16 @@ const loadDelivery = safe(async () => {
   $('#dOrigin').value = S.origin_address || 'Москва, Маленковская улица, 14к1';
   $('#dYkey').value = S.ymaps_key || '';
   $('#dYsug').value = S.ymaps_suggest_key || '';
-  $('#dKmPrice').value = S.km_price || 0; $('#dKmMin').value = S.km_min || 0;
-  $('#dKmFactor').value = S.km_factor || 1.3; $('#dKmMax').value = S.km_max || 0;
+  $('#dKmFactor').value = S.km_factor || 1.3;
   ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
   renderZones(); renderInts();
 });
 $('#dKmSave').onclick = safe(async () => {
   const on = sw($('#dKm'));
-  const price = +$('#dKmPrice').value || 0;
   if (on && !$('#dYkey').value.trim()) return toast('Без ключа Яндекс.Карт адрес проверить нечем', true);
-  if (on && !price) return toast('Укажите цену за километр', true);
+  if (on && !ZONES.some(z => +z.radius_km > 0 && z.active)) return toast('Проставьте радиусы зонам ниже — по ним считается доставка', true);
   const origin = $('#dOrigin').value.trim();
-  const body = { km_mode: on, km_price: price, km_min: +$('#dKmMin').value || 0,
-    km_factor: +$('#dKmFactor').value || 1.3, km_max: +$('#dKmMax').value || 0,
+  const body = { km_mode: on, km_factor: +$('#dKmFactor').value || 1.3,
     ymaps_key: $('#dYkey').value.trim(), ymaps_suggest_key: $('#dYsug').value.trim(), origin_address: origin };
   // адрес точки поменялся — старые координаты сбрасываем, сервер найдёт заново
   if (origin !== (S.origin_address || '')) { body.origin_lat = 0; body.origin_lon = 0; }
@@ -985,8 +979,9 @@ $('#dSave').onclick = safe(async () => {
   toast('Сохранено');
 });
 function renderZones() {
-  $('#zones').innerHTML = `<tr><th>Зона</th><th>Цена, ₽</th><th>Бесплатно от, ₽</th><th>Вкл.</th><th></th></tr>` + ZONES.map((z, i) => `<tr>
+  $('#zones').innerHTML = `<tr><th>Зона</th><th>Радиус, км</th><th>Цена, ₽</th><th>Бесплатно от, ₽</th><th>Вкл.</th><th></th></tr>` + ZONES.map((z, i) => `<tr>
     <td><input class="in sm" data-z="name" data-i="${i}" value="${esc(z.name)}" style="min-width:170px"></td>
+    <td><input class="in sm num" data-z="radius_km" data-i="${i}" type="number" min="0" step="1" value="${z.radius_km || 0}" style="width:100px"></td>
     <td><input class="in sm num" data-z="price" data-i="${i}" type="number" min="0" step="10" value="${z.price}" style="width:100px"></td>
     <td><input class="in sm num" data-z="free_from" data-i="${i}" type="number" min="0" step="100" value="${z.free_from}" style="width:110px"></td>
     <td><input type="checkbox" data-z="active" data-i="${i}"${z.active ? ' checked' : ''} aria-label="Включена"></td>
@@ -1002,7 +997,7 @@ function renderInts() {
     <td><button class="btn btn-d btn-s" data-rmi="${i}">Удалить</button></td></tr>`).join('');
 }
 const readRows = (sel, key, arr) => $$(sel).forEach(el => { const r = arr[+el.dataset.i], k = el.dataset[key]; r[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value || 0 : el.value.trim(); });
-$('#zAdd').onclick = () => { readRows('#zones [data-z]', 'z', ZONES); ZONES.push({ name: '', price: 0, free_from: 0, active: true, sort: ZONES.length }); renderZones(); };
+$('#zAdd').onclick = () => { readRows('#zones [data-z]', 'z', ZONES); ZONES.push({ name: '', radius_km: 0, price: 0, free_from: 0, active: true, sort: ZONES.length }); renderZones(); };
 $('#iAdd').onclick = () => { readRows('#ints [data-it]', 'it', INTS); INTS.push({ start: '21:00', end: '23:00', kind: 'both', extra: 0, active: true, sort: INTS.length }); renderInts(); };
 $('#zones').addEventListener('click', safe(async e => {
   const b = e.target.closest('[data-rmz]'); if (!b) return;
@@ -1025,7 +1020,7 @@ async function saveRows(col, arr, fields) {
     arr[i] = saved;
   }
 }
-$('#zSave').onclick = safe(async () => { readRows('#zones [data-z]', 'z', ZONES); if (ZONES.some(z => !z.name)) return toast('У каждой зоны должно быть название', true); await saveRows('delivery_zones', ZONES, ['name', 'price', 'free_from', 'active']); renderZones(); toast('Зоны сохранены'); });
+$('#zSave').onclick = safe(async () => { readRows('#zones [data-z]', 'z', ZONES); if (ZONES.some(z => !z.name)) return toast('У каждой зоны должно быть название', true); await saveRows('delivery_zones', ZONES, ['name', 'radius_km', 'price', 'free_from', 'active']); renderZones(); toast('Зоны сохранены'); });
 $('#iSave').onclick = safe(async () => { readRows('#ints [data-it]', 'it', INTS); await saveRows('delivery_intervals', INTS, ['start', 'end', 'kind', 'extra', 'active']); renderInts(); toast('Интервалы сохранены'); });
 
 /* ---------- прайсы «длина × количество» ---------- */

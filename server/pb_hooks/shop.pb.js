@@ -29,9 +29,9 @@ routerAdd("POST", "/api/shop/address", (e) => {
     street: String(b.street || "").slice(0, 200),
     house: String(b.house || "").slice(0, 20),
     block: String(b.block || "").slice(0, 20),
-  });
+  }, +b.sum || 0);   // сумма букетов нужна для «бесплатно от»; заказ всё равно пересчитается на сервере
   if (!r.ok) return e.json(400, { message: r.error });
-  return e.json(200, { km: r.km, price: r.price, address: r.found });
+  return e.json(200, { km: r.km, price: r.price, address: r.found, zone: r.zoneName });
 });
 
 // Заказ с сайта: пересчитываем цены, доставку и проверяем дату/интервал на сервере
@@ -107,9 +107,9 @@ routerAdd("POST", "/api/shop/geo-test", (e) => {
     street: String(b.street || "").slice(0, 200),
     house: String(b.house || "").slice(0, 20),
     block: String(b.block || "").slice(0, 20),
-  });
+  }, +b.sum || 0);
   if (!r.ok) return e.json(400, { message: r.error });
-  return e.json(200, { km: r.km, price: r.price, address: r.found, from: s.get("origin_address") });
+  return e.json(200, { km: r.km, price: r.price, address: r.found, zone: r.zoneName, from: s.get("origin_address") });
 }, $apis.requireAuth("managers"));
 
 // Кнопка «Проверить» у мессенджера MAX: заодно подставляем имя бота для ссылки
