@@ -566,7 +566,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790260990"></script>
+<script src="data.js?v=1790261458"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -627,6 +627,8 @@ function countText(p, label) {
 }
 const labelText = l => /^\d+-\d+$/.test(l) ? `${l.split('-')[1]} шт · ${l.split('-')[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
 const photoOf = (p, label) => { const v = variant(p, label); return v && v.img ? v.img : v && v.photo ? img(v.photo) : (p.img || img(p.id)); };
+// на странице товара фото во всю ширину — берём снимок покрупнее, если сервер его отдаёт
+const photoBig = (p, label) => { const v = variant(p, label); return (v && v.big) || p.big || photoOf(p, label); };
 
 /* ---------- cart: key = id or id|label ---------- */
 let cart = store.get('cart', {});
@@ -754,7 +756,7 @@ function pdSync() {
   $('#pdPrice').textContent = rub(keyPrice(k));
   $('#pdTotal').textContent = rub(keyPrice(k) * pd.qty);
   $('#pdQty').textContent = pd.qty;
-  $('#pdImg').src = photoOf(p, label);
+  $('#pdImg').src = photoBig(p, label);
   const ct = countText(p, label);
   $('#pdCount').hidden = !ct; $('#pdCount').textContent = ct;
   if (p.variants) $('#pdOpts').innerHTML = p.lengths ? sizesHTML(p, 'opts') : p.variants.map(v => `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === label}">${esc(v.label)}</button>`).join('');

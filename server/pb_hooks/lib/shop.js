@@ -92,7 +92,7 @@ function catalog(app) {
       const counts = jget(p, "photo_counts") || {};
       const cntOf = (name) => (name && +counts[name] > 0 ? +counts[name] : undefined);
       const variants = variantsOf(p, s).map((v) => Object.assign({}, v,
-        v.photo ? { img: fileUrl(p, v.photo, "560x0"), cnt: cntOf(v.photo) } : {}));
+        v.photo ? { img: fileUrl(p, v.photo, "560x0"), big: fileUrl(p, v.photo, "1080x0"), cnt: cntOf(v.photo) } : {}));
       const lengths = jget(p, "lengths");
       const cut = p.get("cutout");
       return {
@@ -102,7 +102,8 @@ function catalog(app) {
         price: variants.length ? Math.min.apply(null, variants.map((v) => v.price)) : p.get("price"),
         bonus: p.get("bonus") || 0,
         img: photos.length ? fileUrl(p, photos[0], "560x0") : "",
-        big: photos.length ? fileUrl(p, photos[0]) : "",
+        // на странице товара снимок во всю ширину — там нужен размер побольше, чем на карточке
+        big: photos.length ? fileUrl(p, photos[0], "1080x0") : "",
         cnt: photos.length ? cntOf(photos[0]) : undefined,
         variants: variants.length ? variants : undefined,
         lengths: Array.isArray(lengths) && lengths.length ? lengths : undefined,
