@@ -210,7 +210,37 @@ function slotsFor(s, dateIso, sum, graceMin, pickup) {
   return out;
 }
 
+// Что не так с выбранным интервалом: пустая строка — всё в порядке.
+function slotProblem(s, dateIso, sum, label, pickup) {
+  const r = slotRules(s);
+  const m = String(label).match(/^(\d{1,2}):(\d{2})[–-](\d{1,2}):(\d{2})$/);
+  const late = pickup ? "Выберите время, когда заберёте букет." : "На этот интервал уже не успеем. Выберите более поздний.";
+  if (!m) return late;
+
+  const st = +m[1] * 60 + +m[2], en = +m[3] * 60 + +m[4];
+  const open = toMin(r.from), send = toMin(r.to);
+  const till = pickup ? send : Math.max(toMin(r.till), send);
+  const full = pickup ? r.step : r.hours * 60;
+
+  if (st % r.step || en <= st) return late;
+  if (st < open || st > send || en > till) return late;
+  // окно либо целое, либо укороченное до закрытия, но не короче минимума
+  if (en !== st + full && !(en === till && en - st >= Math.min(full, r.min))) return late;
+
+  const now = moscowNow();
+  if (dateIso < now.date) return "Эта дата уже прошла.";
+  if (dateIso === now.date) {
+    const ready = now.minutes + prepFor(r, sum) - 20;   // 20 минут поблажки: пока заполняли форму, время ушло
+    if (st < ready) return late;
+    if (Math.ceil(Math.max(open, ready) / r.step) * r.step > send) {
+      return pickup ? "На сегодня забрать уже не получится. Выберите другую дату." : "На сегодня доставка уже не успеет. Выберите другую дату.";
+    }
+  }
+  return "";
+}
+
 // Доставку считает карта — кругами от магазина или расстоянием от МКАД.
+
 
 // В обоих случаях покупатель зону не выбирает и адрес проверяется на сервере.
 const autoDelivery = (s) => !!(s.get("km_mode") || s.get("mkad_mode"));
@@ -303,9 +333,10 @@ function prepareOrder(app, rec) {
 
   // интервал пересчитываем здесь заново: цену и время, присланные браузером, не принимаем на веру
   const interval = String(rec.get("interval") || "");
-  const ok = slotsFor(s, date, sum, 20, pickup);   // 20 минут поблажки: пока заполняли форму, время ушло
-  if (!ok.length) fail(pickup ? "На этот день забрать уже не получится. Выберите другую дату." : "На этот день доставка уже не успеет. Выберите другую дату.");
-  if (ok.indexOf(interval) < 0) fail(pickup ? "Выберите время, когда заберёте букет." : "На этот интервал уже не успеем. Выберите более поздний.");
+  // Проверяем правилами, а не списком: браузер и сервер считают время в разные секунды,
+  // и точное совпадение строки давало отказ на верном интервале.
+  const bad = slotProblem(s, date, sum, interval, pickup);
+  if (bad) fail(bad);
 
 const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret"));
   const method = String(rec.get("payment_method") || "");
@@ -425,5 +456,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer,
-  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor,
+  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };
