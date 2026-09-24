@@ -119,7 +119,48 @@ function distanceBySuggest(app, s, o) {
   return { ok: true, km: Math.round(km * 10) / 10, address: (hit.address && hit.address.formatted_address) || "" };
 }
 
+// ---------- МКАД ----------
+// Переводим градусы в километры на плоскости: для Москвы такой упрощённый способ
+// ошибается на десятки метров, а считать им куда проще.
+const KY = 110.574;
+const KX = 111.320 * Math.cos(55.75 * Math.PI / 180);
+const flat = (lat, lon) => [lon * KX, lat * KY];
+
+function mkadPoly() {
+  return require(`${__hooks}/lib/mkad.js`).MKAD.map((pt) => flat(pt[0], pt[1]));
+}
+
+// Точка внутри кольца? Считаем, сколько раз луч вправо пересечёт границу.
+function insideMkad(lat, lon) {
+  const poly = mkadPoly();
+  const [x, y] = flat(lat, lon);
+  let hit = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+// Сколько километров от точки до кольца (по прямой, до ближайшего места МКАД)
+function kmFromMkad(lat, lon) {
+  const poly = mkadPoly();
+  const [x, y] = flat(lat, lon);
+  let best = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, ay] = poly[i], [bx, by] = poly[j];
+    const dx = bx - ax, dy = by - ay;
+    const len = dx * dx + dy * dy;
+    let t = len ? ((x - ax) * dx + (y - ay) * dy) / len : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const d = Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
+    if (d < best) best = d;
+  }
+  return Math.round(best * 10) / 10;
+}
+
 // Расстояние по прямой между двумя точками, километры
+
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371, rad = Math.PI / 180;
   const dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
@@ -127,7 +168,46 @@ function haversine(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
+// Координаты адреса без геокодера. Подсказки Яндекса сообщают, насколько дом далёк
+// от переданной точки; три замера из разных мест однозначно задают его координаты.
+// Дороже на два запроса, зато не нужен отдельный ключ геокодера.
+const TRI = [[37.20, 55.60], [38.05, 55.75], [37.60, 56.05]];
+
+function locate(s, o) {
+  const key = suggestKey(s);
+  if (!key) return { ok: false, error: "Не указан ключ Яндекс.Карт." };
+  const q = geoQuery(o);
+  const text = q.indexOf(",") >= 0 ? q : `${CITY}, ${q}`;
+  const ms = [];
+  let address = "";
+  for (let i = 0; i < TRI.length; i++) {
+    const r = get(`${SUGGEST}?apikey=${enc(key)}&text=${enc(text)}&lang=ru&results=1&types=house&print_address=1&ll=${TRI[i][0]},${TRI[i][1]}&spn=2.5,1.6`);
+    if (!r.ok) return r;
+    const hit = ((r.data && r.data.results) || [])[0];
+    if (!hit || !hit.distance) return { ok: false, error: "Такой адрес не найден. Проверьте улицу и дом." };
+    const comp = (hit.address && hit.address.component) || [];
+    const kind = (k) => (comp.find((c) => (c.kind || []).indexOf(k) >= 0) || {}).name || "";
+    if (!kind("HOUSE")) return { ok: false, error: "Не нашли такой дом. Проверьте номер дома и корпус." };
+    // все три замера должны говорить об одной улице, иначе точку считать нельзя
+    const where = `${kind("LOCALITY")}|${kind("STREET")}`;
+    if (i === 0) { address = (hit.address && hit.address.formatted_address) || ""; ms.push(where); }
+    else if (where !== ms[0]) return { ok: false, error: "Не смогли найти этот адрес на карте. Проверьте улицу и дом." };
+    ms.push([TRI[i][0], TRI[i][1], hit.distance.value / 1000]);
+  }
+
+  // пересечение трёх окружностей: вычитаем первое уравнение из остальных
+  const pts = ms.filter((x) => Array.isArray(x)).map(([lon, lat, d]) => [(lon - 37.62) * KX, (lat - 55.75) * KY, d]);
+  const [x1, y1, d1] = pts[0];
+  const rows = pts.slice(1).map(([x, y, d]) => [2 * (x - x1), 2 * (y - y1), d1 * d1 - d * d + x * x - x1 * x1 + y * y - y1 * y1]);
+  const det = rows[0][0] * rows[1][1] - rows[0][1] * rows[1][0];
+  if (!det) return { ok: false, error: "Не смогли определить адрес на карте." };
+  const x = (rows[0][2] * rows[1][1] - rows[0][1] * rows[1][2]) / det;
+  const y = (rows[0][0] * rows[1][2] - rows[0][2] * rows[1][0]) / det;
+  return { ok: true, lat: 55.75 + y / KY, lon: 37.62 + x / KX, address };
+}
+
 // Координаты торговой точки. Считаем один раз и запоминаем в настройках,
+
 // чтобы не дёргать геокодер на каждый заказ.
 function origin(app, s) {
   const lat = +s.get("origin_lat"), lon = +s.get("origin_lon");
@@ -159,6 +239,17 @@ function zonesByRadius(app) {
     .sort((a, b) => +a.get("radius_km") - +b.get("radius_km"));
 }
 
+// Стоимость доставки от МКАД: внутри кольца одна цена, за кольцом — плюс за километр.
+function priceFromMkad(s, pos) {
+  const base = +s.get("mkad_price") || 0;
+  if (insideMkad(pos.lat, pos.lon)) return { ok: true, price: base, zone: "", zoneName: "внутри МКАД", out_km: 0 };
+  const out = kmFromMkad(pos.lat, pos.lon);
+  const max = +s.get("mkad_max_km") || 0;
+  if (max > 0 && out > max) return { ok: false, error: `Пока не возим дальше ${max} км от МКАД. Позвоните нам — договоримся.` };
+  const perKm = +s.get("mkad_km_price") || 0;
+  return { ok: true, price: base + Math.ceil(out) * perKm, zone: "", zoneName: `${out} км за МКАД`, out_km: out };
+}
+
 // Стоимость доставки по расстоянию: цена зоны, в чей круг попал адрес.
 function priceFor(app, s, km, sum) {
   const zones = zonesByRadius(app);
@@ -178,25 +269,32 @@ function check(app, s, o, sum) {
   if (!o.street) return { ok: false, error: "Укажите улицу." };
   if (!o.house) return { ok: false, error: "Укажите дом." };
 
-  // Сначала геокодер: он точнее и даёт координаты для курьера.
-  // Нет ключа или он не подошёл — считаем по подсказкам, там тоже есть расстояние.
+  // Сначала геокодер: он точнее и даёт координаты для курьера. Нет ключа или он не
+  // подошёл — работаем по подсказкам. Для расчёта от МКАД нужны координаты (три замера),
+  // для кругов от магазина хватает одного замера расстояния.
   let lat = 0, lon = 0, km = 0, found = "";
   const g = s.get("ymaps_key") ? geocode(s, geoQuery(o)) : { ok: false, error: "" };
   if (g.ok && g.exact) {
     const d = distance(app, s, g.lat, g.lon);
     if (!d.ok) return d;
     lat = g.lat; lon = g.lon; km = d.km; found = g.address;
+  } else if (s.get("mkad_mode")) {
+    const loc = locate(s, o);
+    if (!loc.ok) return loc;
+    lat = loc.lat; lon = loc.lon; found = loc.address;
+    const d = distance(app, s, lat, lon);
+    km = d.ok ? d.km : 0;
   } else {
     const sg = distanceBySuggest(app, s, o);
     if (!sg.ok) return sg;
     km = sg.km; found = sg.address;
   }
 
-  const p = priceFor(app, s, km, +sum || 0);
+  const p = s.get("mkad_mode") ? priceFromMkad(s, { lat, lon }) : priceFor(app, s, km, +sum || 0);
   if (!p.ok) return p;
   // адрес для курьера берём в том виде, в каком его знают карты, и дописываем подъезд с квартирой
   const address = found ? `${found}${detailsLine(o)}` : addressLine(o);
-  return { ok: true, lat, lon, km, price: p.price, zone: p.zone, zoneName: p.zoneName, address, found };
+  return { ok: true, lat, lon, km, out_km: p.out_km || 0, price: p.price, zone: p.zone, zoneName: p.zoneName, address, found };
 }
 
-module.exports = { geocode, suggest, distanceBySuggest, detailsLine, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };
+module.exports = { geocode, suggest, distanceBySuggest, detailsLine, locate, insideMkad, kmFromMkad, priceFromMkad, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };

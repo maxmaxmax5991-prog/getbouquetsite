@@ -267,6 +267,18 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div><button class="btn btn-p" id="dPickSave">Сохранить</button></div>
         </div>
         <div class="card stack">
+          <h2>Доставка от МКАД</h2>
+          <div class="swl"><button class="sw" id="dMkad" role="switch" aria-checked="false" aria-label="Считать от МКАД"></button>Считать доставку от МКАД</div>
+          <p class="hint">Внутри МКАД — одна цена на весь город. За МКАД — та же цена плюс столько-то рублей за каждый километр от кольца (неполный километр считается как целый). Это привычный для Москвы способ; он точнее кругов, потому что МКАД — не круг, а магазин стоит не в центре.</p>
+          <div class="row">
+            <label class="f" for="dMkadPrice">Внутри МКАД, ₽<input class="in num" id="dMkadPrice" type="number" min="0" step="50"></label>
+            <label class="f" for="dMkadKm">За МКАД: ₽ за километр<input class="in num" id="dMkadKm" type="number" min="0" step="5"></label>
+            <label class="f" for="dMkadMax">Дальше не возим, км от МКАД<input class="in num" id="dMkadMax" type="number" min="0" step="5"></label>
+          </div>
+          <p class="hint">Пример при 850 ₽ и 30 ₽/км: внутри МКАД — 850 ₽, Химки (2 км за кольцом) — 910 ₽, Одинцово (8 км) — 1090 ₽. «Дальше не возим» 0 — без ограничения. Адрес проверяется по картам тем же ключом Яндекса, что и круги.</p>
+          <div class="bar"><button class="btn btn-p" id="dMkadSave">Сохранить</button></div>
+        </div>
+        <div class="card stack">
           <h2>Доставка кругами от магазина</h2>
           <div class="swl"><button class="sw" id="dKm" role="switch" aria-checked="false" aria-label="Считать по расстоянию"></button>Определять зону по адресу, а не спрашивать покупателя</div>
           <p class="hint">Когда включено, покупатель зону не выбирает: адрес проверяется по картам, считается расстояние от магазина, и берётся ближайший круг, в который адрес попал, — его цена и есть доставка. Радиус и цену каждого круга задайте ниже, в таблице «Зоны и стоимость доставки». Когда выключено, покупатель выбирает зону сам, как раньше.</p>
@@ -288,9 +300,12 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div class="scroll"><table class="t" id="zones"></table></div>
           <p class="hint">«Радиус» — до скольких километров от магазина действует эта зона. Круги считаются от меньшего к большему: адрес попадает в первый подходящий. Дальше самого большого круга заказ не оформится. Радиус нужен только когда включён режим «Доставка кругами от магазина», иначе покупатель выбирает зону сам.<br>«Бесплатно от» — при сумме букетов от этой суммы доставка бесплатная. 0 — всегда платно.</p>
           <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="zAdd">+ Зона</button><button class="btn btn-p btn-s" id="zSave">Сохранить зоны</button></div>
+        </div>
+        <div class="card">
+          <h2>Карта доставки</h2>
           <div id="zmap"></div>
           <p class="hint" id="zmapNote" hidden></p>
-          <p class="hint">Круги на карте — ваши зоны: чем больше круг, тем дороже. Они обновляются сразу, как правите радиус в таблице, — сохранять для этого не нужно. <b>Ткните в любое место карты</b>, и увидите, сколько туда километров и сколько будет стоить доставка. Круги нарисованы с учётом поправки к прямой, поэтому совпадают с тем, что посчитает сайт.</p>
+          <p class="hint" id="zmapHelp"></p>
         </div>
         <div class="card">
           <h2>Интервалы доставки</h2>
@@ -941,10 +956,24 @@ const loadDelivery = safe(async () => {
   $('#dYsug').value = S.ymaps_suggest_key || '';
   $('#dKmFactor').value = S.km_factor || 1.3;
   $('#dOriginLL').value = (S.origin_lat && S.origin_lon) ? `${S.origin_lat}, ${S.origin_lon}` : '';
+  sw($('#dMkad'), S.mkad_mode);
+  $('#dMkadPrice').value = S.mkad_price || 0; $('#dMkadKm').value = S.mkad_km_price || 0; $('#dMkadMax').value = S.mkad_max_km || 0;
   ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
   renderZones(); renderInts(); renderMap();
 });
+$('#dMkadSave').onclick = safe(async () => {
+  const on = sw($('#dMkad'));
+  if (on && !$('#dYkey').value.trim() && !$('#dYsug').value.trim()) return toast('Без ключа Яндекс.Карт адрес проверить нечем', true);
+  if (on && !+$('#dMkadPrice').value) return toast('Укажите цену доставки внутри МКАД', true);
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: {
+    mkad_mode: on, mkad_price: +$('#dMkadPrice').value || 0,
+    mkad_km_price: +$('#dMkadKm').value || 0, mkad_max_km: +$('#dMkadMax').value || 0 } });
+  if (on && sw($('#dKm'))) { sw($('#dKm'), false); S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { km_mode: false } }); }
+  renderMap();
+  toast('Сохранено');
+});
 $('#dKmSave').onclick = safe(async () => {
+
   const on = sw($('#dKm'));
   // в поля ключей легко вставить не то: ссылку на сайт, название сервиса. Ключ Яндекса — 36 знаков вида 0a1b2c3d-…
   const badKey = (el, what) => {
@@ -962,6 +991,7 @@ $('#dKmSave').onclick = safe(async () => {
   const m = ll.match(/^\s*(-?\d+[.,]?\d*)\s*,\s*(-?\d+[.,]?\d*)\s*$/);
   if (ll && !m) return toast('Координаты пишутся так: 55.790647, 37.672414', true);
   const origin = $('#dOrigin').value.trim();
+  if (on && sw($('#dMkad'))) return toast('Сейчас включён расчёт от МКАД. Выключите его, если хотите считать кругами', true);
   const body = { km_mode: on, km_factor: +$('#dKmFactor').value || 1.3,
     ymaps_key: $('#dYkey').value.trim(), ymaps_suggest_key: $('#dYsug').value.trim(), origin_address: origin,
     origin_lat: m ? +m[1].replace(',', '.') : 0, origin_lon: m ? +m[2].replace(',', '.') : 0 };
@@ -1074,6 +1104,41 @@ function kmBetween(a, b) {
 
 const mapFactor = () => +$('#dKmFactor').value > 0 ? +$('#dKmFactor').value : (+S.km_factor || 1.3);
 const mapRings = () => ZONES.filter(z => z.active && +z.radius_km > 0).sort((a, b) => a.radius_km - b.radius_km);
+const mkadOn = () => sw($('#dMkad'));
+
+// граница МКАД: берём с сервера один раз
+let MKAD = null;
+async function mkadRing() {
+  if (!MKAD) { try { MKAD = (await api('/api/shop/mkad')).ring; } catch (_) { MKAD = []; } }
+  return MKAD;
+}
+
+// те же расчёты, что на сервере: градусы в километры, точка внутри кольца, расстояние до кольца
+const KY = 110.574, KX = 111.320 * Math.cos(55.75 * Math.PI / 180);
+const flat = (lat, lon) => [lon * KX, lat * KY];
+function insideMkad(lat, lon) {
+  const poly = (MKAD || []).map(pt => flat(pt[0], pt[1]));
+  const [x, y] = flat(lat, lon);
+  let hit = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+function kmFromMkad(lat, lon) {
+  const poly = (MKAD || []).map(pt => flat(pt[0], pt[1]));
+  const [x, y] = flat(lat, lon);
+  let best = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, ay] = poly[i], [bx, by] = poly[j];
+    const dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
+    let t = len ? ((x - ax) * dx + (y - ay) * dy) / len : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    best = Math.min(best, Math.hypot(x - (ax + t * dx), y - (ay + t * dy)));
+  }
+  return Math.round(best * 10) / 10;
+}
 
 function drawRings(L) {
   const lat = +S.origin_lat, lon = +S.origin_lon, f = mapFactor();
@@ -1081,6 +1146,17 @@ function drawRings(L) {
   L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 2, fillColor: '#E0178A', fillOpacity: 1 })
     .bindTooltip('Магазин', { className: 'zmap-tip' }).addTo(MAPLAYER);
 
+  if (mkadOn()) {
+    $('#zmapHelp').innerHTML = 'Розовым обведена МКАД: внутри — одна цена, снаружи считаются километры от кольца. <b>Ткните в любое место карты</b>, и увидите цену доставки туда.';
+    if (MKAD && MKAD.length) {
+      L.polygon(MKAD, { color: '#E0178A', weight: 2.5, fillColor: '#E0178A', fillOpacity: .07 })
+        .bindTooltip(`Внутри МКАД — ${+$('#dMkadPrice').value || 0} ₽`, { className: 'zmap-tip' }).addTo(MAPLAYER);
+      MAP.fitBounds(L.polygon(MKAD).getBounds(), { padding: [20, 20] });
+    }
+    return;
+  }
+
+  $('#zmapHelp').innerHTML = 'Круги — ваши зоны: чем больше круг, тем дороже. Они перерисовываются сразу, как правите радиус в таблице, — сохранять для этого не нужно. <b>Ткните в любое место карты</b>, и увидите, сколько туда километров и сколько будет стоить доставка.';
   const rings = mapRings();
   // рисуем от большого к маленькому, иначе крупный круг накроет мелкие
   [...rings].reverse().forEach((z, i) => {
@@ -1099,6 +1175,14 @@ function drawRings(L) {
 }
 
 function pointText(latlng) {
+  if (mkadOn()) {
+    const base = +$('#dMkadPrice').value || 0;
+    if (insideMkad(latlng.lat, latlng.lng)) return `внутри МКАД — ${base} ₽`;
+    const out = kmFromMkad(latlng.lat, latlng.lng);
+    const max = +$('#dMkadMax').value || 0;
+    if (max > 0 && out > max) return `${out} км за МКАД — дальше сюда не возим`;
+    return `${out} км за МКАД → ${base + Math.ceil(out) * (+$('#dMkadKm').value || 0)} ₽`;
+  }
   const km = Math.round(kmBetween([+S.origin_lat, +S.origin_lon], [latlng.lat, latlng.lng]) * mapFactor() * 10) / 10;
   const z = mapRings().find(x => km <= +x.radius_km);
   return z
@@ -1124,11 +1208,19 @@ async function renderMap() {
     MAPLAYER = L.layerGroup().addTo(MAP);
     MAP.on('click', e => L.popup().setLatLng(e.latlng).setContent(pointText(e.latlng)).openOn(MAP));
   }
+  await mkadRing();
   drawRings(L);
   setTimeout(() => MAP.invalidateSize(), 50);   // вкладка только что показалась, размер ещё не тот
 }
 
+// правим цены или переключаем режим — карта обновляется
+['#dMkadPrice', '#dMkadKm', '#dMkadMax'].forEach(sel => $(sel).addEventListener('input', () => {
+  if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {});
+}));
+$('#dMkad').addEventListener('click', () => { if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {}); });
+
 // правим радиус в таблице — круги перерисовываются сразу
+
 $('#zones').addEventListener('input', () => {
   if (!MAP) return;
   readRows('#zones [data-z]', 'z', ZONES);

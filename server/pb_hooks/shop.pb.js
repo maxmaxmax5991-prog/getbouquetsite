@@ -23,7 +23,7 @@ routerAdd("POST", "/api/shop/address", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const geo = require(`${__hooks}/lib/geo.js`);
   const s = shop.settings($app);
-  if (!s.get("km_mode")) return e.json(400, { message: "Расчёт по километрам выключен." });
+  if (!shop.autoDelivery(s)) return e.json(400, { message: "Расчёт доставки по карте выключен." });
   const b = e.requestInfo().body || {};
   const r = geo.check($app, s, {
     street: String(b.street || "").slice(0, 200),
@@ -34,7 +34,14 @@ routerAdd("POST", "/api/shop/address", (e) => {
   return e.json(200, { km: r.km, price: r.price, address: r.found, zone: r.zoneName });
 });
 
+// Граница МКАД для карты в админке — обычные точки, ничего секретного
+routerAdd("GET", "/api/shop/mkad", (e) => {
+  e.response.header().set("Cache-Control", "public, max-age=86400");
+  return e.json(200, { ring: require(`${__hooks}/lib/mkad.js`).MKAD });
+});
+
 // Заказ с сайта: пересчитываем цены, доставку и проверяем дату/интервал на сервере
+
 onRecordCreateRequest((e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   shop.prepareOrder($app, e.record);

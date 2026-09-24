@@ -123,12 +123,11 @@ function catalog(app) {
     products,
     price_tables: priceTables(s),
     delivery: {
-      // в режиме кругов покупатель зону не выбирает — её определяет адрес, но список
-      // нужен сайту, чтобы показать «доставка от … ₽» до того, как адрес введён
-      zones: s.get("km_mode") ? [] : zones,
-      km: s.get("km_mode")
-        ? { on: true, from: s.get("origin_address") || "",
-            rings: zones.filter((z) => z.radius_km > 0).sort((a, b) => a.radius_km - b.radius_km) }
+      // когда доставку считает карта (круги или МКАД), покупатель зону не выбирает
+      zones: autoDelivery(s) ? [] : zones,
+      km: autoDelivery(s)
+        ? { on: true, from: s.get("origin_address") || "", mkad: !!s.get("mkad_mode"),
+            rings: s.get("mkad_mode") ? [] : zones.filter((z) => z.radius_km > 0).sort((a, b) => a.radius_km - b.radius_km) }
         : null,
       intervals,
       min_order: s.get("min_order") || 0,
@@ -151,7 +150,12 @@ function catalog(app) {
   };
 }
 
+// Доставку считает карта — кругами от магазина или расстоянием от МКАД.
+// В обоих случаях покупатель зону не выбирает и адрес проверяется на сервере.
+const autoDelivery = (s) => !!(s.get("km_mode") || s.get("mkad_mode"));
+
 // ---------- Заказ: всё пересчитываем на сервере, клиенту не доверяем ----------
+
 function moscowNow() {
   const d = new Date(Date.now() + 3 * 3600 * 1000);
   return { date: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
@@ -205,8 +209,8 @@ function prepareOrder(app, rec) {
     if (!parts.house) fail("Укажите дом.");
     rec.set("address", geo.addressLine(parts));
 
-    if (s.get("km_mode")) {
-      // Зоны-круги от магазина. Адрес проверяем здесь заново: цену, которую
+    if (autoDelivery(s)) {
+      // Считает карта: круги от магазина или расстояние от МКАД. Адрес проверяем здесь заново: цену, которую
       // посчитал браузер, не принимаем на веру.
       const r = geo.check(app, s, parts, sum);
       if (!r.ok) fail(r.error);
@@ -214,6 +218,7 @@ function prepareOrder(app, rec) {
       rec.set("address", r.address);
       rec.set("lat", r.lat); rec.set("lon", r.lon);
       rec.set("distance_km", r.km);
+      rec.set("mkad_km", r.out_km || 0);
       delivery = r.price;
     } else {
       const zoneId = rec.get("zone");
@@ -364,5 +369,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer,
-  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText,
+  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery,
 };
