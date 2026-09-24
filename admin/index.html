@@ -937,6 +937,16 @@ const loadDelivery = safe(async () => {
 });
 $('#dKmSave').onclick = safe(async () => {
   const on = sw($('#dKm'));
+  // в поля ключей легко вставить не то: ссылку на сайт, название сервиса. Ключ Яндекса — 36 знаков вида 0a1b2c3d-…
+  const badKey = (el, what) => {
+    const v = el.value.trim();
+    if (!v) return false;
+    if (/^[0-9a-f-]{30,40}$/i.test(v)) return false;
+    toast(`Это не похоже на ключ ${what}. Ключ выглядит так: 0a1b2c3d-4e5f-6789-abcd-ef0123456789`, true);
+    el.focus();
+    return true;
+  };
+  if (badKey($('#dYkey'), 'Геокодера') || badKey($('#dYsug'), 'Геосаджеста')) return;
   if (on && !$('#dYkey').value.trim()) return toast('Без ключа Яндекс.Карт адрес проверить нечем', true);
   if (on && !ZONES.some(z => +z.radius_km > 0 && z.active)) return toast('Проставьте радиусы зонам ниже — по ним считается доставка', true);
   const origin = $('#dOrigin').value.trim();
