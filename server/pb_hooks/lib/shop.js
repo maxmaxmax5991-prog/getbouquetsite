@@ -155,11 +155,13 @@ function slotRules(s) {
   return {
     from: String(s.get("work_from") || "09:00"),
     to: String(s.get("work_to") || "21:00"),
+    till: String(s.get("delivery_to") || s.get("work_to") || "23:00"),
     prep: +s.get("prep_min") || 45,
     prep_big: +s.get("prep_min_big") || 65,
     big_from: +s.get("prep_big_from") || 0,
     hours: +s.get("slot_hours") || 3,
     step: +s.get("slot_step") || 30,
+    min: +s.get("slot_min") || 60,
   };
 }
 
@@ -175,14 +177,20 @@ function prepFor(r, sum) {
 // время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
 function slotsFor(s, dateIso, sum, graceMin) {
   const r = slotRules(s);
-  const open = toMin(r.from), close = toMin(r.to);
+  const open = toMin(r.from), send = toMin(r.to), till = Math.max(toMin(r.till), send);
   const now = moscowNow();
   let first = open;
   if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum) - (graceMin || 0));
   else if (dateIso < now.date) return [];
   const start0 = Math.ceil(first / r.step) * r.step;
+  const full = r.hours * 60;
+  // букет должен уехать не позже «отправляем до», а приехать не позже «крайнего времени доставки»
+  const last = Math.min(send, till - full);
   const out = [];
-  for (let t = start0; t + r.hours * 60 <= close; t += r.step) out.push(`${hhmm(t)}–${hhmm(t + r.hours * 60)}`);
+  for (let t = start0; t <= last; t += r.step) out.push(`${hhmm(t)}–${hhmm(t + full)}`);
+  // целое окно уже не помещается — предлагаем последнее покороче, иначе поздним
+  // вечером заказ на сегодня оформить нельзя вовсе
+  if (!out.length && start0 <= send && start0 + Math.min(full, r.min) <= till) out.push(`${hhmm(start0)}–${hhmm(till)}`);
   return out;
 }
 

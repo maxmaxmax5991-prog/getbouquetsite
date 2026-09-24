@@ -310,12 +310,16 @@ table.t td{padding:4px 6px;vertical-align:middle}
         </div>
         <div class="card stack">
           <h2>Интервалы доставки</h2>
-          <p class="hint">Списка интервалов больше нет — они считаются от времени заказа: сначала сборка букета, потом окно доставки. Начало интервала всегда кратно шагу, поэтому покупатель видит ровное «13:30–16:30» или «14:00–17:00».</p>
+          <p class="hint">Списка интервалов больше нет — они считаются от времени заказа: сначала сборка букета, потом окно доставки. Начало интервала всегда кратно шагу, поэтому покупатель видит ровное «13:30–16:30» или «14:00–17:00».<br>«Отправляем букеты до» — во сколько курьер уезжает последний раз; позже этого интервал не начнётся. «Крайнее время доставки» — во сколько он может привезти: при 21:00 и 23:00 последний интервал получается 20:00–23:00. Если целое окно к вечеру уже не помещается, предложим последнее покороче — но не короче указанных минут.</p>
           <div class="row">
-            <label class="f" for="dWorkFrom">Возим с<input class="in" id="dWorkFrom" type="time"></label>
-            <label class="f" for="dWorkTo">Возим до<input class="in" id="dWorkTo" type="time"></label>
+            <label class="f" for="dWorkFrom">Начинаем с<input class="in" id="dWorkFrom" type="time"></label>
+            <label class="f" for="dWorkTo">Отправляем букеты до<input class="in" id="dWorkTo" type="time"></label>
+            <label class="f" for="dDelTo">Крайнее время доставки<input class="in" id="dDelTo" type="time"></label>
+          </div>
+          <div class="row">
             <label class="f" for="dSlotHours">Длина интервала, часов<input class="in num" id="dSlotHours" type="number" min="1" max="12" step="1"></label>
             <label class="f" for="dSlotStep">Шаг начала, минут<input class="in num" id="dSlotStep" type="number" min="5" max="120" step="5"></label>
+            <label class="f" for="dSlotMin">Короткое окно не меньше, минут<input class="in num" id="dSlotMin" type="number" min="0" max="240" step="15"></label>
           </div>
           <div class="row">
             <label class="f" for="dPrep">Сборка букета, минут<input class="in num" id="dPrep" type="number" min="0" step="5"></label>
@@ -979,8 +983,10 @@ const loadDelivery = safe(async () => {
 function renderSlots() {
   $('#dWorkFrom').value = S.work_from || '09:00';
   $('#dWorkTo').value = S.work_to || '21:00';
+  $('#dDelTo').value = S.delivery_to || '23:00';
   $('#dSlotHours').value = S.slot_hours || 3;
   $('#dSlotStep').value = S.slot_step || 30;
+  $('#dSlotMin').value = S.slot_min == null ? 60 : S.slot_min;
   $('#dPrep').value = S.prep_min || 45;
   $('#dPrepBig').value = S.prep_min_big || 65;
   $('#dPrepFrom').value = S.prep_big_from || 0;
@@ -992,32 +998,39 @@ const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 6
 
 // что увидит покупатель, если закажет прямо сейчас
 function slotDemo() {
-  const open = toMin($('#dWorkFrom').value || '09:00'), close = toMin($('#dWorkTo').value || '21:00');
+  const open = toMin($('#dWorkFrom').value || '09:00'), send = toMin($('#dWorkTo').value || '21:00');
+  const till = Math.max(toMin($('#dDelTo').value || '23:00'), send);
   const hours = +$('#dSlotHours').value || 3, step = +$('#dSlotStep').value || 30;
+  const shortMin = +$('#dSlotMin').value || 0;
   const prep = +$('#dPrep').value || 0, prepBig = +$('#dPrepBig').value || 0, from = +$('#dPrepFrom').value || 0;
   const now = new Date(Date.now() + 3 * 3600e3);          // Москва
   const min = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const last = Math.min(send, till - hours * 60);
   const first = (p) => {
     const t = Math.ceil(Math.max(open, min + p) / step) * step;
-    return t + hours * 60 <= close ? `${hhmm(t)}–${hhmm(t + hours * 60)}` : 'сегодня уже не успеть';
+    if (t <= last) return `${hhmm(t)}–${hhmm(t + hours * 60)}`;
+    if (t <= send && t + Math.min(hours * 60, shortMin) <= till) return `${hhmm(t)}–${hhmm(till)}`;
+    return 'сегодня уже не успеть';
   };
   const all = [];
-  for (let t = Math.ceil(open / step) * step; t + hours * 60 <= close; t += step) all.push(t);
+  for (let t = Math.ceil(open / step) * step; t <= last; t += step) all.push(t);
   $('#slotDemo').innerHTML = `Сейчас ${hhmm(min)} по Москве. Закажи покупатель прямо сейчас букет `
     + `<b>до ${from ? from.toLocaleString('ru-RU') + ' ₽' : '—'}</b>, ближайший интервал был бы <b>${first(prep)}</b>, `
     + `а дороже — <b>${first(prepBig)}</b>. На завтра предложим ${all.length} интервалов: `
     + `${all.length ? `с ${hhmm(all[0])}–${hhmm(all[0] + hours * 60)} до ${hhmm(all[all.length - 1])}–${hhmm(all[all.length - 1] + hours * 60)}` : 'ни одного — проверьте часы работы и длину интервала'}.`;
 }
-['#dWorkFrom', '#dWorkTo', '#dSlotHours', '#dSlotStep', '#dPrep', '#dPrepBig', '#dPrepFrom']
+['#dWorkFrom', '#dWorkTo', '#dDelTo', '#dSlotHours', '#dSlotStep', '#dSlotMin', '#dPrep', '#dPrepBig', '#dPrepFrom']
   .forEach(sel => $(sel).addEventListener('input', slotDemo));
 
 $('#dSlotSave').onclick = safe(async () => {
-  const from = $('#dWorkFrom').value, to = $('#dWorkTo').value;
-  if (!from || !to || toMin(to) <= toMin(from)) return toast('«Возим до» должно быть позже, чем «возим с»', true);
+  const from = $('#dWorkFrom').value, to = $('#dWorkTo').value, till = $('#dDelTo').value || to;
+  if (!from || !to || toMin(to) <= toMin(from)) return toast('«Отправляем до» должно быть позже, чем «начинаем с»', true);
+  if (toMin(till) < toMin(to)) return toast('Крайнее время доставки не может быть раньше, чем отправляем последний букет', true);
   const hours = +$('#dSlotHours').value || 0;
-  if (!hours || toMin(from) + hours * 60 > toMin(to)) return toast('Интервал длиннее рабочего дня — ни одного времени не получится', true);
+  if (!hours || toMin(from) + hours * 60 > toMin(till)) return toast('Интервал длиннее рабочего дня — ни одного времени не получится', true);
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: {
-    work_from: from, work_to: to, slot_hours: hours, slot_step: +$('#dSlotStep').value || 30,
+    work_from: from, work_to: to, delivery_to: till, slot_hours: hours, slot_step: +$('#dSlotStep').value || 30,
+    slot_min: +$('#dSlotMin').value || 0,
     prep_min: +$('#dPrep').value || 0, prep_min_big: +$('#dPrepBig').value || 0,
     prep_big_from: +$('#dPrepFrom').value || 0 } });
   slotDemo();

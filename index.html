@@ -566,7 +566,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790260169"></script>
+<script src="data.js?v=1790260544"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1216,18 +1216,21 @@ const DEL = API ? API.delivery : null;
 /* Интервалы считаем прямо здесь, теми же правилами, что и сервер: сначала сборка букета
    (дорогой собирают дольше), потом трёхчасовое окно, начало кратно получасу.
    Сервер при оформлении проверяет выбранное время заново. */
-const SLOTS = (DEL && DEL.slots) || { from: '09:00', to: '21:00', prep: 45, prep_big: 65, big_from: 10000, hours: 3, step: 30 };
+const SLOTS = (DEL && DEL.slots) || { from: '09:00', to: '21:00', till: '23:00', prep: 45, prep_big: 65, big_from: 10000, hours: 3, step: 30, min: 60 };
 const toMin = t => +String(t).slice(0, 2) * 60 + +String(t).slice(3, 5);
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const prepMin = sum => (SLOTS.big_from > 0 && sum > SLOTS.big_from) ? SLOTS.prep_big : SLOTS.prep;
 function slotList(date, sum) {
-  const now = mskNow(), open = toMin(SLOTS.from), close = toMin(SLOTS.to);
+  const now = mskNow(), open = toMin(SLOTS.from), send = toMin(SLOTS.to);
+  const till = Math.max(toMin(SLOTS.till || SLOTS.to), send);
   if (date < now.date) return [];
   const first = date === now.date ? Math.max(open, now.min + prepMin(sum)) : open;
+  const start0 = Math.ceil(first / SLOTS.step) * SLOTS.step, full = SLOTS.hours * 60;
+  const last = Math.min(send, till - full);   // уехать до «отправляем до», приехать до крайнего времени
   const out = [];
-  for (let t = Math.ceil(first / SLOTS.step) * SLOTS.step; t + SLOTS.hours * 60 <= close; t += SLOTS.step) {
-    out.push(`${hhmm(t)}–${hhmm(t + SLOTS.hours * 60)}`);
-  }
+  for (let t = start0; t <= last; t += SLOTS.step) out.push(`${hhmm(t)}–${hhmm(t + full)}`);
+  // целое окно уже не помещается — предлагаем последнее, покороче
+  if (!out.length && start0 <= send && start0 + Math.min(full, SLOTS.min || 60) <= till) out.push(`${hhmm(start0)}–${hhmm(till)}`);
   return out;
 }
 function mskNow() { const d = new Date(Date.now() + 3 * 3600e3); return { date: d.toISOString().slice(0, 10), min: d.getUTCHours() * 60 + d.getUTCMinutes() }; }
@@ -1363,8 +1366,7 @@ const checkAddress = debounce(async () => {
     else {
       addrInfo = { km: d.km, price: d.price, zone: d.zone || '' };
       // при расчёте от МКАД покупателю понятнее «внутри МКАД» или «4.1 км за МКАД», чем км от магазина
-      const where = DEL.km.mkad ? (d.zone || '') : `${d.km} км от магазина`;
-      addrSay(`${d.address || ''}${where ? ' · ' + where : ''} · доставка ${d.price ? rub(d.price) : 'бесплатно'}`, false);
+      addrSay(`${d.address || ''} · доставка ${d.price ? rub(d.price) : 'бесплатно'}`, false);
     }
   } catch (_) { addrSay('Не получилось проверить адрес. Попробуйте ещё раз.', true); }
   addrBusy = false; recalc();
@@ -1404,8 +1406,7 @@ function recalc() {
       return;
     }
     const del = addrInfo.price + extra;
-    const where = DEL.km.mkad ? (addrInfo.zone || '') : `${addrInfo.km} км`;
-    $('#fDelivery').textContent = `букеты ${rub(sum)} + доставка ${rub(del)}${where ? ` (${where})` : ''}`;
+    $('#fDelivery').textContent = `букеты ${rub(sum)} + доставка ${rub(del)}`;
     $('#fTotal').textContent = rub(sum + del);
     return;
   }
