@@ -814,8 +814,9 @@ function renderLens() {
   const tables = tablesOf(S);
   $('#eTable').innerHTML = tables.map(t => `<option value="${t.id}"${t.id === E.table ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
   const t = tables.find(x => x.id === E.table) || tables[0] || {};
-  const lens = [...new Set([...LENGTHS, ...Object.keys(t.prices || {}).map(Number)])].filter(Boolean).sort((a, b) => a - b);
-  $('#eLens').innerHTML = lens.map(L => `<button class="chip" data-len="${L}" aria-pressed="${E.lengths.includes(L)}">${L} см</button>`).join('');
+  // 0 — «без длины»: у гортензий покупатель выбирает только количество
+  const lens = [...new Set([...LENGTHS, ...Object.keys(t.prices || {}).map(Number)])].filter(x => !isNaN(x)).sort((a, b) => a - b);
+  $('#eLens').innerHTML = lens.map(L => `<button class="chip" data-len="${L}" aria-pressed="${E.lengths.includes(L)}">${L ? L + " см" : "без длины"}</button>`).join('');
 }
 $('#eTable').onchange = e => { E.table = e.target.value; renderLens(); };
 $('#eLens').onclick = e => { const b = e.target.closest('[data-len]'); if (!b) return; const L = +b.dataset.len; E.lengths = E.lengths.includes(L) ? E.lengths.filter(x => x !== L) : [...E.lengths, L].sort((a, b) => a - b); renderLens(); };
@@ -1375,9 +1376,11 @@ function tablesOf(s) {
 function renderTables() {
   $('#rpTables').innerHTML = TABLES.map((t, ti) => {
     const counts = (t.counts && t.counts.length ? t.counts : COUNTS);
-    const lens = Object.keys(t.prices || {}).map(Number).filter(Boolean).sort((a, b) => a - b);
-    const rows = (lens.length ? lens : [40, 50, 60]).map(L => `<b>${L} см <button class="btn btn-d btn-s" data-rml="${ti}:${L}" title="Убрать длину">×</button></b>` +
-      counts.map(C => `<input class="in num" data-t="${ti}" data-l="${L}" data-c="${C}" type="number" min="0" step="10" value="${(t.prices[L] || {})[C] || ''}" aria-label="${L} см, ${C} шт">`).join('')).join('');
+    // длина 0 — товар без длины (гортензии и прочее не по стеблю)
+    const lens = Object.keys(t.prices || {}).map(Number).filter(x => !isNaN(x)).sort((a, b) => a - b);
+    const lenName = L => L ? `${L} см` : 'без длины';
+    const rows = (lens.length ? lens : [40, 50, 60]).map(L => `<b>${lenName(L)} <button class="btn btn-d btn-s" data-rml="${ti}:${L}" title="Убрать длину">×</button></b>` +
+      counts.map(C => `<input class="in num" data-t="${ti}" data-l="${L}" data-c="${C}" type="number" min="0" step="10" value="${(t.prices[L] || {})[C] || ''}" aria-label="${lenName(L)}, ${C} шт">`).join('')).join('');
     return `<div class="card" style="margin-bottom:12px">
       <div class="bar" style="margin-bottom:10px">
         <input class="in" data-tname="${ti}" value="${esc(t.name || '')}" style="max-width:280px" placeholder="Название прайса">
@@ -1389,8 +1392,9 @@ function renderTables() {
         <span></span>${counts.map(c => `<b>${c} шт</b>`).join('')}${rows}
       </div></div>
       <div class="bar" style="margin-top:10px">
-        <input class="in num" data-newlen="${ti}" type="number" min="10" max="200" step="5" placeholder="Длина, см" style="width:130px">
+        <input class="in num" data-newlen="${ti}" type="number" min="0" max="200" step="5" placeholder="Длина, см" style="width:130px">
         <button class="btn btn-g btn-s" data-addlen="${ti}">+ Длина</button>
+        <span class="hint" style="margin:0">Длина 0 — товар без длины: покупатель выберет только количество.</span>
       </div>
     </div>`;
   }).join('');
@@ -1412,8 +1416,8 @@ $('#rpTables').addEventListener('click', e => {
   if (!add && !rm && !rmt) return;
   readTables();
   if (add) {
-    const ti = +add.dataset.addlen, L = +$(`[data-newlen="${ti}"]`).value;
-    if (!(L > 0)) return toast('Укажите длину в сантиметрах', true);
+    const ti = +add.dataset.addlen, el = $(`[data-newlen="${ti}"]`), L = +el.value;
+    if (el.value === '' || isNaN(L) || L < 0) return toast('Укажите длину в сантиметрах, 0 — если длины нет', true);
     TABLES[ti].prices[L] = TABLES[ti].prices[L] || {};
   }
   if (rm) { const [ti, L] = rm.dataset.rml.split(':'); delete TABLES[+ti].prices[L]; }

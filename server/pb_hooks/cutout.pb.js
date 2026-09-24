@@ -19,6 +19,7 @@ cronAdd("heic-convert", "* * * * *", () => {
   const photos = rec.get("photo") || [];
   const dir = `${$app.dataDir()}/storage/${rec.collection().id}/${rec.id}`;
   let changed = false;
+  const temps = [];
 
   photos.forEach((name) => {
     if (!isHeic(name)) return;
@@ -27,16 +28,17 @@ cronAdd("heic-convert", "* * * * *", () => {
       console.log("перевод в JPEG", name, toString($os.cmd(PY, SCRIPT, `${dir}/${name}`, dst).output()).trim());
       rec.set("photo+", $filesystem.fileFromPath(dst));
       rec.set("photo-", name);
+      temps.push(dst);              // удалим после сохранения: до него файл ещё нужен
       changed = true;
     } catch (err) {
       console.log("не перевёлся", name, err);
       rec.set("photo-", name);      // битый файл просто убираем, иначе задание зациклится
       changed = true;
     }
-    try { $os.remove(dst); } catch (_) {}
   });
 
   if (changed) { try { $app.save(rec); } catch (err) { console.log("heic save", err); } }
+  temps.forEach((f) => { try { $os.remove(f); } catch (_) {} });
 });
 
 cronAdd("cutout", "* * * * *", () => {

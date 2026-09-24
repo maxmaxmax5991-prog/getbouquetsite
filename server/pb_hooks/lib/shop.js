@@ -29,7 +29,10 @@ function dateRu(iso) {
 }
 const whenText = (o) => `${dateRu(o.get("date"))}${o.get("interval") ? ", " + o.get("interval") : ""}`;
 
-const labelText = (l) => /^\d+-\d+$/.test(l) ? `${l.split("-")[1]} шт · ${l.split("-")[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
+// длина 0 — значит длины у товара нет (гортензии и прочее не по стеблю)
+const labelText = (l) => /^\d+-\d+$/.test(l)
+  ? (l.split("-")[0] === "0" ? `${l.split("-")[1]} шт` : `${l.split("-")[1]} шт · ${l.split("-")[0]} см`)
+  : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
 
 // Кнопки размеров «по умолчанию» для букета с одной известной ценой (помечаются estimated).
 // Число цветов в названии — считаем от цены за стебель со скидкой за объём (стебель в 101 примерно на 25% дешевле, чем в 25);
@@ -104,6 +107,10 @@ function catalog(app) {
         img: photos.length ? fileUrl(p, photos[0], "560x0") : "",
         // на странице товара снимок во всю ширину — там нужен размер побольше, чем на карточке
         big: photos.length ? fileUrl(p, photos[0], "1080x0") : "",
+        // все снимки товара: на странице товара их можно листать
+        photos: photos.length > 1 ? photos.map((f) => ({
+          img: fileUrl(p, f, "560x0"), big: fileUrl(p, f, "1080x0"), thumb: fileUrl(p, f, "160x160"), cnt: cntOf(f),
+        })) : undefined,
         cnt: photos.length ? cntOf(photos[0]) : undefined,
         variants: variants.length ? variants : undefined,
         lengths: Array.isArray(lengths) && lengths.length ? lengths : undefined,
@@ -176,9 +183,11 @@ function prepFor(r, sum) {
 // Все интервалы, которые ещё можно выбрать на эту дату.
 // graceMin — небольшая поблажка при проверке заказа: пока покупатель заполнял форму,
 // время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
-function slotsFor(s, dateIso, sum, graceMin) {
+function slotsFor(s, dateIso, sum, graceMin, pickup) {
   const r = slotRules(s);
-  const open = toMin(r.from), send = toMin(r.to), till = Math.max(toMin(r.till), send);
+  const open = toMin(r.from), send = toMin(r.to);
+  // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
+  const till = pickup ? send : Math.max(toMin(r.till), send);
   const now = moscowNow();
   let first = open;
   if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum) - (graceMin || 0));
@@ -288,7 +297,7 @@ function prepareOrder(app, rec) {
 
   // интервал пересчитываем здесь заново: цену и время, присланные браузером, не принимаем на веру
   const interval = String(rec.get("interval") || "");
-  const ok = slotsFor(s, date, sum, 20);   // 20 минут поблажки: пока заполняли форму, время ушло
+  const ok = slotsFor(s, date, sum, 20, pickup);   // 20 минут поблажки: пока заполняли форму, время ушло
   if (!ok.length) fail(pickup ? "На этот день забрать уже не получится. Выберите другую дату." : "На этот день доставка уже не успеет. Выберите другую дату.");
   if (ok.indexOf(interval) < 0) fail(pickup ? "Выберите время, когда заберёте букет." : "На этот интервал уже не успеем. Выберите более поздний.");
 

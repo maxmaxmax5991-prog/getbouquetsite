@@ -6,6 +6,7 @@
 как в задании по одному. Пригодится, когда меняли фото пачкой или улучшили вырезку.
 """
 import sys, os, io, requests
+sys.path.insert(0, "/opt/venikoff/bin")
 from PIL import Image, ImageOps
 from rembg import remove, new_session
 import pillow_heif
@@ -16,12 +17,15 @@ STORAGE = "/opt/venikoff/pb/pb_data/storage"
 WIDTH = 640
 MAX_IN = 1400
 
-def cut(session, src):
+def cut(session, src, flowers=False):
     im = ImageOps.exif_transpose(Image.open(src))
     if im.mode != "RGB":
         im = im.convert("RGB")
     im.thumbnail((MAX_IN, MAX_IN), Image.LANCZOS)
     out = remove(im, session=session, post_process_mask=True)
+    if flowers:                      # у букетов отрезаем упаковку
+        from flowers import flowers_only
+        out, _ = flowers_only(out)
     box = out.getbbox()
     if box:
         out = out.crop(box)
@@ -33,9 +37,14 @@ def cut(session, src):
 
 def main(base, token, only_missing):
     head = {"Authorization": token}
-    r = requests.get(f"{base}/api/collections/products/records?perPage=300", headers=head, timeout=60)
+    r = requests.get(f"{base}/api/collections/products/records?perPage=300&expand=category", headers=head, timeout=60)
     r.raise_for_status()
     items = r.json()["items"]
+    # упаковку отрезаем только у цветов: у игрушек и открыток это испортило бы картинку
+    def is_flowers(p):
+        cat = ((p.get("expand") or {}).get("category") or {}).get("name", "")
+        return any(w in cat.lower() for w in ("роз", "гортенз", "цвет", "букет"))
+
     session = new_session("u2net")
     done = failed = skipped = 0
 
@@ -53,7 +62,7 @@ def main(base, token, only_missing):
             failed += 1
             continue
         try:
-            data, size = cut(session, src)
+            data, size = cut(session, src, is_flowers(p))
             up = requests.patch(
                 f"{base}/api/collections/products/records/{p['id']}",
                 headers=head,

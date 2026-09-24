@@ -114,9 +114,9 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .studio-bar b{color:var(--accent-text)}
 .chooser{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 28px 28px;transition:transform .7s cubic-bezier(.3,.9,.3,1),opacity .45s}
 .chooser h2{font:600 22px/1.2 var(--display);letter-spacing:-.03em;margin:0;text-align:center}
-.carousel{position:relative;width:100%;height:300px;margin-top:12px;touch-action:pan-y;cursor:grab}
+.carousel{position:relative;width:100%;height:360px;margin-top:12px;touch-action:pan-y;cursor:grab}
 .carousel.dragging{cursor:grabbing}
-.c-item{position:absolute;left:50%;top:0;width:220px;height:280px;margin-left:-110px;display:flex;align-items:flex-end;justify-content:center;transition:transform .6s cubic-bezier(.25,1.2,.4,1),opacity .45s,filter .45s;will-change:transform}
+.c-item{position:absolute;left:50%;top:0;width:270px;height:340px;margin-left:-135px;display:flex;align-items:flex-end;justify-content:center;transition:transform .6s cubic-bezier(.25,1.2,.4,1),opacity .45s,filter .45s;will-change:transform}
 .carousel.dragging .c-item{transition:none}
 .c-item img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none;filter:drop-shadow(6px 14px 14px rgba(30,40,35,.16))}
 .c-meta{text-align:center;margin-top:12px;min-height:50px}
@@ -156,9 +156,9 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .studio[data-phase="ready"] .ready,.studio[data-phase="ready"] .heart-round{opacity:1;transform:none;pointer-events:auto}
 .studio:not([data-phase="choosing"]) .c-arrow{display:none}
 @media (max-width:520px){
-  .studio{height:560px;border-radius:28px}
-  .c-item{width:180px;height:250px;margin-left:-90px}
-  .carousel{height:260px}
+  .studio{height:610px;border-radius:28px}
+  .c-item{width:240px;height:310px;margin-left:-120px}
+  .carousel{height:320px}
   .bouquet{height:270px;bottom:160px}
   .c-arrow{display:none}
 }
@@ -342,6 +342,12 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sub-box.warn{border-color:var(--sale);background:rgba(224,23,138,.07)}
+.sub-box.warn b{color:var(--sale)}
+.pd-shots{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:2px}
+.pd-shots button{flex:none;width:64px;height:64px;padding:0;border-radius:12px;overflow:hidden;border:2px solid transparent;background:var(--soft);cursor:pointer}
+.pd-shots button[aria-pressed="true"]{border-color:var(--accent)}
+.pd-shots img{width:100%;height:100%;object-fit:cover;display:block}
 .sugg-wrap{position:relative}
 .sugg{position:absolute;left:0;right:0;top:100%;z-index:6;margin:6px 0 0;padding:6px;list-style:none;background:var(--paper);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.22);max-height:264px;overflow:auto;-webkit-overflow-scrolling:touch}
 .sugg li{padding:10px 12px;border-radius:10px;cursor:pointer;font-size:15px;font-weight:600;color:var(--ink);line-height:1.25}
@@ -524,7 +530,11 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span><a href="#/catalog">Каталог</a></span><span id="pdCrumb"></span></nav>
     <div class="pd">
-      <div class="pd-img"><img id="pdImg" alt=""><span class="tag" id="pdTag" hidden></span><span class="count-tag" id="pdCount" hidden></span></div>
+      <div>
+        <div class="pd-img"><img id="pdImg" alt=""><span class="tag" id="pdTag" hidden></span><span class="count-tag" id="pdCount" hidden></span></div>
+        <div class="pd-shots" id="pdShots" hidden></div>
+      </div>
+
       <div class="pd-info">
         <div><p class="eyebrow" id="pdCat"></p><h1 id="pdName"></h1></div>
         <div class="pd-price num"><b id="pdPrice"></b><span class="bonus" id="pdBonus"></span></div>
@@ -566,7 +576,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790262328"></script>
+<script src="data.js?v=1790263893"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -607,7 +617,9 @@ const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
 
 /* ---------- sizes: every bouquet has variants [{label, price, photo?}] ---------- */
 const sel = {};   // product id -> chosen label
-const defLabel = p => p.lengths ? `${p.lengths[0]}-51` : (p.variants.find(v => !v.est) || p.variants[0]).label;
+const defLabel = p => p.lengths
+  ? ((p.variants.find(v => v.len === p.lengths[0] && v.cnt === 51) || p.variants.find(v => v.len === p.lengths[0]) || p.variants[0]).label)
+  : (p.variants.find(v => !v.est) || p.variants[0]).label;
 const curLabel = p => p.variants ? (sel[p.id] || defLabel(p)) : '';
 const variant = (p, label) => p.variants && p.variants.find(v => v.label === label);
 const FLOWER = [[/роз/i, ['роза', 'розы', 'роз']], [/гортенз/i, ['гортензия', 'гортензии', 'гортензий']],
@@ -625,10 +637,28 @@ function countText(p, label) {
   const w = (FLOWER.find(([re]) => re.test(src)) || [])[1] || ['штука', 'штуки', 'штук'];
   return `${n} ${plural(n, w[0], w[1], w[2])}`;
 }
-const labelText = l => /^\d+-\d+$/.test(l) ? `${l.split('-')[1]} шт · ${l.split('-')[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
+// длина 0 — значит длины у товара нет (гортензии и прочее не по стеблю)
+const labelText = l => /^\d+-\d+$/.test(l) ? (l.split('-')[0] === '0' ? `${l.split('-')[1]} шт` : `${l.split('-')[1]} шт · ${l.split('-')[0]} см`) : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
 const photoOf = (p, label) => { const v = variant(p, label); return v && v.img ? v.img : v && v.photo ? img(v.photo) : (p.img || img(p.id)); };
 // на странице товара фото во всю ширину — берём снимок покрупнее, если сервер его отдаёт
 const photoBig = (p, label) => { const v = variant(p, label); return (v && v.big) || p.big || photoOf(p, label); };
+
+// полоска снимков под фото: показываем, когда у товара их несколько
+function renderShots(p, label) {
+  const box = $('#pdShots'); if (!box) return;
+  const list = p.photos || [];
+  box.hidden = list.length < 2;
+  if (box.hidden) { box.innerHTML = ''; return; }
+  const cur = photoBig(p, label);
+  box.innerHTML = list.map((f, i) =>
+    `<button type="button" data-shot="${i}" aria-pressed="${f.big === cur}" aria-label="Снимок ${i + 1}"><img src="${f.thumb}" alt="" loading="lazy"></button>`).join('');
+  box.onclick = e => {
+    const b = e.target.closest('[data-shot]'); if (!b) return;
+    const f = list[+b.dataset.shot];
+    $('#pdImg').src = f.big;
+    $$('#pdShots button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  };
+}
 
 /* ---------- cart: key = id or id|label ---------- */
 let cart = store.get('cart', {});
@@ -674,9 +704,15 @@ function sizesHTML(p, cls = 'sizes') {
   if (!p.variants) return '';
   if (p.lengths) {
     const v = variant(p, curLabel(p));
+    // количества берём из самого товара: у роз это 25/51/101, у гортензий свои
+    const counts = [...new Set(p.variants.filter(x => x.len === v.len).map(x => x.cnt))];
     const row = (label, items) => `<div class="${cls}" role="group" aria-label="${label}">${items}</div>`;
-    return row('Длина', p.lengths.map(L => `<button class="num" data-size="${L}-${v.cnt}" data-pid="${p.id}" aria-pressed="${L === v.len}">${L} см</button>`).join('')) +
-           row('Количество', COUNTS.map(C => `<button class="num" data-size="${v.len}-${C}" data-pid="${p.id}" aria-pressed="${C === v.cnt}">${C}</button>`).join(''));
+    // кнопку длины показываем даже когда она одна: карточки стоят ровно и видно ростовку.
+    // прячем только когда длины у товара нет вовсе (гортензии — это длина 0)
+    return (p.lengths.some(L => L > 0)
+      ? row('Длина', p.lengths.map(L => `<button class="num" data-size="${L}-${v.cnt}" data-pid="${p.id}" aria-pressed="${L === v.len}">${L} см</button>`).join(''))
+      : '') +
+      row('Количество', counts.map(C => `<button class="num" data-size="${v.len}-${C}" data-pid="${p.id}" aria-pressed="${C === v.cnt}">${C}</button>`).join(''));
   }
   const cur = curLabel(p);
   return `<div class="${cls}" role="group" aria-label="${/^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер букета'}">${p.variants.map(v =>
@@ -689,7 +725,7 @@ function card(p) {
     <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
     <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
-    ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : p.lengths ? `<div class="sub">Одноголовая роза</div>` : ''}
+    ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : (p.lengths && p.lengths.some(L => L > 0)) ? `<div class="sub">Одноголовая роза</div>` : ''}
     ${sizesHTML(p)}
     <div class="buy-slot">${buyHTML(p)}</div>
   </article>`;
@@ -757,6 +793,8 @@ function pdSync() {
   $('#pdTotal').textContent = rub(keyPrice(k) * pd.qty);
   $('#pdQty').textContent = pd.qty;
   $('#pdImg').src = photoBig(p, label);
+  renderShots(p, label);
+
   const ct = countText(p, label);
   $('#pdCount').hidden = !ct; $('#pdCount').textContent = ct;
   if (p.variants) $('#pdOpts').innerHTML = p.lengths ? sizesHTML(p, 'opts') : p.variants.map(v => `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === label}">${esc(v.label)}</button>`).join('');
@@ -774,7 +812,7 @@ function showProduct(id) {
   $('#pdBonus').hidden = true;
   $('#pdOptsWrap').hidden = !p.variants;
   if (p.variants) {
-    $('#pdOptsLabel').textContent = p.lengths ? 'Длина и количество' : /^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер';
+    $('#pdOptsLabel').textContent = p.lengths ? (p.lengths.some(L => L > 0) ? 'Длина и количество' : 'Количество цветов') : /^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер';
   }
   pdSync();
   $('#addonsSec').hidden = isAddon(p);
@@ -900,12 +938,12 @@ $$("[data-pay-order]").forEach(b => b.onclick = async () => {
   };
 }
 // В Телеграме код уходит ссылкой сам, в MAX таких ссылок нет — код показываем покупателю
-async function startLogin(how) {
+async function startLogin(how, waitSel, done) {
   try {
     const r = await fetch('/api/shop/login-start', { method: 'POST' });
     const d = await r.json();
     if (!r.ok) return toast(d.message || 'Вход пока недоступен', true);
-    const wait = $('#meWait');
+    const wait = $(waitSel || '#meWait');
     if (how === 'max') {
       if (!d.max_link) return toast('Вход через MAX пока не настроен', true);
       window.open(d.max_link, '_blank', 'noopener');
@@ -921,7 +959,13 @@ async function startLogin(how) {
       try {
         const c = await fetch('/api/shop/login-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: d.code }) });
         const cd = await c.json();
-        if (cd.token) { clearInterval(timer); meToken = cd.token; store.set('token', meToken); renderMe(); toast('Вы вошли'); }
+        if (cd.token) {
+          clearInterval(timer); meToken = cd.token; store.set('token', meToken);
+          await loadMe();
+          wait.hidden = true;
+          toast('Вы вошли');
+          if (done) done(); else renderMe();
+        }
       } catch (_) {}
     }, 2000);
   } catch (_) { toast('Нет связи с сервером', true); }
@@ -953,7 +997,7 @@ carousel.innerHTML = FEATURED.map((f, i) => `<div class="c-item" role="option" d
 $('#dots').innerHTML = FEATURED.map((f, i) => `<button data-i="${i}" aria-label="${f.name}"></button>`).join('');
 const items = [...carousel.children];
 function layout() {
-  spacing = Math.max(130, Math.min(190, (carousel.clientWidth || 360) * 0.34));
+  spacing = Math.max(150, Math.min(215, (carousel.clientWidth || 360) * 0.4));   // соседи не наезжают на центральный букет
   const p = pos - drag / spacing;
   items.forEach((el, i) => {
     const d = wrapD(i - p), a = Math.abs(d), c = Math.min(a, 1);
@@ -1110,6 +1154,15 @@ function renderCart() {
         </div>
         <p class="addr-hint" id="timeNote" hidden></p>
 ${payChoice()}
+        ${API && !ME ? `<div class="sub-box" id="idBox">
+          <b>Подтвердите, что это вы</b>
+          <span>Заказ сразу попадёт в ваш кабинет: после оплаты вы увидите его статус, фото букета и сможете доплатить, если что-то пойдёт не так.</span>
+          <div class="bar" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            ${API.bot ? `<button class="btn btn-ghost btn-sm" type="button" id="idTg">Войти через Телеграм</button>` : ""}
+            ${API.maxBot ? `<button class="btn btn-ghost btn-sm" type="button" id="idMax">Войти через MAX</button>` : ""}
+          </div>
+          <p class="addr-hint" id="idWait" hidden></p>
+        </div>` : ""}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
         <p class="demo-note" id="fErr" style="color:var(--sale);font-size:13.5px;text-align:left" hidden></p>
       </form>`;
@@ -1134,29 +1187,60 @@ ${payChoice()}
       if (PAY && PAY.card && $('#payBox')) { $('#payBox').outerHTML = payChoice(); bindPaySeg(); }
       fillIntervals(); recalc();
     };
+    const afterLogin = () => {
+      const box = $('#idBox'); if (box) box.hidden = true;
+      if (ME) {
+        if (ME.name && !$('#fName').value) $('#fName').value = ME.name;
+        if (ME.phone && !$('#fPhone').value) $('#fPhone').value = ME.phone;
+      }
+      const e = $('#fErr'); if (e) { e.textContent = ''; e.hidden = true; }
+    };
+    if ($('#idTg')) $('#idTg').onclick = () => startLogin('tg', '#idWait', afterLogin);
+    if ($('#idMax')) $('#idMax').onclick = () => startLogin('max', '#idWait', afterLogin);
     bindAddress();
     fillIntervals(); recalc();
+
     $('#fDate').onchange = () => { fillIntervals(); recalc(); };
     if ($('#fZone')) $('#fZone').onchange = recalc;
     $('#fTime').onchange = recalc;
   } else {
     $("#cartTitle").textContent = "Готово";
     const botLink = API && API.bot && lastOrder.code ? `https://t.me/${API.bot}?start=o${lastOrder.code}` : "";
+    // оплата картой не прошла — заказ висит неоплаченным, предлагаем оплатить снова
+    const needPay = !!(lastOrder.order && lastOrder.paid === false && PAY && PAY.card);
     body.innerHTML = `<div class="done"><div class="seal">${icon("check")}</div><h3>Спасибо!</h3>
       <p>${lastOrder.number ? `Заказ №${lastOrder.number} на ${rub(lastOrder.sum)} принят` : `${esc(lastOrder.name)}, заказ на ${rub(lastOrder.sum)} оформлен`} — ${esc(lastOrder.when)}.</p>
       <p>${!lastOrder.number ? "Это демо-версия: заказ не отправлен." : lastOrder.paid ? "Оплата прошла." : lastOrder.payError ? esc(lastOrder.payError) : "Мы свяжемся с вами для подтверждения."}</p>
+      ${needPay ? `<div class="sub-box warn">
+        <b>Заказ не оплачен</b>
+        <span>Без оплаты мы не возьмём его в работу и цветы не закупим. Оплатите картой — это займёт минуту.</span>
+      </div>` : ""}
       ${botLink || (API && API.maxBot) ? `<div class="sub-box">
         <b>Следите за заказом в мессенджере</b>
         <span>Пришлём фото букета перед доставкой, а вы ответите, всё ли нравится.${API && API.maxBot ? " В MAX откройте бота и пришлите ему код с кнопки ниже." : ""}</span>
       </div>` : ""}</div>`;
     foot.hidden = false;
-    foot.innerHTML = `${botLink ? `<a class="btn btn-primary btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Открыть бота и получать статусы</span>${icon("arrow")}</a>` : ""}
+    foot.innerHTML = `${needPay ? `<button class="btn btn-primary btn-wide" id="doneRepay"><span>Оплатить ${rub(lastOrder.sum)}</span>${icon("arrow")}</button>` : ""}
+      ${botLink ? `<a class="btn ${needPay ? "btn-ghost" : "btn-primary"} btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Открыть бота и получать статусы</span>${icon("arrow")}</a>` : ""}
       ${API && API.maxBot && lastOrder.code ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${esc(API.maxBot)}" target="_blank" rel="noopener"><span>Следить в MAX — код ${esc(lastOrder.code)}</span>${icon("arrow")}</a>` : ""}
       <button class="btn ${botLink ? "btn-ghost" : "btn-primary"} btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon("arrow")}</button>`;
   }
 }
-cartDlg.addEventListener('click', e => {
+cartDlg.addEventListener('click', async e => {
+  const repay = e.target.closest('#doneRepay');
+  if (repay) {
+    repay.disabled = true;
+    cartDlg.close();                       // окно оплаты должно быть поверх, а не под корзиной
+    const res = await payCard(lastOrder.order, lastOrder.name || '', lastOrder.phone || '');
+    lastOrder.paid = res.paid;
+    lastOrder.payError = res.error;
+    if (res.paid) { try { await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: lastOrder.order.id }) }); } catch (_) {} }
+    view = 'done'; renderCart();
+    if (!cartDlg.open) cartDlg.showModal();
+    return;
+  }
   if (e.target === cartDlg) return cartDlg.close();
+
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.inc) setQty(t.dataset.inc, (cart[t.dataset.inc] || 0) + 1);
   else if (t.dataset.dec) setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1);
@@ -1224,7 +1308,8 @@ const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 6
 const prepMin = sum => (SLOTS.big_from > 0 && sum > SLOTS.big_from) ? SLOTS.prep_big : SLOTS.prep;
 function slotList(date, sum) {
   const now = mskNow(), open = toMin(SLOTS.from), send = toMin(SLOTS.to);
-  const till = Math.max(toMin(SLOTS.till || SLOTS.to), send);
+  // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
+  const till = getType === 'pickup' ? send : Math.max(toMin(SLOTS.till || SLOTS.to), send);
   if (date < now.date) return [];
   const first = date === now.date ? Math.max(open, now.min + prepMin(sum)) : open;
   const start0 = Math.ceil(first / SLOTS.step) * SLOTS.step, full = SLOTS.hours * 60;
@@ -1427,6 +1512,13 @@ cartDlg.addEventListener('submit', async e => {
   try { ok = f.checkValidity(); } catch (_) { ok = true; }
   if (!ok) { const bad = f.querySelector(':invalid'); if (bad) bad.focus(); try { f.reportValidity(); } catch (_) {} return; }
   if (!v('time')) return err('Выберите другую дату — на эту нет свободных интервалов.');
+  // до оплаты покупатель должен назваться: иначе, вернувшись, он не найдёт свой заказ
+  if (API && !ME) {
+    const box = $('#idBox');
+    if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return err('Сначала подтвердите, что это вы — войдите через мессенджер.');
+  }
+
   // при расчёте по километрам заказ уходит только с найденным на карте адресом
   const km = !!(DEL && DEL.km) && getType !== 'pickup';
   if (km && addrBusy) return err('Секунду, проверяем адрес.');
@@ -1447,7 +1539,7 @@ cartDlg.addEventListener('submit', async e => {
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { btn.disabled = false; return err(res.status === 429 ? 'Слишком много попыток. Подождите минуту.' : (data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.')); }
-      lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code };
+      lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code, order: data, name: v('name').trim(), phone: v('phone').trim() };
       if (payMethod === 'card') {
         cartDlg.close();   // корзина открыта поверх всего, окно оплаты было бы под ней
         const res = await payCard(data, v('name').trim(), v('phone').trim());

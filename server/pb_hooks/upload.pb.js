@@ -13,7 +13,11 @@ routerAdd("GET", "/api/shop/upload-meta", (e) => {
 
   const cats = $app.findRecordsByFilter("categories", "active = true", "sort", 100, 0)
     .map((c) => ({ id: c.id, name: c.get("name"), addon: !!c.get("addon") }));
-  const tables = shop.priceTables(s).map((t) => ({ id: t.id, name: t.name }));
+  // длины прайса нужны странице: если она одна, выбирать нечего
+  const tables = shop.priceTables(s).map((t) => ({
+    id: t.id, name: t.name,
+    lengths: Object.keys(t.prices || {}).map(Number).filter((x) => !isNaN(x)).sort((a, b) => a - b),
+  }));
   const recent = $app.findRecordsByFilter("products", "id != ''", "-created", 20, 0).map((p) => {
     const photos = p.get("photo") || [];
     return {
@@ -48,7 +52,8 @@ routerAdd("POST", "/api/shop/upload", (e) => {
   const files = (form.file["photo"] || []).slice(0, 5).map((fh) => $filesystem.fileFromMultipart(fh));
   if (!files.length) return e.json(400, { message: "Добавьте хотя бы одно фото." });
 
-  const lens = val("lengths").split(",").map((x) => +x).filter((x) => x > 0);
+  // 0 — «без длины» (гортензии), поэтому отрицательные отсекаем, а ноль оставляем
+  const lens = val("lengths") ? val("lengths").split(",").map((x) => +x).filter((x) => !isNaN(x) && x >= 0) : [];
   const price = +val("price") || 0;
   if (!lens.length && !price) return e.json(400, { message: "Укажите цену." });
 

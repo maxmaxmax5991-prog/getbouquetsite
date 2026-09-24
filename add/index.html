@@ -94,11 +94,18 @@ h2{font:700 16px/1.2 var(--display);margin:0 0 12px}
       <label class="f" for="price">Цена, ₽<input class="in" id="price" type="number" min="0" step="10" inputmode="numeric" placeholder="4990"></label>
     </div>
 
+    <div class="bar" id="mode" style="margin-bottom:12px">
+      <button type="button" class="chip" data-mode="plain" aria-pressed="true">Одна цена</button>
+      <button type="button" class="chip" data-mode="table">По прайсу</button>
+    </div>
+
     <div id="roses" hidden>
       <label class="f" for="table">Прайс<select class="in" id="table"></select></label>
-      <span class="f" style="display:block">Длины</span>
-      <div class="bar" id="lens"></div>
-      <p class="hint">Цены возьмутся из прайса. Выключите длину, которой нет в наличии.</p>
+      <div id="lensBox" hidden>
+        <span class="f" style="display:block">Длины</span>
+        <div class="bar" id="lens"></div>
+      </div>
+      <p class="hint">Цены возьмутся из прайса — вписывать не нужно. Если длин несколько, выключите ту, которой нет в наличии.</p>
     </div>
 
     <label class="f" for="desc" style="margin-top:12px">Описание, если нужно<textarea class="in" id="desc" maxlength="2000" placeholder="Что внутри, как ухаживать"></textarea></label>
@@ -151,26 +158,39 @@ async function load() {
     return;
   }
   CATS = d.categories || []; TABLES = d.tables || [];
-  $('#cat').innerHTML = CATS.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('#cat').innerHTML = '<option value="">— выберите раздел —</option>' + CATS.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   $('#table').innerHTML = TABLES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  renderMode();
   $('#form').hidden = false;
   renderRecent(d.recent || []);
-  catChanged();
+  renderMode();
 }
 
-// одноголовые розы продаются длинами по прайсу, остальное — простой ценой
-const isRoses = () => /однологов|одноголов/i.test((CATS.find(c => c.id === $('#cat').value) || {}).name || '');
-function catChanged() {
-  const roses = isRoses();
-  $('#roses').hidden = !roses;
-  $('#plain').hidden = roses;
+// «Одна цена» — обычный букет. «По прайсу» — когда цены зависят от количества
+// (одноголовые розы, гортензии): берутся из прайса, вписывать не нужно.
+let mode = 'plain';
+const table = () => TABLES.find(t => t.id === $('#table').value) || TABLES[0] || { lengths: [] };
+
+function renderMode() {
+  $$('#mode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === mode));
+  $('#plain').hidden = mode !== 'plain';
+  $('#roses').hidden = mode !== 'table';
   renderLens();
 }
-$('#cat').onchange = catChanged;
+$('#mode').onclick = e => {
+  const b = e.target.closest('[data-mode]'); if (!b) return;
+  mode = b.dataset.mode; renderMode();
+};
+$('#table').onchange = () => { lens = []; renderMode(); };
 
 function renderLens() {
-  $('#lens').innerHTML = [40, 50, 60, 70, 80].map(L =>
-    `<button type="button" class="chip" data-len="${L}" aria-pressed="${lens.includes(L)}">${L} см</button>`).join('');
+  const all = table().lengths || [];
+  const one = all.length < 2;                      // выбирать нечего
+  if (one) lens = all.length ? [all[0]] : [];
+  else if (!lens.length) lens = [...all];
+  $('#lensBox').hidden = one;
+  $('#lens').innerHTML = all.map(L =>
+    `<button type="button" class="chip" data-len="${L}" aria-pressed="${lens.includes(L)}">${L ? L + ' см' : 'без длины'}</button>`).join('');
 }
 $('#lens').onclick = e => {
   const b = e.target.closest('[data-len]'); if (!b) return;
@@ -201,7 +221,8 @@ $('#form').onsubmit = async e => {
   say('');
   if (!shots.length) return say('Добавьте хотя бы одно фото.', true);
   if (!$('#name').value.trim()) return say('Напишите название.', true);
-  const roses = isRoses();
+  if (!$('#cat').value) return say('Выберите раздел.', true);
+  const roses = mode === 'table';
   if (roses && !lens.length) return say('Выберите хотя бы одну длину.', true);
   if (!roses && !(+$('#price').value > 0)) return say('Укажите цену.', true);
 

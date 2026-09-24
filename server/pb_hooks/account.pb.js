@@ -63,7 +63,10 @@ onRecordCreateRequest((e) => {
     const c = acc.byToken($app, e.request ? e.request.header.get("X-Customer-Token") : null);
     if (c) {
       e.record.set("customer", c.id);
+      // чат запоминаем в самом заказе: фото и статусы уходят именно по этому заказу,
+      // даже если потом покупатель сделает второй
       if (c.get("tg_chat")) e.record.set("tg_chat", c.get("tg_chat"));
+      if (c.get("max_chat")) e.record.set("max_chat", c.get("max_chat"));
     }
   } catch (err) { console.log("bind customer", err); }
   e.next();

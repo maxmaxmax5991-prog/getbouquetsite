@@ -16,13 +16,17 @@ pillow_heif.register_heif_opener()   # снимки с айфона тоже о�
 WIDTH = 640          # столько же, сколько у вырезанных вручную
 MAX_IN = 1400
 
-def main(src, dst):
+def main(src, dst, flowers=False):
+
     im = ImageOps.exif_transpose(Image.open(src))
     if im.mode != "RGB":
         im = im.convert("RGB")
     im.thumbnail((MAX_IN, MAX_IN), Image.LANCZOS)
 
     out = remove(im, session=new_session("u2net"), post_process_mask=True)
+    if flowers:                       # у букетов отрезаем упаковку: бумага бесцветная, лепестки нет
+        from flowers import flowers_only
+        out, _ = flowers_only(out)
 
     box = out.getbbox()          # обрезаем прозрачные поля по краям
     if box:
@@ -33,6 +37,7 @@ def main(src, dst):
     print(f"{out.width}x{out.height}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        sys.exit("нужно: cutout.py вход выход")
-    main(sys.argv[1], sys.argv[2])
+    if len(sys.argv) < 3:
+        sys.exit("нужно: cutout.py вход выход [--flowers]")
+    sys.path.insert(0, "/opt/venikoff/bin")
+    main(sys.argv[1], sys.argv[2], "--flowers" in sys.argv)
