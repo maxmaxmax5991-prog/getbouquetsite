@@ -280,7 +280,12 @@ function handleClient(app, upd) {
   if (sub) {
     let order = null;
     try { order = app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: sub }); } catch (_) {}
-    if (!order) return shop.tg(token, "sendMessage", { chat_id: chat, text: "Не нашёл такой заказ. Проверьте ссылку с сайта." });
+    // ссылка могла устареть: заказ выполнен и убран или её открыли повторно
+    if (!order) {
+      const site = String(s.get("site_url") || "").replace(/\/$/, "");
+      return shop.tg(token, "sendMessage", { chat_id: chat,
+        text: `Этого заказа уже нет — похоже, ссылка старая.\n\nВы всё равно подключены: сюда придут статусы и фото букета по новым заказам.${site ? `\n\nКаталог: ${site}` : ""}` });
+    }
     order.set("tg_chat", String(chat));
     app.save(order);
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));

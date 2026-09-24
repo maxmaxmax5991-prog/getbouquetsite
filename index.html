@@ -577,7 +577,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790266316"></script>
+<script src="data.js?v=1790266670"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -970,25 +970,34 @@ async function prepLogin(tgSel, maxSel, waitSel, done) {
 }
 
 // ждём, пока покупатель подтвердит вход в боте
+let loginWatch = null;
 function waitLogin(code, waitSel, done, text, html) {
+
   const wait = $(waitSel);
   if (wait) { wait.hidden = false; wait[html ? 'innerHTML' : 'textContent'] = text; }
   const started = Date.now();
-  const timer = setInterval(async () => {
-    if (Date.now() - started > 180000) { clearInterval(timer); if (wait) wait.textContent = 'Время вышло. Нажмите «Войти» ещё раз.'; return; }
+  const check = async () => {
     try {
       const c = await fetch('/api/shop/login-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
       const cd = await c.json();
-      if (cd.token) {
-        clearInterval(timer);
-        meToken = cd.token; store.set('token', meToken);
-        await loadMe();
-        if (wait) wait.hidden = true;
-        toast('Вы вошли');
-        if (done) done(); else renderMe();
-      }
-    } catch (_) {}
+      if (!cd.token) return false;
+      meToken = cd.token; store.set('token', meToken);
+      await loadMe();
+      if (wait) wait.hidden = true;
+      toast('Вы вошли');
+      if (done) done(); else renderMe();
+      return true;
+    } catch (_) { return false; }
+  };
+  clearInterval(loginWatch);
+  loginWatch = setInterval(async () => {
+    if (Date.now() - started > 600000) { clearInterval(loginWatch); loginWatch = null; return; }
+    if (await check()) { clearInterval(loginWatch); loginWatch = null; }
   }, 2000);
+  // вернулись из Телеграма — телефон усыпляет вкладку и опрос встаёт, проверяем сразу
+  const wake = async () => { if (!document.hidden && loginWatch && await check()) { clearInterval(loginWatch); loginWatch = null; } };
+  document.addEventListener('visibilitychange', wake);
+  window.addEventListener('focus', wake);
 }
 
 // В Телеграме код уходит ссылкой сам, в MAX таких ссылок нет — код показываем покупателю
@@ -1262,10 +1271,10 @@ ${payChoice()}
     $("#cartTitle").textContent = "Готово";
     const botLink = API && API.bot && lastOrder.code ? `https://t.me/${API.bot}?start=o${lastOrder.code}` : "";
     // оплата картой не прошла — заказ висит неоплаченным, предлагаем оплатить снова
-    const needPay = !!(lastOrder.order && lastOrder.paid === false && PAY && PAY.card);
+    const needPay = !!(lastOrder.order && !lastOrder.paid && PAY && PAY.card && lastOrder.order.payment_method !== 'on_delivery');
     body.innerHTML = `<div class="done"><div class="seal">${icon("check")}</div><h3>Спасибо!</h3>
       <p>${lastOrder.number ? `Заказ №${lastOrder.number} на ${rub(lastOrder.sum)} принят` : `${esc(lastOrder.name)}, заказ на ${rub(lastOrder.sum)} оформлен`} — ${esc(lastOrder.when)}.</p>
-      <p>${!lastOrder.number ? "Это демо-версия: заказ не отправлен." : lastOrder.paid ? "Оплата прошла." : lastOrder.payError ? esc(lastOrder.payError) : "Мы свяжемся с вами для подтверждения."}</p>
+      <p>${!lastOrder.number ? "Это демо-версия: заказ не отправлен." : lastOrder.paid ? "Оплата прошла." : lastOrder.payError ? esc(lastOrder.payError) : needPay ? "Осталось оплатить." : "Мы свяжемся с вами для подтверждения."}</p>
       ${needPay ? `<div class="sub-box warn">
         <b>Заказ не оплачен</b>
         <span>Без оплаты мы не возьмём его в работу и цветы не закупим. Оплатите картой — это займёт минуту.</span>
@@ -1641,9 +1650,11 @@ async function resumeOrder() {
   if (saved.order && saved.order.id) {
     try {
       const r = await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: saved.order.id }) });
+      // заказа на сервере уже нет — забываем его, иначе сайт вечно напоминает о призраке
+      if (r.status === 404) { lastOrder = null; store.set('last', null); return; }
       const d = await r.json().catch(() => ({}));
       if (d && d.paid) { lastOrder.paid = true; saveLastOrder(); }
-    } catch (_) {}
+    } catch (_) { return; }      // нет связи — молчим, а не пугаем «не оплачено»
   }
   if (lastOrder.paid) {
     // вернулись из окна оплаты — покажем «Готово» с кнопкой на бота
