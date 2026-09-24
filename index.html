@@ -577,7 +577,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790266670"></script>
+<script src="data.js?v=1790266853"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1380,7 +1380,9 @@ function slotList(date, sum) {
   const till = getType === 'pickup' ? send : Math.max(toMin(SLOTS.till || SLOTS.to), send);
   if (date < now.date) return [];
   const first = date === now.date ? Math.max(open, now.min + prepMin(sum)) : open;
-  const start0 = Math.ceil(first / SLOTS.step) * SLOTS.step, full = SLOTS.hours * 60;
+  const start0 = Math.ceil(first / SLOTS.step) * SLOTS.step;
+  // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
+  const full = getType === 'pickup' ? SLOTS.step : SLOTS.hours * 60;
   const last = Math.min(send, till - full);   // уехать до «отправляем до», приехать до крайнего времени
   const out = [];
   for (let t = start0; t <= last; t += SLOTS.step) out.push(`${hhmm(t)}–${hhmm(t + full)}`);

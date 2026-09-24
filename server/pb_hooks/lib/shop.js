@@ -198,7 +198,8 @@ function slotsFor(s, dateIso, sum, graceMin, pickup) {
   if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum) - (graceMin || 0));
   else if (dateIso < now.date) return [];
   const start0 = Math.ceil(first / r.step) * r.step;
-  const full = r.hours * 60;
+  // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
+  const full = pickup ? r.step : r.hours * 60;
   // букет должен уехать не позже «отправляем до», а приехать не позже «крайнего времени доставки»
   const last = Math.min(send, till - full);
   const out = [];

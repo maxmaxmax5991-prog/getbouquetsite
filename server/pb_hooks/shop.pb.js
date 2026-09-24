@@ -134,7 +134,32 @@ routerAdd("POST", "/api/shop/max-check", (e) => {
 }, $apis.requireAuth("managers"));
 
 // Кнопка «Проверить бота» в админке
+// Проверка бота без телефона: подсовываем боту сообщение и смотрим, что он сделает.
+// Нужна, чтобы чинить вход и подписку, не прося владельца жать кнопки.
+routerAdd("POST", "/api/shop/tg-sim", (e) => {
+  const bot = require(`${__hooks}/lib/bot.js`);
+  const b = e.requestInfo().body || {};
+  const chat = +b.chat || 0;
+  if (!chat) return e.json(400, { message: "Укажите chat" });
+  const upd = {
+    update_id: Date.now(),
+    message: {
+      message_id: Date.now(),
+      chat: { id: chat, type: "private" },
+      from: { id: chat, first_name: String(b.name || "Проверка") },
+      text: String(b.text || "/start"),
+    },
+  };
+  try {
+    bot.handleClient($app, upd);
+    return e.json(200, { ok: true });
+  } catch (err) {
+    return e.json(500, { message: String(err) });
+  }
+}, $apis.requireAuth("managers"));
+
 routerAdd("POST", "/api/shop/tg-test", (e) => {
+
   const shop = require(`${__hooks}/lib/shop.js`);
   const bot = require(`${__hooks}/lib/bot.js`);
   const s = shop.settings($app);
