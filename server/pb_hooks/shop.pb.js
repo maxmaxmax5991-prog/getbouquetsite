@@ -34,10 +34,11 @@ routerAdd("POST", "/api/shop/address", (e) => {
   return e.json(200, { km: r.km, price: r.price, address: r.found, zone: r.zoneName });
 });
 
-// Граница МКАД для карты в админке — обычные точки, ничего секретного
+// Кольца Москвы для карты в админке — обычные точки, ничего секретного
 routerAdd("GET", "/api/shop/mkad", (e) => {
+  const r = require(`${__hooks}/lib/rings.js`);
   e.response.header().set("Cache-Control", "public, max-age=86400");
-  return e.json(200, { ring: require(`${__hooks}/lib/mkad.js`).MKAD });
+  return e.json(200, { ring: r.MKAD, rings: r.RINGS, names: r.RING_NAMES });
 });
 
 // Заказ с сайта: пересчитываем цены, доставку и проверяем дату/интервал на сервере

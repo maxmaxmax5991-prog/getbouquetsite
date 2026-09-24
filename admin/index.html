@@ -266,15 +266,17 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div><button class="btn btn-p" id="dPickSave">Сохранить</button></div>
         </div>
         <div class="card stack">
-          <h2>Доставка от МКАД</h2>
-          <div class="swl"><button class="sw" id="dMkad" role="switch" aria-checked="false" aria-label="Считать от МКАД"></button>Считать доставку от МКАД</div>
-          <p class="hint">Внутри МКАД — одна цена на весь город. За МКАД — та же цена плюс столько-то рублей за каждый километр от кольца (неполный километр считается как целый). Это привычный для Москвы способ; он точнее кругов, потому что МКАД — не круг, а магазин стоит не в центре.</p>
-          <div class="row">
-            <label class="f" for="dMkadPrice">Внутри МКАД, ₽<input class="in num" id="dMkadPrice" type="number" min="0" step="50"></label>
+          <h2>Пояса доставки по кольцам</h2>
+          <div class="swl"><button class="sw" id="dMkad" role="switch" aria-checked="false" aria-label="Считать по кольцам"></button>Определять цену по кольцам Москвы</div>
+          <p class="hint">Пояс — это кольцо и сколько километров снаружи от него он захватывает. 0 — ровно внутри кольца. Пояса проверяются сверху вниз, побеждает первый подходящий, поэтому идут от центра к краю. Всё, что не попало ни в один пояс, считается по правилам «за МКАД» ниже.</p>
+          <div class="scroll"><table class="t" id="bands"></table></div>
+          <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="bAdd">+ Пояс</button></div>
+          <div class="row" style="margin-top:14px">
+            <label class="f" for="dMkadPrice">За МКАД: база, ₽<input class="in num" id="dMkadPrice" type="number" min="0" step="50"></label>
             <label class="f" for="dMkadKm">За МКАД: ₽ за километр<input class="in num" id="dMkadKm" type="number" min="0" step="5"></label>
             <label class="f" for="dMkadMax">Дальше не возим, км от МКАД<input class="in num" id="dMkadMax" type="number" min="0" step="5"></label>
           </div>
-          <p class="hint">Пример при 850 ₽ и 30 ₽/км: внутри МКАД — 850 ₽, Химки (2 км за кольцом) — 910 ₽, Одинцово (8 км) — 1090 ₽. «Дальше не возим» 0 — без ограничения. Адрес проверяется по картам тем же ключом Яндекса, что и круги.</p>
+          <p class="hint">За МКАД: база плюс столько-то рублей за каждый начатый километр от кольца. При 850 ₽ и 30 ₽/км Химки (4 км) — 970 ₽, Одинцово (6 км) — 1030 ₽. «Дальше не возим» 0 — без ограничения.</p>
           <div class="bar"><button class="btn btn-p" id="dMkadSave">Сохранить</button></div>
         </div>
         <div class="card stack" id="cardRings">
@@ -968,6 +970,8 @@ const loadDelivery = safe(async () => {
   $('#dOriginLL').value = (S.origin_lat && S.origin_lon) ? `${S.origin_lat}, ${S.origin_lon}` : '';
   sw($('#dMkad'), S.mkad_mode);
   $('#dMkadPrice').value = S.mkad_price || 0; $('#dMkadKm').value = S.mkad_km_price || 0; $('#dMkadMax').value = S.mkad_max_km || 0;
+  BANDS = Array.isArray(S.bands) ? JSON.parse(JSON.stringify(S.bands)) : [];
+  renderBands();
   ZONES = await list('delivery_zones', '&sort=sort');
   renderZones(); renderMap(); renderSlots(); toggleZoneCards();
 });
@@ -1020,13 +1024,41 @@ $('#dSlotSave').onclick = safe(async () => {
   toast('Сохранено');
 });
 
+/* ---------- пояса по кольцам ---------- */
+let BANDS = [];
+const RING_TITLES = [['sadovoe', 'Садовое кольцо'], ['ttk', 'Третье кольцо'], ['mkad', 'МКАД']];
+
+function renderBands() {
+  $('#bands').innerHTML = `<tr><th>Пояс</th><th>Кольцо</th><th>+ км снаружи</th><th>Цена, ₽</th><th></th></tr>` + BANDS.map((b, i) => `<tr>
+    <td><input class="in sm" data-b="name" data-i="${i}" value="${esc(b.name || '')}" style="min-width:190px"></td>
+    <td><select class="in sm" data-b="ring" data-i="${i}" style="width:160px">${RING_TITLES.map(([k, t]) => `<option value="${k}"${(b.ring || 'mkad') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></td>
+    <td><input class="in sm num" data-b="km" data-i="${i}" type="number" min="0" step="0.5" value="${+b.km || 0}" style="width:110px"></td>
+    <td><input class="in sm num" data-b="price" data-i="${i}" type="number" min="0" step="10" value="${+b.price || 0}" style="width:110px"></td>
+    <td><button class="btn btn-d btn-s" data-rmb="${i}">Удалить</button></td></tr>`).join('');
+}
+$('#bAdd').onclick = () => { readRows('#bands [data-b]', 'b', BANDS); BANDS.push({ name: '', ring: 'mkad', km: 0, price: 0 }); renderBands(); };
+$('#bands').addEventListener('click', e => {
+  const b = e.target.closest('[data-rmb]'); if (!b) return;
+  readRows('#bands [data-b]', 'b', BANDS);
+  BANDS.splice(+b.dataset.rmb, 1);
+  renderBands();
+  if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {});
+});
+$('#bands').addEventListener('input', () => {
+  readRows('#bands [data-b]', 'b', BANDS);
+  if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {});
+});
+
 $('#dMkadSave').onclick = safe(async () => {
   const on = sw($('#dMkad'));
+  readRows('#bands [data-b]', 'b', BANDS);
   if (on && !$('#dYkey').value.trim() && !$('#dYsug').value.trim()) return toast('Без ключа Яндекс.Карт адрес проверить нечем', true);
-  if (on && !+$('#dMkadPrice').value) return toast('Укажите цену доставки внутри МКАД', true);
+  if (on && !+$('#dMkadPrice').value) return toast('Укажите базовую цену за МКАД', true);
+  if (BANDS.some(b => !b.name)) return toast('У каждого пояса должно быть название', true);
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: {
-    mkad_mode: on, mkad_price: +$('#dMkadPrice').value || 0,
+    mkad_mode: on, bands: BANDS, mkad_price: +$('#dMkadPrice').value || 0,
     mkad_km_price: +$('#dMkadKm').value || 0, mkad_max_km: +$('#dMkadMax').value || 0 } });
+  renderBands();
   if (on && sw($('#dKm'))) { sw($('#dKm'), false); S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { km_mode: false } }); }
   renderMap();
   toast('Сохранено');
@@ -1149,17 +1181,20 @@ const mapRings = () => ZONES.filter(z => z.active && +z.radius_km > 0).sort((a, 
 const mkadOn = () => sw($('#dMkad'));
 
 // граница МКАД: берём с сервера один раз
-let MKAD = null;
+let MKAD = null, RINGS = {};
 async function mkadRing() {
-  if (!MKAD) { try { MKAD = (await api('/api/shop/mkad')).ring; } catch (_) { MKAD = []; } }
+  if (!MKAD) {
+    try { const r = await api('/api/shop/mkad'); MKAD = r.ring; RINGS = r.rings || {}; }
+    catch (_) { MKAD = []; RINGS = {}; }
+  }
   return MKAD;
 }
 
 // те же расчёты, что на сервере: градусы в километры, точка внутри кольца, расстояние до кольца
 const KY = 110.574, KX = 111.320 * Math.cos(55.75 * Math.PI / 180);
 const flat = (lat, lon) => [lon * KX, lat * KY];
-function insideMkad(lat, lon) {
-  const poly = (MKAD || []).map(pt => flat(pt[0], pt[1]));
+function insideRing(key, lat, lon) {
+  const poly = (RINGS[key] || []).map(pt => flat(pt[0], pt[1]));
   const [x, y] = flat(lat, lon);
   let hit = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -1168,8 +1203,8 @@ function insideMkad(lat, lon) {
   }
   return hit;
 }
-function kmFromMkad(lat, lon) {
-  const poly = (MKAD || []).map(pt => flat(pt[0], pt[1]));
+function kmFromRing(key, lat, lon) {
+  const poly = (RINGS[key] || []).map(pt => flat(pt[0], pt[1]));
   const [x, y] = flat(lat, lon);
   let best = Infinity;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -1181,8 +1216,10 @@ function kmFromMkad(lat, lon) {
   }
   return Math.round(best * 10) / 10;
 }
+const insideMkad = (lat, lon) => insideRing('mkad', lat, lon);
+const kmFromMkad = (lat, lon) => kmFromRing('mkad', lat, lon);
 
-// при расчёте от МКАД зоны-круги не нужны — прячем их, чтобы не путали
+// при расчёте по кольцам зоны-круги не нужны — прячем их, чтобы не путали
 function toggleZoneCards() {
   const on = mkadOn();
   $('#cardRings').hidden = on;
@@ -1198,12 +1235,16 @@ function drawRings(L) {
     .bindTooltip('Магазин', { className: 'zmap-tip' }).addTo(MAPLAYER);
 
   if (mkadOn()) {
-    $('#zmapHelp').innerHTML = 'Розовым обведена МКАД: внутри — одна цена, снаружи считаются километры от кольца. <b>Ткните в любое место карты</b>, и увидите цену доставки туда.';
-    if (MKAD && MKAD.length) {
-      L.polygon(MKAD, { color: '#E0178A', weight: 2.5, fillColor: '#E0178A', fillOpacity: .07 })
-        .bindTooltip(`Внутри МКАД — ${+$('#dMkadPrice').value || 0} ₽`, { className: 'zmap-tip' }).addTo(MAPLAYER);
-      MAP.fitBounds(L.polygon(MKAD).getBounds(), { padding: [20, 20] });
-    }
+    $('#zmapHelp').innerHTML = 'Кольца Москвы: МКАД, Третье и Садовое. На каждом подписан ваш пояс и его цена. <b>Ткните в любое место карты</b>, и увидите, в какой пояс оно попало и сколько будет стоить доставка туда.';
+    // рисуем от большого к маленькому, иначе крупное кольцо накроет мелкие
+    ['mkad', 'ttk', 'sadovoe'].forEach((key, i) => {
+      const ring = RINGS[key]; if (!ring || !ring.length) return;
+      const band = BANDS.find(b => (b.ring || 'mkad') === key && !+b.km);
+      const title = (RING_TITLES.find(r => r[0] === key) || [])[1] || key;
+      L.polygon(ring, { color: '#E0178A', weight: 2, opacity: .45 + .2 * i, fillColor: '#E0178A', fillOpacity: .05 })
+        .bindTooltip(band ? `${band.name} — ${band.price} ₽` : title, { className: 'zmap-tip' }).addTo(MAPLAYER);
+    });
+    if (MKAD && MKAD.length) MAP.fitBounds(L.polygon(MKAD).getBounds(), { padding: [20, 20] });
     return;
   }
 
@@ -1227,6 +1268,11 @@ function drawRings(L) {
 
 function pointText(latlng) {
   if (mkadOn()) {
+    for (const b of BANDS) {
+      const key = b.ring || 'mkad';
+      if (insideRing(key, latlng.lat, latlng.lng)) return `${b.name || 'пояс'} — ${b.price} ₽`;
+      if (+b.km > 0 && kmFromRing(key, latlng.lat, latlng.lng) <= +b.km) return `${b.name || 'пояс'} — ${b.price} ₽`;
+    }
     const base = +$('#dMkadPrice').value || 0;
     if (insideMkad(latlng.lat, latlng.lng)) return `внутри МКАД — ${base} ₽`;
     const out = kmFromMkad(latlng.lat, latlng.lng);

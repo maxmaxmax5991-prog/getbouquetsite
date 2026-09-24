@@ -127,13 +127,14 @@ const KY = 110.574;
 const KX = 111.320 * Math.cos(55.75 * Math.PI / 180);
 const flat = (lat, lon) => [lon * KX, lat * KY];
 
-function mkadPoly() {
-  return require(`${__hooks}/lib/mkad.js`).MKAD.map((pt) => flat(pt[0], pt[1]));
+function ringPoly(key) {
+  const rings = require(`${__hooks}/lib/rings.js`).RINGS;
+  return (rings[key] || []).map((pt) => flat(pt[0], pt[1]));
 }
 
 // Точка внутри кольца? Считаем, сколько раз луч вправо пересечёт границу.
-function insideMkad(lat, lon) {
-  const poly = mkadPoly();
+function insideRing(key, lat, lon) {
+  const poly = ringPoly(key);
   const [x, y] = flat(lat, lon);
   let hit = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -143,9 +144,9 @@ function insideMkad(lat, lon) {
   return hit;
 }
 
-// Сколько километров от точки до кольца (по прямой, до ближайшего места МКАД)
-function kmFromMkad(lat, lon) {
-  const poly = mkadPoly();
+// Сколько километров от точки до кольца (по прямой, до ближайшего его места)
+function kmFromRing(key, lat, lon) {
+  const poly = ringPoly(key);
   const [x, y] = flat(lat, lon);
   let best = Infinity;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -159,6 +160,9 @@ function kmFromMkad(lat, lon) {
   }
   return Math.round(best * 10) / 10;
 }
+
+const insideMkad = (lat, lon) => insideRing("mkad", lat, lon);
+const kmFromMkad = (lat, lon) => kmFromRing("mkad", lat, lon);
 
 // Расстояние по прямой между двумя точками, километры
 
@@ -241,8 +245,26 @@ function zonesByRadius(app) {
     .sort((a, b) => +a.get("radius_km") - +b.get("radius_km"));
 }
 
-// Стоимость доставки от МКАД: внутри кольца одна цена, за кольцом — плюс за километр.
+// Пояса доставки: перебираем по порядку и берём первый, куда адрес попал.
+// Пояс задан кольцом и тем, на сколько километров наружу он от него распространяется.
+function bands(s) {
+  let raw = null;
+  try { const t = s.getString("bands"); raw = t ? JSON.parse(t) : null; } catch (_) { raw = null; }
+  return Array.isArray(raw) ? raw : [];
+}
+
+// Стоимость доставки по поясам: внутри города — цена пояса, за МКАД — база плюс за километр.
 function priceFromMkad(s, pos) {
+  for (const b of bands(s)) {
+    const ring = String(b.ring || "mkad");
+    if (insideRing(ring, pos.lat, pos.lon)) return { ok: true, price: +b.price || 0, zone: "", zoneName: b.name || "", out_km: 0 };
+    const km = +b.km || 0;
+    if (km > 0) {
+      const out = kmFromRing(ring, pos.lat, pos.lon);
+      if (out <= km) return { ok: true, price: +b.price || 0, zone: "", zoneName: b.name || "", out_km: 0 };
+    }
+  }
+
   const base = +s.get("mkad_price") || 0;
   if (insideMkad(pos.lat, pos.lon)) return { ok: true, price: base, zone: "", zoneName: "внутри МКАД", out_km: 0 };
   const out = kmFromMkad(pos.lat, pos.lon);
@@ -303,4 +325,4 @@ function check(app, s, o, sum) {
     address: `${base}${detailsLine(o)}`, found: base };
 }
 
-module.exports = { geocode, suggest, distanceBySuggest, detailsLine, locate, insideMkad, kmFromMkad, priceFromMkad, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };
+module.exports = { geocode, suggest, distanceBySuggest, detailsLine, locate, insideRing, kmFromRing, insideMkad, kmFromMkad, priceFromMkad, bands, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };
