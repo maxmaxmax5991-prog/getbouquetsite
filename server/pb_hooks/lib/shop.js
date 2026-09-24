@@ -300,8 +300,9 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   rec.set("payment_method", method === "card" ? "card" : "on_delivery");
   rec.set("payment_status", "unpaid");
 
-const last = app.findRecordsByFilter("orders", "number > 0", "-number", 1, 0);
-  rec.set("number", last.length ? last[0].get("number") + 1 : 1001);
+  // первый заказ после чистки истории начинается с number_base, чтобы номера не повторялись в МоёмСкладе
+  const last = app.findRecordsByFilter("orders", "number > 0", "-number", 1, 0);
+  rec.set("number", last.length ? last[0].get("number") + 1 : (+s.get("number_base") || 1001));
   rec.set("status", "new");
   rec.set("items", items);
   rec.set("items_sum", sum);
