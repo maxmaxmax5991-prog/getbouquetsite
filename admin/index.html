@@ -277,7 +277,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <p class="hint">Пример при 850 ₽ и 30 ₽/км: внутри МКАД — 850 ₽, Химки (2 км за кольцом) — 910 ₽, Одинцово (8 км) — 1090 ₽. «Дальше не возим» 0 — без ограничения. Адрес проверяется по картам тем же ключом Яндекса, что и круги.</p>
           <div class="bar"><button class="btn btn-p" id="dMkadSave">Сохранить</button></div>
         </div>
-        <div class="card stack">
+        <div class="card stack" id="cardRings">
           <h2>Доставка кругами от магазина</h2>
           <div class="swl"><button class="sw" id="dKm" role="switch" aria-checked="false" aria-label="Считать по расстоянию"></button>Определять зону по адресу, а не спрашивать покупателя</div>
           <p class="hint">Когда включено, покупатель зону не выбирает: адрес проверяется по картам, считается расстояние от магазина, и берётся ближайший круг, в который адрес попал, — его цена и есть доставка. Радиус и цену каждого круга задайте ниже, в таблице «Зоны и стоимость доставки». Когда выключено, покупатель выбирает зону сам, как раньше.</p>
@@ -294,7 +294,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div class="bar"><button class="btn btn-p" id="dKmSave">Сохранить</button><button class="btn btn-g" id="dKmTest">Проверить адрес</button></div>
           <p class="hint" id="dKmResult" hidden></p>
         </div>
-        <div class="card">
+        <div class="card" id="cardZones">
           <h2>Зоны и стоимость доставки</h2>
           <div class="scroll"><table class="t" id="zones"></table></div>
           <p class="hint">«Радиус» — до скольких километров от магазина действует эта зона. Круги считаются от меньшего к большему: адрес попадает в первый подходящий. Дальше самого большого круга заказ не оформится. Радиус нужен только когда включён режим «Доставка кругами от магазина», иначе покупатель выбирает зону сам.<br>«Бесплатно от» — при сумме букетов от этой суммы доставка бесплатная. 0 — всегда платно.</p>
@@ -969,7 +969,7 @@ const loadDelivery = safe(async () => {
   sw($('#dMkad'), S.mkad_mode);
   $('#dMkadPrice').value = S.mkad_price || 0; $('#dMkadKm').value = S.mkad_km_price || 0; $('#dMkadMax').value = S.mkad_max_km || 0;
   ZONES = await list('delivery_zones', '&sort=sort');
-  renderZones(); renderMap(); renderSlots();
+  renderZones(); renderMap(); renderSlots(); toggleZoneCards();
 });
 /* ---------- интервалы доставки: те же правила, что на сайте ---------- */
 function renderSlots() {
@@ -1182,8 +1182,17 @@ function kmFromMkad(lat, lon) {
   return Math.round(best * 10) / 10;
 }
 
+// при расчёте от МКАД зоны-круги не нужны — прячем их, чтобы не путали
+function toggleZoneCards() {
+  const on = mkadOn();
+  $('#cardRings').hidden = on;
+  $('#cardZones').hidden = on;
+}
+
 function drawRings(L) {
   const lat = +S.origin_lat, lon = +S.origin_lon, f = mapFactor();
+  toggleZoneCards();
+
   MAPLAYER.clearLayers();
   L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 2, fillColor: '#E0178A', fillOpacity: 1 })
     .bindTooltip('Магазин', { className: 'zmap-tip' }).addTo(MAPLAYER);
@@ -1259,7 +1268,7 @@ async function renderMap() {
 ['#dMkadPrice', '#dMkadKm', '#dMkadMax'].forEach(sel => $(sel).addEventListener('input', () => {
   if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {});
 }));
-$('#dMkad').addEventListener('click', () => { if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {}); });
+$('#dMkad').addEventListener('click', () => { toggleZoneCards(); if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {}); });
 
 // правим радиус в таблице — круги перерисовываются сразу
 

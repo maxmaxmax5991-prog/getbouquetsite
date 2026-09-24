@@ -293,8 +293,10 @@ function check(app, s, o, sum) {
   const p = s.get("mkad_mode") ? priceFromMkad(s, { lat, lon }) : priceFor(app, s, km, +sum || 0);
   if (!p.ok) return p;
   // адрес для курьера берём в том виде, в каком его знают карты, и дописываем подъезд с квартирой
-  const address = found ? `${found}${detailsLine(o)}` : addressLine(o);
-  return { ok: true, lat, lon, km, out_km: p.out_km || 0, price: p.price, zone: p.zone, zoneName: p.zoneName, address, found };
+  // «Россия, Москва, …» — лишнее слово, курьеру и так понятно
+  const short = String(found || "").replace(/^Россия,\s*/, "");
+  const address = short ? `${short}${detailsLine(o)}` : addressLine(o);
+  return { ok: true, lat, lon, km, out_km: p.out_km || 0, price: p.price, zone: p.zone, zoneName: p.zoneName, address, found: short };
 }
 
 module.exports = { geocode, suggest, distanceBySuggest, detailsLine, locate, insideMkad, kmFromMkad, priceFromMkad, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };
