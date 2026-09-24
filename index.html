@@ -338,6 +338,12 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .form input,.form select,.form textarea{height:48px;border-radius:12px;border:1px solid var(--line-2);background:var(--ground);padding:0 14px;color:var(--ink);font-weight:500;font-size:16px;outline:0;width:100%}
 .form textarea{height:88px;padding:12px 14px;resize:vertical}
 .form input:focus,.form select:focus,.form textarea:focus{border-color:var(--accent)}
+.perks{list-style:none;margin:22px auto 0;padding:0;display:grid;gap:10px;max-width:520px;text-align:left}
+.perks li{display:grid;gap:2px;font-size:14px;color:var(--ink-2);padding-left:18px;position:relative;line-height:1.35}
+.perks li::before{content:"";position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
+.cat-note{margin:6px 0 0;font-size:13.5px;color:var(--accent-text);font-weight:600}
+.price-note{margin:6px 0 0;font-size:13px;color:var(--ink-2);line-height:1.35}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -424,13 +430,18 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <section class="hero" id="studio-sec">
     <div class="wrap">
       <div class="hero-copy">
-        <p class="eyebrow">Цветы с доставкой · Москва</p>
+        <p class="eyebrow">Оптовые цены в розницу · Москва</p>
         <h1>Не веник. <em>Букет.</em></h1>
-        <p class="lede">Собираем честные букеты по честным ценам и присылаем фото перед доставкой. Полистайте — и соберите свой.</p>
+        <p class="lede">Возим розы с плантаций сами, поэтому отдаём их по оптовым ценам — хоть один букет. И присылаем фото перед доставкой.</p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="#/catalog">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
           <a class="btn btn-ghost" href="#/delivery">Как мы доставляем</a>
         </div>
+        <ul class="perks">
+          <li><b>Оптовые цены</b>розы берём напрямую с плантаций</li>
+          <li><b>Без наценки за красоту</b>платите за цветы, а не за витрину</li>
+          <li><b>Фото перед доставкой</b>увидите букет до того, как он поедет</li>
+        </ul>
       </div>
 
       <div class="studio" id="studio" data-phase="choosing">
@@ -503,7 +514,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Каталог</span></nav>
     <div class="cat-head">
-      <div><h1 id="catTitle">Каталог</h1><p id="count" class="num"></p></div>
+      <div><h1 id="catTitle">Каталог</h1><p id="count" class="num"></p><p class="cat-note">Оптовые цены в розницу — берём розы с плантаций сами</p></div>
       <div class="tools">
         <label class="field"><span class="sr">Поиск по каталогу</span><svg class="i"><use href="#i-search"/></svg><input class="search" id="q" type="search" placeholder="Розы, тюльпаны, мишка…" autocomplete="off"></label>
         <label><span class="sr">Сортировка</span>
@@ -538,6 +549,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       <div class="pd-info">
         <div><p class="eyebrow" id="pdCat"></p><h1 id="pdName"></h1></div>
         <div class="pd-price num"><b id="pdPrice"></b><span class="bonus" id="pdBonus"></span></div>
+        <p class="price-note">Оптовая цена: розы приходят к нам напрямую с плантаций, без посредников</p>
         <div id="pdOptsWrap"><p class="label" id="pdOptsLabel">Количество цветов</p><div class="opts" id="pdOpts"></div></div>
         <div id="pdQtyWrap"><p class="label">Количество</p><div class="qty"><button id="pdMinus" aria-label="Меньше"><svg class="i"><use href="#i-minus"/></svg></button><span class="num" id="pdQty">1</span><button id="pdPlus" aria-label="Больше"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
         <div class="pd-buy">
@@ -563,7 +575,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <div class="wrap">
     <a class="logo" href="#/">venikoff<span class="dot"></span><i>net</i></a>
     <nav aria-label="Ссылки"><a href="#/catalog">Каталог</a><a href="#/studio">Собрать букет</a><a href="#/delivery">Доставка</a></nav>
-    <span>© venikoff.net, 2026 · Москва</span>
+    <span>Оптовые цены в розницу · Москва<br>© venikoff.net, 2026</span>
   </div>
 </footer>
 
@@ -576,7 +588,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790267482"></script>
+<script src="data.js?v=1790267641"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
