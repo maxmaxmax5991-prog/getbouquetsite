@@ -9,7 +9,12 @@ routerAdd("GET", "/api/shop/upload-meta", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const s = shop.settings($app);
   const key = s.get("upload_key");
-  if (!key || e.request.url.query().get("k") !== key) return e.json(403, { message: "Ссылка недействительна. Попросите новую." });
+  // Ключ ждём в заголовке: в адресе запроса он попадал бы в журналы сервера.
+  // Через адрес тоже принимаем — по старой ссылке страница открывается впервые.
+  let sent = "";
+  try { sent = e.request.header.get("X-Upload-Key") || ""; } catch (_) {}
+  if (!sent) sent = e.request.url.query().get("k") || "";
+  if (!key || sent !== key) return e.json(403, { message: "Ссылка недействительна. Попросите новую." });
 
   const cats = $app.findRecordsByFilter("categories", "active = true", "sort", 100, 0)
     .map((c) => ({ id: c.id, name: c.get("name"), addon: !!c.get("addon") }));

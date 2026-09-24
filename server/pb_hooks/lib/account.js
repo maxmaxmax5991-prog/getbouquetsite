@@ -22,9 +22,11 @@ function byChat(app, chat, tgName) {
   return c;
 }
 
-// Заказы покупателя: свои по связи, плюс старые по телефону и чату
+// Заказы покупателя: свои по связи и по чату, плюс старые по ПОДТВЕРЖДЁННОМУ телефону.
+// Телефон из профиля здесь не участвует: покупатель правит его сам, и по нему можно было
+// вписать чужой номер и увидеть чужие заказы.
 function ordersOf(app, c) {
-  const phone = String(c.get("phone") || "").replace(/\D/g, "").slice(-10);
+  const phone = String(c.get("phone_ok") || "").replace(/\D/g, "").slice(-10);
   const parts = [`customer = "${c.id}"`];
   if (c.get("tg_chat")) parts.push(`tg_chat = "${c.get("tg_chat")}"`);
   if (c.get("max_chat")) parts.push(`max_chat = "${c.get("max_chat")}"`);

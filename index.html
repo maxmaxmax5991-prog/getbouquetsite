@@ -589,7 +589,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790273155"></script>
+<script src="data.js?v=1790273760"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -915,7 +915,10 @@ async function renderMe() {
         <label for="mePhone">Телефон<input id="mePhone" value="${esc(ME.phone)}" maxlength="40" placeholder="+7 900 000-00-00"></label>
         <div><button class="btn btn-primary btn-sm" id="meSave">Сохранить</button></div>
       </div>
-      <p class="hint">Телефон нужен, чтобы подтянуть сюда заказы, сделанные раньше, и не вводить его при оформлении.</p>
+      <p class="hint">Телефон подставляется в форму заказа, чтобы не вводить его каждый раз.</p>
+      ${ME.phone_ok
+        ? `<p class="hint">✅ Номер подтверждён Телеграмом — сюда попадают и заказы, сделанные без входа.</p>`
+        : `<p class="hint">Чтобы здесь появились заказы, сделанные <b>без входа</b>, подтвердите номер в боте: он пришлёт его сам, нажатием кнопки. Вписанному вручную номеру мы не доверяем — иначе чужие заказы мог бы увидеть кто угодно.${ME.bot ? ` <a href="https://t.me/${esc(ME.bot)}" target="_blank" rel="noopener">Открыть бота</a>` : ''}</p>`}
     </div>
     <h2 class="h2" style="margin:22px 0 12px">Мои заказы</h2>
     ${orders.length ? orders.map(o => `

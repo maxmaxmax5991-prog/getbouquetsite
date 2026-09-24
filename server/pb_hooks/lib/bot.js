@@ -276,7 +276,31 @@ function handleClient(app, upd) {
     const c = acc.byChat(app, chat, who);
     rec.set("customer", c.id);
     app.save(rec);
-    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Готово, ${who || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.` });
+    shop.tg(token, "sendMessage", { chat_id: chat, text: `Готово, ${who || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.` });
+    // Номер берём у самого Телеграма, а не из формы: только такой номер пускает
+    // к прошлым заказам. Набранному в форме доверять нельзя — вписать можно любой.
+    if (!c.get("phone_ok")) {
+      return shop.tg(token, "sendMessage", { chat_id: chat,
+        text: "Чтобы в кабинете были и прошлые заказы, подтвердите номер — нажмите кнопку внизу. Мы увидим тот же номер, что привязан к вашему Телеграму.",
+        reply_markup: { keyboard: [[{ text: "📱 Подтвердить номер", request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } });
+    }
+    return;
+  }
+
+  // Телеграм прислал номер по кнопке. Свой номер — только если contact.user_id совпадает
+  // с отправителем: пересланную чужую визитку так не подсунуть.
+  if (msg.contact) {
+    if (String(msg.contact.user_id || "") !== String(msg.from.id)) {
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: "Это чужой номер. Нажмите кнопку «Подтвердить номер» — Телеграм пришлёт ваш собственный." });
+    }
+    const who = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(" ");
+    const c = acc.byChat(app, chat, who);
+    c.set("phone_ok", String(msg.contact.phone_number || ""));
+    if (!c.get("phone")) c.set("phone", String(msg.contact.phone_number || ""));
+    app.save(c);
+    return shop.tg(token, "sendMessage", { chat_id: chat,
+      text: "Номер подтверждён. Теперь в кабинете видно все ваши заказы, даже сделанные без входа.",
+      reply_markup: { remove_keyboard: true } });
   }
 
   const sub = (text.match(/^\/start\s+o([A-Za-z0-9]+)$/) || [])[1];

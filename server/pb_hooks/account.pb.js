@@ -40,6 +40,8 @@ routerAdd("GET", "/api/shop/my", (e) => {
   return e.json(200, {
     name: c.get("name") || c.get("tg_name") || "",
     phone: c.get("phone") || "",
+    phone_ok: !!c.get("phone_ok"),   // номер подтверждён Телеграмом — видно прошлые заказы
+    bot: (function () { const s = require(`${__hooks}/lib/shop.js`).settings($app); return s.get("tg_client_bot") || s.get("tg_bot") || ""; })(),
     orders: acc.ordersOf($app, c),
   });
 });
@@ -63,7 +65,9 @@ onRecordCreateRequest((e) => {
   try {
     const acc = require(`${__hooks}/lib/account.js`);
     // объявляем внутри: обработчики PocketBase не видят код верхнего уровня
-    const onlyDigits = (v) => String(v || "").replace(/\D/g, "").replace(/^8/, "7");
+    // К одному виду: берём последние 10 цифр. Раньше «8916…» превращалось в «7916…»,
+    // а «916…» оставалось как есть, и один и тот же человек не совпадал сам с собой.
+    const onlyDigits = (v) => String(v || "").replace(/\D/g, "").slice(-10);
     // ключ читаем двумя способами: в хуке создания записи e.request.header пустой,
     // а в обычном маршруте — наоборот, requestInfo бывает недоступен
     let key = "";
@@ -74,13 +78,22 @@ onRecordCreateRequest((e) => {
         key = h.x_customer_token || h["x-customer-token"] || "";
       } catch (_) {}
     }
+    // Кому слать статусы и фото, решает только сервер: поля из запроса стираем,
+    // иначе в заказ можно было подставить чужой чат и слать туда чужие уведомления.
+    e.record.set("customer", "");
+    e.record.set("tg_chat", "");
+    e.record.set("max_chat", "");
+
     let c = acc.byToken($app, key);
     if (!c) {
+      // Без входа узнаём покупателя только по ПОДТВЕРЖДЁННОМУ номеру — тому, что прислал
+      // сам Телеграм по кнопке «Поделиться номером». По набранному в форме номеру
+      // привязывать нельзя: любой вписал бы чужой и получил чужие фото и статусы.
       const phone = onlyDigits(e.record.get("phone"));
-      if (phone.length >= 10) {
+      if (phone.length === 10) {
         try {
-          c = $app.findRecordsByFilter("customers", "phone != ''", "-created", 500, 0)
-            .find((x) => onlyDigits(x.get("phone")) === phone) || null;
+          c = $app.findRecordsByFilter("customers", "phone_ok != ''", "-created", 500, 0)
+            .find((x) => onlyDigits(x.get("phone_ok")) === phone) || null;
         } catch (_) { c = null; }
       }
     }
@@ -90,8 +103,8 @@ onRecordCreateRequest((e) => {
       // даже если потом покупатель сделает второй
       if (c.get("tg_chat")) e.record.set("tg_chat", c.get("tg_chat"));
       if (c.get("max_chat")) e.record.set("max_chat", c.get("max_chat"));
-      // запоминаем телефон покупателю: по нему узнаем его в следующий раз,
-      // даже если он закажет не входя в кабинет
+      // телефон из формы запоминаем только для подстановки в следующий заказ;
+      // ключом для поиска он не становится — для этого есть phone_ok
       if (!c.get("phone") && e.record.get("phone")) {
         c.set("phone", e.record.get("phone"));
         if (!c.get("name") && e.record.get("name")) c.set("name", e.record.get("name"));
