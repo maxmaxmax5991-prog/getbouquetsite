@@ -1388,8 +1388,12 @@ function renderTables() {
         <input class="in" data-tname="${ti}" value="${esc(t.name || '')}" style="max-width:280px" placeholder="Название прайса">
         <button class="btn btn-d btn-s" data-rmt="${ti}">Удалить прайс</button>
       </div>
-      <label class="f" style="max-width:280px">Количество цветов (через запятую)
-        <input class="in num" data-tcounts="${ti}" value="${counts.join(', ')}" placeholder="25, 51, 101"></label>
+      <div class="row">
+        <label class="f" style="max-width:280px">Количество цветов (через запятую)
+          <input class="in num" data-tcounts="${ti}" value="${counts.join(', ')}" placeholder="25, 51, 101"></label>
+        <label class="f" style="max-width:200px">Показывать сразу, шт
+          <input class="in num" data-tdef="${ti}" type="number" min="0" value="${t.def_count || ''}" placeholder="51"></label>
+      </div>
       <div class="scroll"><div class="grid3" style="margin-top:12px;grid-template-columns:auto repeat(${counts.length}, minmax(80px,1fr))">
         <span></span>${counts.map(c => `<b>${c} шт</b>`).join('')}${rows}
       </div></div>
@@ -1403,6 +1407,7 @@ function renderTables() {
 }
 function readTables() {
   $$('#rpTables [data-tname]').forEach(el => TABLES[+el.dataset.tname].name = el.value.trim());
+  $$('#rpTables [data-tdef]').forEach(el => TABLES[+el.dataset.tdef].def_count = +el.value || 0);
   $$('#rpTables [data-tcounts]').forEach(el => {
     const counts = el.value.split(/[^\d]+/).filter(Boolean).map(Number).filter(n => n > 0);
     if (counts.length) TABLES[+el.dataset.tcounts].counts = counts;

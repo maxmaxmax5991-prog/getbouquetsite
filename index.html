@@ -577,7 +577,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790265428"></script>
+<script src="data.js?v=1790265801"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -618,7 +618,8 @@ const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
 
 /* ---------- sizes: every bouquet has variants [{label, price, photo?}] ---------- */
 const sel = {};   // product id -> chosen label
-const defLabel = p => p.lengths
+// какой размер открыт сразу: сначала заданный в прайсе, иначе 51 штука, иначе первый
+const defLabel = p => p.def_label ? p.def_label : p.lengths
   ? ((p.variants.find(v => v.len === p.lengths[0] && v.cnt === 51) || p.variants.find(v => v.len === p.lengths[0]) || p.variants[0]).label)
   : (p.variants.find(v => !v.est) || p.variants[0]).label;
 const curLabel = p => p.variants ? (sel[p.id] || defLabel(p)) : '';

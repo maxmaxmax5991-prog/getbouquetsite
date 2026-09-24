@@ -98,6 +98,10 @@ function catalog(app) {
         v.photo ? { img: fileUrl(p, v.photo, "560x0"), big: fileUrl(p, v.photo, "1080x0"), cnt: cntOf(v.photo) } : {}));
       const lengths = jget(p, "lengths");
       const cut = p.get("cutout");
+      // какой размер показывать сразу: задаётся в прайсе («по умолчанию»)
+      const table = priceTables(s).find((x) => x.id === p.get("price_table"));
+      const defCnt = table && +table.def_count > 0 ? +table.def_count : 0;
+      const defVar = defCnt ? variants.find((v) => v.cnt === defCnt) : null;
       return {
         id: p.id,
         name: p.get("name"),
@@ -113,6 +117,7 @@ function catalog(app) {
         })) : undefined,
         cnt: photos.length ? cntOf(photos[0]) : undefined,
         variants: variants.length ? variants : undefined,
+        def_label: defVar ? defVar.label : undefined,
         lengths: Array.isArray(lengths) && lengths.length ? lengths : undefined,
         sale: p.get("badge") === "sale" ? 1 : undefined,
         author: p.get("badge") === "author" ? 1 : undefined,
