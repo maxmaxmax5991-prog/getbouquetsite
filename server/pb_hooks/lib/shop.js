@@ -116,8 +116,6 @@ function catalog(app) {
     });
   const zones = app.findRecordsByFilter("delivery_zones", "active = true", "sort", 100, 0)
     .map((z) => ({ id: z.id, name: z.get("name"), price: z.get("price"), free_from: z.get("free_from"), radius_km: +z.get("radius_km") || 0 }));
-  const intervals = app.findRecordsByFilter("delivery_intervals", "active = true", "sort,start", 100, 0)
-    .map((i) => ({ label: `${i.get("start")}–${i.get("end")}`, start: i.get("start"), extra: i.get("extra") || 0, kind: i.get("kind") || "both" }));
   return {
     categories: cats.map((c) => ({ slug: c.get("slug"), name: c.get("name"), addon: c.get("addon") })),
     products,
@@ -129,7 +127,7 @@ function catalog(app) {
         ? { on: true, from: s.get("origin_address") || "", mkad: !!s.get("mkad_mode"),
             rings: s.get("mkad_mode") ? [] : zones.filter((z) => z.radius_km > 0).sort((a, b) => a.radius_km - b.radius_km) }
         : null,
-      intervals,
+      slots: slotRules(s),
       min_order: s.get("min_order") || 0,
       lead_hours: s.get("lead_hours") || 0,
       days_ahead: s.get("days_ahead") || 14,
@@ -150,7 +148,46 @@ function catalog(app) {
   };
 }
 
+// ---------- Интервалы доставки ----------
+// Считаются от времени заказа: сначала сборка букета (дорогой собирают дольше),
+// потом трёхчасовое окно. Начало всегда кратно получасу — так понятнее покупателю.
+function slotRules(s) {
+  return {
+    from: String(s.get("work_from") || "09:00"),
+    to: String(s.get("work_to") || "21:00"),
+    prep: +s.get("prep_min") || 45,
+    prep_big: +s.get("prep_min_big") || 65,
+    big_from: +s.get("prep_big_from") || 0,
+    hours: +s.get("slot_hours") || 3,
+    step: +s.get("slot_step") || 30,
+  };
+}
+
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+// Сколько минут собираем букет на такую сумму
+function prepFor(r, sum) {
+  return (r.big_from > 0 && sum > r.big_from) ? r.prep_big : r.prep;
+}
+
+// Все интервалы, которые ещё можно выбрать на эту дату.
+// graceMin — небольшая поблажка при проверке заказа: пока покупатель заполнял форму,
+// время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
+function slotsFor(s, dateIso, sum, graceMin) {
+  const r = slotRules(s);
+  const open = toMin(r.from), close = toMin(r.to);
+  const now = moscowNow();
+  let first = open;
+  if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum) - (graceMin || 0));
+  else if (dateIso < now.date) return [];
+  const start0 = Math.ceil(first / r.step) * r.step;
+  const out = [];
+  for (let t = start0; t + r.hours * 60 <= close; t += r.step) out.push(`${hhmm(t)}–${hhmm(t + r.hours * 60)}`);
+  return out;
+}
+
 // Доставку считает карта — кругами от магазина или расстоянием от МКАД.
+
 // В обоих случаях покупатель зону не выбирает и адрес проверяется на сервере.
 const autoDelivery = (s) => !!(s.get("km_mode") || s.get("mkad_mode"));
 
@@ -240,17 +277,11 @@ function prepareOrder(app, rec) {
   if (date > addDays(now.date, s.get("days_ahead") || 14)) fail("Выберите более близкую дату.");
   if (closed.indexOf(date) >= 0) fail("В этот день мы не доставляем. Выберите другую дату.");
 
+  // интервал пересчитываем здесь заново: цену и время, присланные браузером, не принимаем на веру
   const interval = String(rec.get("interval") || "");
-  const ints = app.findRecordsByFilter("delivery_intervals", "active = true", "sort", 100, 0)
-    .filter((i) => { const k = i.get("kind") || "both"; return k === "both" || k === (pickup ? "pickup" : "delivery"); });
-  if (ints.length) {
-    const found = ints.find((i) => `${i.get("start")}–${i.get("end")}` === interval);
-    if (!found) fail(pickup ? "Выберите время, когда заберёте букет." : "Выберите интервал доставки.");
-    if (date === now.date && toMin(found.get("start")) - (s.get("lead_hours") || 0) * 60 < now.minutes) {
-      fail("На этот интервал уже не успеем. Выберите более поздний.");
-    }
-    delivery += found.get("extra") || 0;
-  }
+  const ok = slotsFor(s, date, sum, 20);   // 20 минут поблажки: пока заполняли форму, время ушло
+  if (!ok.length) fail(pickup ? "На этот день забрать уже не получится. Выберите другую дату." : "На этот день доставка уже не успеет. Выберите другую дату.");
+  if (ok.indexOf(interval) < 0) fail(pickup ? "Выберите время, когда заберёте букет." : "На этот интервал уже не успеем. Выберите более поздний.");
 
 const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret"));
   const method = String(rec.get("payment_method") || "");
@@ -369,5 +400,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer,
-  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery,
+  tg, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor,
 };

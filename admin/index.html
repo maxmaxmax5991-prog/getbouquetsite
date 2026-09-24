@@ -244,7 +244,6 @@ table.t td{padding:4px 6px;vertical-align:middle}
             <div class="swl"><button class="sw" id="dAccepting" role="switch" aria-checked="true" aria-label="Принимать заказы"></button>Принимаем заказы на сайте</div>
             <div class="row">
               <label class="f" for="dMin">Минимальная сумма заказа, ₽<input class="in num" id="dMin" type="number" min="0" step="10"></label>
-              <label class="f" for="dLead">Принимаем заказ не позже чем за, ч<input class="in num" id="dLead" type="number" min="0" step="0.5"></label>
               <label class="f" for="dDays">Можно выбрать дату на дней вперёд<input class="in num" id="dDays" type="number" min="1" max="120"></label>
             </div>
             <label class="f" for="dNotice">Объявление на сайте (необязательно)<input class="in" id="dNotice" placeholder="Например: 8 марта доставка только до 18:00"></label>
@@ -307,11 +306,22 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <p class="hint" id="zmapNote" hidden></p>
           <p class="hint" id="zmapHelp"></p>
         </div>
-        <div class="card">
+        <div class="card stack">
           <h2>Интервалы доставки</h2>
-          <div class="scroll"><table class="t" id="ints"></table></div>
-          <p class="hint">Доплата — например, за ночной или ранний интервал. Сегодняшние интервалы, на которые уже не успеть, сайт скрывает сам.</p>
-          <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="iAdd">+ Интервал</button><button class="btn btn-p btn-s" id="iSave">Сохранить интервалы</button></div>
+          <p class="hint">Списка интервалов больше нет — они считаются от времени заказа: сначала сборка букета, потом окно доставки. Начало интервала всегда кратно шагу, поэтому покупатель видит ровное «13:30–16:30» или «14:00–17:00».</p>
+          <div class="row">
+            <label class="f" for="dWorkFrom">Возим с<input class="in" id="dWorkFrom" type="time"></label>
+            <label class="f" for="dWorkTo">Возим до<input class="in" id="dWorkTo" type="time"></label>
+            <label class="f" for="dSlotHours">Длина интервала, часов<input class="in num" id="dSlotHours" type="number" min="1" max="12" step="1"></label>
+            <label class="f" for="dSlotStep">Шаг начала, минут<input class="in num" id="dSlotStep" type="number" min="5" max="120" step="5"></label>
+          </div>
+          <div class="row">
+            <label class="f" for="dPrep">Сборка букета, минут<input class="in num" id="dPrep" type="number" min="0" step="5"></label>
+            <label class="f" for="dPrepBig">Сборка дорогого, минут<input class="in num" id="dPrepBig" type="number" min="0" step="5"></label>
+            <label class="f" for="dPrepFrom">Дорогой букет — дороже, ₽<input class="in num" id="dPrepFrom" type="number" min="0" step="500"></label>
+          </div>
+          <p class="hint" id="slotDemo"></p>
+          <div class="bar"><button class="btn btn-p" id="dSlotSave">Сохранить</button></div>
         </div>
       </div>
     </section>
@@ -941,11 +951,11 @@ function chartHTML(byDay) {
 }
 
 /* ---------- доставка ---------- */
-let ZONES = [], INTS = [], CLOSED = [];
+let ZONES = [], CLOSED = [];
 const loadDelivery = safe(async () => {
   await loadSettings0();
   sw($('#dAccepting'), S.accepting);
-  $('#dMin').value = S.min_order || 0; $('#dLead').value = S.lead_hours || 0; $('#dDays').value = S.days_ahead || 14; $('#dNotice').value = S.notice || '';
+  $('#dMin').value = S.min_order || 0; $('#dDays').value = S.days_ahead || 14; $('#dNotice').value = S.notice || '';
   sw($('#dPickup'), S.pickup);
   $('#dPickAddr').value = S.pickup_address || ''; $('#dPickHours').value = S.pickup_hours || '';
   CLOSED = Array.isArray(S.closed_dates) ? [...S.closed_dates] : [];
@@ -958,9 +968,58 @@ const loadDelivery = safe(async () => {
   $('#dOriginLL').value = (S.origin_lat && S.origin_lon) ? `${S.origin_lat}, ${S.origin_lon}` : '';
   sw($('#dMkad'), S.mkad_mode);
   $('#dMkadPrice').value = S.mkad_price || 0; $('#dMkadKm').value = S.mkad_km_price || 0; $('#dMkadMax').value = S.mkad_max_km || 0;
-  ZONES = await list('delivery_zones', '&sort=sort'); INTS = await list('delivery_intervals', '&sort=sort');
-  renderZones(); renderInts(); renderMap();
+  ZONES = await list('delivery_zones', '&sort=sort');
+  renderZones(); renderMap(); renderSlots();
 });
+/* ---------- интервалы доставки: те же правила, что на сайте ---------- */
+function renderSlots() {
+  $('#dWorkFrom').value = S.work_from || '09:00';
+  $('#dWorkTo').value = S.work_to || '21:00';
+  $('#dSlotHours').value = S.slot_hours || 3;
+  $('#dSlotStep').value = S.slot_step || 30;
+  $('#dPrep').value = S.prep_min || 45;
+  $('#dPrepBig').value = S.prep_min_big || 65;
+  $('#dPrepFrom').value = S.prep_big_from || 0;
+  slotDemo();
+}
+
+const toMin = t => +String(t).slice(0, 2) * 60 + +String(t).slice(3, 5);
+const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+// что увидит покупатель, если закажет прямо сейчас
+function slotDemo() {
+  const open = toMin($('#dWorkFrom').value || '09:00'), close = toMin($('#dWorkTo').value || '21:00');
+  const hours = +$('#dSlotHours').value || 3, step = +$('#dSlotStep').value || 30;
+  const prep = +$('#dPrep').value || 0, prepBig = +$('#dPrepBig').value || 0, from = +$('#dPrepFrom').value || 0;
+  const now = new Date(Date.now() + 3 * 3600e3);          // Москва
+  const min = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const first = (p) => {
+    const t = Math.ceil(Math.max(open, min + p) / step) * step;
+    return t + hours * 60 <= close ? `${hhmm(t)}–${hhmm(t + hours * 60)}` : 'сегодня уже не успеть';
+  };
+  const all = [];
+  for (let t = Math.ceil(open / step) * step; t + hours * 60 <= close; t += step) all.push(t);
+  $('#slotDemo').innerHTML = `Сейчас ${hhmm(min)} по Москве. Закажи покупатель прямо сейчас букет `
+    + `<b>до ${from ? from.toLocaleString('ru-RU') + ' ₽' : '—'}</b>, ближайший интервал был бы <b>${first(prep)}</b>, `
+    + `а дороже — <b>${first(prepBig)}</b>. На завтра предложим ${all.length} интервалов: `
+    + `${all.length ? `с ${hhmm(all[0])}–${hhmm(all[0] + hours * 60)} до ${hhmm(all[all.length - 1])}–${hhmm(all[all.length - 1] + hours * 60)}` : 'ни одного — проверьте часы работы и длину интервала'}.`;
+}
+['#dWorkFrom', '#dWorkTo', '#dSlotHours', '#dSlotStep', '#dPrep', '#dPrepBig', '#dPrepFrom']
+  .forEach(sel => $(sel).addEventListener('input', slotDemo));
+
+$('#dSlotSave').onclick = safe(async () => {
+  const from = $('#dWorkFrom').value, to = $('#dWorkTo').value;
+  if (!from || !to || toMin(to) <= toMin(from)) return toast('«Возим до» должно быть позже, чем «возим с»', true);
+  const hours = +$('#dSlotHours').value || 0;
+  if (!hours || toMin(from) + hours * 60 > toMin(to)) return toast('Интервал длиннее рабочего дня — ни одного времени не получится', true);
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: {
+    work_from: from, work_to: to, slot_hours: hours, slot_step: +$('#dSlotStep').value || 30,
+    prep_min: +$('#dPrep').value || 0, prep_min_big: +$('#dPrepBig').value || 0,
+    prep_big_from: +$('#dPrepFrom').value || 0 } });
+  slotDemo();
+  toast('Сохранено');
+});
+
 $('#dMkadSave').onclick = safe(async () => {
   const on = sw($('#dMkad'));
   if (on && !$('#dYkey').value.trim() && !$('#dYsug').value.trim()) return toast('Без ключа Яндекс.Карт адрес проверить нечем', true);
@@ -1026,7 +1085,7 @@ $('#dClosedBtn').onclick = () => { const v = $('#dClosedAdd').value; if (v && !C
 $('#dClosed').onclick = e => { const b = e.target.closest('[data-rmd]'); if (b) { CLOSED.splice(+b.dataset.rmd, 1); renderClosed(); } };
 $('#dSave').onclick = safe(async () => {
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: {
-    accepting: sw($('#dAccepting')), min_order: +$('#dMin').value || 0, lead_hours: +$('#dLead').value || 0,
+    accepting: sw($('#dAccepting')), min_order: +$('#dMin').value || 0,
     days_ahead: +$('#dDays').value || 14, notice: $('#dNotice').value.trim(), closed_dates: CLOSED } });
   toast('Сохранено');
 });
@@ -1039,31 +1098,14 @@ function renderZones() {
     <td><input type="checkbox" data-z="active" data-i="${i}"${z.active ? ' checked' : ''} aria-label="Включена"></td>
     <td><button class="btn btn-d btn-s" data-rmz="${i}">Удалить</button></td></tr>`).join('');
 }
-function renderInts() {
-  $('#ints').innerHTML = `<tr><th>С</th><th>До</th><th>Для чего</th><th>Доплата, ₽</th><th>Вкл.</th><th></th></tr>` + INTS.map((z, i) => `<tr>
-    <td><input class="in sm num" data-it="start" data-i="${i}" type="time" value="${esc(z.start)}" style="width:110px"></td>
-    <td><input class="in sm num" data-it="end" data-i="${i}" type="time" value="${esc(z.end)}" style="width:110px"></td>
-    <td><select class="in sm" data-it="kind" data-i="${i}" style="width:150px">${[['both', 'Доставка и самовывоз'], ['delivery', 'Только доставка'], ['pickup', 'Только самовывоз']].map(([k, t]) => `<option value="${k}"${(z.kind || 'both') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></td>
-    <td><input class="in sm num" data-it="extra" data-i="${i}" type="number" min="0" step="50" value="${z.extra || 0}" style="width:100px"></td>
-    <td><input type="checkbox" data-it="active" data-i="${i}"${z.active ? ' checked' : ''} aria-label="Включён"></td>
-    <td><button class="btn btn-d btn-s" data-rmi="${i}">Удалить</button></td></tr>`).join('');
-}
 const readRows = (sel, key, arr) => $$(sel).forEach(el => { const r = arr[+el.dataset.i], k = el.dataset[key]; r[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value || 0 : el.value.trim(); });
 $('#zAdd').onclick = () => { readRows('#zones [data-z]', 'z', ZONES); ZONES.push({ name: '', radius_km: 0, price: 0, free_from: 0, active: true, sort: ZONES.length }); renderZones(); };
-$('#iAdd').onclick = () => { readRows('#ints [data-it]', 'it', INTS); INTS.push({ start: '21:00', end: '23:00', kind: 'both', extra: 0, active: true, sort: INTS.length }); renderInts(); };
 $('#zones').addEventListener('click', safe(async e => {
   const b = e.target.closest('[data-rmz]'); if (!b) return;
   readRows('#zones [data-z]', 'z', ZONES);
   const [z] = ZONES.splice(+b.dataset.rmz, 1);
   if (z.id) { if (!confirm(`Удалить зону «${z.name}»?`)) { ZONES.splice(+b.dataset.rmz, 0, z); return; } await api(`/api/collections/delivery_zones/records/${z.id}`, { method: 'DELETE' }); }
   renderZones();
-}));
-$('#ints').addEventListener('click', safe(async e => {
-  const b = e.target.closest('[data-rmi]'); if (!b) return;
-  readRows('#ints [data-it]', 'it', INTS);
-  const [z] = INTS.splice(+b.dataset.rmi, 1);
-  if (z.id) await api(`/api/collections/delivery_intervals/records/${z.id}`, { method: 'DELETE' });
-  renderInts();
 }));
 async function saveRows(col, arr, fields) {
   for (const [i, r] of arr.entries()) {
@@ -1228,7 +1270,6 @@ $('#zones').addEventListener('input', () => {
 });
 
 $('#zSave').onclick = safe(async () => { readRows('#zones [data-z]', 'z', ZONES); if (ZONES.some(z => !z.name)) return toast('У каждой зоны должно быть название', true); await saveRows('delivery_zones', ZONES, ['name', 'radius_km', 'price', 'free_from', 'active']); renderZones(); renderMap(); toast('Зоны сохранены'); });
-$('#iSave').onclick = safe(async () => { readRows('#ints [data-it]', 'it', INTS); await saveRows('delivery_intervals', INTS, ['start', 'end', 'kind', 'extra', 'active']); renderInts(); toast('Интервалы сохранены'); });
 
 /* ---------- прайсы «длина × количество» ---------- */
 let TABLES = [];

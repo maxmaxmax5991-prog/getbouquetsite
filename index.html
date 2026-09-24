@@ -558,7 +558,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790254533"></script>
+<script src="data.js?v=1790255056"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1099,6 +1099,7 @@ function renderCart() {
           <label for="fDate">Дата<input id="fDate" name="date" type="date" required min="${today}" max="${DEL ? addDays(today, DEL.days_ahead) : ''}" value="${today}"></label>
           <label for="fTime" id="timeLabel">Интервал<select id="fTime" name="time" required></select></label>
         </div>
+        <p class="addr-hint" id="timeNote" hidden></p>
 ${payChoice()}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
         <p class="demo-note" id="fErr" style="color:var(--sale);font-size:13.5px;text-align:left" hidden></p>
@@ -1205,21 +1206,44 @@ function payCard(order, name, phone) {
 
 /* доставка: зоны, интервалы, даты — из админки */
 const DEL = API ? API.delivery : null;
-const INTERVALS_DEMO = ['09:00–12:00', '12:00–15:00', '15:00–18:00', '18:00–21:00'].map(label => ({ label, start: label.slice(0, 5), extra: 0 }));
+/* Интервалы считаем прямо здесь, теми же правилами, что и сервер: сначала сборка букета
+   (дорогой собирают дольше), потом трёхчасовое окно, начало кратно получасу.
+   Сервер при оформлении проверяет выбранное время заново. */
+const SLOTS = (DEL && DEL.slots) || { from: '09:00', to: '21:00', prep: 45, prep_big: 65, big_from: 10000, hours: 3, step: 30 };
+const toMin = t => +String(t).slice(0, 2) * 60 + +String(t).slice(3, 5);
+const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const prepMin = sum => (SLOTS.big_from > 0 && sum > SLOTS.big_from) ? SLOTS.prep_big : SLOTS.prep;
+function slotList(date, sum) {
+  const now = mskNow(), open = toMin(SLOTS.from), close = toMin(SLOTS.to);
+  if (date < now.date) return [];
+  const first = date === now.date ? Math.max(open, now.min + prepMin(sum)) : open;
+  const out = [];
+  for (let t = Math.ceil(first / SLOTS.step) * SLOTS.step; t + SLOTS.hours * 60 <= close; t += SLOTS.step) {
+    out.push(`${hhmm(t)}–${hhmm(t + SLOTS.hours * 60)}`);
+  }
+  return out;
+}
 function mskNow() { const d = new Date(Date.now() + 3 * 3600e3); return { date: d.toISOString().slice(0, 10), min: d.getUTCHours() * 60 + d.getUTCMinutes() }; }
 const mskToday = () => mskNow().date;
 const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 const zonePrice = (z, sum) => z.free_from > 0 && sum >= z.free_from ? 0 : z.price;
 function fillIntervals() {
-  const date = $('#fDate').value, now = mskNow(), lead = DEL ? DEL.lead_hours * 60 : 0;
+  const date = $('#fDate').value;
   const closed = DEL && DEL.closed_dates.includes(date);
-  const list = (DEL && DEL.intervals.length ? DEL.intervals : INTERVALS_DEMO)
-    .filter(i => !i.kind || i.kind === 'both' || i.kind === getType)
-    .filter(i => date !== now.date || (+i.start.slice(0, 2) * 60 + +i.start.slice(3)) - lead >= now.min);
+  const sum = totals().sum;
+  const list = closed ? [] : slotList(date, sum);
   const prev = $('#fTime').value;
-  $('#fTime').innerHTML = closed || !list.length
+  $('#fTime').innerHTML = !list.length
     ? `<option value="">${closed ? 'В этот день не работаем' : 'На сегодня уже не успеем'}</option>`
-    : list.map(i => `<option value="${i.label}"${i.label === prev ? ' selected' : ''}>${i.label}${i.extra ? ` (+${rub(i.extra)})` : ''}</option>`).join('');
+    : list.map(l => `<option value="${l}"${l === prev ? ' selected' : ''}>${l}</option>`).join('');
+  const note = $('#timeNote');
+  if (note) {
+    const today = date === mskNow().date;
+    note.hidden = !list.length || !today;
+    note.textContent = today && list.length
+      ? `Букет собираем ${prepMin(sum)} минут, поэтому сегодня везём с ${list[0].slice(0, 5)}.`
+      : '';
+  }
 }
 function bindPaySeg() {
   const seg = $('#paySeg');
@@ -1287,8 +1311,7 @@ function bindAddress() {
 function recalc() {
   const sum = totals().sum;
   if (getType === 'pickup') { $('#fDelivery').textContent = 'самовывоз'; $('#fTotal').textContent = rub(sum); return; }
-  const it = DEL ? DEL.intervals.find(i => i.label === $('#fTime').value) : null;
-  const extra = it ? it.extra : 0;
+  const extra = 0;   // доплат за интервал нет: время считается от заказа
   if (DEL && DEL.km) {
     if (!addrInfo) {
       $('#fDelivery').textContent = addrBusy ? 'считаем доставку…' : 'доставка — укажите адрес';
