@@ -1,23 +1,38 @@
 #!/usr/bin/env python3
-"""Оставляет только сами цветы: упаковка отрезается по цвету.
+"""Оставляет на снимке только сами цветы: без упаковки и без человека.
 
-Бумага у букета почти бесцветная (серо-белая), а лепестки — цветные.
-Берём цвет середины букета и оставляем то, что на него похоже.
-Если середина сама бледная, цветом ничего не решишь — тогда оставляем как есть.
+rembg вырезает весь передний план — вместе с бумагой и тем, кто держит букет.
+Дальше убираем лишнее двумя приёмами:
+  1) лицо и руки (цвет кожи) и тёмную одежду — они всегда мешают;
+  2) упаковку по цвету: бумага почти бесцветная, лепестки нет. Этот приём
+     работает только когда середина букета цветная; у пастельных гортензий
+     он бессилен, поэтому включается не всегда.
+Потом берём самый большой оставшийся кусок — это и есть шапка букета.
+Если срезалось бы слишком много, оставляем снимок как был: лучше с бумагой,
+чем без половины букета.
 """
 import sys
 import numpy as np
 from PIL import Image, ImageOps
-from skimage.color import rgb2lab
-from scipy.ndimage import binary_fill_holes, binary_closing, binary_opening, label
+from skimage.color import rgb2lab, rgb2ycbcr
+from scipy.ndimage import binary_fill_holes, binary_closing, binary_opening, binary_dilation, label
 from rembg import remove, new_session
 import pillow_heif
 
 pillow_heif.register_heif_opener()
 
 WIDTH, MAX_IN = 640, 1400
-NEAR = 26.0        # насколько цвет может отличаться от середины
-MIN_CHROMA = 7.0   # если середина бледнее — по цвету не отделить
+NEAR = 26.0        # насколько цвет может отличаться от середины букета
+MIN_CHROMA = 7.0   # бледнее — по цвету упаковку не отделить
+DARK_L = 22.0      # темнее этого считаем одеждой или тенью
+MIN_KEEP = 0.30    # меньше этой доли не оставляем: значит, приём ошибся
+
+def biggest(mask):
+    lbl, n = label(mask)
+    if n == 0:
+        return None
+    sizes = np.bincount(lbl.ravel()); sizes[0] = 0
+    return lbl == sizes.argmax()
 
 def flowers_only(rgba):
     a = np.asarray(rgba)
@@ -25,37 +40,53 @@ def flowers_only(rgba):
     if alpha.sum() < 100:
         return rgba, "пусто"
 
-    lab = rgb2lab(a[..., :3] / 255.0)
+    rgb = a[..., :3] / 255.0
+    lab = rgb2lab(rgb)
+    ycc = rgb2ycbcr(a[..., :3])
+    cb, cr = ycc[..., 1], ycc[..., 2]
+
+    # середина букета — опора: там точно цветы, и по ней проверяем, не ошиблись ли приёмы
     ys, xs = np.nonzero(alpha)
     cy, cx = (ys.min() + ys.max()) // 2, (xs.min() + xs.max()) // 2
-    h, w = alpha.shape
     ry, rx = max(8, (ys.max() - ys.min()) // 6), max(8, (xs.max() - xs.min()) // 6)
     core = np.zeros_like(alpha)
     core[max(0, cy - ry):cy + ry, max(0, cx - rx):cx + rx] = True
     core &= alpha
 
-    mid = np.median(lab[core], axis=0)
-    chroma = float(np.hypot(mid[1], mid[2]))
-    if chroma < MIN_CHROMA:
-        return rgba, f"середина бледная ({chroma:.1f}) — оставляем как есть"
+    skin = (cb >= 77) & (cb <= 127) & (cr >= 133) & (cr <= 173) & (lab[..., 0] > 30)
+    dark = lab[..., 0] < DARK_L
+    note = []
+    # бледно-розовые лепестки похожи на кожу: если «кожа» нашлась в середине букета,
+    # значит приём ошибается — не применяем его
+    if core.sum() and (skin & core).sum() / core.sum() > 0.25:
+        skin = np.zeros_like(skin)
+    elif (skin & alpha).mean() > 0.01:
+        note.append("убрали человека")
+    mask = alpha & ~skin & ~dark
+    core &= mask
+    if core.sum() > 50:
+        mid = np.median(lab[core], axis=0)
+        chroma = float(np.hypot(mid[1], mid[2]))
+        if chroma >= MIN_CHROMA:
+            d = np.sqrt((lab[..., 1] - mid[1]) ** 2 + (lab[..., 2] - mid[2]) ** 2)
+            mask = mask & (d < NEAR)
+            note.append("убрали упаковку")
 
-    d = np.sqrt((lab[..., 1] - mid[1]) ** 2 + (lab[..., 2] - mid[2]) ** 2)
-    mask = alpha & (d < NEAR)
-    mask = binary_opening(mask, np.ones((5, 5)))
-    mask = binary_closing(mask, np.ones((21, 21)))
+    mask = binary_opening(mask, np.ones((7, 7)))       # мелкие остатки одежды отваливаются
+    mask = binary_closing(mask, np.ones((15, 15)))
     mask = binary_fill_holes(mask)
-
-    lbl, n = label(mask)
-    if n == 0:
+    big = biggest(mask)
+    if big is None:
         return rgba, "ничего не нашлось"
-    sizes = np.bincount(lbl.ravel()); sizes[0] = 0
-    mask = binary_fill_holes(lbl == sizes.argmax())
-    if mask.sum() < alpha.sum() * 0.25:
-        return rgba, "срезали бы слишком много — оставляем как есть"
+    big = binary_fill_holes(binary_dilation(big, np.ones((5, 5))))
+
+    share = big.sum() / alpha.sum()
+    if share < MIN_KEEP:
+        return rgba, f"срезалось бы {100 - 100 * share:.0f}% — оставляем как есть"
 
     out = a.copy()
-    out[..., 3] = np.where(mask, a[..., 3], 0)
-    return Image.fromarray(out), f"цвет середины {chroma:.1f}, осталось {100 * mask.sum() / alpha.sum():.0f}%"
+    out[..., 3] = np.where(big, a[..., 3], 0)
+    return Image.fromarray(out), (", ".join(note) or "без изменений") + f", осталось {100 * share:.0f}%"
 
 def main(src, dst):
     im = ImageOps.exif_transpose(Image.open(src))
@@ -69,7 +100,7 @@ def main(src, dst):
         out = out.crop(box)
     if out.width > WIDTH:
         out = out.resize((WIDTH, round(out.height * WIDTH / out.width)), Image.LANCZOS)
-    out.save(dst, "PNG", optimize=True)
+    out.save(dst, "WEBP", quality=88, method=6)
     print(f"{out.width}x{out.height} — {note}")
 
 if __name__ == "__main__":
