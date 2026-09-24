@@ -1378,7 +1378,14 @@ async function payCard(order, name, phone) {
         failRedirectUrl: `${location.origin}/?paid=0`,
         data: { orderId: order.id, name, successRedirectUrl: `${location.origin}/?paid=1`, failRedirectUrl: `${location.origin}/?paid=0` },
       }, {
-        onSuccess: () => done({ paid: true }),
+        // Возвращаемся на сайт сами. Кнопка «Вернуться в магазин» в окне оплаты
+        // у нас не срабатывала, и покупатель оставался на чужом экране с их рекламой бонуса.
+        onSuccess: () => {
+          try { store.set('cart', {}); } catch (_) {}
+          try { const l = store.get('last', null); if (l) { l.paid = true; store.set('last', l); } } catch (_) {}
+          location.href = '/?paid=1';
+          done({ paid: true });
+        },
         onFail: (reason) => done({ paid: false, error: 'Оплата не прошла: ' + (reason || 'попробуйте другую карту') }),
         // страховка: если покупатель просто закрыл окно оплаты, без неё сайт завис бы на «Подтвердить заказ»
         onComplete: () => setTimeout(() => done({ paid: false, error: 'Оплата не завершена. Её можно провести позже в «Мои заказы».' }), 300),
@@ -1663,6 +1670,21 @@ if (!API) {
 function saveLastOrder() {
   try { store.set('last', lastOrder && lastOrder.number ? { ...lastOrder, at: Date.now() } : null); } catch (_) {}
 }
+// Спрашиваем сервер, оплачен ли заказ. Банк показывает «оплачено» раньше, чем платёж
+// виден в нашей проверке, поэтому при возврате из окна оплаты переспрашиваем несколько раз —
+// иначе человеку, который только что заплатил, писали «заказ ждёт оплаты».
+async function askPaid(id, tries) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: id }) });
+      if (r.status === 404) return 'нет заказа';
+      const d = await r.json().catch(() => ({}));
+      if (d && d.paid) return 'оплачен';
+    } catch (_) { return 'нет связи'; }
+    if (i < tries - 1) await new Promise(ok => setTimeout(ok, 2000));
+  }
+  return 'не оплачен';
+}
 async function resumeOrder() {
   const back = new URLSearchParams(location.search).get('paid');
   if (back !== null) history.replaceState(null, '', location.pathname + location.hash);
@@ -1670,15 +1692,20 @@ async function resumeOrder() {
 
   if (!saved || !saved.number || Date.now() - (saved.at || 0) > 6 * 3600e3) return;
   lastOrder = saved;
-  // спрашиваем сервер, оплачен ли он: могли оплатить и не вернуться на сайт
   if (saved.order && saved.order.id) {
-    try {
-      const r = await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: saved.order.id }) });
-      // заказа на сервере уже нет — забываем его, иначе сайт вечно напоминает о призраке
-      if (r.status === 404) { lastOrder = null; store.set('last', null); return; }
-      const d = await r.json().catch(() => ({}));
-      if (d && d.paid) { lastOrder.paid = true; saveLastOrder(); }
-    } catch (_) { return; }      // нет связи — молчим, а не пугаем «не оплачено»
+    // вернулись прямо из окна оплаты — ждём подтверждения до 20 секунд, иначе спрашиваем один раз
+    const waiting = back === '1' && !saved.paid;
+    let note = null;
+    if (waiting) {
+      $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice resume" id="payWait">Проверяем оплату заказа №${esc(String(saved.number))}…</p></div>`);
+      note = $('#payWait');
+    }
+    const res = await askPaid(saved.order.id, waiting ? 10 : 1);
+    if (note) note.closest('.wrap').remove();
+    // заказа на сервере уже нет — забываем его, иначе сайт вечно напоминает о призраке
+    if (res === 'нет заказа') { lastOrder = null; store.set('last', null); return; }
+    if (res === 'нет связи') return;      // молчим, а не пугаем «не оплачено»
+    if (res === 'оплачен') { lastOrder.paid = true; saveLastOrder(); }
   }
   if (lastOrder.paid) {
     // вернулись из окна оплаты — покажем «Готово» с кнопкой на бота

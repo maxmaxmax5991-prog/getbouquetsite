@@ -34,7 +34,7 @@ const HELP = [
   "скрыть или показать, изменить цену, переименовать, заменить фото, удалить.",
   "Чтобы найти товар, просто напишите часть названия.",
   "",
-  "«Заказы» — активные заказы; статус меняется кнопками под заказом.",
+  "«Заказы» — активные заказы. Статус меняется в МоёмСкладе и подтягивается сюда сам.",
   "«Стоп заказов» — сайт перестаёт принимать заказы (товары остаются видны). Включить обратно — той же кнопкой.",
 ].join("\n");
 
@@ -412,10 +412,12 @@ function handle(app, secret, upd) {
     ord.set("photo_file_id", fileId);
     const st = ord.get("status");
     if (st === "new" || st === "confirmed" || st === "assembling") ord.set("status", "photo");
+    // Сохраняем ОДИН раз. Два сохранения подряд присылали клиенту «букет собран» дважды:
+    // хук уведомления сравнивает статус с тем, каким запись была при загрузке, и на втором
+    // сохранении снова считал статус только что изменившимся.
+    if (ord.get("tg_chat") || ord.get("max_chat")) ord.set("photo_status", "waiting");
     app.save(ord);
     if (ord.get("tg_chat")) {
-      ord.set("photo_status", "waiting");
-      app.save(ord);
       const saved = photoUrl(app, s, token, fileId, ord.id);
       const caption = `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`;
       const keys = { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] };
@@ -430,8 +432,6 @@ function handle(app, secret, upd) {
     }
     if (ord.get("max_chat")) {
       // в MAX кнопок под фото нет — покупатель отвечает сообщением, ответ разбирает lib/max.js
-      ord.set("photo_status", "waiting");
-      app.save(ord);
       const mx = require(`${__hooks}/lib/max.js`);
       const saved = photoUrl(app, s, token, fileId, ord.id);
       const url = saved && saved.url;
