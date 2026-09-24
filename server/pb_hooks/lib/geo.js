@@ -87,6 +87,7 @@ function suggest(s, q) {
   return r.data.results.map((x) => ({
     title: (x.title && x.title.text) || "",
     subtitle: (x.subtitle && x.subtitle.text) || "",
+    house: (x.tags || []).indexOf("house") >= 0,
   })).filter((x) => x.title);
 }
 

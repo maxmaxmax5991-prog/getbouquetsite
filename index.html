@@ -342,6 +342,14 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sugg-wrap{position:relative}
+.sugg{position:absolute;left:0;right:0;top:100%;z-index:6;margin:6px 0 0;padding:6px;list-style:none;background:var(--paper);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.22);max-height:264px;overflow:auto;-webkit-overflow-scrolling:touch}
+.sugg li{padding:10px 12px;border-radius:10px;cursor:pointer;font-size:15px;font-weight:600;color:var(--ink);line-height:1.25}
+.sugg li small{display:block;font-size:12.5px;font-weight:500;color:var(--ink-3);margin-top:2px}
+.sugg li.on,.sugg li:hover{background:var(--accent-soft)}
+.fixes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fixes button{border:1px solid var(--line-2);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 12px;font:600 13px var(--body);cursor:pointer}
+.fixes button:hover{border-color:var(--accent);color:var(--accent-text)}
 @media(max-width:400px){.four{grid-template-columns:repeat(2,1fr)}}
 .addr-hint{font-size:13px;font-weight:500;margin:2px 0 0}
 .addr-hint.bad{color:var(--sale)}
@@ -558,7 +566,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790258521"></script>
+<script src="data.js?v=1790259286"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1079,8 +1087,7 @@ function renderCart() {
         <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[-+0-9 ()]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
         <div id="addrBox">
-          <label for="fStreet">Улица<input id="fStreet" name="street" required autocomplete="address-line1" list="streetList" placeholder="Маленковская улица" maxlength="200"></label>
-          <datalist id="streetList"></datalist>
+          <label for="fStreet" class="sugg-wrap">Улица<input id="fStreet" name="street" required autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="streetSugg" placeholder="Начните вводить улицу" maxlength="200"><ul class="sugg" id="streetSugg" role="listbox" hidden></ul></label>
           <div class="three">
             <label for="fHouse">Дом<input id="fHouse" name="house" required placeholder="14" maxlength="20"></label>
             <label for="fBlock">Корпус<input id="fBlock" name="block" placeholder="1" maxlength="20"></label>
@@ -1263,23 +1270,85 @@ const addrFields = () => ({
   house: ($('#fHouse') || {}).value || '',
   block: ($('#fBlock') || {}).value || '',
 });
-function addrSay(text, bad) {
+function addrSay(text, bad, fixes) {
   const el = $('#addrHint'); if (!el) return;
-  el.hidden = !text; el.textContent = text || '';
-  el.className = 'addr-hint' + (text ? (bad ? ' bad' : ' good') : '');
+  el.hidden = !text; el.className = 'addr-hint' + (text ? (bad ? ' bad' : ' good') : '');
+  el.innerHTML = esc(text || '') + ((fixes && fixes.length)
+    ? `<span class="fixes">Может быть: ${fixes.map((f, i) => `<button type="button" data-fix="${i}">${esc(f.title)}${f.city && f.city !== 'Москва' ? `, ${esc(f.city)}` : ''}</button>`).join('')}</span>`
+    : '');
+}
+
+// когда адрес не нашёлся, предлагаем похожие — их отдают те же подсказки Яндекса
+let fixList = [];
+async function addrFixes(f) {
+  if (!(API && API.suggest)) return [];
+  try {
+    const r = await fetch(`/api/shop/suggest?q=${encodeURIComponent(`${f.street} ${f.house}`.trim())}`);
+    const d = await r.json();
+    return (d.items || []).filter(i => i.house).slice(0, 3)
+      .map(i => ({ title: i.title, city: suggCity(i.subtitle), house: true, subtitle: i.subtitle }));
+  } catch (_) { return []; }
 }
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
+/* Подсказки улиц: свой список под полем — обычный <datalist> на телефонах
+   то не показывается вовсе, то выглядит по-разному в каждом браузере. */
+let suggList = [], suggIx = -1, suggQuery = '';
+
+function suggClose() {
+  const hint = $('#addrHint');
+  if (hint) hint.onclick = e => {
+    const b = e.target.closest('[data-fix]'); if (!b) return;
+    suggList = fixList; suggPick(+b.dataset.fix);
+  };
+  const box = $('#streetSugg');
+ if (!box) return;
+  box.hidden = true; box.innerHTML = '';
+  suggList = []; suggIx = -1;
+  const el = $('#fStreet'); if (el) el.setAttribute('aria-expanded', 'false');
+}
+
+function suggDraw() {
+  const box = $('#streetSugg'); if (!box) return;
+  if (!suggList.length) return suggClose();
+  box.innerHTML = suggList.map((it, i) => `<li role="option" data-i="${i}"${i === suggIx ? ' class="on" aria-selected="true"' : ''}>${esc(it.title)}${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</li>`).join('');
+  box.hidden = false;
+  $('#fStreet').setAttribute('aria-expanded', 'true');
+}
+
+// «Химки, Московская область» → «Химки»; Москву в поле не пишем, она и так по умолчанию
+const suggCity = sub => String(sub || '').split(',')[0].trim();
+
+function suggPick(i) {
+  const it = suggList[i]; if (!it) return;
+  const city = suggCity(it.subtitle);
+  let street = it.title, house = '';
+  if (it.house) {
+    const cut = it.title.lastIndexOf(',');
+    if (cut > 0) { street = it.title.slice(0, cut).trim(); house = it.title.slice(cut + 1).trim(); }
+  }
+  $('#fStreet').value = (city && city !== 'Москва') ? `${city}, ${street}` : street;
+  if (house) $('#fHouse').value = house;
+  suggClose();
+  // дом уже известен — просим следующее, что нужно курьеру
+  const next = house ? $('#fEntrance') : $('#fHouse');
+  if (next) next.focus();
+  checkAddress();
+}
+
 const loadSuggest = debounce(async () => {
-  const q = ($('#fStreet') || {}).value || '';
-  if (q.trim().length < 3) return;
+  const el = $('#fStreet'); if (!el) return;
+  const q = el.value || '';
+  if (q.trim().length < 3) return suggClose();
+  suggQuery = q;
   try {
     const r = await fetch(`/api/shop/suggest?q=${encodeURIComponent(q)}`);
     const d = await r.json();
-    const dl = $('#streetList'); if (!dl) return;
-    dl.innerHTML = (d.items || []).map(i => `<option value="${esc(i.title)}"></option>`).join('');
-  } catch (_) {}
-}, 350);
+    if (suggQuery !== el.value || document.activeElement !== el) return;   // пока ждали ответ, текст поменялся
+    suggList = (d.items || []).slice(0, 7); suggIx = -1;
+    suggDraw();
+  } catch (_) { suggClose(); }
+}, 250);
 
 const checkAddress = debounce(async () => {
   if (!(DEL && DEL.km) || getType === 'pickup') return;
@@ -1290,7 +1359,7 @@ const checkAddress = debounce(async () => {
   try {
     const r = await fetch('/api/shop/address', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...f, sum: totals().sum }) });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) { addrSay(d.message || 'Не нашли такой адрес.', true); }
+    if (!r.ok) { fixList = await addrFixes(f); addrSay(d.message || 'Не нашли такой адрес.', true, fixList); }
     else {
       addrInfo = { km: d.km, price: d.price, zone: d.zone || '' };
       // при расчёте от МКАД покупателю понятнее «внутри МКАД» или «4.1 км за МКАД», чем км от магазина
@@ -1304,7 +1373,23 @@ const checkAddress = debounce(async () => {
 function bindAddress() {
   const st = $('#fStreet'); if (!st) return;
   const hints = !!(API && API.suggest);          // ключ подсказок заведён
-  st.oninput = () => { if (hints) loadSuggest(); checkAddress(); };
+  st.oninput = () => { if (hints) loadSuggest(); else checkAddress(); };
+  st.onblur = () => setTimeout(() => { suggClose(); checkAddress(); }, 150);   // ждём возможное нажатие по списку
+  st.onkeydown = e => {
+    if (!suggList.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      suggIx = (suggIx + (e.key === 'ArrowDown' ? 1 : suggList.length - 1)) % suggList.length;
+      suggDraw();
+    } else if (e.key === 'Enter') {
+      if (suggIx >= 0) { e.preventDefault(); suggPick(suggIx); }
+    } else if (e.key === 'Escape') suggClose();
+  };
+  const box = $('#streetSugg');
+  if (box) box.onmousedown = e => {   // именно mousedown: click не успеет, поле уже потеряет фокус
+    const li = e.target.closest('li'); if (!li) return;
+    e.preventDefault(); suggPick(+li.dataset.i);
+  };
   ['#fHouse', '#fBlock'].forEach(sel => { const el = $(sel); if (el) el.oninput = checkAddress; });
 }
 
