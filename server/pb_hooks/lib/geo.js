@@ -116,7 +116,7 @@ function distanceBySuggest(app, s, o) {
   // за город не пускаем не по названию, а по кругам: докуда возим, задаёт самая большая зона
   const factor = +s.get("km_factor") > 0 ? +s.get("km_factor") : 1.3;
   const km = (hit.distance.value / 1000) * factor;
-  return { ok: true, km: Math.round(km * 10) / 10, address: (hit.address && hit.address.formatted_address) || "" };
+  return { ok: true, km: Math.round(km * 10) / 10, locality: kind("LOCALITY"), street: kind("STREET") };
 }
 
 // ---------- МКАД ----------
@@ -190,7 +190,7 @@ function locate(s, o) {
     if (!kind("HOUSE")) return { ok: false, error: "Не нашли такой дом. Проверьте номер дома и корпус." };
     // все три замера должны говорить об одной улице, иначе точку считать нельзя
     const where = `${kind("LOCALITY")}|${kind("STREET")}`;
-    if (i === 0) { address = (hit.address && hit.address.formatted_address) || ""; ms.push(where); }
+    if (i === 0) { address = where; ms.push(where); }
     else if (where !== ms[0]) return { ok: false, error: "Не смогли найти этот адрес на карте. Проверьте улицу и дом." };
     ms.push([TRI[i][0], TRI[i][1], hit.distance.value / 1000]);
   }
@@ -203,7 +203,8 @@ function locate(s, o) {
   if (!det) return { ok: false, error: "Не смогли определить адрес на карте." };
   const x = (rows[0][2] * rows[1][1] - rows[0][1] * rows[1][2]) / det;
   const y = (rows[0][0] * rows[1][2] - rows[0][2] * rows[1][0]) / det;
-  return { ok: true, lat: 55.75 + y / KY, lon: 37.62 + x / KX, address };
+  const [locality, street] = address.split("|");
+  return { ok: true, lat: 55.75 + y / KY, lon: 37.62 + x / KX, locality, street };
 }
 
 // Координаты торговой точки. Считаем один раз и запоминаем в настройках,
@@ -272,31 +273,33 @@ function check(app, s, o, sum) {
   // Сначала геокодер: он точнее и даёт координаты для курьера. Нет ключа или он не
   // подошёл — работаем по подсказкам. Для расчёта от МКАД нужны координаты (три замера),
   // для кругов от магазина хватает одного замера расстояния.
-  let lat = 0, lon = 0, km = 0, found = "";
+  let lat = 0, lon = 0, km = 0, locality = "", street = "";
   const g = s.get("ymaps_key") ? geocode(s, geoQuery(o)) : { ok: false, error: "" };
   if (g.ok && g.exact) {
     const d = distance(app, s, g.lat, g.lon);
     if (!d.ok) return d;
-    lat = g.lat; lon = g.lon; km = d.km; found = g.address;
+    lat = g.lat; lon = g.lon; km = d.km;
   } else if (s.get("mkad_mode")) {
     const loc = locate(s, o);
     if (!loc.ok) return loc;
-    lat = loc.lat; lon = loc.lon; found = loc.address;
+    lat = loc.lat; lon = loc.lon; locality = loc.locality; street = loc.street;
     const d = distance(app, s, lat, lon);
     km = d.ok ? d.km : 0;
   } else {
     const sg = distanceBySuggest(app, s, o);
     if (!sg.ok) return sg;
-    km = sg.km; found = sg.address;
+    km = sg.km; locality = sg.locality; street = sg.street;
   }
 
   const p = s.get("mkad_mode") ? priceFromMkad(s, { lat, lon }) : priceFor(app, s, km, +sum || 0);
   if (!p.ok) return p;
-  // адрес для курьера берём в том виде, в каком его знают карты, и дописываем подъезд с квартирой
-  // «Россия, Москва, …» — лишнее слово, курьеру и так понятно
-  const short = String(found || "").replace(/^Россия,\s*/, "");
-  const address = short ? `${short}${detailsLine(o)}` : addressLine(o);
-  return { ok: true, lat, lon, km, out_km: p.out_km || 0, price: p.price, zone: p.zone, zoneName: p.zoneName, address, found: short };
+  // Город и улицу берём у карт (они знают правильное написание), а дом — тот, что вписал
+  // покупатель: карты на «12» иногда отвечают «12с17», и курьер уехал бы не в то строение.
+  const base = (locality || street)
+    ? `${locality || CITY}, ${street || o.street}${o.house ? `, д. ${o.house}` : ""}${o.block ? `, к. ${o.block}` : ""}`
+    : addressLine({ street: o.street, house: o.house, block: o.block });
+  return { ok: true, lat, lon, km, out_km: p.out_km || 0, price: p.price, zone: p.zone, zoneName: p.zoneName,
+    address: `${base}${detailsLine(o)}`, found: base };
 }
 
 module.exports = { geocode, suggest, distanceBySuggest, detailsLine, locate, insideMkad, kmFromMkad, priceFromMkad, distance, priceFor, zonesByRadius, check, addressLine, geoQuery, haversine, origin };
