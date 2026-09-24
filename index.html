@@ -342,6 +342,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.notice.resume{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-color:var(--sale);color:var(--ink)}
 .sub-box.warn{border-color:var(--sale);background:rgba(224,23,138,.07)}
 .sub-box.warn b{color:var(--sale)}
 .pd-shots{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:2px}
@@ -576,7 +577,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790264875"></script>
+<script src="data.js?v=1790265039"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1544,6 +1545,7 @@ cartDlg.addEventListener('submit', async e => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { btn.disabled = false; return err(res.status === 429 ? 'Слишком много попыток. Подождите минуту.' : (data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.')); }
       lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code, order: data, name: v('name').trim(), phone: v('phone').trim() };
+      saveLastOrder();
       if (payMethod === 'card') {
         cartDlg.close();   // корзина открыта поверх всего, окно оплаты было бы под ней
         const res = await payCard(data, v('name').trim(), v('phone').trim());
@@ -1569,9 +1571,34 @@ if (!API) {
   const live = "https://147-45-141-23.sslip.io/";
   $("main").insertAdjacentHTML("afterbegin", `<div class="wrap"><p class="notice">Это копия сайта для просмотра — заказ здесь оформить нельзя. Рабочий сайт: <a href="${live}">${live}</a></p></div>`);
 }
-if (API && API.notice) $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice">${esc(API.notice)}</p></div>`);
+/* Последний заказ держим в браузере: банк при оплате уводит на свою страницу,
+   и покупатель возвращался на пустой сайт, не понимая, оплатился ли заказ. */
+function saveLastOrder() {
+  try { store.set('last', lastOrder && lastOrder.number ? { ...lastOrder, at: Date.now() } : null); } catch (_) {}
+}
+async function resumeOrder() {
+  const saved = store.get('last', null);
+  if (!saved || !saved.number || Date.now() - (saved.at || 0) > 6 * 3600e3) return;
+  lastOrder = saved;
+  // спрашиваем сервер, оплачен ли он: могли оплатить и не вернуться на сайт
+  if (saved.order && saved.order.id) {
+    try {
+      const r = await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: saved.order.id }) });
+      const d = await r.json().catch(() => ({}));
+      if (d && d.paid) { lastOrder.paid = true; saveLastOrder(); }
+    } catch (_) {}
+  }
+  if (lastOrder.paid) return;
+  $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice resume">Заказ №${esc(String(lastOrder.number))} на ${rub(lastOrder.sum)} ждёт оплаты — без неё мы не возьмём его в работу.
+    <button class="btn btn-primary btn-sm" id="resumePay">Оплатить</button></p></div>`);
+  const btn = $('#resumePay');
+  if (btn) btn.onclick = () => { view = 'done'; renderCart(); cartDlg.showModal(); };
+}
+
+if (API && API.notice) $('main')
+.insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice">${esc(API.notice)}</p></div>`);
 if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href="tel:${esc(API.phone.replace(/[^\d+]/g, ''))}" class="num">${esc(API.phone)}</a>`);
-loadMe().then(() => { badges(); router(); });
+loadMe().then(() => { badges(); router(); resumeOrder(); });
 })();
 </script>
 </body>
