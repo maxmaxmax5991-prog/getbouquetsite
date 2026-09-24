@@ -327,8 +327,9 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .mini button{width:32px;height:34px;display:grid;place-items:center;color:var(--ink-2)}
 .mini .i{width:15px;height:15px}
 .mini span{min-width:18px;text-align:center;font-weight:700;font-size:14px}
-.total{display:flex;justify-content:space-between;align-items:baseline}
-.total b{font:700 24px var(--display);letter-spacing:-.04em}
+.total{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.total b{font:700 24px var(--display);letter-spacing:-.04em;white-space:nowrap}
+.total>span{min-width:0}
 .total small{display:block;font-size:12.5px;color:var(--leaf);font-weight:600}
 .cart-empty{text-align:center;padding:48px 8px}
 .cart-empty h3{font:600 24px/1.15 var(--display);letter-spacing:-.04em;margin:0 0 10px}
@@ -557,7 +558,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790252749"></script>
+<script src="data.js?v=1790253230"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1266,7 +1267,7 @@ const checkAddress = debounce(async () => {
     const r = await fetch('/api/shop/address', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...f, sum: totals().sum }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { addrSay(d.message || 'Не нашли такой адрес.', true); }
-    else { addrInfo = { km: d.km, price: d.price }; addrSay(`${d.address || ''} · ${d.km} км от магазина · ${d.zone ? d.zone + ', ' : ''}доставка ${d.price ? rub(d.price) : 'бесплатно'}`, false); }
+    else { addrInfo = { km: d.km, price: d.price }; addrSay(`${d.address || ''} · ${d.km} км от магазина · доставка ${d.price ? rub(d.price) : 'бесплатно'}`, false); }
   } catch (_) { addrSay('Не получилось проверить адрес. Попробуйте ещё раз.', true); }
   addrBusy = false; recalc();
 }, 600);

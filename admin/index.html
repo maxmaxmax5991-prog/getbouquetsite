@@ -971,7 +971,7 @@ $('#dKmTest').onclick = safe(async () => {
   out.hidden = false; out.textContent = 'Проверяем…';
   try {
     const r = await api('/api/shop/geo-test', { method: 'POST', body });
-    out.textContent = `${r.address} — ${r.km} км от «${r.from}», доставка ${r.price} ₽`;
+    out.textContent = `${r.address} — ${r.km} км от «${r.from}» → ${r.zone || 'зона не подобрана'}, доставка ${r.price ? r.price + ' ₽' : 'бесплатно'}`;
   } catch (err) { out.textContent = err.message; }
 });
 $('#dPickSave').onclick = safe(async () => {
