@@ -537,6 +537,14 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   </div>
 </div>
 
+<div id="viewOrder" hidden>
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Заказ</span></nav>
+    <div class="cat-head"><div><h1 id="ordTitle">Заказ</h1><p id="ordSub"></p></div></div>
+    <div id="ordBody"></div>
+  </div>
+</div>
+
 <!-- ============ PRODUCT ============ -->
 <div id="viewProduct" hidden>
   <div class="wrap">
@@ -589,7 +597,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790273760"></script>
+<script src="data.js?v=1790274384"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -851,9 +859,10 @@ function go404() { location.hash = '#/catalog'; }
 function router() {
   const h = location.hash.replace(/^#\/?/, '');
   const [a, b] = h.split('/');
-  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe') };
+  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder') };
   let name = 'home', scrollTo = null;
-  if (a === 'me') { name = 'me'; document.title = 'Личный кабинет — venikoff.net'; renderMe(); }
+  if (a === 'order' && b) { name = 'order'; document.title = 'Заказ — venikoff.net'; renderOrder(b); }
+  else if (a === 'me') { name = 'me'; document.title = 'Личный кабинет — venikoff.net'; renderMe(); }
   else if (a === 'catalog' || a === 'favorites') {
     name = 'catalog';
     state.favOnly = a === 'favorites'; state.cat = state.favOnly ? 'all' : (b && catName[b] ? b : 'all');
@@ -872,6 +881,72 @@ function scrollTo0() { window.scrollTo(0, 0); }
 addEventListener('hashchange', router);
 $('#favBtn').onclick = () => { location.hash = '#/favorites'; if (!favs.size) toast('Отмечайте букеты сердечком', false); };
 $('#meBtn').onclick = () => { location.hash = '#/me'; };
+
+/* ---------- страница заказа ----------
+   Постоянный адрес #/order/<код>. Что показать, решает сервер — не память браузера,
+   не обработчики окна оплаты и не кнопка «Вернуться в магазин» у банка.
+   Поэтому страница одинаково работает после любого способа оплаты, по ссылке из бота,
+   с другого телефона и через час. Пока оплата не подтвердилась, сама переспрашивает. */
+let ordPoll = 0;
+async function renderOrder(code) {
+  const mine = ++ordPoll;                       // ушли на другую страницу — старый опрос молчит
+  const box = $('#ordBody'), sub = $('#ordSub');
+  box.innerHTML = '<div class="me-card">Загружаем заказ…</div>';
+  sub.textContent = '';
+  let tries = 0;
+
+  const draw = (d) => {
+    const waiting = !d.paid && d.payment_method === 'card';
+    $('#ordTitle').textContent = `Заказ №${d.number}`;
+    sub.textContent = `${d.delivery_type === 'pickup' ? 'Самовывоз' : 'Доставка'}: ${d.when}`;
+    const pay = d.paid
+      ? '<p class="notice paid">✅ Оплачено. Заказ принят в работу.</p>'
+      : d.payment_method === 'card'
+        ? (tries < 2
+          ? '<p class="notice resume">Проверяем оплату…</p>'
+          : `<p class="notice resume">Оплата пока не подтвердилась. Если деньги списаны, она появится в течение пары минут — страницу можно не закрывать.
+             <button class="btn btn-primary btn-sm" id="ordPay">Оплатить</button></p>`)
+        : '<p class="notice">Оплата при получении.</p>';
+    const bot = d.bot ? `<a class="btn btn-primary btn-wide" href="https://t.me/${esc(d.bot)}?start=o${esc(d.code)}" target="_blank" rel="noopener"><span>Следить в Телеграме</span>${icon('arrow')}</a>` : '';
+    const mx = d.max_bot ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${esc(d.max_bot)}" target="_blank" rel="noopener" style="margin-top:8px"><span>Следить в MAX — код ${esc(d.code)}</span>${icon('arrow')}</a>` : '';
+    box.innerHTML = `${pay}
+      <div class="me-card">
+        <h3>${esc(d.status_text)}</h3>
+        <p class="hint">${d.delivery_type === 'pickup' ? 'Забрать' : 'Привезём'}: ${esc(d.address || '')}</p>
+        <p class="hint">Сумма: <b>${rub(d.total)}</b></p>
+      </div>
+      ${bot || mx ? `<div class="me-card"><h3>Статусы и фото букета</h3>
+        <p class="hint">Пришлём фото перед доставкой, а вы ответите, всё ли нравится.</p>${bot}${mx}</div>` : ''}
+      <p class="hint"><a href="#/catalog">Вернуться в каталог</a></p>`;
+    const pb = $('#ordPay');
+    if (pb) pb.onclick = async () => {
+      pb.disabled = true;
+      const r = await payCard({ id: d.id || '', number: d.number, total: d.total, tg_code: d.code }, '', '');
+      pb.disabled = false;
+      if (!r.paid && r.error) toast(r.error, true);
+    };
+    if (d.paid) {                               // заказ закрыт — старое напоминание больше не нужно
+      try { store.set('last', null); store.set('cart', {}); } catch (_) {}
+    }
+    return waiting;
+  };
+
+  const tick = async () => {
+    if (mine !== ordPoll) return;
+    let d = null, gone = false;
+    try {
+      const r = await fetch(`/api/shop/order/${encodeURIComponent(code)}`);
+      if (r.status === 404) gone = true; else d = await r.json();
+    } catch (_) {}
+    if (mine !== ordPoll) return;
+    if (gone) { box.innerHTML = '<div class="me-card">Такого заказа нет. Возможно, ссылка устарела. <a href="#/catalog">В каталог</a></div>'; return; }
+    if (!d) { box.innerHTML = '<div class="me-card">Нет связи с сервером. Обновите страницу.</div>'; return; }
+    const waiting = draw(d);
+    tries++;
+    if (waiting && tries < 40) setTimeout(tick, 3000);   // около двух минут
+  };
+  tick();
+}
 
 /* ---------- личный кабинет ---------- */
 let ME = null, meToken = store.get('token', '');
@@ -931,12 +1006,13 @@ async function renderMe() {
           <span>${o.delivery_type === 'pickup' ? 'Самовывоз' : 'Доставка'}: ${new Date(o.date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}, ${esc(o.interval || '')}</span>
           <span>${o.payment_status === 'paid' ? 'Оплачено' : o.payment_method === 'card' ? 'Ждёт оплаты' : 'Оплата при получении'}</span>
         </div>
-        ${o.payment_method === 'card' && o.payment_status !== 'paid' && o.status !== 'cancelled' && PAY && PAY.card ? `<div style="margin-top:10px"><button class="btn btn-primary btn-sm" data-pay-order="${o.id}" data-sum="${o.total}" data-num="${o.number}">Оплатить ${rub(o.total)}</button></div>` : ''}
+        ${o.payment_method === 'card' && o.payment_status !== 'paid' && o.status !== 'cancelled' && PAY && PAY.card ? `<div style="margin-top:10px"><button class="btn btn-primary btn-sm" data-pay-order="${o.id}" data-sum="${o.total}" data-num="${o.number}" data-code="${esc(o.tg_code || '')}">Оплатить ${rub(o.total)}</button></div>` : ''}
         ${!o.subscribed && API.bot && o.tg_code ? `<div style="margin-top:10px"><a class="btn btn-ghost btn-sm" href="https://t.me/${API.bot}?start=o${o.tg_code}" target="_blank" rel="noopener">Получать статусы в Телеграме</a></div>` : ''}
+        ${o.tg_code ? `<p class="hint" style="margin-top:8px"><a href="#/order/${esc(o.tg_code)}">Страница заказа</a></p>` : ''}
       </div>`).join('') : '<div class="me-card">Заказов пока нет. <a href="#/catalog">Перейти в каталог</a></div>'}`;
 $$("[data-pay-order]").forEach(b => b.onclick = async () => {
   b.disabled = true;
-  const res = await payCard({ id: b.dataset.payOrder, number: b.dataset.num, total: +b.dataset.sum }, ME.name || "", ME.phone || "");
+  const res = await payCard({ id: b.dataset.payOrder, number: b.dataset.num, total: +b.dataset.sum, tg_code: b.dataset.code }, ME.name || "", ME.phone || "");
   if (res.paid) {
     try { await fetch("/api/shop/pay-check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ order: b.dataset.payOrder }) }); } catch (_) {}
     toast("Оплата прошла");
@@ -1297,7 +1373,8 @@ ${payChoice()}
       ${botLink || (API && API.maxBot) ? `<div class="sub-box">
         <b>Следите за заказом в мессенджере</b>
         <span>Пришлём фото букета перед доставкой, а вы ответите, всё ли нравится.${API && API.maxBot ? " В MAX откройте бота и пришлите ему код с кнопки ниже." : ""}</span>
-      </div>` : ""}</div>`;
+      </div>` : ""}
+      ${API && lastOrder.code ? `<p class="hint" style="margin-top:14px">Страница заказа: <a href="#/order/${esc(lastOrder.code)}">открыть</a> — там всегда видно, оплачен он и что с ним сейчас. Ссылку можно сохранить.</p>` : ""}</div>`;
     foot.hidden = false;
     foot.innerHTML = `${needPay ? `<button class="btn btn-primary btn-wide" id="doneRepay"><span>Оплатить ${rub(lastOrder.sum)}</span>${icon("arrow")}</button>` : ""}
       ${botLink ? `<a class="btn ${needPay ? "btn-ghost" : "btn-primary"} btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Открыть бота и получать статусы</span>${icon("arrow")}</a>` : ""}
@@ -1364,6 +1441,9 @@ async function payCard(order, name, phone) {
   } catch (_) {}
   return loadWidget().then(ok => {
     if (!ok || !window.cp) return { paid: false, error: 'Не удалось открыть окно оплаты. Мы свяжемся с вами для оплаты.' };
+    // Куда возвращаем покупателя: на страницу его заказа. Она спрашивает сервер сама,
+    // поэтому одинаково работает и после кнопки банка, и по ссылке из бота, и с другого телефона.
+    const back = order.tg_code ? `${location.origin}/#/order/${encodeURIComponent(order.tg_code)}` : `${location.origin}/?paid=1`;
     return new Promise(resolve => {
       let answered = false, poll = 0;
       const stop = () => { if (poll) { clearInterval(poll); poll = 0; } };
@@ -1374,7 +1454,7 @@ async function payCard(order, name, phone) {
         answered = true;   // окно закроется следом, и обработчик «не завершено» уже ничего не перепишет
         try { store.set('cart', {}); } catch (_) {}
         try { const l = store.get('last', null); if (l) { l.paid = true; store.set('last', l); } } catch (_) {}
-        location.href = '/?paid=1';
+        location.href = back;
       };
       // Сторож: часть способов оплаты (СБП, оплата частями) уводит покупателя на чужую страницу,
       // и onSuccess у нас уже не выполняется — а кнопка «Вернуться в магазин» там не работала.
@@ -1393,11 +1473,10 @@ async function payCard(order, name, phone) {
         invoiceId: String(order.number),
         accountId: phone,
         skin: 'mini',
-        // куда вернуть покупателя: без этих адресов кнопка «Вернуться в магазин»
-        // в окне оплаты ничего не делает — ей просто некуда идти
-        successRedirectUrl: `${location.origin}/?paid=1`,
-        failRedirectUrl: `${location.origin}/?paid=0`,
-        data: { orderId: order.id, name, successRedirectUrl: `${location.origin}/?paid=1`, failRedirectUrl: `${location.origin}/?paid=0` },
+        // куда вернуть покупателя, если их кнопка «Вернуться в магазин» всё же сработает
+        successRedirectUrl: back,
+        failRedirectUrl: back,
+        data: { orderId: order.id, name, successRedirectUrl: back, failRedirectUrl: back },
       }, {
         // Возвращаемся на сайт сами. Кнопка «Вернуться в магазин» в окне оплаты
         // у нас не срабатывала, и покупатель оставался на чужом экране с их рекламой бонуса.

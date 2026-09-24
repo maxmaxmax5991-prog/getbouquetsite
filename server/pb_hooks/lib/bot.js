@@ -316,7 +316,9 @@ function handleClient(app, upd) {
     order.set("tg_chat", String(chat));
     app.save(order);
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));
-    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.` });
+    // ссылка на страницу заказа: по ней всегда видно, оплачен он и что с ним сейчас
+    const site1 = String(s.get("site_url") || "").replace(/\/$/, "");
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.${site1 ? `\n\nСтраница заказа: ${site1}/#/order/${order.get("tg_code")}` : ""}` });
   }
 
   // обычное сообщение: показываем состояние последнего заказа
@@ -414,7 +416,7 @@ function handle(app, secret, upd) {
       const when = `${shop.whenText(order)}`;
       admins.forEach((adm) => shop.tg(token, "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));
       return shop.tg(token, "sendMessage", { chat_id: chat,
-        text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${when}.\n\nБудем присылать сюда статусы: подтверждение, фото букета, отправку и доставку.` });
+        text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${when}.\n\nБудем присылать сюда статусы: подтверждение, фото букета, отправку и доставку.${String(s.get("site_url") || "") ? `\n\nСтраница заказа: ${String(s.get("site_url")).replace(/\/$/, "")}/#/order/${order.get("tg_code")}` : ""}` });
     }
     return shop.tg(token, "sendMessage", { chat_id: chat, text: "Не нашёл такой заказ. Проверьте ссылку с сайта." });
   }
