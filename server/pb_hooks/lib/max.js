@@ -38,6 +38,24 @@ function send(token, userId, text) {
   return call(token, "POST", `/messages?user_id=${encodeURIComponent(String(userId))}`, { text: String(text).slice(0, 4000) });
 }
 
+// Ответ на «Нравится?» в MAX приходит словами: кнопок под сообщением там нет.
+// Отвечают по-разному — «да», «супер», «спасибо», одним смайликом, поэтому
+// одного списка слов мало. Возвращаем: "yes" — одобрил, "no" — просит поправить,
+// "" — непонятно, лучше переспросить, чем зря дёргать флориста.
+function likesText(raw) {
+  const t = String(raw || "").toLowerCase().replace(/\u0451/g, "\u0435").trim();
+  if (!t) return "";
+  const no = /(не нрав|не оч|не то|не та|не так|не подход|не хват|помен|попра|перед|замен|убер|добав|друг|плох|ужас|мало|недостаточ|маленьк|мелко|побольше|поменьше|ярче|светле|темне|коротк|длинн|бледн|(^|[^а-я])но[ ,])/.test(t);
+  const yes = /^\++$/.test(t)
+    || /[\u{1F44D}\u{1F44C}\u2764\u{1F9E1}\u{1F49B}\u{1F49A}\u{1F499}\u{1F49C}\u{1F525}\u{1F60D}\u{1F970}\u{1F929}\u{1F63B}\u{1F490}\u{1F338}\u{1F339}\u2728\u{1F64F}]/u.test(t)
+    || /(^|[^а-я])(да|ага|угу|ок|окей|ok|okay|супер|отличн|класс|красот|красив|прекрасн|шикарн|здоров|огонь|бомба|нрав|спасиб|спс|благодар|хорош|норм|идеал|восторг|вау|wow|топ|годится|беру|люблю|love|nice|perfect)/.test(t);
+  if (yes && !no) return "yes";
+  if (no) return "no";
+  if (/\?\s*$/.test(t)) return "";   // вопрос — не правка, это просто вопрос
+  // без явных примет: длинный ответ — это правки, короткое «хм» — переспросим
+  return (t.split(/\s+/).length >= 3 || t.length >= 15) ? "no" : "";
+}
+
 // Фото в MAX — в три шага: просим место под картинку, кладём туда файл,
 // и только потом отправляем сообщение со ссылкой на загруженное (token).
 // Ссылкой отправлять нельзя: MAX показал бы просто текст, а не картинку.
@@ -156,13 +174,20 @@ function handle(app, u) {
   let waiting = null;
   try { waiting = app.findFirstRecordByFilter("orders", "max_chat = {:c} && photo_status = 'waiting'", { c: String(userId) }); } catch (_) {}
   if (waiting && text) {
-    const likes = /^(да|ага|нравится|супер|отлично|класс|хорошо|ок|okay|ok|👍|\+)\b/i.test(text);
+    const verdict = likesText(text);
+    if (!verdict) {
+      // статус не трогаем — букет переснимать не надо, но сообщение флористу передаём
+      shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
+        text: `💬 Заказ №${waiting.get("number")} (MAX), клиент пишет: «${text.slice(0, 500)}»` }));
+      return say("Подскажите, всё хорошо — или что-то поправить? Если нравится, напишите «да».");
+    }
+    const likes = verdict === "yes";
     waiting.set("photo_status", likes ? "approved" : "rework");
     if (!likes) waiting.set("photo_comment", text.slice(0, 500));
     app.save(waiting);
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
       text: likes
-        ? `👍 Клиент одобрил фото по заказу №${waiting.get("number")} (MAX)`
+        ? `👍 Клиент одобрил фото по заказу №${waiting.get("number")} (MAX): «${text.slice(0, 200)}»`
         : `👎 Клиент просит поправить букет по заказу №${waiting.get("number")} (MAX): ${text.slice(0, 500)}` }));
     return say(likes ? "Спасибо! Везём." : "Спасибо, передали флористу — поправим.");
   }
@@ -176,4 +201,4 @@ function handle(app, u) {
   return say(`Здравствуйте! Это бот магазина venikoff.net.\n\nПришлите код с сайта, чтобы войти в личный кабинет и следить за заказом.${site ? `\n\nКаталог: ${site}` : ""}`);
 }
 
-module.exports = { call, send, sendPhoto, me, updates, handle, customerOf, partsOf, BASE };
+module.exports = { call, send, sendPhoto, likesText, me, updates, handle, customerOf, partsOf, BASE };
