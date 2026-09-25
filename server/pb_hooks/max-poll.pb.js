@@ -25,7 +25,8 @@ cronAdd("max-poll", "* * * * *", () => {
 
   while (Date.now() < until) {
     const r = mx.updates(token, marker);
-    if (!r.ok) return;                      // нет связи или ключ не подошёл — попробуем через минуту
+    if (!r.ok) return;
+    try { $app.db().newQuery("UPDATE settings SET max_beat = {:v} WHERE id = {:id}").bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {}                      // нет связи или ключ не подошёл — попробуем через минуту
     const list = (r.data && r.data.updates) || [];
     for (const u of list) {
       try { mx.handle($app, u); } catch (err) { console.log("max bot", err); }

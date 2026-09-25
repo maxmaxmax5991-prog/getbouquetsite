@@ -607,7 +607,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790344414"></script>
+<script src="data.js?v=1790347902"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -642,6 +642,13 @@ if (API && API.categories) CATS.splice(0, CATS.length, ...API.categories.map(c =
 const ADDON_CATS = new Set(API && API.categories ? API.categories.filter(c => c.addon).map(c => c.slug) : ['cards', 'toys']);
 const isAddon = p => ADDON_CATS.has(p.cat);
 const catName = Object.fromEntries(CATS);
+// Подпись под названием — что это за цветок. Берём название раздела и ставим в
+// единственное число: «Кустовые розы» → «Кустовая роза». Раньше тут было жёстко
+// написано «Одноголовая роза», и она светилась даже под гортензиями.
+const oneOf = (n) => String(n || '')
+  .replace(/ые розы$/i, 'ая роза').replace(/ые гиганты$/i, 'ый гигант')
+  .replace(/^Гортензии$/i, 'Гортензия').replace(/^Открытки$/i, 'Открытка')
+  .replace(/^Игрушки$/i, 'Игрушка').replace(/^Тюльпаны$/i, 'Тюльпан');
 const isStem = p => p.cat === 'stems';
 const ADDONS = P.filter(p => isAddon(p));
 const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
@@ -759,7 +766,7 @@ function card(p) {
     <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
     <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
-    ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : (p.lengths && p.lengths.some(L => L > 0)) ? `<div class="sub">Одноголовая роза</div>` : ''}
+    ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
     ${sizesHTML(p)}
     <div class="buy-slot">${buyHTML(p)}</div>
   </article>`;

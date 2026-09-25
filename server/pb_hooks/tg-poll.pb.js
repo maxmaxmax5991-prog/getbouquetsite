@@ -21,6 +21,9 @@ cronAdd("tg-poll-client", "* * * * *", () => {
     catch (err) { console.log("offset client", err); }
   };
 
+  // «бот жив» — по этой отметке сторож понимает, что опрос идёт
+  const beat = (f) => { try { $app.db().newQuery(`UPDATE settings SET ${f} = {:v} WHERE id = {:id}`).bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {} };
+
   let offset = s.get("tg_offset_client") || 0;
   const until = Date.now() + 52000;
   let conflicts = 0;
@@ -35,6 +38,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
       continue;
     }
     if (res.statusCode !== 200 || !res.json || !res.json.ok) return;
+    beat("tg_beat_client");
     const updates = res.json.result || [];
     for (const upd of updates) {
       offset = upd.update_id + 1;
@@ -59,6 +63,8 @@ cronAdd("tg-poll", "* * * * *", () => {
     catch (err) { console.log("offset", err); }
   };
 
+  const beat = (f) => { try { $app.db().newQuery(`UPDATE settings SET ${f} = {:v} WHERE id = {:id}`).bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {} };
+
   const secret = s.get("tg_secret");
   let offset = s.get("tg_offset") || 0;
   const until = Date.now() + 52000;
@@ -79,6 +85,7 @@ cronAdd("tg-poll", "* * * * *", () => {
       continue;
     }
     if (res.statusCode !== 200 || !res.json || !res.json.ok) return;
+    beat("tg_beat");
 
     const updates = res.json.result || [];
     for (const upd of updates) {

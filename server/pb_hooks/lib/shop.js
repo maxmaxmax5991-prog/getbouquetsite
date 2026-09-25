@@ -478,11 +478,22 @@ function notifyCustomer(app, o, status) {
   if (!tgChat && !maxChat) return;
   const s = settings(app);
   const text = make(o);
-  if (tgChat) tg(clientToken(s), "sendMessage", { chat_id: tgChat, text });
+  // Если сообщение не ушло — покупатель об этом не узнает, поэтому говорим владельцу.
+  const failed = [];
+  if (tgChat) {
+    const r = tg(clientToken(s), "sendMessage", { chat_id: tgChat, text });
+    if (!r || !r.ok) failed.push(`Телеграм (${(r && r.description) || "нет ответа"})`);
+  }
   if (maxChat) {
     // подключаем здесь, а не сверху: иначе два модуля требуют друг друга
-    try { require(`${__hooks}/lib/max.js`).send(s.get("max_token"), maxChat, text); }
-    catch (err) { console.log("max notify", err); }
+    try {
+      const r = require(`${__hooks}/lib/max.js`).send(s.get("max_token"), maxChat, text);
+      if (!r || !r.ok) failed.push(`MAX (${(r && r.error) || "нет ответа"})`);
+    } catch (err) { console.log("max notify", err); failed.push("MAX (ошибка)"); }
+  }
+  if (failed.length) {
+    adminIds(s).forEach((chat) => tg(s.get("tg_token"), "sendMessage", { chat_id: chat,
+      text: `⚠️ Заказ №${o.get("number")}: не удалось сообщить покупателю — ${failed.join(", ")}.\nПозвоните: ${o.get("name")}, ${o.get("phone")}` }));
   }
 }
 

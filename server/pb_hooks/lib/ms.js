@@ -366,4 +366,4 @@ function markPaid(app, o) {
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { state: meta("state", st) });
 }
 
-module.exports = { ms, refs, pushOrder, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+module.exports = { ms, refs, pushOrder, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
