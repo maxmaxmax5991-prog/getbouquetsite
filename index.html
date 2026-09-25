@@ -605,7 +605,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790340996"></script>
+<script src="data.js?v=1790341446"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -918,7 +918,7 @@ async function renderOrder(code) {
              <button class="btn btn-primary btn-sm" id="ordPay">Оплатить</button></p>`)
         : '<p class="notice">Оплата при получении.</p>';
     const bot = d.bot ? `<a class="btn btn-primary btn-wide" href="https://t.me/${esc(d.bot)}?start=o${esc(d.code)}" target="_blank" rel="noopener"><span>Следить в Телеграме</span>${icon('arrow')}</a>` : '';
-    const mx = d.max_bot ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${esc(d.max_bot)}" target="_blank" rel="noopener" style="margin-top:8px"><span>Следить в MAX — код ${esc(d.code)}</span>${icon('arrow')}</a>` : '';
+    const mx = d.max_bot ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${esc(d.max_bot)}?start=o_${esc(d.code)}" target="_blank" rel="noopener" style="margin-top:8px"><span>Следить в MAX</span>${icon('arrow')}</a>` : '';
     box.innerHTML = `${pay}
       <div class="me-card">
         <h3>${esc(d.status_text)}</h3>
@@ -1067,8 +1067,8 @@ async function prepLogin(tgSel, maxSel, waitSel, done) {
   }
   if (mx) {
     if (d.max_link) { mx.href = d.max_link; mx.hidden = false; } else mx.hidden = true;
-    mx.onclick = () => waitLogin(d.code, waitSel, done,
-      `Откройте бота в MAX и пришлите ему этот код:<br><b style="font-size:18px;letter-spacing:.05em">${esc(d.code)}</b><br>Ждём подтверждения…`, true);
+    // код уходит прямо в ссылке (?start=…), покупателю печатать ничего не надо
+    mx.onclick = () => waitLogin(d.code, waitSel, done, 'Ждём подтверждения в MAX…', true);
   }
 }
 
@@ -1103,7 +1103,7 @@ function waitLogin(code, waitSel, done, text, html) {
   window.addEventListener('focus', wake);
 }
 
-// В Телеграме код уходит ссылкой сам, в MAX таких ссылок нет — код показываем покупателю
+// И в Телеграме, и в MAX код уходит прямо в ссылке — печатать его не надо
 async function startLogin(how, waitSel, done) {
   try {
     const r = await fetch('/api/shop/login-start', { method: 'POST' });
@@ -1113,7 +1113,7 @@ async function startLogin(how, waitSel, done) {
     if (how === 'max') {
       if (!d.max_link) return toast('Вход через MAX пока не настроен', true);
       window.open(d.max_link, '_blank', 'noopener');
-      wait.innerHTML = `Откройте бота в MAX и пришлите ему этот код:<br><b style="font-size:18px;letter-spacing:.05em">${esc(d.code)}</b><br>Ждём подтверждения…`;
+      wait.textContent = 'Ждём подтверждения в MAX…';
     } else {
       window.open(d.link, '_blank', 'noopener');
       wait.textContent = 'Ждём подтверждения в Телеграме…';
@@ -1384,13 +1384,13 @@ ${payChoice()}
       </div>` : ""}
       ${botLink || (API && API.maxBot) ? `<div class="sub-box">
         <b>Следите за заказом в мессенджере</b>
-        <span>Пришлём фото букета перед доставкой, а вы ответите, всё ли нравится.${API && API.maxBot ? " В MAX откройте бота и пришлите ему код с кнопки ниже." : ""}</span>
+        <span>Пришлём фото букета перед доставкой, а вы ответите, всё ли нравится.</span>
       </div>` : ""}
       ${API && lastOrder.code ? `<p class="hint" style="margin-top:14px">Страница заказа: <a href="#/order/${esc(lastOrder.code)}">открыть</a> — там всегда видно, оплачен он и что с ним сейчас. Ссылку можно сохранить.</p>` : ""}</div>`;
     foot.hidden = false;
     foot.innerHTML = `${needPay ? `<button class="btn btn-primary btn-wide" id="doneRepay"><span>Оплатить ${rub(lastOrder.sum)}</span>${icon("arrow")}</button>` : ""}
       ${botLink ? `<a class="btn ${needPay ? "btn-ghost" : "btn-primary"} btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Открыть бота и получать статусы</span>${icon("arrow")}</a>` : ""}
-      ${API && API.maxBot && lastOrder.code ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${esc(API.maxBot)}" target="_blank" rel="noopener"><span>Следить в MAX — код ${esc(lastOrder.code)}</span>${icon("arrow")}</a>` : ""}
+      ${API && API.maxBot && lastOrder.code ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${esc(API.maxBot)}?start=o_${esc(lastOrder.code)}" target="_blank" rel="noopener"><span>Следить в MAX</span>${icon("arrow")}</a>` : ""}
       <button class="btn ${botLink ? "btn-ghost" : "btn-primary"} btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon("arrow")}</button>`;
   }
 }

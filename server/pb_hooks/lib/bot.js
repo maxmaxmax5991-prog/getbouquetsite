@@ -460,12 +460,13 @@ function handle(app, secret, upd) {
       // в MAX кнопок под фото нет — покупатель отвечает сообщением, ответ разбирает lib/max.js
       const mx = require(`${__hooks}/lib/max.js`);
       const saved = photoUrl(app, s, token, fileId, ord.id);
-      const caption = `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится? Ответьте «да» — или напишите, что поправить.`;
+      const caption = `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`;
       // картинкой, а не ссылкой: файл кладём в MAX и отправляем вложением
-      const res = saved && saved.path ? mx.sendPhoto(s.get("max_token"), ord.get("max_chat"), saved.path, caption) : null;
+      const keys = [[mx.btn("👍 Нравится", `ap:${ord.id}`), mx.btn("👎 Поправить", `rw:${ord.id}`)]];
+      const res = saved && saved.path ? mx.sendPhoto(s.get("max_token"), ord.get("max_chat"), saved.path, caption, keys) : null;
       if (!res || !res.ok) {
         // запасной путь: хотя бы ссылка на фото, чтобы клиент не остался без него
-        if (saved && saved.url) mx.send(s.get("max_token"), ord.get("max_chat"), `${caption}\n\n${saved.url}`);
+        if (saved && saved.url) mx.send(s.get("max_token"), ord.get("max_chat"), `${caption}\n\n${saved.url}`, keys);
         return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото ушло клиенту в MAX ссылкой, картинкой не вышло (${(res && res.error) || "нет файла"}). Если повторится, скажите мне.` });
       }
       return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту в MAX: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });

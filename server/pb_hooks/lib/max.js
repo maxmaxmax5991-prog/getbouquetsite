@@ -32,10 +32,25 @@ function call(token, method, path, body) {
   }
 }
 
+// Кнопки под сообщением. В MAX это вложение inline_keyboard:
+// строки кнопок, кнопка либо «callback» (присылает боту метку), либо «link» (открывает адрес).
+const btn = (text, payload) => ({ type: "callback", text, payload: String(payload).slice(0, 1024) });
+const btnLink = (text, url) => ({ type: "link", text, url: String(url).slice(0, 2048) });
+const keyboard = (rows) => ({ type: "inline_keyboard", payload: { buttons: rows } });
+
 // Сообщение пользователю. В MAX не больше двух сообщений в секунду на собеседника.
-function send(token, userId, text) {
+function send(token, userId, text, rows) {
   if (!userId) return { ok: false, error: "Не указан получатель." };
-  return call(token, "POST", `/messages?user_id=${encodeURIComponent(String(userId))}`, { text: String(text).slice(0, 4000) });
+  const body = { text: String(text).slice(0, 4000) };
+  if (rows && rows.length) body.attachments = [keyboard(rows)];
+  return call(token, "POST", `/messages?user_id=${encodeURIComponent(String(userId))}`, body);
+}
+
+// Ответ на нажатие кнопки: короткое всплывающее уведомление.
+// Если MAX его не поддержит — не беда, следом всё равно идёт обычное сообщение.
+function answer(token, callbackId, note) {
+  if (!callbackId) return { ok: false };
+  return call(token, "POST", `/answers?callback_id=${encodeURIComponent(String(callbackId))}`, { notification: String(note || "").slice(0, 200) });
 }
 
 // Ответ на «Нравится?» в MAX приходит словами: кнопок под сообщением там нет.
@@ -59,7 +74,7 @@ function likesText(raw) {
 // Фото в MAX — в три шага: просим место под картинку, кладём туда файл,
 // и только потом отправляем сообщение со ссылкой на загруженное (token).
 // Ссылкой отправлять нельзя: MAX показал бы просто текст, а не картинку.
-function sendPhoto(token, userId, path, text) {
+function sendPhoto(token, userId, path, text, rows) {
   if (!userId) return { ok: false, error: "Не указан получатель." };
   if (!path) return { ok: false, error: "Нет файла." };
 
@@ -85,6 +100,7 @@ function sendPhoto(token, userId, path, text) {
   // MAX обрабатывает картинку не мгновенно: пока не готова, отвечает «attachment.not.ready».
   // Ждём и пробуем ещё — обычно хватает одной-двух секунд.
   const body = { text: String(text || "").slice(0, 4000), attachments: [{ type: "image", payload: { token: photoToken } }] };
+  if (rows && rows.length) body.attachments.push(keyboard(rows));
   const to = `/messages?user_id=${encodeURIComponent(String(userId))}`;
   let last = null;
   for (let i = 0; i < 6; i++) {
@@ -101,7 +117,7 @@ function me(token) { return call(token, "GET", "/me"); }
 
 // Новые события. marker — позиция с прошлого раза.
 function updates(token, marker) {
-  const q = `/updates?timeout=20&limit=100&types=message_created,bot_started` + (marker ? `&marker=${marker}` : "");
+  const q = `/updates?timeout=20&limit=100&types=message_created,bot_started,message_callback` + (marker ? `&marker=${marker}` : "");
   return call(token, "GET", q);
 }
 
@@ -130,56 +146,135 @@ function customerOf(app, chat, name) {
   return c;
 }
 
+// Код с сайта: вход в кабинет или подписка на заказ.
+// Приходит двумя путями — по ссылке max.ru/<бот>?start=l_<код> (тогда лежит в payload)
+// или сообщением, если человек скопировал код руками.
+function useCode(app, s, token, userId, name, code) {
+  const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  let rec = null;
+  try { rec = app.findFirstRecordByFilter("logins", "code = {:c}", { c: code }); } catch (_) {}
+  if (rec) {
+    const c = customerOf(app, userId, name);
+    rec.set("customer", c.id);
+    app.save(rec);
+    return send(token, userId, `Готово, ${name || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.`,
+      site ? [[btnLink("Мои заказы", `${site}/#/me`)]] : null);
+  }
+  let order = null;
+  try { order = app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: code }); } catch (_) {}
+  if (order) {
+    order.set("max_chat", String(userId));
+    app.save(order);
+    shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", {
+      chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")} в MAX` }));
+    return send(token, userId, `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.`,
+      site ? [[btnLink("Мой заказ", `${site}/#/order/${order.get("tg_code")}`)]] : null);
+  }
+  return null;
+}
+
+// Нажали кнопку под сообщением. Метки те же, что в Телеграме:
+// ap — нравится, rw — поправить, rr — какая именно правка.
+function onButton(app, s, token, cb) {
+  const userId = String((cb.user && cb.user.user_id) || "");
+  const parts = String(cb.payload || "").split(":");
+  const say = (t, rows) => send(token, userId, t, rows);
+  let ord = null;
+  try { ord = app.findRecordById("orders", parts[1] || ""); } catch (_) {}
+  if (!ord) { answer(token, cb.callback_id, "Заказ не найден"); return; }
+
+  if (parts[0] === "ap") {
+    ord.set("photo_status", "approved");
+    app.save(ord);
+    shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
+      text: `👍 Клиент одобрил фото по заказу №${ord.get("number")} (MAX)` }));
+    answer(token, cb.callback_id, "Спасибо!");
+    return say("Спасибо! Везём ваш букет.");
+  }
+
+  if (parts[0] === "rw") {
+    ord.set("photo_status", "rework");
+    app.save(ord);
+    answer(token, cb.callback_id, "");
+    return say("Что поправить?", [
+      [btn("🎨 Не те цвета", `rr:${ord.id}:1`), btn("🌸 Не те цветы", `rr:${ord.id}:2`)],
+      [btn("📏 Маловат букет", `rr:${ord.id}:3`), btn("🎁 Другая упаковка", `rr:${ord.id}:4`)],
+      [btn("✍️ Напишу сам", `rr:${ord.id}:0`)],
+    ]);
+  }
+
+  if (parts[0] === "rr") {
+    const REASONS = { "1": "не те цвета", "2": "не те цветы", "3": "маловат букет", "4": "другая упаковка" };
+    const reason = REASONS[parts[2]];
+    answer(token, cb.callback_id, "");
+    if (!reason) {
+      // единственное место, где всё-таки нужен текст: человек сам выбрал «напишу»
+      ord.set("photo_status", "wish");
+      app.save(ord);
+      return say("Напишите, что поправить в букете, — передадим флористу.");
+    }
+    ord.set("photo_comment", reason);
+    ord.set("photo_status", "rework");
+    app.save(ord);
+    shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
+      text: `👎 Заказ №${ord.get("number")} (MAX): клиенту не подошло — ${reason}` }));
+    return say("Передали флористу. Пришлём новое фото.");
+  }
+}
+
 // Одно событие от MAX.
-// Ссылок с заранее заданным кодом (как /start в Телеграме) в MAX нет,
-// поэтому покупатель просто присылает код с сайта сообщением.
 function handle(app, u) {
   const s = shop.settings(app);
   const token = s.get("max_token");
   if (!token) return;
+  const site = String(s.get("site_url") || "").replace(/\/$/, "");
+
+  if (u.update_type === "message_callback" && u.callback) return onButton(app, s, token, u.callback);
+
   const { userId, name, text } = partsOf(u);
   if (!userId) return;
-  const site = String(s.get("site_url") || "").replace(/\/$/, "");
-  const say = (t) => send(token, userId, t);
+  const say = (t, rows) => send(token, userId, t, rows);
+  const hello = () => say(`Здравствуйте! Это бот магазина venikoff.net.\n\nЗдесь будут статусы ваших заказов и фото букета перед доставкой.`,
+    site ? [[btnLink("Открыть каталог", site)], [btnLink("Мои заказы", `${site}/#/me`)]] : null);
 
-  if (u.update_type === "bot_started" && !text) {
-    return say(`Здравствуйте! Это бот магазина venikoff.net.\n\nПришлите код с сайта, чтобы войти в личный кабинет, — или просто напишите что угодно, и я покажу, что с вашим заказом.${site ? `\n\nКаталог: ${site}` : ""}`);
+  // пришли по ссылке с сайта: max.ru/<бот>?start=l_<код>
+  const payload = String(u.payload || (u.message && u.message.body && u.message.body.payload) || "").trim();
+  if (payload) {
+    const done = useCode(app, s, token, userId, name, payload.replace(/^[lo]_/, ""));
+    if (done) return done;
   }
+  if (u.update_type === "bot_started") return hello();
 
-  const code = (text.match(/\b([A-Za-z0-9]{6,40})\b/) || [])[1] || "";
-
-  // код входа в кабинет
+  // код, набранный сообщением, — запасной путь, если ссылка не открылась
+  const code = (text.match(/([A-Za-z0-9]{6,40})/) || [])[1] || "";
   if (code) {
-    let rec = null;
-    try { rec = app.findFirstRecordByFilter("logins", "code = {:c}", { c: code }); } catch (_) {}
-    if (rec) {
-      const c = customerOf(app, userId, name);
-      rec.set("customer", c.id);
-      app.save(rec);
-      return say(`Готово, ${name || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.`);
-    }
-    // код подписки на заказ
-    let order = null;
-    try { order = app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: code }); } catch (_) {}
-    if (order) {
-      order.set("max_chat", String(userId));
-      app.save(order);
-      shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", {
-        chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")} в MAX` }));
-      return say(`Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.`);
-    }
+    const done = useCode(app, s, token, userId, name, code);
+    if (done) return done;
   }
 
-  // ждём ответ по фото букета — кнопок в MAX нет, разбираем обычный текст
+  // ждём правку по фото: человек сам нажал «напишу сам»
+  let wish = null;
+  try { wish = app.findFirstRecordByFilter("orders", "max_chat = {:c} && photo_status = 'wish'", { c: String(userId) }); } catch (_) {}
+  if (wish && text) {
+    wish.set("photo_comment", text.slice(0, 1000));
+    wish.set("photo_status", "rework");
+    app.save(wish);
+    shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
+      text: `👎 Заказ №${wish.get("number")} (MAX): клиент просит поправить букет\n\n«${text.slice(0, 500)}»` }));
+    return say("Передали флористу. Пришлём новое фото.");
+  }
+
+  // ответ словами вместо кнопок — кнопки могли не нажаться, разбираем текст
   let waiting = null;
   try { waiting = app.findFirstRecordByFilter("orders", "max_chat = {:c} && photo_status = 'waiting'", { c: String(userId) }); } catch (_) {}
   if (waiting && text) {
     const verdict = likesText(text);
     if (!verdict) {
-      // статус не трогаем — букет переснимать не надо, но сообщение флористу передаём
       shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
         text: `💬 Заказ №${waiting.get("number")} (MAX), клиент пишет: «${text.slice(0, 500)}»` }));
-      return say("Подскажите, всё хорошо — или что-то поправить? Если нравится, напишите «да».");
+      return say("Подскажите, всё хорошо — или что-то поправить?", [
+        [btn("👍 Нравится", `ap:${waiting.id}`), btn("👎 Поправить", `rw:${waiting.id}`)],
+      ]);
     }
     const likes = verdict === "yes";
     waiting.set("photo_status", likes ? "approved" : "rework");
@@ -196,9 +291,10 @@ function handle(app, u) {
   let last = null;
   try { last = app.findFirstRecordByFilter("orders", "max_chat = {:c}", { c: String(userId) }); } catch (_) {}
   if (last) {
-    return say(`Заказ №${last.get("number")} — ${shop.STATUS[last.get("status")] || last.get("status")}\n${last.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(last)}\nСумма: ${shop.rub(last.get("total"))}${last.get("payment_status") === "paid" ? " (оплачено)" : ""}${site ? `\n\nВсе заказы: ${site}/#/me` : ""}`);
+    return say(`Заказ №${last.get("number")} — ${shop.STATUS[last.get("status")] || last.get("status")}\n${last.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(last)}\nСумма: ${shop.rub(last.get("total"))}${last.get("payment_status") === "paid" ? " (оплачено)" : ""}`,
+      site ? [[btnLink("Мой заказ", `${site}/#/order/${last.get("tg_code")}`)], [btnLink("Все заказы", `${site}/#/me`)]] : null);
   }
-  return say(`Здравствуйте! Это бот магазина venikoff.net.\n\nПришлите код с сайта, чтобы войти в личный кабинет и следить за заказом.${site ? `\n\nКаталог: ${site}` : ""}`);
+  return hello();
 }
 
-module.exports = { call, send, sendPhoto, likesText, me, updates, handle, customerOf, partsOf, BASE };
+module.exports = { call, send, answer, sendPhoto, likesText, btn, btnLink, me, updates, handle, useCode, customerOf, partsOf, BASE };
