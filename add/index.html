@@ -228,7 +228,7 @@ $('#form').onsubmit = async e => {
   if (!$('#cat').value) return say('Выберите раздел.', true);
   const roses = mode === 'table';
   if (roses && !lens.length) return say('Выберите хотя бы одну длину.', true);
-  if (!roses && !(+$('#price').value > 0)) return say('Укажите цену.', true);
+  if (!roses && !(+$('#price').value > 0)) return say('Укажите цену — без неё букет нельзя продать.', true);
 
   const fd = new FormData();
   fd.append('k', KEY);

@@ -60,7 +60,7 @@ routerAdd("POST", "/api/shop/upload", (e) => {
   // 0 — «без длины» (гортензии), поэтому отрицательные отсекаем, а ноль оставляем
   const lens = val("lengths") ? val("lengths").split(",").map((x) => +x).filter((x) => !isNaN(x) && x >= 0) : [];
   const price = +val("price") || 0;
-  if (!lens.length && !price) return e.json(400, { message: "Укажите цену." });
+  if (!lens.length && !(price > 0)) return e.json(400, { message: "Укажите цену — без неё букет нельзя продать." });
 
   const col = $app.findCollectionByNameOrId("products");
   const rec = new Record(col);

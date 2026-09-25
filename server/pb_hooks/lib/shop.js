@@ -107,6 +107,8 @@ function catalog(app) {
         name: p.get("name"),
         cat: catById[p.get("category")].get("slug"),
         price: variants.length ? Math.min.apply(null, variants.map((v) => v.price)) : p.get("price"),
+        // товар без цены (пустое поле в карточке) нельзя купить — сайт покажет его без кнопки
+        no_price: variants.length ? undefined : (+p.get("price") > 0 ? undefined : true),
         bonus: p.get("bonus") || 0,
         img: photos.length ? fileUrl(p, photos[0], "560x0") : "",
         // на странице товара снимок во всю ширину — там нужен размер побольше, чем на карточке
@@ -276,7 +278,9 @@ function prepareOrder(app, rec) {
       if (!v) fail(`Выберите размер для «${p.get("name")}».`);
       price = v.price; label = v.label;
     }
-    items.push({ id: p.id, name: p.get("name"), label, label_text: label ? labelText(label) : "", price, qty, sum: price * qty });
+    // цену проверяем здесь: пустое поле в карточке даёт ноль, и букет уходил бы даром
+    if (!(+price > 0)) fail(`У «${p.get("name")}» не указана цена. Позвоните нам — оформим вручную.`);
+    items.push({ id: p.id, name: p.get("name"), label, label_text: label ? labelText(label) : "", price: +price, qty, sum: price * qty });
     sum += price * qty;
     bonus += (p.get("bonus") || 0) * qty;
   });

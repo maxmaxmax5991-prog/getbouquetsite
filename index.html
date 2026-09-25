@@ -347,6 +347,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.buy.soon{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 14px;border-radius:999px;background:var(--soft);color:var(--ink-2);font-size:13.5px;font-weight:600}
 .notice.paid{border-color:var(--leaf);color:var(--ink)}
 .notice.resume{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-color:var(--sale);color:var(--ink)}
 .sub-box.warn{border-color:var(--sale);background:rgba(224,23,138,.07)}
@@ -597,7 +598,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790275047"></script>
+<script src="data.js?v=1790332980"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -717,6 +718,8 @@ function badges() {
 
 /* ---------- product card ---------- */
 function buyHTML(p) {
+  // цена не проставлена — купить нельзя, иначе букет уйдёт даром
+  if (p.no_price || !(keyPrice(cardKey(p)) > 0)) return '<span class="buy soon">Цену уточняем</span>';
   const k = cardKey(p), n = cart[k];
   return n
     ? `<div class="buy in"><button data-dec="${k}" aria-label="Убрать один">${icon('minus')}</button><span class="num">${n} × ${rub(keyPrice(k))}</span><button data-inc="${k}" aria-label="Добавить ещё">${icon('plus')}</button></div>`
