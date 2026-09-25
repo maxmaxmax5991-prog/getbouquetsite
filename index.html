@@ -109,7 +109,9 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 /* studio */
 .studio{position:relative;height:624px;border-radius:32px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow);isolation:isolate;user-select:none;-webkit-user-select:none}
 .studio::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 55% at 50% 44%,var(--glow,rgba(224,23,138,.07)),transparent 70%);transition:background 1s;z-index:-1}
-.studio-bar{position:absolute;inset:18px 22px auto;display:flex;justify-content:space-between;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);z-index:3;pointer-events:none}
+.studio-bar{position:absolute;inset:18px 22px auto;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);z-index:3;pointer-events:none}
+.studio-bar>span:first-child{white-space:nowrap}
+.studio-bar .num{white-space:nowrap}
 .studio-bar b{color:var(--accent-text)}
 .chooser{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:52px 28px 28px;transition:transform .7s cubic-bezier(.3,.9,.3,1),opacity .45s}
 .chooser h2{font:600 22px/1.2 var(--display);letter-spacing:-.03em;margin:0;text-align:center}
@@ -156,6 +158,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .studio:not([data-phase="choosing"]) .c-arrow{display:none}
 @media (max-width:520px){
   .studio{height:648px;border-radius:28px}
+  .studio-bar{inset:18px 16px auto;font-size:9.5px;letter-spacing:.1em}
   .c-item{width:252px;margin-left:-126px}
   .bouquet{height:270px;bottom:160px}
   .c-arrow{display:none}
@@ -448,7 +451,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       </div>
 
       <div class="studio" id="studio" data-phase="choosing">
-        <div class="studio-bar"><span>Студия <b>venikoff</b></span><span class="num" id="studioIdx">1 / 5</span></div>
+        <div class="studio-bar"><span>Не магазин, а <b>цветочный завод</b></span><span class="num" id="studioIdx">1 / 5</span></div>
         <div class="chooser">
           <h2>Что скажут ваши цветы?</h2>
           <div class="carousel" id="carousel" tabindex="0" role="listbox" aria-label="Выбор букета. Стрелки влево и вправо листают"></div>
@@ -604,7 +607,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790342097"></script>
+<script src="data.js?v=1790342251"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
