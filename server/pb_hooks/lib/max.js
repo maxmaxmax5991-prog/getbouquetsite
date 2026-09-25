@@ -1,10 +1,12 @@
 // Мессенджер MAX: статусы заказа и вход в личный кабинет — то же, что клиентский бот Телеграма.
-// Отличия от Телеграма: адрес platform-api2.max.ru, ключ идёт заголовком Authorization
+// Отличия от Телеграма: адрес botapi.max.ru, ключ идёт заголовком Authorization
 // (через адрес строки больше нельзя), получатель — в параметрах адреса, текст — в теле,
 // а позиция чтения событий называется marker, а не offset.
 const shop = require(`${__hooks}/lib/shop.js`);
 
-const BASE = "https://platform-api2.max.ru";
+// Адрес API ботов MAX. Раньше был platform-api2.max.ru — он больше не отвечает,
+// рабочий адрес botapi.max.ru, ключ идёт заголовком Authorization.
+const BASE = "https://botapi.max.ru";
 
 function call(token, method, path, body) {
   if (!token) return { ok: false, error: "Не указан ключ бота MAX." };
