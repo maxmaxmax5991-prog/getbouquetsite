@@ -436,8 +436,10 @@ function handle(app, secret, upd) {
     try { ord = app.findRecordById("orders", ordId); } catch (_) { return shop.tg(token, "sendMessage", { chat_id: chat, text: "Заказ не найден." }); }
     const fileId = msg.photo[msg.photo.length - 1].file_id;
     ord.set("photo_file_id", fileId);
+    // Статус меняет только МойСклад. Раньше отправка фото сама ставила «Фото отправлено»,
+    // и покупатель получал «букет собран, фото отправим следом», а следом — то же самое фото.
     const st = ord.get("status");
-    if (st === "new" || st === "confirmed" || st === "assembling") ord.set("status", "photo");
+    if (!s.get("ms_enabled") && (st === "new" || st === "confirmed" || st === "assembling")) ord.set("status", "photo");
     // Сохраняем ОДИН раз. Два сохранения подряд присылали клиенту «букет собран» дважды:
     // хук уведомления сравнивает статус с тем, каким запись была при загрузке, и на втором
     // сохранении снова считал статус только что изменившимся.

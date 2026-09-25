@@ -81,17 +81,16 @@ onRecordAfterUpdateSuccess((e) => {
     const now = String(e.record.get("status") || "");
     if (!now) { e.next(); return; }
 
-    // Читаем отметку и ставим новую внутри одной транзакции: проверки оплаты приходят
-    // одновременно, и без этого все они успевали решить, что сообщить надо именно им.
-    // Пишем запросом, а не сохранением записи, иначе снова сработал бы этот же хук.
+    // Отметку держим в отдельной табличке order_notified: ключ «заказ + статус»
+    // не даёт вставить её дважды. В самом заказе держать нельзя — соседние сохранения
+    // (оплата, МойСклад) пишут запись целиком из прочитанной раньше копии и затирают
+    // отметку, из-за чего одно и то же сообщение уходило покупателю по шесть раз.
     let send = false;
-    $app.runInTransaction((tx) => {
-      const row = new DynamicModel({ notified_status: "" });
-      tx.db().newQuery("SELECT notified_status FROM orders WHERE id = {:id}").bind({ id: e.record.id }).one(row);
-      if (String(row.notified_status || "") === now) return;
-      tx.db().newQuery("UPDATE orders SET notified_status = {:s} WHERE id = {:id}").bind({ s: now, id: e.record.id }).execute();
+    try {
+      $app.db().newQuery("INSERT INTO order_notified (order_id, status, at) VALUES ({:id}, {:s}, {:t})")
+        .bind({ id: e.record.id, s: now, t: new Date().toISOString() }).execute();
       send = true;
-    });
+    } catch (_) { send = false; }   // уже сообщали об этом статусе
     if (send) shop.notifyCustomer($app, e.record, now);
   } catch (err) { console.log("customer notify", err); }
   e.next();

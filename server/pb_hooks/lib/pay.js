@@ -73,7 +73,9 @@ function checkOrder(app, o) {
   o.set("payment_status", "paid");
   o.set("payment_id", String(m.TransactionId || ""));
   o.set("paid_at", new Date().toISOString());
-  if (o.get("status") === "new") o.set("status", "confirmed");
+  // Статус заказа ведёт МойСклад — мы его не придумываем. Свой ставим только когда
+  // интеграция выключена, иначе два источника перебивали бы друг друга.
+  if (o.get("status") === "new" && !s.get("ms_enabled")) o.set("status", "confirmed");
   app.save(o);
   // Полную карточку заказа флорист получает именно сейчас: до оплаты заказа как бы и нет
   const token = s.get("tg_token");
