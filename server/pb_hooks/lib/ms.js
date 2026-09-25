@@ -251,6 +251,19 @@ function orderDescription(o) {
 }
 
 // Отправка одного заказа. Возвращает { ok, id } или { ok: false, error }
+// Замок на действие с заказом: вставка второй такой строки не проходит,
+// поэтому два одновременных вызова не создадут в МоёмСкладе два одинаковых документа.
+function claim(app, id, kind) {
+  try {
+    app.db().newQuery("INSERT INTO order_locks (order_id, kind, at) VALUES ({:id}, {:k}, {:t})")
+      .bind({ id, k: kind, t: new Date().toISOString() }).execute();
+    return true;
+  } catch (_) { return false; }
+}
+function unclaim(app, id, kind) {
+  try { app.db().newQuery("DELETE FROM order_locks WHERE order_id = {:id} AND kind = {:k}").bind({ id, k: kind }).execute(); } catch (_) {}
+}
+
 function pushOrder(app, o) {
   const s = shop.settings(app);
   if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция выключена." };
@@ -304,11 +317,18 @@ if (addr) body.shipmentAddressFull = addr;
 const st = stateId(s, o.get("payment_status") === "paid");
 if (st) body.state = meta("state", st);
 
+  // Берём замок перед самой отправкой: до этого заказ мог не пройти проверки
+  if (!claim(app, o.id, "push")) return { ok: false, wait: true, error: "Заказ уже отправляется в МойСклад." };
   const created = ms(s, "POST", "/entity/customerorder", body);
-  if (!created.ok) return created;
+  if (!created.ok) { unclaim(app, o.id, "push"); return created; }
   o.set("ms_id", created.data.id);
   o.set("ms_error", "");
   app.save(o);
+  // и запросом тоже: соседнее сохранение из копии, прочитанной раньше, затёрло бы
+  // номер обратно в пустоту, и очередь отправила бы заказ в МойСклад второй раз
+  try {
+    app.db().newQuery("UPDATE orders SET ms_id = {:v} WHERE id = {:id}").bind({ v: created.data.id, id: o.id }).execute();
+  } catch (err) { console.log("ms_id", err); }
   return { ok: true, id: created.data.id };
 }
 
@@ -320,6 +340,7 @@ function addPayment(app, o) {
   if (!ord.ok) return ord;
   const agentHref = ord.data.agent && ord.data.agent.meta && ord.data.agent.meta.href;
   if (!agentHref) return { ok: false, error: "У заказа в МоёмСкладе нет контрагента." };
+  if (!claim(app, o.id, "payment")) return { ok: false, wait: true, error: "Платёж уже проводится." };
   const created = ms(s, "POST", "/entity/paymentin", {
     organization: meta("organization", s.get("ms_org_id")),
     agent: { meta: { href: agentHref, type: "counterparty", mediaType: "application/json" } },
@@ -327,9 +348,12 @@ function addPayment(app, o) {
     paymentPurpose: `Оплата заказа №${o.get("number")} на сайте venikoff.net (CloudPayments${o.get("payment_id") ? ", операция " + o.get("payment_id") : ""})`,
     operations: [{ meta: { href: `${BASE}/entity/customerorder/${o.get("ms_id")}`, type: "customerorder", mediaType: "application/json" }, linkedSum: Math.round((o.get("total") || 0) * 100) }],
   });
-  if (!created.ok) return created;
+  if (!created.ok) { unclaim(app, o.id, "payment"); return created; }
   o.set("ms_payment_id", created.data.id);
   app.save(o);
+  try {
+    app.db().newQuery("UPDATE orders SET ms_payment_id = {:v} WHERE id = {:id}").bind({ v: created.data.id, id: o.id }).execute();
+  } catch (err) { console.log("ms_payment_id", err); }
   return { ok: true, id: created.data.id };
 }
 
