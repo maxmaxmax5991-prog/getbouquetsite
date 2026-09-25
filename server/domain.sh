@@ -72,8 +72,8 @@ done
 
 echo "Жду сертификат…"
 sleep 15
-curl -s -o /dev/null -w "сайт: %%{http_code}\n" "https://$D/" || true
-curl -s -o /dev/null -w "каталог: %%{http_code}\n" "https://$D/api/shop/catalog" || true
+curl -s -o /dev/null -w "сайт: %{http_code}\n" "https://$D/" || true
+curl -s -o /dev/null -w "каталог: %{http_code}\n" "https://$D/api/shop/catalog" || true
 cat <<TXT
 
 Осталось сделать руками:

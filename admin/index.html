@@ -550,7 +550,7 @@ $('#loginForm').addEventListener('submit', async e => {
       body: JSON.stringify({ identity: $('#lEmail').value.trim(), password: $('#lPass').value }) }).catch(() => null);
     if (!r) throw new Error('Нет связи с сервером. Проверьте интернет.');
     if (r.status === 404 || !String(r.headers.get('content-type') || '').includes('json')) {
-      throw new Error('Админка открыта не по тому адресу. Нужен https://147-45-141-23.sslip.io/admin/');
+      throw new Error('Админка открыта не по тому адресу. Нужен https://venikoff.net/admin/');
     }
     const d = await r.json();
     if (r.status === 429) throw new Error('Слишком много попыток входа. Подождите минуту.');

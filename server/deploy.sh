@@ -14,5 +14,5 @@ rsync -az --delete -e "ssh -i $KEY" server/pb_migrations/ "$HOST:/opt/venikoff/p
 rsync -az -e "ssh -i $KEY" server/bin/ "$HOST:/opt/venikoff/bin/"
 rsync -az --delete -e "ssh -i $KEY" --include='index.html' --include='data.js' --include='img/***' --include='admin/***' --include='add/***' --include='fonts/***' --exclude='*' ./ "$HOST:/opt/venikoff/site/"
 ssh -i "$KEY" "$HOST" 'chown -R venikoff:venikoff /opt/venikoff/pb && chmod -R u=rwX,go=rX /opt/venikoff/site && systemctl restart venikoff-pb && sleep 2 && systemctl is-active venikoff-pb'
-curl -s -o /dev/null -w "сайт: %{http_code}\n" https://147-45-141-23.sslip.io/
-curl -s -o /dev/null -w "каталог: %{http_code}\n" https://147-45-141-23.sslip.io/api/shop/catalog
+curl -s -o /dev/null -w "сайт: %{http_code}\n" https://venikoff.net/
+curl -s -o /dev/null -w "каталог: %{http_code}\n" https://venikoff.net/api/shop/catalog
