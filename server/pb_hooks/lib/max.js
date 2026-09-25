@@ -38,6 +38,46 @@ function send(token, userId, text) {
   return call(token, "POST", `/messages?user_id=${encodeURIComponent(String(userId))}`, { text: String(text).slice(0, 4000) });
 }
 
+// Фото в MAX — в три шага: просим место под картинку, кладём туда файл,
+// и только потом отправляем сообщение со ссылкой на загруженное (token).
+// Ссылкой отправлять нельзя: MAX показал бы просто текст, а не картинку.
+function sendPhoto(token, userId, path, text) {
+  if (!userId) return { ok: false, error: "Не указан получатель." };
+  if (!path) return { ok: false, error: "Нет файла." };
+
+  const place = call(token, "POST", "/uploads?type=image");
+  if (!place.ok) return place;
+  const url = place.data && place.data.url;
+  if (!url) return { ok: false, error: "MAX не дал адрес для загрузки фото." };
+
+  let photoToken = "";
+  try {
+    const form = new FormData();
+    form.append("data", $filesystem.fileFromPath(path));
+    const res = $http.send({ url, method: "POST", body: form, timeout: 60 });
+    if (res.statusCode >= 400) console.log("max upload", res.statusCode, toString(res.body));
+    const photos = (res.json || {}).photos || {};
+    const first = Object.keys(photos)[0];
+    photoToken = first ? String(photos[first].token || "") : "";
+  } catch (err) {
+    console.log("max upload", err);
+  }
+  if (!photoToken) return { ok: false, error: "Не вышло загрузить фото в MAX." };
+
+  // MAX обрабатывает картинку не мгновенно: пока не готова, отвечает «attachment.not.ready».
+  // Ждём и пробуем ещё — обычно хватает одной-двух секунд.
+  const body = { text: String(text || "").slice(0, 4000), attachments: [{ type: "image", payload: { token: photoToken } }] };
+  const to = `/messages?user_id=${encodeURIComponent(String(userId))}`;
+  let last = null;
+  for (let i = 0; i < 6; i++) {
+    last = call(token, "POST", to, body);
+    if (last.ok) return last;
+    if (!/not\.?\s?ready/i.test(String(last.error || ""))) return last;
+    try { $os.cmd("sleep", "2").output(); } catch (_) {}
+  }
+  return last;
+}
+
 // Кто мы: проверка ключа и имя бота для ссылки max.ru/<имя>
 function me(token) { return call(token, "GET", "/me"); }
 
@@ -136,4 +176,4 @@ function handle(app, u) {
   return say(`Здравствуйте! Это бот магазина venikoff.net.\n\nПришлите код с сайта, чтобы войти в личный кабинет и следить за заказом.${site ? `\n\nКаталог: ${site}` : ""}`);
 }
 
-module.exports = { call, send, me, updates, handle, customerOf, partsOf, BASE };
+module.exports = { call, send, sendPhoto, me, updates, handle, customerOf, partsOf, BASE };
