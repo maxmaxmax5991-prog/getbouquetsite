@@ -53,24 +53,6 @@ function answer(token, callbackId, note) {
   return call(token, "POST", `/answers?callback_id=${encodeURIComponent(String(callbackId))}`, { notification: String(note || "").slice(0, 200) });
 }
 
-// Ответ на «Нравится?» в MAX приходит словами: кнопок под сообщением там нет.
-// Отвечают по-разному — «да», «супер», «спасибо», одним смайликом, поэтому
-// одного списка слов мало. Возвращаем: "yes" — одобрил, "no" — просит поправить,
-// "" — непонятно, лучше переспросить, чем зря дёргать флориста.
-function likesText(raw) {
-  const t = String(raw || "").toLowerCase().replace(/\u0451/g, "\u0435").trim();
-  if (!t) return "";
-  const no = /(не нрав|не оч|не то|не та|не так|не подход|не хват|помен|попра|перед|замен|убер|добав|друг|плох|ужас|мало|недостаточ|маленьк|мелко|побольше|поменьше|ярче|светле|темне|коротк|длинн|бледн|(^|[^а-я])но[ ,])/.test(t);
-  const yes = /^\++$/.test(t)
-    || /[\u{1F44D}\u{1F44C}\u2764\u{1F9E1}\u{1F49B}\u{1F49A}\u{1F499}\u{1F49C}\u{1F525}\u{1F60D}\u{1F970}\u{1F929}\u{1F63B}\u{1F490}\u{1F338}\u{1F339}\u2728\u{1F64F}]/u.test(t)
-    || /(^|[^а-я])(да|ага|угу|ок|окей|ok|okay|супер|отличн|класс|красот|красив|прекрасн|шикарн|здоров|огонь|бомба|нрав|спасиб|спс|благодар|хорош|норм|идеал|восторг|вау|wow|топ|годится|беру|люблю|love|nice|perfect)/.test(t);
-  if (yes && !no) return "yes";
-  if (no) return "no";
-  if (/\?\s*$/.test(t)) return "";   // вопрос — не правка, это просто вопрос
-  // без явных примет: длинный ответ — это правки, короткое «хм» — переспросим
-  return (t.split(/\s+/).length >= 3 || t.length >= 15) ? "no" : "";
-}
-
 // Фото в MAX — в три шага: просим место под картинку, кладём туда файл,
 // и только потом отправляем сообщение со ссылкой на загруженное (token).
 // Ссылкой отправлять нельзя: MAX показал бы просто текст, а не картинку.
@@ -199,26 +181,23 @@ function onButton(app, s, token, cb) {
     return say("Что поправить?", [
       [btn("🎨 Не те цвета", `rr:${ord.id}:1`), btn("🌸 Не те цветы", `rr:${ord.id}:2`)],
       [btn("📏 Маловат букет", `rr:${ord.id}:3`), btn("🎁 Другая упаковка", `rr:${ord.id}:4`)],
-      [btn("✍️ Напишу сам", `rr:${ord.id}:0`)],
+      [btn("📞 Пусть позвонят", `rr:${ord.id}:5`)],
     ]);
   }
 
   if (parts[0] === "rr") {
-    const REASONS = { "1": "не те цвета", "2": "не те цветы", "3": "маловат букет", "4": "другая упаковка" };
-    const reason = REASONS[parts[2]];
+    const REASONS = { "1": "не те цвета", "2": "не те цветы", "3": "маловат букет", "4": "другая упаковка", "5": "просит позвонить" };
+    const reason = REASONS[parts[2]] || "не подошёл букет";
     answer(token, cb.callback_id, "");
-    if (!reason) {
-      // единственное место, где всё-таки нужен текст: человек сам выбрал «напишу»
-      ord.set("photo_status", "wish");
-      app.save(ord);
-      return say("Напишите, что поправить в букете, — передадим флористу.");
-    }
     ord.set("photo_comment", reason);
     ord.set("photo_status", "rework");
     app.save(ord);
+    const call = parts[2] === "5";
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
-      text: `👎 Заказ №${ord.get("number")} (MAX): клиенту не подошло — ${reason}` }));
-    return say("Передали флористу. Пришлём новое фото.");
+      text: call
+        ? `📞 Заказ №${ord.get("number")} (MAX): клиент просит позвонить — ${ord.get("name")}, ${ord.get("phone")}`
+        : `👎 Заказ №${ord.get("number")} (MAX): клиенту не подошло — ${reason}` }));
+    return say(call ? "Сейчас вам позвонит наш флорист." : "Передали флористу. Пришлём новое фото.");
   }
 }
 
@@ -252,39 +231,16 @@ function handle(app, u) {
     if (done) return done;
   }
 
-  // ждём правку по фото: человек сам нажал «напишу сам»
-  let wish = null;
-  try { wish = app.findFirstRecordByFilter("orders", "max_chat = {:c} && photo_status = 'wish'", { c: String(userId) }); } catch (_) {}
-  if (wish && text) {
-    wish.set("photo_comment", text.slice(0, 1000));
-    wish.set("photo_status", "rework");
-    app.save(wish);
-    shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
-      text: `👎 Заказ №${wish.get("number")} (MAX): клиент просит поправить букет\n\n«${text.slice(0, 500)}»` }));
-    return say("Передали флористу. Пришлём новое фото.");
-  }
-
-  // ответ словами вместо кнопок — кнопки могли не нажаться, разбираем текст
+  // Клиент написал словами. Сами ничего не решаем — переспрашиваем кнопками,
+  // а текст передаём менеджеру в служебный бот вместе с телефоном, чтобы было кому ответить.
   let waiting = null;
   try { waiting = app.findFirstRecordByFilter("orders", "max_chat = {:c} && photo_status = 'waiting'", { c: String(userId) }); } catch (_) {}
   if (waiting && text) {
-    const verdict = likesText(text);
-    if (!verdict) {
-      shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
-        text: `💬 Заказ №${waiting.get("number")} (MAX), клиент пишет: «${text.slice(0, 500)}»` }));
-      return say("Подскажите, всё хорошо — или что-то поправить?", [
-        [btn("👍 Нравится", `ap:${waiting.id}`), btn("👎 Поправить", `rw:${waiting.id}`)],
-      ]);
-    }
-    const likes = verdict === "yes";
-    waiting.set("photo_status", likes ? "approved" : "rework");
-    if (!likes) waiting.set("photo_comment", text.slice(0, 500));
-    app.save(waiting);
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
-      text: likes
-        ? `👍 Клиент одобрил фото по заказу №${waiting.get("number")} (MAX): «${text.slice(0, 200)}»`
-        : `👎 Клиент просит поправить букет по заказу №${waiting.get("number")} (MAX): ${text.slice(0, 500)}` }));
-    return say(likes ? "Спасибо! Везём." : "Спасибо, передали флористу — поправим.");
+      text: `💬 Заказ №${waiting.get("number")} (MAX), клиент пишет: «${text.slice(0, 500)}»\n\n${waiting.get("name")}, ${waiting.get("phone")}` }));
+    return say("Спасибо, передали менеджеру. А про букет ответьте, пожалуйста, кнопкой:", [
+      [btn("👍 Нравится", `ap:${waiting.id}`), btn("👎 Поправить", `rw:${waiting.id}`)],
+    ]);
   }
 
   // обычное сообщение: состояние последнего заказа
@@ -297,4 +253,4 @@ function handle(app, u) {
   return hello();
 }
 
-module.exports = { call, send, answer, sendPhoto, likesText, btn, btnLink, me, updates, handle, useCode, customerOf, partsOf, BASE };
+module.exports = { call, send, answer, sendPhoto, btn, btnLink, me, updates, handle, useCode, customerOf, partsOf, BASE };

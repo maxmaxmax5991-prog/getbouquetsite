@@ -107,15 +107,15 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 @media (max-width:880px){.hero .wrap{grid-template-columns:1fr}.hero-copy{text-align:center}.hero .lede{margin-inline:auto}.hero-cta{justify-content:center}}
 
 /* studio */
-.studio{position:relative;height:590px;border-radius:32px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow);isolation:isolate;user-select:none;-webkit-user-select:none}
+.studio{position:relative;height:624px;border-radius:32px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow);isolation:isolate;user-select:none;-webkit-user-select:none}
 .studio::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 55% at 50% 44%,var(--glow,rgba(224,23,138,.07)),transparent 70%);transition:background 1s;z-index:-1}
 .studio-bar{position:absolute;inset:18px 22px auto;display:flex;justify-content:space-between;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);z-index:3;pointer-events:none}
 .studio-bar b{color:var(--accent-text)}
-.chooser{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 28px 28px;transition:transform .7s cubic-bezier(.3,.9,.3,1),opacity .45s}
+.chooser{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:52px 28px 28px;transition:transform .7s cubic-bezier(.3,.9,.3,1),opacity .45s}
 .chooser h2{font:600 22px/1.2 var(--display);letter-spacing:-.03em;margin:0;text-align:center}
-.carousel{position:relative;width:100%;height:360px;margin-top:12px;touch-action:pan-y;cursor:grab}
+.carousel{position:relative;width:100%;flex:1 1 auto;min-height:200px;margin-top:12px;touch-action:pan-y;cursor:grab}
 .carousel.dragging{cursor:grabbing}
-.c-item{position:absolute;left:50%;top:0;width:270px;height:340px;margin-left:-135px;display:flex;align-items:flex-end;justify-content:center;transition:transform .6s cubic-bezier(.25,1.2,.4,1),opacity .45s,filter .45s;will-change:transform}
+.c-item{position:absolute;left:50%;top:0;bottom:0;width:270px;margin-left:-135px;display:flex;align-items:flex-end;justify-content:center;transition:transform .6s cubic-bezier(.25,1.2,.4,1),opacity .45s,filter .45s;will-change:transform}
 .carousel.dragging .c-item{transition:none}
 .c-item img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none;filter:drop-shadow(6px 14px 14px rgba(30,40,35,.16))}
 .c-meta{text-align:center;margin-top:12px;min-height:50px}
@@ -155,9 +155,8 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .studio[data-phase="ready"] .ready,.studio[data-phase="ready"] .heart-round{opacity:1;transform:none;pointer-events:auto}
 .studio:not([data-phase="choosing"]) .c-arrow{display:none}
 @media (max-width:520px){
-  .studio{height:610px;border-radius:28px}
-  .c-item{width:240px;height:310px;margin-left:-120px}
-  .carousel{height:320px}
+  .studio{height:648px;border-radius:28px}
+  .c-item{width:252px;margin-left:-126px}
   .bouquet{height:270px;bottom:160px}
   .c-arrow{display:none}
 }
@@ -605,7 +604,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790341446"></script>
+<script src="data.js?v=1790341966"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
