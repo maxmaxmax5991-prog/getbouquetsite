@@ -605,7 +605,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790340173"></script>
+<script src="data.js?v=1790340281"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -932,6 +932,7 @@ async function renderOrder(code) {
     if (pb) pb.onclick = async () => {
       pb.disabled = true;
       const r = await payCard({ id: d.id || '', number: d.number, total: d.total, tg_code: d.code }, '', '');
+      if (r.leaving) return;                 // уходим на страницу оплаты
       pb.disabled = false;
       if (!r.paid && r.error) toast(r.error, true);
     };
@@ -1023,6 +1024,7 @@ async function renderMe() {
 $$("[data-pay-order]").forEach(b => b.onclick = async () => {
   b.disabled = true;
   const res = await payCard({ id: b.dataset.payOrder, number: b.dataset.num, total: +b.dataset.sum, tg_code: b.dataset.code }, ME.name || "", ME.phone || "");
+  if (res.leaving) return;                 // уходим на страницу оплаты
   if (res.paid) {
     try { await fetch("/api/shop/pay-check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ order: b.dataset.payOrder }) }); } catch (_) {}
     toast("Оплата прошла");
@@ -1398,6 +1400,7 @@ cartDlg.addEventListener('click', async e => {
     repay.disabled = true;
     cartDlg.close();                       // окно оплаты должно быть поверх, а не под корзиной
     const res = await payCard(lastOrder.order, lastOrder.name || '', lastOrder.phone || '');
+    if (res.leaving) return;               // уходим на страницу оплаты
     lastOrder.paid = res.paid;
     lastOrder.payError = res.error;
     if (res.paid) { try { await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: lastOrder.order.id }) }); } catch (_) {} }
@@ -1428,17 +1431,8 @@ function payChoice() {
   </div></div>`;
 }
 let payMethod = 'on_delivery';
-function loadWidget() {
-  if (window.cp) return Promise.resolve(true);
-  return new Promise(resolve => {
-    const sc = document.createElement('script');
-    sc.src = 'https://widget.cloudpayments.ru/bundles/cloudpayments.js';
-    sc.onload = () => resolve(true); sc.onerror = () => resolve(false);
-    document.head.appendChild(sc);
-  });
-}
-// Окно оплаты CloudPayments; деньги списывает их виджет, наш сервер потом сверяет платёж
-async function payCard(order, name, phone) {
+// Запасной путь: если ссылку на оплату получить не вышло, открываем их окно прямо тут.
+async function payWidget(order, name, phone) {
   // сначала убеждаемся, что заказ на месте: иначе спишем деньги в никуда
   try {
     const r = await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: order.id }) });
@@ -1497,6 +1491,48 @@ async function payCard(order, name, phone) {
       });
     });
   });
+}
+
+function loadWidget() {
+  if (window.cp) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const sc = document.createElement('script');
+    sc.src = 'https://widget.cloudpayments.ru/bundles/cloudpayments.js';
+    sc.onload = () => resolve(true); sc.onerror = () => resolve(false);
+    document.head.appendChild(sc);
+  });
+}
+// Окно оплаты CloudPayments; деньги списывает их виджет, наш сервер потом сверяет платёж
+/* Оплата. Уводим покупателя на страницу CloudPayments: они после оплаты сами
+   возвращают его на страницу заказа. Виджет для этого не годится — его кнопка
+   «Вернуться в магазин» ничего не делает, а на телефоне окно ещё и теряется.
+   Если ссылку получить не вышло, открываем виджет как запасной путь. */
+async function payCard(order, name, phone) {
+  // убеждаемся, что заказ на месте: иначе спишем деньги в никуда
+  try {
+    const r = await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: order.id }) });
+    if (r.status === 404) {
+      store.set('last', null);
+      return { paid: false, error: 'Этого заказа уже нет. Оформите заказ заново — деньги не списаны.' };
+    }
+    const d = await r.json().catch(() => ({}));
+    if (d && d.paid) return { paid: true };     // уже оплачен, второй раз не берём
+  } catch (_) {}
+
+  try {
+    const r = await fetch('/api/shop/pay-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: order.id }) });
+    const d = await r.json().catch(() => ({}));
+    if (d && d.paid) return { paid: true };
+    if (r.ok && d && d.url) {
+      // корзину чистим заранее: назад покупатель вернётся уже на страницу заказа
+      try { store.set('cart', {}); } catch (_) {}
+      try { const l = store.get('last', null); if (l) { l.at = Date.now(); store.set('last', l); } } catch (_) {}
+      location.href = d.url;
+      return { paid: false, leaving: true };
+    }
+  } catch (_) {}
+
+  return payWidget(order, name, phone);
 }
 
 /* доставка: зоны, интервалы, даты — из админки */
@@ -1748,6 +1784,7 @@ cartDlg.addEventListener('submit', async e => {
       if (payMethod === 'card') {
         cartDlg.close();   // корзина открыта поверх всего, окно оплаты было бы под ней
         const res = await payCard(data, v('name').trim(), v('phone').trim());
+        if (res.leaving) return;             // уходим на страницу оплаты, вернёмся уже на страницу заказа
         lastOrder.paid = res.paid;
         lastOrder.payError = res.error;
         if (res.paid) { try { await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: data.id }) }); } catch (_) {} }
