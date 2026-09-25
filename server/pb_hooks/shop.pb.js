@@ -70,15 +70,29 @@ onRecordAfterCreateSuccess((e) => {
   e.next();
 }, "orders");
 
-// Покупателю — сообщение о смене статуса. Именно о смене: заказ сохраняется много раз
-// (фото, оплата, МойСклад), и без этой проверки клиенту приходило одно и то же по три раза.
+// Покупателю — сообщение о смене статуса, ровно один раз.
+// Заказ сохраняется много раз (фото, оплата, МойСклад), а проверки оплаты со страницы
+// заказа, из корзины и из бота идут одновременно — сравнения со старым значением мало,
+// три проверки в один миг видят одно и то же. Поэтому в самой записи держим отметку
+// «об этом статусе уже сообщили» и ставим её сразу, до отправки.
 onRecordAfterUpdateSuccess((e) => {
   try {
     const shop = require(`${__hooks}/lib/shop.js`);
-    const now = e.record.get("status");
-    let was = now;
-    try { was = e.record.original().get("status"); } catch (_) {}
-    if (now && now !== was) shop.notifyCustomer($app, e.record, now);
+    const now = String(e.record.get("status") || "");
+    if (!now) { e.next(); return; }
+
+    // Читаем отметку и ставим новую внутри одной транзакции: проверки оплаты приходят
+    // одновременно, и без этого все они успевали решить, что сообщить надо именно им.
+    // Пишем запросом, а не сохранением записи, иначе снова сработал бы этот же хук.
+    let send = false;
+    $app.runInTransaction((tx) => {
+      const row = new DynamicModel({ notified_status: "" });
+      tx.db().newQuery("SELECT notified_status FROM orders WHERE id = {:id}").bind({ id: e.record.id }).one(row);
+      if (String(row.notified_status || "") === now) return;
+      tx.db().newQuery("UPDATE orders SET notified_status = {:s} WHERE id = {:id}").bind({ s: now, id: e.record.id }).execute();
+      send = true;
+    });
+    if (send) shop.notifyCustomer($app, e.record, now);
   } catch (err) { console.log("customer notify", err); }
   e.next();
 }, "orders");

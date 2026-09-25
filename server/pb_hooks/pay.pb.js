@@ -1,4 +1,38 @@
 /// <reference path="../pb_data/types.d.ts" />
+
+// Ссылка на оплату: покупателя уводим на страницу CloudPayments, а они после оплаты
+// возвращают его на страницу заказа. Виджет для этого не годится — его кнопка
+// «Вернуться в магазин» ничего не делает, а на телефоне он ещё и теряет управление.
+routerAdd("POST", "/api/shop/pay-link", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const pay = require(`${__hooks}/lib/pay.js`);
+  const s = shop.settings($app);
+  const body = e.requestInfo().body || {};
+
+  let o;
+  try { o = $app.findRecordById("orders", String(body.order || "")); } catch (_) { return e.json(404, { message: "Заказ не найден" }); }
+  if (o.get("payment_status") === "paid") return e.json(200, { paid: true });
+  if (o.get("payment_method") !== "card") return e.json(400, { message: "Этот заказ оплачивается при получении." });
+
+  const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  const back = `${site}/#/order/${o.get("tg_code")}`;
+  const r = pay.cp(s, "/orders/create", {
+    Amount: o.get("total"),
+    Currency: "RUB",
+    Description: `Заказ №${o.get("number")} — venikoff.net`,
+    InvoiceId: String(o.get("number")),
+    AccountId: String(o.get("phone") || ""),
+    RequireConfirmation: false,
+    SuccessRedirectUrl: back,
+    FailRedirectUrl: back,
+  });
+  if (!r.ok || !r.data || !r.data.Success || !r.data.Model || !r.data.Model.Url) {
+    console.log("pay-link", JSON.stringify(r.data || r.error || ""));
+    return e.json(502, { message: "Не получилось открыть оплату. Попробуйте ещё раз." });
+  }
+  return e.json(200, { url: r.data.Model.Url, back });
+});
+
 // Оплата картой: проверка платежа после виджета и добор «висящих» оплат раз в минуту.
 
 // Сайт зовёт сразу после успешной оплаты в виджете

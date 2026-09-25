@@ -347,6 +347,8 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.foot .contacts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+.foot .contacts .lbl{font-size:13px;color:var(--ink-3);width:100%;text-align:center;margin-bottom:2px}
 .buy.soon{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 14px;border-radius:999px;background:var(--soft);color:var(--ink-2);font-size:13.5px;font-weight:600}
 .notice.paid{border-color:var(--leaf);color:var(--ink)}
 .notice.resume{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-color:var(--sale);color:var(--ink)}
@@ -585,7 +587,12 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <div class="wrap">
     <a class="logo" href="#/">venikoff<span class="dot"></span><i>net</i></a>
     <nav aria-label="Ссылки"><a href="#/catalog">Каталог</a><a href="#/studio">Собрать букет</a><a href="#/delivery">Доставка</a></nav>
-    <span>Оптовые цены в розницу · Москва<br>© venikoff.net, 2026</span>
+    <div class="contacts">
+      <span class="lbl">Связаться с нами</span>
+      <a class="btn btn-ghost btn-sm" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
+      <a class="btn btn-ghost btn-sm" href="https://max.ru/id3123484572_biz" target="_blank" rel="noopener">Написать в MAX</a>
+    </div>
+    <span>Москва, Маленковская улица, 14к1<br>Оптовые цены в розницу<br>© venikoff.net, 2026</span>
   </div>
 </footer>
 
@@ -598,7 +605,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790339715"></script>
+<script src="data.js?v=1790340173"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
