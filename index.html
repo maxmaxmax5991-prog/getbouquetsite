@@ -165,9 +165,14 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 }
 
 /* чат */
-.chat-fab{position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;box-shadow:0 12px 30px rgba(224,23,138,.35)}
+/* голубая, как Телеграм: на фуксии сайта розовая кнопка терялась.
+   Пульсирует, чтобы её замечали; при «уменьшить движение» пульс выключается */
+.chat-fab{position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;background:#229ED9;color:#fff;display:grid;place-items:center;box-shadow:0 12px 30px rgba(34,158,217,.4)}
+.chat-fab::after{content:"";position:absolute;inset:0;border-radius:50%;animation:chatPulse 2.6s cubic-bezier(.3,0,.3,1) infinite}
+@keyframes chatPulse{0%{box-shadow:0 0 0 0 rgba(34,158,217,.6)}70%{box-shadow:0 0 0 18px rgba(34,158,217,0)}100%{box-shadow:0 0 0 0 rgba(34,158,217,0)}}
+@media (prefers-reduced-motion:reduce){.chat-fab::after{animation:none}}
 .chat-fab .i{width:26px;height:26px}
-.chat-fab:hover{transform:translateY(-2px)}
+.chat-fab:hover{transform:translateY(-2px);background:#1E8FC4}
 .chat-dot{position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--leaf);border:2px solid var(--paper)}
 .chat-win{position:fixed;right:18px;bottom:18px;z-index:61;width:min(360px,calc(100dvw - 24px));height:min(520px,calc(100vh - 100px));display:flex;flex-direction:column;background:var(--paper);border:1px solid var(--line);border-radius:20px;box-shadow:0 26px 60px rgba(0,0,0,.28);overflow:hidden}
 .chat-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--accent);color:#fff}
@@ -180,6 +185,8 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .chat-msg.shop{align-self:flex-start;background:var(--paper);border:1px solid var(--line);border-bottom-left-radius:5px}
 .chat-msg .t{display:block;margin-top:3px;font-size:10.5px;opacity:.6}
 .chat-hint{align-self:center;text-align:center;font-size:12px;color:var(--ink-2);padding:8px 4px}
+.chat-login{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--line);background:var(--accent-soft);font-size:12px;line-height:1.3;color:var(--ink-2)}
+.chat-login .btn{flex:none;height:32px;padding:0 12px;font-size:12.5px}
 .chat-foot{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
 .chat-foot .in{flex:1;height:42px}
 .chat-foot .btn{width:46px;padding:0;flex:none}
@@ -635,7 +642,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790413204"></script>
+<script src="data.js?v=1790413478"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1086,6 +1093,7 @@ $$("[data-pay-order]").forEach(b => b.onclick = async () => {
     const ord = (ME.orders || []).find(x => x.id === b.dataset.payOrder);
     if (ord && !ord.subscribed && API.bot && ord.tg_code) {
       lastOrder = { number: ord.number, sum: ord.total, when: `${ord.date}, ${ord.interval || ""}`, paid: true, code: ord.tg_code };
+      try { window.chatLink && window.chatLink(); } catch (_) {}
       view = "done"; renderCart(); cartDlg.showModal();   // окно с кнопкой «Открыть бота»
     }
     renderMe();
@@ -1139,7 +1147,7 @@ function waitLogin(code, waitSel, done, text, html) {
       const c = await fetch('/api/shop/login-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
       const cd = await c.json();
       if (!cd.token) return false;
-      meToken = cd.token; store.set('token', meToken);
+      meToken = cd.token; store.set('token', meToken); try { window.chatLink && window.chatLink(); } catch (_) {}
       await loadMe();
       if (wait) wait.hidden = true;
       toast('Вы вошли');
@@ -1181,7 +1189,7 @@ async function startLogin(how, waitSel, done) {
         const c = await fetch('/api/shop/login-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: d.code }) });
         const cd = await c.json();
         if (cd.token) {
-          clearInterval(timer); meToken = cd.token; store.set('token', meToken);
+          clearInterval(timer); meToken = cd.token; store.set('token', meToken); try { window.chatLink && window.chatLink(); } catch (_) {}
           await loadMe();
           wait.hidden = true;
           toast('Вы вошли');
@@ -2008,7 +2016,9 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
 
   function tick() { clearInterval(timer); timer = setInterval(load, open ? 4000 : 45000); }
 
-  fab.onclick = () => { open = true; win.hidden = false; fab.hidden = true; load(); tick(); field.focus(); };
+  const loginBar = () => { const el = $('#chatLogin'); if (el) el.hidden = !!store.get('token', ''); };
+  $('#chatLoginGo').onclick = () => { location.hash = '#/me'; open = false; win.hidden = true; fab.hidden = false; tick(); };
+  fab.onclick = () => { open = true; win.hidden = false; fab.hidden = true; loginBar(); load(); tick(); field.focus(); };
   $('#chatClose').onclick = () => { open = false; win.hidden = true; fab.hidden = false; tick(); };
 
   form.onsubmit = async (e) => {
@@ -2026,8 +2036,20 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
         // даже если человек оформлял без входа в кабинет
         body: JSON.stringify({ token, text, order: (store.get('last', null) || {}).code || '' }) });
       if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.message || 'Сообщение не ушло', true); }
+      loginBar();
       load();
     } catch (_) { toast('Нет связи. Сообщение не ушло', true); }
+  };
+
+  // Вошёл в кабинет или оформил заказ — связываем диалог с человеком.
+  // Тогда переписка найдётся и с другого телефона, и менеджер увидит, кто пишет.
+  window.chatLink = () => {
+    try {
+      fetch('/api/shop/chat/link', { method: 'POST',
+        headers: { 'content-type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ token, order: (store.get('last', null) || {}).code || '' }) })
+        .then(() => { loginBar(); if (open) load(); });
+    } catch (_) {}
   };
 
   win.hidden = true; fab.hidden = false;
@@ -2046,6 +2068,7 @@ loadMe().then(() => { badges(); router(); resumeOrder(); });
     <button class="chat-x" id="chatClose" aria-label="Закрыть">&times;</button>
   </div>
   <div class="chat-body" id="chatBody"></div>
+  <div class="chat-login" id="chatLogin" hidden>Войдите — переписка сохранится, и мы сразу увидим ваш заказ<button class="btn btn-ghost btn-sm" id="chatLoginGo">Войти</button></div>
   <form class="chat-foot" id="chatForm">
     <input class="in" id="chatText" placeholder="Напишите сообщение…" maxlength="2000" autocomplete="off">
     <button class="btn btn-primary" type="submit" aria-label="Отправить"><svg class="i"><use href="#i-arrow"/></svg></button>

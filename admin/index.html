@@ -1013,7 +1013,7 @@ const loadChats = safe(async () => {
   $('#chatList').innerHTML = CHATS.length ? CHATS.map(c => `
     <button class="chat2-item" data-chat="${c.id}" aria-current="${c.id === CHAT}">
       ${c.unread ? `<span class="dot">${c.unread}</span>` : ''}
-      <b>${esc(c.name || 'Гость с сайта')}${c.phone ? ' · ' + esc(c.phone) : ''}${c.order ? ' · №' + esc(c.order) : ''}</b>
+      <b>${esc(c.name || 'Гость с сайта')}${c.phone ? ' · ' + esc(c.phone) : ''}${c.order ? ' · №' + esc(c.order) : ''}${c.customer ? '' : ' <span class="pill st-new" style="font-size:10px;padding:0 6px;height:17px">гость</span>'}</b>
       <span>${esc(c.last_text || '')}</span>
       <span>${chatAt(c.last_at)}</span>
     </button>`).join('') : '<div class="empty">Пока никто не писал.</div>';
@@ -1025,6 +1025,7 @@ const openChat = safe(async (id, quiet) => {
   CHAT = id;
   const d = await api(`/api/shop/chat-one?chat=${encodeURIComponent(id)}`);
   $('#chatWho').innerHTML = `${esc(d.name || 'Гость с сайта')}${d.phone ? ` · <a href="tel:${esc(d.phone.replace(/[^\d+]/g, ''))}">${esc(d.phone)}</a>` : ''}`
+    + (d.customer ? '' : '<small style="color:var(--sale)">Личность не подтверждена — не называйте адрес и состав чужого заказа, попросите войти на сайте</small>')
     + (d.orders && d.orders.length ? `<small>Заказы: ${d.orders.map(o => `№${o.number} — ${esc(o.status)}, ${rub(o.total)}`).join(' · ')}</small>` : '<small>Заказов на сайте нет</small>');
   $('#chatThread').innerHTML = (d.messages || []).map(m =>
     `<div class="chat2-msg ${m.side}">${esc(m.text)}<span class="t">${chatAt(m.at)}${m.author ? ' · ' + esc(m.author) : ''}</span></div>`).join('');

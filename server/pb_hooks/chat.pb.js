@@ -1,3 +1,36 @@
+// Диалог по ключу браузера: ключей может быть несколько, если диалоги склеивали
+function chatByToken(app, token) {
+  try { return app.findFirstRecordByFilter("chats", "token = {:t}", { t: token }); } catch (_) {}
+  try { return app.findFirstRecordByFilter("chats", "alt ~ {:t}", { t: token }); } catch (_) {}
+  return null;
+}
+
+// Кто пишет: вошедший покупатель, если он вошёл
+function whoIs(app, e) {
+  try {
+    const acc = require(`${__hooks}/lib/account.js`);
+    return acc.byToken(app, e.request.header.get("X-Customer-Token"));
+  } catch (_) { return null; }
+}
+
+// Находим диалог так, чтобы переписка не терялась при смене браузера или телефона:
+// вошёл в кабинет — ищем по покупателю, иначе по ключу из его браузера.
+// Нашли по покупателю, а ключ новый — запоминаем ключ, чтобы и без входа находилось.
+function findChat(app, token, cust) {
+  let chat = null;
+  if (cust) {
+    try { chat = app.findFirstRecordByFilter("chats", "customer = {:c}", { c: cust.id }); } catch (_) {}
+  }
+  if (!chat) return chatByToken(app, token);
+  if (token && chat.get("token") !== token && String(chat.get("alt") || "").indexOf(token) < 0) {
+    const alts = String(chat.get("alt") || "").split(",").filter(Boolean);
+    alts.push(token);
+    chat.set("alt", alts.slice(-20).join(","));
+    app.save(chat);
+  }
+  return chat;
+}
+
 /// <reference path="../pb_data/types.d.ts" />
 // Чат на сайте. Переписка живёт у нас; отвечаем из админки или реплаем в служебном боте.
 // Посетителя узнаём по случайному ключу из его браузера — входить в кабинет не обязательно.
@@ -19,23 +52,19 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
     { t: new Date(Date.now() - 60000).toISOString().replace("T", " ").slice(0, 19) });
   if (recent.length > 20) return e.json(429, { message: "Слишком много сообщений. Подождите минуту." });
 
-  let chat = null;
-  try { chat = $app.findFirstRecordByFilter("chats", "token = {:t}", { t: token }); } catch (_) {}
+  const me = whoIs($app, e);
+  let chat = findChat($app, token, me);
   if (!chat) {
     chat = new Record($app.findCollectionByNameOrId("chats"));
     chat.set("token", token);
   }
 
-  // если покупатель вошёл в кабинет — видим, кто пишет, и его заказы
-  try {
-    const acc = require(`${__hooks}/lib/account.js`);
-    const c = acc.byToken($app, e.request.header.get("X-Customer-Token"));
-    if (c) {
-      chat.set("customer", c.id);
-      if (!chat.get("name")) chat.set("name", c.get("name") || c.get("tg_name") || "");
-      if (!chat.get("phone")) chat.set("phone", c.get("phone") || "");
-    }
-  } catch (_) {}
+  // вошёл в кабинет — видим, кто пишет, и его заказы
+  if (me) {
+    chat.set("customer", me.id);
+    if (!chat.get("name")) chat.set("name", me.get("name") || me.get("tg_name") || "");
+    if (!chat.get("phone")) chat.set("phone", me.get("phone") || "");
+  }
   // заказывал без входа — узнаём по коду последнего заказа из его браузера
   if (b.order) {
     let o = null;
@@ -87,8 +116,7 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
 routerAdd("GET", "/api/shop/chat", (e) => {
   const token = String(e.request.url.query().get("token") || "").trim();
   if (token.length < 16) return e.json(200, { messages: [] });
-  let chat = null;
-  try { chat = $app.findFirstRecordByFilter("chats", "token = {:t}", { t: token }); } catch (_) {}
+  const chat = findChat($app, token, whoIs($app, e));
   if (!chat) return e.json(200, { messages: [] });
   const list = $app.findRecordsByFilter("chat_messages", "chat = {:c}", "created", 100, 0, { c: chat.id });
   return e.json(200, {
@@ -146,7 +174,7 @@ routerAdd("GET", "/api/shop/chat-one", (e) => {
   } catch (_) {}
   orders.sort((a, b2) => b2.number - a.number);
   return e.json(200, {
-    name: chat.get("name") || "", phone: chat.get("phone") || "", orders,
+    name: chat.get("name") || "", phone: chat.get("phone") || "", orders, customer: chat.get("customer") || "",
     messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"), author: m.get("author") || "" })),
   });
 }, $apis.requireAuth("managers"));
@@ -173,3 +201,55 @@ routerAdd("POST", "/api/shop/chat-reply", (e) => {
   $app.save(chat);
   return e.json(200, { ok: true });
 }, $apis.requireAuth("managers"));
+
+// Человек написал до входа, потом вошёл (или оформил заказ) — привязываем диалог к нему.
+// Если у покупателя уже был диалог с другого устройства, склеиваем: переписка одна.
+routerAdd("POST", "/api/shop/chat/link", (e) => {
+  const b = e.requestInfo().body || {};
+  const token = String(b.token || "").trim();
+  if (token.length < 16) return e.json(200, { ok: true });
+  const chat = findChat($app, token, whoIs($app, e));
+  if (!chat) return e.json(200, { ok: true });
+
+  let cust = whoIs($app, e);
+  // заказ без входа: имя и телефон берём из него
+  if (b.order) {
+    let o = null;
+    try { o = $app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: String(b.order) }); } catch (_) {}
+    if (o) {
+      if (!chat.get("name")) chat.set("name", o.get("name") || "");
+      if (!chat.get("phone")) chat.set("phone", o.get("phone") || "");
+      if (!cust && o.get("customer")) { try { cust = $app.findRecordById("customers", o.get("customer")); } catch (_) {} }
+    }
+  }
+  if (!cust) { $app.save(chat); return e.json(200, { ok: true }); }
+
+  chat.set("customer", cust.id);
+  if (!chat.get("name")) chat.set("name", cust.get("name") || cust.get("tg_name") || "");
+  if (!chat.get("phone")) chat.set("phone", cust.get("phone") || "");
+
+  // был ли у него диалог раньше — тогда переносим сообщения туда, где переписка длиннее
+  let old = null;
+  try {
+    old = $app.findFirstRecordByFilter("chats", "customer = {:c} && id != {:id}", { c: cust.id, id: chat.id });
+  } catch (_) {}
+  if (!old) { $app.save(chat); return e.json(200, { ok: true }); }
+
+  $app.findRecordsByFilter("chat_messages", "chat = {:c}", "created", 500, 0, { c: chat.id })
+    .forEach((m) => { m.set("chat", old.id); $app.save(m); });
+  const alts = String(old.get("alt") || "").split(",").filter(Boolean);
+  if (alts.indexOf(chat.get("token")) < 0) alts.push(chat.get("token"));
+  String(chat.get("alt") || "").split(",").filter(Boolean).forEach((t) => { if (alts.indexOf(t) < 0) alts.push(t); });
+  old.set("alt", alts.slice(0, 20).join(","));
+  if (!old.get("name")) old.set("name", chat.get("name") || "");
+  if (!old.get("phone")) old.set("phone", chat.get("phone") || "");
+  if (chat.get("last_at") > String(old.get("last_at") || "")) {
+    old.set("last_at", chat.get("last_at"));
+    old.set("last_text", chat.get("last_text"));
+    old.set("answered", chat.get("answered"));
+  }
+  old.set("unread", (+old.get("unread") || 0) + (+chat.get("unread") || 0));
+  $app.save(old);
+  $app.delete(chat);
+  return e.json(200, { ok: true, merged: true });
+});
