@@ -158,6 +158,7 @@ function catalog(app) {
         variants: variants.length ? variants : undefined,
         def_label: defVar ? defVar.label : undefined,
         site_only: p.get("site_only") ? true : undefined,
+        badge_text: String(p.get("badge_text") || "").trim() || undefined,
         // «сегодня с теплицы» — только в день завоза, назавтра само пропадёт
         fresh: String(p.get("fresh_date") || "") === moscowNow().date ? true : undefined,
         // «цветы ещё в пути»: сайт покажет предупреждение и не даст ранний интервал

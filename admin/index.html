@@ -698,6 +698,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <div id="mSingle"><input class="in num" id="ePrice" type="number" min="0" step="10" style="max-width:200px"></div>
     </div>
     <div class="row">
+      <label class="f" for="eBadgeText">Своя надпись на фото<input class="in" id="eBadgeText" maxlength="40" placeholder="например: Тот самый из Reels"></label>
       <label class="f" for="eBadge">Метка<select class="in" id="eBadge"><option value="">Нет</option><option value="sale">Акция</option><option value="hit">Хит</option><option value="new">Новинка</option><option value="author">Авторский</option></select></label>
       <label class="f" for="eSort">Порядок (меньше — выше)<input class="in num" id="eSort" type="number"></label>
     </div>
@@ -1013,6 +1014,7 @@ function openEditor(p) {
   $('#eCat').innerHTML = CATS.map(c => `<option value="${c.id}"${c.id === cat ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
   $('#ePrice').value = p ? p.price : '';
   $('#eBadge').value = p ? p.badge || '' : '';
+  $('#eBadgeText').value = p ? p.badge_text || '' : '';
   $('#eSort').value = p ? p.sort || 0 : 0;
   $('#eMood').value = p ? p.mood || '' : '';
   $('#eTint').value = p && /^#[0-9a-f]{6}$/i.test(p.tint || '') ? p.tint : '#E0178A';
@@ -1165,6 +1167,7 @@ $('#eSave').onclick = safe(async () => {
   fd.append('name', name);
   fd.append('category', $('#eCat').value);
   fd.append('badge', $('#eBadge').value);
+  fd.append('badge_text', $('#eBadgeText').value.trim());
   fd.append('sort', +$('#eSort').value || 0);
   fd.append('mood', $('#eMood').value.trim());
   fd.append('tint', $('#eTint').value);
