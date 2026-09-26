@@ -379,6 +379,28 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div id="statChart"></div>
       </div>
       <div class="card" style="margin-top:12px">
+        <h2>Воронка</h2>
+        <p class="hint">Сколько людей дошло до каждого шага. Считаются люди, а не клики.</p>
+        <div class="scroll"><table class="t" id="statFunnel"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Оценка букетов</h2>
+        <div class="scroll"><table class="t" id="statPhoto"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>География доставки</h2>
+        <div class="scroll"><table class="t" id="statGeo"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Деньги по источникам</h2>
+        <p class="hint">Не только кто пришёл, но и кто заплатил — видно, какая реклама окупается.</p>
+        <div class="scroll"><table class="t" id="statMoneySrc"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Сроки и чат</h2>
+        <div class="scroll"><table class="t" id="statTime"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
         <h2>Когда просят доставку</h2>
         <p class="hint">По какому интервалу сколько заказов — видно, на какие часы ставить людей.</p>
         <div class="scroll"><table class="t" id="statSlots"></table></div>
@@ -1746,6 +1768,80 @@ const loadStats = safe(async () => {
     ? `<tr><th>Источник</th><th class="num">Посетителей</th><th class="num">Доля</th></tr>`
       + vis.sources.map(x => `<tr><td>${esc(x.source)}</td><td class="num">${x.n}</td><td class="num">${guests ? Math.round(x.n * 100 / guests) : 0}%</td></tr>`).join('')
     : '<tr><td>Пока никто не заходил</td></tr>';
+
+  // Воронка: посетители → карточка → корзина → оформление → заказ → оплата
+  try {
+    const fn = await api(`/api/shop/funnel?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`);
+    const steps = [
+      ['Зашли на сайт', fn.visits], ['Открыли карточку', fn.view], ['Положили в корзину', fn.cart],
+      ['Начали оформлять', fn.checkout], ['Оформили заказ', live.length], ['Оплатили', paid.length],
+    ];
+    const top0 = steps[0][1] || 1;
+    $('#statFunnel').innerHTML = `<tr><th>Шаг</th><th class="num">Человек</th><th class="num">От зашедших</th><th class="num">Дошли с прошлого шага</th></tr>`
+      + steps.map(([t, n], i) => {
+        const prev = i ? (steps[i - 1][1] || 0) : 0;
+        const drop = i && prev ? Math.round(n * 100 / prev) : null;
+        return `<tr><td>${t}</td><td class="num">${n}</td><td class="num">${Math.round(n * 100 / top0)}%</td><td class="num">${drop === null ? '' : drop + '%'}</td></tr>`;
+      }).join('');
+  } catch (_) { $('#statFunnel').innerHTML = '<tr><td>Пока нет данных</td></tr>'; }
+
+  // Оценка букетов и причины правок
+  const withPhoto = all.filter(o => o.photo_status);
+  const good = withPhoto.filter(o => o.photo_status === 'approved').length;
+  const bad = withPhoto.filter(o => o.photo_status === 'rework');
+  const reasons = {};
+  bad.forEach(o => { const k = (o.photo_comment || 'без пояснения').slice(0, 60); reasons[k] = (reasons[k] || 0) + 1; });
+  $('#statPhoto').innerHTML = withPhoto.length
+    ? `<tr><th>Итог</th><th class="num">Сколько</th></tr>`
+      + `<tr><td>👍 Понравился</td><td class="num">${good}</td></tr>`
+      + `<tr><td>👎 Просили поправить</td><td class="num">${bad.length}</td></tr>`
+      + `<tr><td>Ждут ответа</td><td class="num">${withPhoto.length - good - bad.length}</td></tr>`
+      + Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<tr><td class="hint">— ${esc(k)}</td><td class="num">${n}</td></tr>`).join('')
+    : '<tr><td>Фото за период не отправляли</td></tr>';
+
+  // География: пояса доставки
+  const geo = {};
+  dl.forEach(o => { const k = o.zone_name || 'не определён'; geo[k] = geo[k] || { n: 0, sum: 0, dsum: 0 }; geo[k].n++; geo[k].sum += o.total || 0; geo[k].dsum += o.delivery_price || 0; });
+  const geoRows = Object.entries(geo).sort((a, b) => b[1].n - a[1].n);
+  $('#statGeo').innerHTML = geoRows.length
+    ? `<tr><th>Пояс</th><th class="num">Доставок</th><th class="num">Выручка</th><th class="num">Из них доставка</th></tr>`
+      + geoRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.n}</td><td class="num">${rub(v.sum)}</td><td class="num">${rub(v.dsum)}</td></tr>`).join('')
+    : '<tr><td>Доставок за период нет</td></tr>';
+
+  // Деньги по источникам
+  const src = {};
+  live.forEach(o => { const k = o.source || 'неизвестно'; src[k] = src[k] || { n: 0, sum: 0 }; src[k].n++; src[k].sum += o.total || 0; });
+  const srcRows = Object.entries(src).sort((a, b) => b[1].sum - a[1].sum);
+  $('#statMoneySrc').innerHTML = srcRows.length
+    ? `<tr><th>Источник</th><th class="num">Заказов</th><th class="num">Выручка</th><th class="num">Средний чек</th></tr>`
+      + srcRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.n}</td><td class="num">${rub(v.sum)}</td><td class="num">${rub(Math.round(v.sum / v.n))}</td></tr>`).join('')
+    : '<tr><td>Заказов за период нет</td></tr>';
+
+  // Сроки: от заказа до сборки и до доставки, и зависшие без оплаты
+  const mins = (a, b) => Math.round((new Date(b) - new Date(a)) / 60000);
+  const parseStamps = o => { try { return o.stamps || {}; } catch (_) { return {}; } };
+  const avgOf = (arr) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+  const toPhoto = [], toDone = [];
+  live.forEach(o => {
+    const st = parseStamps(o), created = o.created;
+    if (st.photo) toPhoto.push(mins(created, st.photo));
+    if (st.done) toDone.push(mins(created, st.done));
+  });
+  const hangingList = live.filter(o => o.payment_method === 'card' && o.payment_status !== 'paid');
+  const hanging = hangingList.reduce((n, o) => n + (o.total || 0), 0);
+  let chatLine = '';
+  try {
+    const cd = await api('/api/shop/chats');
+    const chats = cd.chats || [];
+    chatLine = `<tr><td>Обращений в чат</td><td class="num">${chats.length}</td></tr>`
+      + `<tr><td>Без ответа сейчас</td><td class="num">${chats.filter(c => !c.answered).length}</td></tr>`;
+  } catch (_) {}
+  const fmtMin = m => m === null ? '—' : (m >= 60 ? `${Math.floor(m / 60)} ч ${m % 60} мин` : `${m} мин`);
+  $('#statTime').innerHTML = `<tr><th>Показатель</th><th class="num">Значение</th></tr>`
+    + `<tr><td><b>Зависло без оплаты</b>${hangingList.length ? ` <span class="hint">(${hangingList.map(o => '№' + o.number).join(', ')})</span>` : ''}</td><td class="num">${rub(hanging)}</td></tr>`
+    + `<tr><td>От заказа до «букет собран»</td><td class="num">${fmtMin(avgOf(toPhoto))}</td></tr>`
+    + `<tr><td>От заказа до «доставлен»</td><td class="num">${fmtMin(avgOf(toDone))}</td></tr>`
+    + chatLine;
 
   // Что покупают
   const byItem = {};

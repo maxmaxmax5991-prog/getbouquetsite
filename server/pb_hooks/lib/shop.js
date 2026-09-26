@@ -396,6 +396,7 @@ function prepareOrder(app, rec) {
       const r = geo.check(app, s, parts, sum);
       if (!r.ok) fail(r.error);
       rec.set("zone", r.zone || "");
+      rec.set("zone_name", r.zoneName || "");   // пояс словами — для разреза по географии
       rec.set("address", r.address);
       rec.set("lat", r.lat); rec.set("lon", r.lon);
       rec.set("distance_km", r.km);
@@ -448,6 +449,9 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   rec.set("bonus", bonus);
   rec.set("comment", "");
   rec.set("tg_code", $security.randomString(10));   // по нему покупатель подпишется на статусы в боте
+  // откуда пришёл человек — чтобы считать не только посетителей по источникам, но и деньги
+  rec.set("source", String(rec.get("source") || "").slice(0, 60));
+  rec.set("vid", String(rec.get("vid") || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 40));
 
   // Списываем остатки в самом конце, когда заказ уже прошёл все проверки.
   // Пишем запросом, а не сохранением товара: соседнее сохранение из копии,

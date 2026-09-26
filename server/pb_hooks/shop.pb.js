@@ -91,7 +91,19 @@ onRecordAfterUpdateSuccess((e) => {
         .bind({ id: e.record.id, s: now, t: new Date().toISOString() }).execute();
       send = true;
     } catch (_) { send = false; }   // уже сообщали об этом статусе
-    if (send) shop.notifyCustomer($app, e.record, now);
+    if (send) {
+      // когда заказ пришёл в этот статус — для сроков и опозданий в статистике
+      try {
+        let st = {};
+        try { st = JSON.parse(e.record.getString("stamps") || "{}") || {}; } catch (_) {}
+        if (!st[now]) {
+          st[now] = new Date().toISOString();
+          $app.db().newQuery("UPDATE orders SET stamps = {:v} WHERE id = {:id}")
+            .bind({ v: JSON.stringify(st), id: e.record.id }).execute();
+        }
+      } catch (err) { console.log("отметка статуса", err); }
+      shop.notifyCustomer($app, e.record, now);
+    }
   } catch (err) { console.log("customer notify", err); }
   e.next();
 }, "orders");

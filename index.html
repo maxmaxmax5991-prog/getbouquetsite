@@ -642,7 +642,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790428596"></script>
+<script src="data.js?v=1790428936"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -764,7 +764,7 @@ function setQty(k, n) {
   store.set('cart', cart); badges(); refreshBuy(parseKey(k).id);
   if (cartDlg.open && view === 'list') renderCart();
 }
-function addToCart(k, n = 1, notify = true) { setQty(k, (cart[k] || 0) + n); if (notify) toast(`«${keyName(k)}» в корзине`); }
+function addToCart(k, n = 1, notify = true) { try { window.ev && window.ev('cart', keyName(k)); } catch (_) {} setQty(k, (cart[k] || 0) + n); if (notify) toast(`«${keyName(k)}» в корзине`); }
 function toggleFav(id) {
   favs.has(id) ? favs.delete(id) : favs.add(id);
   store.set('favs', [...favs]);
@@ -902,6 +902,7 @@ function showProduct(id) {
   $('#pdTag').hidden = !(p.sale || p.author); $('#pdTag').textContent = p.sale ? 'Акция' : 'Авторский'; $('#pdTag').className = 'tag' + (p.sale ? '' : ' author');
   $('#pdCat').textContent = catName[p.cat];
   $('#pdName').textContent = p.name;
+  try { window.ev && window.ev('view', p.name); } catch (_) {}
   $('#pdOnly').hidden = !p.site_only;
   const soon = readyNote(p);
   $('#pdSoon').hidden = !soon;
@@ -1416,6 +1417,7 @@ ${payChoice()}
       if ($('#pickupNote')) $('#pickupNote').hidden = !pickup;
       if (PAY && PAY.card && $('#payBox')) { $('#payBox').outerHTML = payChoice(); bindPaySeg(); }
       fillIntervals(); recalc();
+      try { window.ev && window.ev('checkout', ''); } catch (_) {}
     };
     const afterLogin = () => {
       const box = $('#idBox'); if (box) box.hidden = true;
@@ -1875,6 +1877,8 @@ cartDlg.addEventListener('submit', async e => {
           entrance: v('entrance').trim(), floor: v('floor').trim(), flat: v('flat').trim(), intercom: v('intercom').trim() }),
         zone: getType === 'pickup' || !$('#fZone') ? '' : v('zone'), date: v('date'), interval: v('time'), note: v('note').trim(),
         delivery_type: getType, payment_method: payMethod,
+        // откуда пришёл и кто это по счётчику — чтобы считать выручку по источникам
+        source: store.get('src', ''), vid: store.get('vid', ''),
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { btn.disabled = false; return err(res.status === 429 ? 'Слишком много попыток. Подождите минуту.' : (data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.')); }
@@ -2068,8 +2072,10 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
       if (!src && document.referrer) {
         try { const h = new URL(document.referrer).hostname.replace(/^www\./, ''); if (h && h !== location.hostname) src = h; } catch (_) {}
       }
+      const source = src || store.get('src', '') || 'прямой заход';
+      store.set('src', source);   // запоминаем: заказ может случиться через неделю
       fetch('/api/shop/hit', { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ vid, source: src || 'прямой заход' }) }).catch(() => {});
+        body: JSON.stringify({ vid, source }) }).catch(() => {});
     } catch (_) {}
   })();
 
@@ -2090,6 +2096,15 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
     window.addEventListener('error', (e) => send(e.message + (e.filename ? ` (${String(e.filename).split('/').pop()}:${e.lineno})` : ''), location.hash));
     window.addEventListener('unhandledrejection', (e) => send('Обещание отклонено: ' + ((e.reason && e.reason.message) || e.reason), location.hash));
   })();
+
+  // Шаги посетителя для воронки: карточка → корзина → оформление.
+  // Одна отметка на шаг в день, поэтому счётчик считает людей, а не клики.
+  window.ev = (kind, ctx) => {
+    try {
+      fetch('/api/shop/ev', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ vid: store.get('vid', ''), kind, ctx: String(ctx || '').slice(0, 60) }) }).catch(() => {});
+    } catch (_) {}
+  };
 
 loadMe().then(() => { badges(); router(); resumeOrder(); });
 })();

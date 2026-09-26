@@ -43,3 +43,42 @@ routerAdd("GET", "/api/shop/stats-visits", (e) => {
   } catch (err) { console.log("сводка источников", err); }
   return e.json(200, out);
 }, $apis.requireAuth("managers"));
+
+// Шаги посетителя: открыл карточку, положил в корзину, начал оформлять.
+// Одна отметка на посетителя в день на каждый шаг — считаем людей, а не клики.
+routerAdd("POST", "/api/shop/ev", (e) => {
+  const b = e.requestInfo().body || {};
+  const vid = String(b.vid || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 40);
+  const kind = String(b.kind || "").slice(0, 20);
+  if (vid.length < 8 || ["view", "cart", "checkout"].indexOf(kind) < 0) return e.json(200, { ok: true });
+  const day = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  try {
+    $app.db().newQuery("INSERT OR IGNORE INTO events (day, vid, kind, ctx, at) VALUES ({:d}, {:v}, {:k}, {:c}, {:t})")
+      .bind({ d: day, v: vid, k: kind, c: String(b.ctx || "").slice(0, 60), t: new Date().toISOString() }).execute();
+  } catch (err) { console.log("событие", err); }
+  return e.json(200, { ok: true });
+});
+
+// Воронка и брошенные корзины за отрезок
+routerAdd("GET", "/api/shop/funnel", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const q = e.request.url.query();
+  const from = String(q.get("from") || "").match(/^\d{4}-\d{2}-\d{2}$/) ? q.get("from") : new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+  const to = String(q.get("to") || "").match(/^\d{4}-\d{2}-\d{2}$/) ? q.get("to") : from;
+  const out = { visits: 0, view: 0, cart: 0, checkout: 0 };
+  try {
+    const row = new DynamicModel({ n: 0 });
+    $app.db().newQuery("SELECT COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t}").bind({ f: from, t: to }).one(row);
+    out.visits = +row.n;
+  } catch (_) {}
+  ["view", "cart", "checkout"].forEach((k) => {
+    try {
+      const row = new DynamicModel({ n: 0 });
+      $app.db().newQuery("SELECT COUNT(DISTINCT vid) as n FROM events WHERE day >= {:f} AND day <= {:t} AND kind = {:k}")
+        .bind({ f: from, t: to, k }).one(row);
+      out[k] = +row.n;
+    } catch (_) {}
+  });
+  return e.json(200, out);
+}, $apis.requireAuth("managers"));
