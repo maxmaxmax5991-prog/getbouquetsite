@@ -42,9 +42,12 @@ cronAdd("tg-poll-client", "* * * * *", () => {
     const updates = res.json.result || [];
     for (const upd of updates) {
       offset = upd.update_id + 1;
+      // Позицию сохраняем ДО обработки: если сервер перезапустится посреди пачки
+      // (например, на выкладке), то же нажатие пришло бы второй раз, и владельцу
+      // прилетало «Клиент одобрил фото» по четыре раза.
+      saveOffset(offset);
       try { bot.handleClient($app, upd); } catch (err) { console.log("client bot", err); }
     }
-    if (updates.length) saveOffset(offset);
   }
 });
 
@@ -90,8 +93,8 @@ cronAdd("tg-poll", "* * * * *", () => {
     const updates = res.json.result || [];
     for (const upd of updates) {
       offset = upd.update_id + 1;
+      saveOffset(offset);   // до обработки: перезапуск не должен повторять сообщение
       try { bot.handle($app, secret, upd); } catch (err) { console.log("bot error", err); }
     }
-    if (updates.length) saveOffset(offset);
   }
 });

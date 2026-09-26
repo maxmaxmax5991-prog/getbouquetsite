@@ -166,6 +166,7 @@ function onButton(app, s, token, cb) {
   if (!ord) { answer(token, cb.callback_id, "Заказ не найден"); return; }
 
   if (parts[0] === "ap") {
+    if (ord.get("photo_status") === "approved") { answer(token, cb.callback_id, "Уже передали, спасибо!"); return; }
     ord.set("photo_status", "approved");
     app.save(ord);
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
@@ -189,6 +190,7 @@ function onButton(app, s, token, cb) {
     const REASONS = { "1": "не те цвета", "2": "не те цветы", "3": "маловат букет", "4": "другая упаковка", "5": "просит позвонить" };
     const reason = REASONS[parts[2]] || "не подошёл букет";
     answer(token, cb.callback_id, "");
+    if (ord.get("photo_status") === "rework" && ord.get("photo_comment") === reason) return;   // повтор того же нажатия
     ord.set("photo_comment", reason);
     ord.set("photo_status", "rework");
     app.save(ord);

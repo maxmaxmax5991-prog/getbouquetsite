@@ -14,6 +14,19 @@ cronAdd("ms-push", "* * * * *", () => {
       if (!r.ok && !r.wait && o.get("ms_error") !== r.error) { o.set("ms_error", r.error); $app.save(o); }
     } catch (err) { console.log("ms-push", err); }
   });
+
+  // Добор входящих платежей. Платёж создаётся один раз, сразу после оплаты;
+  // если тогда не получилось (связь, перезапуск), повторить было некому —
+  // и заказ в МоёмСкладе оставался оплаченным, но без денег. Так вышло с №3021.
+  const noPay = $app.findRecordsByFilter("orders",
+    `payment_status = "paid" && ms_id != "" && ms_payment_id = "" && created > {:since}`,
+    "created", 20, 0, { since });
+  noPay.forEach((o) => {
+    try {
+      const r = msl.addPayment($app, o);
+      if (!r.ok && !r.wait) console.log("добор платежа", o.get("number"), r.error || "");
+    } catch (err) { console.log("ms-pay", err); }
+  });
 });
 
 // Проверка токена + списки организаций и складов для админки

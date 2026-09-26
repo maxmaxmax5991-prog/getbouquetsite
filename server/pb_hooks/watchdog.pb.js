@@ -61,6 +61,16 @@ cronAdd("watchdog", "*/10 * * * *", () => {
       : "", "Все оплаченные заказы в МоёмСкладе.");
   } catch (err) { console.log("watchdog stuck", err); }
 
+  // 2б. Оплачено, заказ в МоёмСкладе есть, а входящего платежа нет
+  try {
+    const noPay = $app.findRecordsByFilter("orders",
+      `payment_status = "paid" && ms_id != "" && ms_payment_id = "" && created < {:t}`,
+      "created", 20, 0, { t: new Date(Date.now() - 30 * 60000).toISOString().replace("T", " ").slice(0, 19) });
+    check("ms:nopay", noPay.length
+      ? `Оплачено, но платёж не проведён в МоёмСкладе: ${noPay.map((o) => "№" + o.get("number")).join(", ")}. Проведите вручную.`
+      : "", "Все оплаты проведены в МоёмСкладе.");
+  } catch (err) { console.log("watchdog nopay", err); }
+
   // 3. Дубли в МоёмСкладе — два одинаковых заказа означают двойную отгрузку
   try {
     if (s.get("ms_enabled") && s.get("ms_token")) {

@@ -216,6 +216,12 @@ function handleClient(app, upd) {
     try { ord = app.findRecordById("orders", parts[1]); } catch (_) {}
     if (!ord) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
     if (parts[0] === "ap") {
+      // то же нажатие может прийти дважды (перезапуск сервера, двойной тап) —
+      // второй раз молчим, иначе владельцу дублируется «клиент одобрил фото»
+      if (ord.get("photo_status") === "approved") {
+        shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Уже передали, спасибо!" });
+        return;
+      }
       ord.set("photo_status", "approved");
       app.save(ord);
       shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `👍 Клиент одобрил фото по заказу №${ord.get("number")}` }));
@@ -236,6 +242,7 @@ function handleClient(app, upd) {
       const REASONS = { "1": "не те цвета", "2": "не те цветы", "3": "маловат букет", "4": "другая упаковка" };
       const reason = REASONS[parts[2]];
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+      if (reason && ord.get("photo_status") === "rework" && ord.get("photo_comment") === reason) return;   // повтор
       if (!reason) {
         return shop.tg(token, "sendMessage", { chat_id: cbChat, text: `Напишите, что поправить в букете по заказу №${ord.get("number")} [ord:${ord.id}]`, reply_markup: { force_reply: true } });
       }

@@ -282,6 +282,11 @@ function orderDescription(o) {
 // поэтому два одновременных вызова не создадут в МоёмСкладе два одинаковых документа.
 function claim(app, id, kind) {
   try {
+    // Замок старше 15 минут считаем брошенным: сервер перезапустился посреди
+    // действия, и повторить его нужно — иначе платёж или заказ навсегда зависнут.
+    // Настоящее действие длится секунды, так что живой замок мы не украдём.
+    app.db().newQuery("DELETE FROM order_locks WHERE order_id = {:id} AND kind = {:k} AND at < {:old}")
+      .bind({ id, k: kind, old: new Date(Date.now() - 15 * 60000).toISOString() }).execute();
     app.db().newQuery("INSERT INTO order_locks (order_id, kind, at) VALUES ({:id}, {:k}, {:t})")
       .bind({ id, k: kind, t: new Date().toISOString() }).execute();
     return true;
