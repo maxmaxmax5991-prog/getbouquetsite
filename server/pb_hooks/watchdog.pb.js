@@ -118,6 +118,16 @@ cronAdd("watchdog", "*/10 * * * *", () => {
       : "", "В чате все ответы даны.");
   } catch (err) { console.log("watchdog chat", err); }
 
+  // 3в. Букет собран или уже едет, а фото клиенту не отправили
+  try {
+    const noPhoto = $app.findRecordsByFilter("orders",
+      `(status = "photo" || status = "delivering") && photo_file_id = "" && (tg_chat != "" || max_chat != "")`,
+      "-created", 20, 0);
+    check("photo:none", noPhoto.length
+      ? `Букет собран, а фото клиенту не ушло: ${noPhoto.map((o) => "№" + o.get("number")).join(", ")}. Пришлите фото в бот с подписью-номером.`
+      : "", "По всем собранным букетам фото отправлено.");
+  } catch (err) { console.log("watchdog nophoto", err); }
+
   // 4. Фото букета отправлено, а покупатель не ответил больше двух часов
   try {
     const silent = $app.findRecordsByFilter("orders",

@@ -542,22 +542,38 @@ function handle(app, secret, upd) {
   }
 
   if (admins.indexOf(String(msg.from.id)) < 0) {
-    if (text.indexOf("/start") === 0) {
-      // Номера больше никто не переписывает руками: владельцу приходит заявка с кнопками.
-      const who = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(" ")
-        + (msg.from.username ? ` (@${msg.from.username})` : "");
-      shop.tg(token, "sendMessage", { chat_id: chat, text: "Здравствуйте! Запросил для вас доступ у владельца — подождите, пожалуйста." });
+    // Ни одно сообщение не пропадает молча. Раньше бот игнорировал посторонних,
+    // и фото букетов от флориста, которого ещё не завели, уходили в никуда —
+    // так по заказу №3026 клиент остался без фото, а никто об этом не узнал.
+    const uid = String(msg.from.id);
+    const who = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(" ")
+      + (msg.from.username ? ` (@${msg.from.username})` : "");
+    // просьбу о доступе шлём владельцу не чаще раза в 10 минут на человека
+    let ask = true;
+    try {
+      const row = new DynamicModel({ value: "" });
+      app.db().newQuery("SELECT value FROM watchdog_state WHERE key = {:k}").bind({ k: "access:" + uid }).one(row);
+      if (String(row.value || "") > new Date(Date.now() - 10 * 60000).toISOString()) ask = false;
+    } catch (_) {}
+    if (ask) {
+      try {
+        app.db().newQuery(`INSERT INTO watchdog_state (key, value, at) VALUES ({:k}, {:v}, {:v})
+          ON CONFLICT(key) DO UPDATE SET value = {:v}, at = {:v}`)
+          .bind({ k: "access:" + uid, v: new Date().toISOString() }).execute();
+      } catch (_) {}
       admins.forEach((adm) => shop.tg(token, "sendMessage", { chat_id: adm,
-        text: `👤 ${who || "Кто-то"} просит доступ к боту.\nНомер: ${msg.from.id}`,
+        text: `👤 ${who || "Кто-то"} пишет в бот, но доступа у него нет.${msg.photo ? "\n\n⚠️ Он прислал фото — оно не ушло клиенту." : ""}\nНомер: ${uid}`,
         reply_markup: { inline_keyboard: [
-          [{ text: "📷 Только фото букетов", callback_data: `gr:${msg.from.id}:f` }],
-          [{ text: "🛠 Полное управление", callback_data: `gr:${msg.from.id}:a` }],
-          [{ text: "Отказать", callback_data: `gr:${msg.from.id}:n` }],
+          [{ text: "📷 Только фото букетов", callback_data: `gr:${uid}:f` }],
+          [{ text: "🛠 Полное управление", callback_data: `gr:${uid}:a` }],
+          [{ text: "Отказать", callback_data: `gr:${uid}:n` }],
         ] } }));
     }
+    shop.tg(token, "sendMessage", { chat_id: chat, text: msg.photo
+      ? "Фото не отправлено: у вас пока нет доступа к этому боту. Я запросил его у владельца — как откроют, пришлите фото ещё раз."
+      : "Здравствуйте! Доступа к этому боту у вас пока нет — я запросил его у владельца." });
     return;
   }
-
   // ответ в чат на сайте: реплай на сообщение с меткой [chat:<id>]
   const chatId = msg.reply_to_message && (String(msg.reply_to_message.text || "").match(/\[chat:([\w]+)\]/) || [])[1];
   if (chatId && text) {
