@@ -270,7 +270,7 @@ routerAdd("GET", "/api/shop/staff", (e) => {
   if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const list = $app.findRecordsByFilter("managers", "id != ''", "created", 100, 0);
   return e.json(200, {
-    staff: list.map((m) => ({ id: m.id, email: m.get("email"), name: m.get("name") || "", role: m.get("role") || "manager", me: m.id === e.auth.id })),
+    staff: list.map((m) => ({ id: m.id, nick: m.get("nick") || "", email: m.get("email") || "", name: m.get("name") || "", role: m.get("role") || "manager", me: m.id === e.auth.id })),
   });
 }, $apis.requireAuth("managers"));
 
@@ -278,15 +278,18 @@ routerAdd("POST", "/api/shop/staff", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const b = e.requestInfo().body || {};
+  const nick = String(b.nick || "").trim().toLowerCase();
   const email = String(b.email || "").trim().toLowerCase();
   const pass = String(b.password || "");
   const rl = ["owner", "head", "manager"].indexOf(String(b.role || "")) >= 0 ? String(b.role) : "manager";
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return e.json(400, { message: "Проверьте почту." });
+  if (!/^[a-z0-9_.-]{3,40}$/.test(nick)) return e.json(400, { message: "Логин: латиница, цифры, точка и дефис, от 3 знаков." });
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return e.json(400, { message: "Проверьте почту." });
   if (pass.length < 8) return e.json(400, { message: "Пароль — не короче 8 знаков." });
-  try { $app.findFirstRecordByFilter("managers", "email = {:m}", { m: email }); return e.json(400, { message: "Такой сотрудник уже есть." }); } catch (_) {}
+  try { $app.findFirstRecordByFilter("managers", "nick = {:n}", { n: nick }); return e.json(400, { message: "Такой логин уже занят." }); } catch (_) {}
 
   const rec = new Record($app.findCollectionByNameOrId("managers"));
-  rec.set("email", email);
+  rec.set("nick", nick);
+  if (email) rec.set("email", email);
   rec.set("name", String(b.name || "").slice(0, 120));
   rec.set("role", rl);
   rec.set("password", pass);
@@ -324,6 +327,12 @@ routerAdd("POST", "/api/shop/staff-edit", (e) => {
     m.set("passwordConfirm", String(b.password));
   }
   if (b.name !== undefined) m.set("name", String(b.name).slice(0, 120));
+  if (b.nick) {
+    const nick = String(b.nick).trim().toLowerCase();
+    if (!/^[a-z0-9_.-]{3,40}$/.test(nick)) return e.json(400, { message: "Логин: латиница, цифры, точка и дефис, от 3 знаков." });
+    try { const other = $app.findFirstRecordByFilter("managers", "nick = {:n}", { n: nick }); if (other.id !== m.id) return e.json(400, { message: "Такой логин уже занят." }); } catch (_) {}
+    m.set("nick", nick);
+  }
   $app.save(m);
   return e.json(200, { ok: true });
 }, $apis.requireAuth("managers"));

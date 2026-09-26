@@ -278,25 +278,8 @@ function orderDescription(o) {
 }
 
 // Отправка одного заказа. Возвращает { ok, id } или { ok: false, error }
-// Замок на действие с заказом: вставка второй такой строки не проходит,
-// поэтому два одновременных вызова не создадут в МоёмСкладе два одинаковых документа.
-function claim(app, id, kind) {
-  try {
-    // Замок старше 15 минут считаем брошенным: сервер перезапустился посреди
-    // действия, и повторить его нужно — иначе платёж или заказ навсегда зависнут.
-    // Настоящее действие длится секунды, так что живой замок мы не украдём.
-    app.db().newQuery("DELETE FROM order_locks WHERE order_id = {:id} AND kind = {:k} AND at < {:old}")
-      .bind({ id, k: kind, old: new Date(Date.now() - 15 * 60000).toISOString() }).execute();
-    app.db().newQuery("INSERT INTO order_locks (order_id, kind, at) VALUES ({:id}, {:k}, {:t})")
-      .bind({ id, k: kind, t: new Date().toISOString() }).execute();
-    return true;
-  } catch (_) { return false; }
-}
-function unclaim(app, id, kind) {
-  try { app.db().newQuery("DELETE FROM order_locks WHERE order_id = {:id} AND kind = {:k}").bind({ id, k: kind }).execute(); } catch (_) {}
-}
+const { claim, unclaim } = shop;   // замок общий, лежит в lib/shop.js
 
-// Есть ли такой сорт нужной длины в МоёмСкладе — проверяем до сохранения замены
 function checkItem(app, item) {
   return assortment(app, shop.settings(app), item);
 }

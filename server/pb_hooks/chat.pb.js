@@ -1,36 +1,3 @@
-// Диалог по ключу браузера: ключей может быть несколько, если диалоги склеивали
-function chatByToken(app, token) {
-  try { return app.findFirstRecordByFilter("chats", "token = {:t}", { t: token }); } catch (_) {}
-  try { return app.findFirstRecordByFilter("chats", "alt ~ {:t}", { t: token }); } catch (_) {}
-  return null;
-}
-
-// Кто пишет: вошедший покупатель, если он вошёл
-function whoIs(app, e) {
-  try {
-    const acc = require(`${__hooks}/lib/account.js`);
-    return acc.byToken(app, e.request.header.get("X-Customer-Token"));
-  } catch (_) { return null; }
-}
-
-// Находим диалог так, чтобы переписка не терялась при смене браузера или телефона:
-// вошёл в кабинет — ищем по покупателю, иначе по ключу из его браузера.
-// Нашли по покупателю, а ключ новый — запоминаем ключ, чтобы и без входа находилось.
-function findChat(app, token, cust) {
-  let chat = null;
-  if (cust) {
-    try { chat = app.findFirstRecordByFilter("chats", "customer = {:c}", { c: cust.id }); } catch (_) {}
-  }
-  if (!chat) return chatByToken(app, token);
-  if (token && chat.get("token") !== token && String(chat.get("alt") || "").indexOf(token) < 0) {
-    const alts = String(chat.get("alt") || "").split(",").filter(Boolean);
-    alts.push(token);
-    chat.set("alt", alts.slice(-20).join(","));
-    app.save(chat);
-  }
-  return chat;
-}
-
 /// <reference path="../pb_data/types.d.ts" />
 // Чат на сайте. Переписка живёт у нас; отвечаем из админки или реплаем в служебном боте.
 // Посетителя узнаём по случайному ключу из его браузера — входить в кабинет не обязательно.
@@ -52,8 +19,9 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
     { t: new Date(Date.now() - 60000).toISOString().replace("T", " ").slice(0, 19) });
   if (recent.length > 20) return e.json(429, { message: "Слишком много сообщений. Подождите минуту." });
 
-  const me = whoIs($app, e);
-  let chat = findChat($app, token, me);
+  const ch = require(`${__hooks}/lib/chat.js`);
+  const me = ch.whoIs($app, e);
+  let chat = ch.findChat($app, token, me);
   if (!chat) {
     chat = new Record($app.findCollectionByNameOrId("chats"));
     chat.set("token", token);
@@ -118,7 +86,8 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
 routerAdd("GET", "/api/shop/chat", (e) => {
   const token = String(e.request.url.query().get("token") || "").trim();
   if (token.length < 16) return e.json(200, { messages: [] });
-  const chat = findChat($app, token, whoIs($app, e));
+  const ch = require(`${__hooks}/lib/chat.js`);
+  const chat = ch.findChat($app, token, ch.whoIs($app, e));
   if (!chat) return e.json(200, { messages: [] });
   const list = $app.findRecordsByFilter("chat_messages", "chat = {:c}", "created", 100, 0, { c: chat.id });
   return e.json(200, {
@@ -214,10 +183,11 @@ routerAdd("POST", "/api/shop/chat/link", (e) => {
   const b = e.requestInfo().body || {};
   const token = String(b.token || "").trim();
   if (token.length < 16) return e.json(200, { ok: true });
-  const chat = findChat($app, token, whoIs($app, e));
+  const ch = require(`${__hooks}/lib/chat.js`);
+  const chat = ch.findChat($app, token, ch.whoIs($app, e));
   if (!chat) return e.json(200, { ok: true });
 
-  let cust = whoIs($app, e);
+  let cust = ch.whoIs($app, e);
   // заказ без входа: имя и телефон берём из него
   if (b.order) {
     let o = null;

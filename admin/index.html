@@ -180,6 +180,42 @@ table.t td{padding:4px 6px;vertical-align:middle}
 .toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,150%);background:var(--ink);color:var(--ground);padding:12px 18px;border-radius:12px;font-weight:600;font-size:14px;transition:transform .3s;z-index:100;max-width:calc(100% - 32px)}
 .toast.show{transform:translate(-50%,0)}
 .toast.bad{background:var(--bad);color:#fff}
+/* рассылка */
+.bc{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
+.bc-side{position:sticky;top:76px}
+.bc-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.bc-emo{display:flex;flex-wrap:wrap;gap:2px}
+.bc-emo button{width:32px;height:32px;border-radius:8px;font-size:17px}
+.bc-emo button:hover{background:var(--ground)}
+.bc-photo{display:flex;gap:12px;align-items:center}
+.bc-to{display:grid;gap:6px}
+.bc-to label{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;font-size:14px;cursor:pointer}
+.bc-to label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.bc-to input{accent-color:var(--accent);width:18px;height:18px}
+.bc-to .n{margin-left:auto;font-weight:700}
+.bc-to small{color:var(--ink-2)}
+.bc-phone{background:#8BA888 linear-gradient(160deg,#9DB89A,#7E9C7B);border-radius:22px;padding:16px 12px;min-height:260px;display:flex;align-items:flex-end}
+.bc-msg{background:#fff;color:#111;border-radius:14px 14px 14px 4px;max-width:100%;width:100%;overflow:hidden;font-size:14px;line-height:1.4;box-shadow:0 1px 1px rgba(0,0,0,.15)}
+.bc-msg img{display:block;width:100%;max-height:320px;object-fit:cover}
+.bc-msg .tx{padding:8px 11px;white-space:pre-wrap;word-break:break-word}
+.bc-msg .tx:empty{display:none}
+.bc-msg a{color:#2A7BC0}
+.bc-msg .kb{margin:0 4px 4px;padding:9px;border-radius:9px;background:rgba(40,120,190,.12);color:#2A7BC0;text-align:center;font-weight:700;font-size:13.5px}
+.bc-hist{display:grid;gap:8px}
+.bc-h{display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px}
+.bc-h img,.bc-h .noimg{width:48px;height:48px;border-radius:9px;object-fit:cover;background:var(--ground)}
+.bc-h .t{font-size:13.5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bc-h .m{font-size:12px;color:var(--ink-2);margin-top:3px}
+.bc-h .act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.prog{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:6px}
+.prog i{display:block;height:100%;background:var(--accent);transition:width .4s}
+.bc-bot{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:10px}
+.bc-bot-h{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.bc-bot-h b{font-size:15px}
+.bc-bot-h .sp{flex:1}
+.bc-err{background:var(--warn-soft);color:var(--warn);border-radius:9px;padding:8px 10px;font-size:13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+@media (max-width:900px){.bc{grid-template-columns:1fr}.bc-side{position:static}}
+@media (max-width:600px){.bc-h{grid-template-columns:40px 1fr}.bc-h img,.bc-h .noimg{width:40px;height:40px}.bc-h .act{grid-column:1/-1;justify-content:flex-start}}
 @media (max-width:600px){h1{font-size:21px}.order-h .sum{margin-left:0;width:100%}.ed-b{padding:14px}}
 </style>
 </head>
@@ -190,7 +226,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
   <form id="loginForm">
     <div class="brand"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 21V11M12 13l-5-5M12 13l5-5"/><circle cx="12" cy="7" r="2.6"/><circle cx="6" cy="6.5" r="2"/><circle cx="18" cy="6.5" r="2"/></svg></span><span>venikoff<i>.net</i></span></div>
     <p class="hint" style="margin:0">Вход в админку магазина</p>
-    <label class="f" for="lEmail">Почта<input class="in" id="lEmail" type="email" autocomplete="username" required></label>
+    <label class="f" for="lEmail">Логин<input class="in" id="lEmail" autocomplete="username" placeholder="ваш логин"></label>
     <label class="f" for="lPass">Пароль<input class="in" id="lPass" type="password" autocomplete="current-password" required></label>
     <button class="btn btn-p" type="submit">Войти</button>
     <p class="hint" id="lErr" style="color:var(--bad)" hidden></p>
@@ -212,11 +248,71 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="cats">Разделы</button>
       <button role="tab" data-tab="delivery">Доставка</button>
       <button role="tab" data-tab="prices">Прайс роз</button>
+      <button role="tab" data-tab="bc">Рассылка</button>
       <button role="tab" data-tab="stats">Статистика</button>
       <button role="tab" data-tab="settings">Настройки</button>
     </nav>
   </div>
   <main class="wrap">
+
+    <!-- Рассылка -->
+    <section id="tab-bc" hidden>
+      <div class="bc">
+        <div class="card stack">
+          <h2>Новая рассылка</h2>
+          <div class="bc-tools" role="toolbar" aria-label="Оформление текста">
+            <button class="btn btn-g btn-s" data-wrap="b" title="Жирный"><b>Ж</b></button>
+            <button class="btn btn-g btn-s" data-wrap="i" title="Курсив"><i>К</i></button>
+            <button class="btn btn-g btn-s" data-wrap="u" title="Подчёркнутый"><u>П</u></button>
+            <button class="btn btn-g btn-s" data-wrap="s" title="Зачёркнутый"><s>З</s></button>
+            <button class="btn btn-g btn-s" data-wrap="a" title="Ссылка в тексте">🔗 Ссылка</button>
+            <span class="bc-emo" id="bcEmo"></span>
+          </div>
+          <label class="f" for="bcText">Текст<textarea class="in" id="bcText" rows="7" maxlength="4000" placeholder="Например: Сегодня −20% на все розы 60 см! Только до 21:00 🌹"></textarea></label>
+          <p class="hint" id="bcLen" style="margin-top:-6px"></p>
+          <div class="bc-photo">
+            <label class="add-ph" id="bcPhLbl" for="bcPh">+ фото</label>
+            <input type="file" id="bcPh" accept="image/jpeg,image/png,image/webp" hidden>
+            <div class="ph" id="bcPhBox" hidden><img id="bcPhImg" alt=""><button id="bcPhDel" aria-label="Убрать фото">×</button></div>
+            <p class="hint" style="margin:0">Фото по желанию: JPEG, PNG или WebP.</p>
+          </div>
+          <div class="row">
+            <label class="f" for="bcBtnT">Кнопка под сообщением<input class="in" id="bcBtnT" maxlength="60" placeholder="Например: Заказать букет"></label>
+            <label class="f" for="bcBtnU">Ссылка кнопки<input class="in" id="bcBtnU" inputmode="url" placeholder="https://venikoff.net"></label>
+          </div>
+          <div>
+            <div class="f" style="margin-bottom:6px">Кому</div>
+            <div class="bc-to" id="bcTo"></div>
+          </div>
+          <div class="bar" style="margin:0">
+            <button class="btn btn-p" id="bcGo">Отправить всем</button>
+            <button class="btn btn-g" id="bcTest">Сначала себе</button>
+            <span class="hint" id="bcSum" style="margin:0"></span>
+          </div>
+        </div>
+        <div class="bc-side">
+          <p class="hint" style="margin:0 0 6px">Так увидят в Телеграме</p>
+          <div class="bc-phone"><div class="bc-msg" id="bcPrev"></div></div>
+        </div>
+      </div>
+
+      <div class="card stack" style="margin-top:14px">
+        <h2>Ход и история</h2>
+        <div id="bcHist" class="bc-hist"></div>
+      </div>
+
+      <div class="card stack" style="margin-top:14px">
+        <h2>Боты</h2>
+        <p class="hint" style="margin:0">Подключайте сколько угодно Телеграм-ботов: в @BotFather откройте бота → <b>API Token</b> (ключ), скопируйте и вставьте сюда.
+          Телеграм не отдаёт список подписчиков, поэтому подписчиком становится каждый, кто пишет боту или жмёт «Старт» после подключения.
+          Старую базу из другого сервиса (Salebot, BotHelp…) можно загрузить списком ID.</p>
+        <div class="bar" style="margin:0">
+          <input class="in" id="bcTok" type="password" autocomplete="off" placeholder="Ключ бота: 123456789:AAE…" style="flex:1;min-width:220px">
+          <button class="btn btn-p" id="bcAdd">Подключить</button>
+        </div>
+        <div id="bcBots" class="stack"></div>
+      </div>
+    </section>
 
     <!-- Заказы -->
     <section id="tab-orders">
@@ -399,13 +495,13 @@ table.t td{padding:4px 6px;vertical-align:middle}
             <b>Владелец</b> — всё: товары, цены, доставка, настройки, сотрудники.</p>
           <div id="staffList" class="stack"></div>
           <div class="row" style="align-items:flex-end">
-            <label class="f" for="stEmail">Почта<input class="in" id="stEmail" type="email" placeholder="почта@пример.ру"></label>
+            <label class="f" for="stNick" style="max-width:190px">Логин<input class="in" id="stNick" autocomplete="off" placeholder="florist"></label>
             <label class="f" for="stName" style="max-width:190px">Имя<input class="in" id="stName" placeholder="Как зовут"></label>
             <label class="f" for="stRole" style="max-width:170px">Роль<select class="in" id="stRole"><option value="manager">Менеджер</option><option value="head">Управляющий</option><option value="owner">Владелец</option></select></label>
             <label class="f" for="stPass" style="max-width:190px">Пароль<input class="in" id="stPass" type="password" autocomplete="new-password" placeholder="не короче 8 знаков"></label>
             <button class="btn btn-p" id="stAdd">Добавить</button>
           </div>
-          <p class="hint">Пароль придумываете вы и передаёте сотруднику сами — мы его не показываем и восстановить не сможем, только заменить.</p>
+          <p class="hint">Логин и пароль придумываете вы и передаёте сотруднику сами. Почта не нужна. Пароль мы не показываем и восстановить не сможем — только заменить.</p>
         </div>
         <div class="card stack">
           <h2>Магазин</h2>
@@ -462,9 +558,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
   </ol>
   <label class="f" for="cTok">Ключ клиентского бота<input class="in" id="cTok" type="password" autocomplete="off" placeholder="Вставьте ключ второго бота"></label>
   <div class="bar"><button class="btn btn-p" id="cSaveBot">Сохранить</button><button class="btn btn-g" id="cTestBot">Проверить</button></div>
-  <label class="f" for="bcText">Сообщение всем покупателям<textarea class="in" id="bcText" rows="3" placeholder="Например: 8 марта принимаем заказы до 18:00"></textarea></label>
-  <div class="bar"><button class="btn btn-p" id="bcSend">Отправить рассылку</button><span class="hint" id="bcCount"></span></div>
-  <p class="hint">Сообщение придёт всем, кто хоть раз входил в кабинет или подписывался на статусы через клиентского бота.</p>
+  <p class="hint">Рассылки — на отдельной вкладке «Рассылка»: там же можно подключить другие боты.</p>
 </div>
 <div class="card stack">
   <h2>Мессенджер MAX</h2>
@@ -638,14 +732,14 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, cats: loadCats, delivery: loadDelivery, prices: loadPrices, stats: loadStats, settings: loadSettings })[t]();
+  ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, stats: loadStats, settings: loadSettings })[t]();
 }
 
 let S = null, CATS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1 } };
 async function loadSettings0() { S = (await list('settings'))[0]; CATS = await list('categories', '&sort=sort'); }
 
 // Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
-const TAB_NEED = { orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', stats: 'all', settings: 'all' };
+const TAB_NEED = { bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', stats: 'all', settings: 'all' };
 async function loadRole() {
   try { ME = await api('/api/shop/me-role'); } catch (_) {}
   $$('.tabs button').forEach(b => { b.hidden = !ME.can[TAB_NEED[b.dataset.tab] || 'all']; });
@@ -798,6 +892,8 @@ const loadProducts = safe(async () => {
   await loadSettings0();
   $('#pCat').innerHTML = `<option value="">Все разделы</option>` + CATS.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   PRODS = await list('products', '&sort=sort,-created');
+  // активные — наверх: с ними работают каждый день, скрытые только мешают искать
+  PRODS.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
   renderProducts();
 });
 $('#pSearch').oninput = renderProducts;
@@ -1018,6 +1114,197 @@ $('#eSave').onclick = safe(async () => {
 const slugify = s => s.toLowerCase().replace(/[^a-zа-яё0-9]+/g, '-').replace(/^-|-$/g, '')
   .replace(/[а-яё]/g, c => ({ а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya' }[c] || '')).slice(0, 40) || 'razdel';
 let CATUSE = [];
+/* ---------- рассылка ---------- */
+let BC = { sources: [], history: [] }, bcPhoto = null, bcTimer = 0;
+const bcLS = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch { return null; } };
+// та же разметка, что пропускает сервер: жирный, курсив, подчёркнутый, зачёркнутый, ссылки
+const bcClean = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/&lt;(\/?)(b|i|u|s)&gt;/g, '<$1$2>')
+  .replace(/&lt;a href="(https?:\/\/[^"<>\s]+)"&gt;/g, '<a href="$1" target="_blank" rel="noopener">').replace(/&lt;\/a&gt;/g, '</a>');
+const bcWhen = d => { const x = new Date(String(d).replace(' ', 'T')); return isNaN(x) ? '' : x.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
+
+$('#bcEmo').innerHTML = '🌹 💐 🌷 🎁 ❤️ 🔥 ⚡️ 🚚 💸 ✨'.split(' ').map(x => `<button type="button" data-emo="${x}">${x}</button>`).join('');
+const bcDraft = bcLS('vk.bcDraft') || {};
+$('#bcText').value = bcDraft.text || ''; $('#bcBtnT').value = bcDraft.bt || ''; $('#bcBtnU').value = bcDraft.bu || '';
+function bcSave() { bcLS('vk.bcDraft', { text: $('#bcText').value, bt: $('#bcBtnT').value, bu: $('#bcBtnU').value }); bcPreview(); }
+['#bcText', '#bcBtnT', '#bcBtnU'].forEach(id => $(id).addEventListener('input', bcSave));
+
+function bcInsert(before, after = '') {
+  const ta = $('#bcText'), a = ta.selectionStart, b = ta.selectionEnd, v = ta.value;
+  ta.value = v.slice(0, a) + before + v.slice(a, b) + after + v.slice(b);
+  ta.focus(); ta.setSelectionRange(a + before.length, b + before.length);
+  bcSave();
+}
+$('#tab-bc').querySelector('.bc-tools').onclick = e => {
+  const w = e.target.closest('[data-wrap]'), em = e.target.closest('[data-emo]');
+  if (em) return bcInsert(em.dataset.emo);
+  if (!w) return;
+  if (w.dataset.wrap === 'a') {
+    const url = (prompt('Ссылка (начинается с https://)', 'https://') || '').trim();
+    if (!/^https?:\/\/\S+$/.test(url)) return url && toast('Ссылка должна начинаться с https://', true);
+    return bcInsert(`<a href="${url}">`, '</a>');
+  }
+  bcInsert(`<${w.dataset.wrap}>`, `</${w.dataset.wrap}>`);
+};
+
+$('#bcPh').onchange = () => {
+  const f = $('#bcPh').files[0]; if (!f) return;
+  if (f.size > 20 * 1024 * 1024) { $('#bcPh').value = ''; return toast('Фото больше 20 МБ', true); }
+  bcPhoto = f; $('#bcPhImg').src = URL.createObjectURL(f); $('#bcPhBox').hidden = false; $('#bcPhLbl').hidden = true; bcPreview();
+};
+$('#bcPhDel').onclick = () => { bcPhoto = null; $('#bcPh').value = ''; $('#bcPhBox').hidden = true; $('#bcPhLbl').hidden = false; bcPreview(); };
+
+function bcPreview() {
+  const t = $('#bcText').value, bt = $('#bcBtnT').value.trim();
+  $('#bcPrev').innerHTML = (bcPhoto ? `<img src="${$('#bcPhImg').src}" alt="">` : '')
+    + `<div class="tx">${bcClean(t) || (bcPhoto ? '' : '<span style="color:#999">Здесь будет ваше сообщение</span>')}</div>`
+    + (bt ? `<div class="kb">${esc(bt)} ↗</div>` : '');
+  const n = t.length;
+  $('#bcLen').textContent = n ? `${n} ${plural(n, 'знак', 'знака', 'знаков')}${bcPhoto && n > 1000 ? ' — длинный текст придёт отдельным сообщением под фото' : ''}` : '';
+}
+
+function bcPicked() {
+  const saved = bcLS('vk.bcTo');
+  return BC.sources.filter(s => s.builtin || s.active).filter(s => saved ? saved.includes(s.id) : true).map(s => s.id);
+}
+function renderBcTo() {
+  const pick = bcPicked(), list = BC.sources.filter(s => s.builtin || s.active);
+  $('#bcTo').innerHTML = list.length ? list.map(s => `<label><input type="checkbox" value="${s.id}"${pick.includes(s.id) ? ' checked' : ''}>
+      <span>${esc(s.title)} <small>${esc(s.note || '')}</small></span><span class="n num">${s.count}</span></label>`).join('')
+    : '<p class="hint">Пока нет ни одного бота. Подключите бота ниже или клиентского бота в Настройках.</p>';
+  bcSum();
+}
+function bcSum() {
+  const ids = $$('#bcTo input:checked').map(i => i.value);
+  const n = BC.sources.filter(s => ids.includes(s.id)).reduce((a, s) => a + (s.count || 0), 0);
+  $('#bcSum').textContent = ids.length ? `получат ${n} ${plural(n, 'человек', 'человека', 'человек')}` : 'никто не отмечен';
+  return { ids, n };
+}
+$('#bcTo').onchange = () => { bcLS('vk.bcTo', $$('#bcTo input:checked').map(i => i.value)); bcSum(); };
+
+function bcForm(test) {
+  const text = $('#bcText').value.trim(), bt = $('#bcBtnT').value.trim(), bu = $('#bcBtnU').value.trim();
+  if (!text && !bcPhoto) throw new Error('Напишите текст или добавьте фото');
+  if ((bt || bu) && !(bt && /^https?:\/\/\S+$/.test(bu))) throw new Error('У кнопки нужны и надпись, и ссылка с https://');
+  const { ids } = bcSum();
+  if (!ids.length) throw new Error('Отметьте, кому отправить');
+  const fd = new FormData();
+  fd.append('text', text); fd.append('button_text', bt); fd.append('button_url', bu);
+  fd.append('targets', JSON.stringify(ids));
+  if (bcPhoto) fd.append('photo', bcPhoto);
+  if (test) fd.append('test', '1');
+  return fd;
+}
+$('#bcTest').onclick = safe(async () => {
+  const b = $('#bcTest'); b.disabled = true;
+  try {
+    const r = await api('/api/bc/send', { method: 'POST', body: bcForm(true) });
+    const bad = r.test.filter(x => !x.ok), good = r.test.filter(x => x.ok);
+    if (!bad.length) toast(`Проверка пришла вам: ${good.map(x => x.bot).join(', ')}`);
+    else alert((good.length ? `Пришло: ${good.map(x => x.bot).join(', ')}\n\n` : '') + 'Не пришло:\n' + bad.map(x => `• ${x.bot} — ${x.error}`).join('\n'));
+  } finally { b.disabled = false; }
+});
+$('#bcGo').onclick = safe(async () => {
+  const fd = bcForm(false), { n } = bcSum();
+  if (!confirm(`Отправить сообщение ${n} ${plural(n, 'подписчику', 'подписчикам', 'подписчикам')}? Отменить уже отправленное будет нельзя.`)) return;
+  const b = $('#bcGo'); b.disabled = true;
+  try {
+    await api('/api/bc/send', { method: 'POST', body: fd });
+    $('#bcText').value = ''; $('#bcBtnT').value = ''; $('#bcBtnU').value = ''; $('#bcPhDel').click(); bcSave();
+    toast('Рассылка запущена — начнётся в течение минуты');
+    loadBc();
+  } finally { b.disabled = false; }
+});
+
+const BC_ST = { queued: ['Ждёт очереди', 'st-new'], sending: ['Идёт', 'st-assembling'], done: ['Готово', 'st-done'], stopped: ['Остановлена', 'st-cancelled'] };
+function renderBcHist() {
+  const h = BC.history;
+  $('#bcHist').innerHTML = h.length ? h.map(r => {
+    const done = (r.sent || 0) + (r.failed || 0), pct = r.total ? Math.min(100, Math.round(done / r.total * 100)) : (r.status === 'done' ? 100 : 0);
+    const live = r.status === 'queued' || r.status === 'sending';
+    const left = Math.max(0, (r.total || 0) - done), mins = Math.ceil(left / 300);
+    const [st, cls] = BC_ST[r.status] || [r.status, ''];
+    return `<div class="bc-h">
+      ${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<span class="noimg"></span>'}
+      <div><div class="t">${esc(r.text.replace(/<[^>]+>/g, '')) || '<i>только фото</i>'}</div>
+        <div class="m"><span class="pill ${cls}">${st}</span> ${bcWhen(r.created)} · доставлено <b class="num">${r.sent || 0}</b>${r.failed ? `, не дошло ${r.failed}` : ''} из ${r.total || 0}${live && left ? ` · осталось ~${mins} мин` : ''}</div>
+        ${live ? `<div class="prog"><i style="width:${pct}%"></i></div>` : ''}</div>
+      <div class="act">${live ? `<button class="btn btn-g btn-s btn-d" data-stop="${r.id}">Остановить</button>` : ''}<button class="btn btn-g btn-s" data-again="${r.id}">Повторить</button></div>
+    </div>`;
+  }).join('') : '<p class="hint">Рассылок ещё не было.</p>';
+}
+$('#bcHist').onclick = safe(async e => {
+  const stop = e.target.closest('[data-stop]'), again = e.target.closest('[data-again]');
+  if (stop) {
+    if (!confirm('Остановить рассылку? Тем, кому уже ушло, сообщение останется.')) return;
+    await api(`/api/bc/stop/${stop.dataset.stop}`, { method: 'POST' }); toast('Остановлена'); return loadBc();
+  }
+  if (again) {
+    const r = BC.history.find(x => x.id === again.dataset.again); if (!r) return;
+    $('#bcText').value = r.text || ''; $('#bcBtnT').value = r.button_text || ''; $('#bcBtnU').value = r.button_url || ''; bcSave();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast(r.photo ? 'Текст подставлен. Фото добавьте заново' : 'Текст подставлен — проверьте и отправьте');
+  }
+});
+
+function renderBcBots() {
+  const bots = BC.sources.filter(s => !s.builtin);
+  $('#bcBots').innerHTML = bots.map(b => `<div class="bc-bot" data-bot="${b.id}">
+    <div class="bc-bot-h"><b>${esc(b.title)}</b><span class="hint" style="margin:0">${esc(b.note)}</span><span class="sp"></span>
+      <span class="num"><b>${b.count}</b> ${plural(b.count, 'подписчик', 'подписчика', 'подписчиков')}${b.blocked ? ` · ${b.blocked} ${plural(b.blocked, 'отписался', 'отписались', 'отписались')}` : ''}</span>
+      <button class="sw" role="switch" data-on aria-checked="${!!b.active}" aria-label="Использовать бота"></button>
+      <button class="btn btn-g btn-s btn-d" data-del>Отключить</button></div>
+    ${b.error ? `<div class="bc-err">${esc(b.error)}${/webhook/.test(b.error) ? '<button class="btn btn-g btn-s" data-hook>Забрать бота сюда</button>' : ''}</div>` : ''}
+    <details><summary class="lnk" style="cursor:pointer">Приветствие и загрузка базы</summary>
+      <div class="stack" style="margin-top:10px">
+        <label class="f">Ответ на «Старт» (пусто — бот молчит)<textarea class="in" rows="2" data-hello maxlength="2000" placeholder="Спасибо за подписку! Здесь будут скидки и новинки venikoff 🌹">${esc(b.hello)}</textarea></label>
+        <div><button class="btn btn-g btn-s" data-savehello>Сохранить приветствие</button></div>
+        <label class="f">ID подписчиков из другого сервиса — через запятую, пробел или с новой строки<textarea class="in" rows="3" data-ids placeholder="512345678, 623456789…"></textarea></label>
+        <div><button class="btn btn-g btn-s" data-import>Загрузить</button></div>
+      </div></details>
+  </div>`).join('') || '<p class="hint">Дополнительных ботов пока нет.</p>';
+}
+$('#bcBots').onclick = safe(async e => {
+  const row = e.target.closest('[data-bot]'); if (!row) return;
+  const id = row.dataset.bot, url = `/api/bc/bot/${id}`;
+  if (e.target.closest('[data-on]')) {
+    const on = e.target.closest('[data-on]').getAttribute('aria-checked') !== 'true';
+    await api(url, { method: 'POST', body: { active: on } }); toast(on ? 'Бот включён' : 'Бот выключен'); return loadBc();
+  }
+  if (e.target.closest('[data-del]')) {
+    if (!confirm('Отключить бота? Его подписчики удалятся из списка. Сам бот в Телеграме останется.')) return;
+    await api(url, { method: 'DELETE' }); toast('Бот отключён'); return loadBc();
+  }
+  if (e.target.closest('[data-hook]')) {
+    if (!confirm('Бот сейчас работает в другом сервисе. Если забрать его сюда, тот сервис перестанет получать сообщения этого бота. Забрать?')) return;
+    await api(url, { method: 'POST', body: { webhook: true } }); toast('Бот теперь собирает подписчиков здесь'); return loadBc();
+  }
+  if (e.target.closest('[data-savehello]')) {
+    await api(url, { method: 'POST', body: { hello: row.querySelector('[data-hello]').value.trim() } }); return toast('Приветствие сохранено');
+  }
+  if (e.target.closest('[data-import]')) {
+    const r = await api(`${url}/import`, { method: 'POST', body: { ids: row.querySelector('[data-ids]').value } });
+    toast(`Добавлено новых: ${r.added} из ${r.total}`); return loadBc();
+  }
+});
+$('#bcAdd').onclick = safe(async () => {
+  const token = $('#bcTok').value.trim();
+  if (!token) return toast('Вставьте ключ бота', true);
+  const r = await api('/api/bc/bot', { method: 'POST', body: { token } });
+  $('#bcTok').value = '';
+  const saved = bcLS('vk.bcTo'); if (saved) bcLS('vk.bcTo', saved.concat(r.id));
+  toast(`Подключён @${r.username}`); loadBc();
+});
+
+const loadBc = safe(async () => {
+  clearTimeout(bcTimer);
+  BC = await api('/api/bc');
+  renderBcTo(); renderBcBots(); renderBcHist(); bcPreview();
+  // пока идёт рассылка — обновляем ход каждые 4 секунды
+  if (BC.history.some(r => r.status === 'queued' || r.status === 'sending')) bcTimer = setTimeout(() => { if (tab === 'bc' && auth) loadBc(); }, 4000);
+});
+
 /* ---------- сотрудники ---------- */
 const ROLE_RU = { owner: 'Владелец', head: 'Управляющий', manager: 'Менеджер' };
 const VIA_RU = { site: 'сайт', tg: 'Телеграм', max: 'MAX' };
@@ -1026,7 +1313,7 @@ const loadStaff = safe(async () => {
   const d = await api('/api/shop/staff');
   $('#staffList').innerHTML = (d.staff || []).map(m => `
     <div class="row" data-st="${m.id}" style="align-items:flex-end">
-      <div class="f" style="flex:1"><b>${esc(m.name || m.email)}</b><span class="hint">${esc(m.email)}${m.me ? ' · это вы' : ''}</span></div>
+      <div class="f" style="flex:1"><b>${esc(m.name || m.nick)}</b><span class="hint">логин: ${esc(m.nick)}${m.email ? ' · ' + esc(m.email) : ''}${m.me ? ' · это вы' : ''}</span></div>
       <label class="f" style="max-width:170px">Роль<select class="in" data-strole>${Object.entries(ROLE_RU).map(([k, t]) => `<option value="${k}"${k === m.role ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
       <button class="btn btn-g btn-s" data-stpass>Сменить пароль</button>
       ${m.me ? '' : '<button class="btn btn-g btn-s" data-strm>Удалить</button>'}
@@ -1055,9 +1342,9 @@ $('#staffList').addEventListener('click', safe(async e => {
   }
 }));
 $('#stAdd').onclick = safe(async () => {
-  const body = { email: $('#stEmail').value.trim(), name: $('#stName').value.trim(), role: $('#stRole').value, password: $('#stPass').value };
+  const body = { nick: $('#stNick').value.trim(), name: $('#stName').value.trim(), role: $('#stRole').value, password: $('#stPass').value };
   await api('/api/shop/staff', { method: 'POST', body });
-  $('#stEmail').value = ''; $('#stName').value = ''; $('#stPass').value = '';
+  $('#stNick').value = ''; $('#stName').value = ''; $('#stPass').value = '';
   toast('Сотрудник добавлен'); loadStaff();
 });
 
@@ -1775,7 +2062,6 @@ $('#msPrefix').value = S.ms_prefix || '';
 $('#cTok').value = ''; $('#cTok').placeholder = S.tg_client_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ второго бота';
 $('#mxTok').value = ''; $('#mxTok').placeholder = S.max_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ бота MAX';
 $('#mxName').value = S.max_bot || '';
-api('/api/shop/broadcast').then(r => $('#bcCount').textContent = `получателей: ${r.total}`).catch(() => {});
 $('#msDeliv').value = S.ms_delivery_name || '';
 $('#pPub').value = S.cp_public_id || '';
 $('#pSec').value = ''; $('#pSec').placeholder = S.cp_secret ? 'Секрет сохранён. Вставьте новый, чтобы заменить' : 'Вставьте секрет';
@@ -1808,14 +2094,6 @@ $('#mxTest').onclick = safe(async () => {
   const r = await api('/api/shop/max-check', { method: 'POST' });
   loadSettings();
   toast(`Бот MAX подключён: ${r.name || r.username || 'без имени'}`);
-});
-$('#bcSend').onclick = safe(async () => {
-  const text = $('#bcText').value.trim();
-  if (text.length < 3) return toast('Напишите текст сообщения', true);
-  if (!confirm('Отправить это сообщение всем покупателям?')) return;
-  const r = await api('/api/shop/broadcast', { method: 'POST', body: { text } });
-  $('#bcText').value = '';
-  toast(`Отправлено: ${r.sent}${r.failed ? `, не дошло: ${r.failed}` : ''}`);
 });
 $('#tSave').onclick = safe(async () => {
   const admins = $('#sAdm').value.split(/[^\d]+/).filter(Boolean).join(', ');

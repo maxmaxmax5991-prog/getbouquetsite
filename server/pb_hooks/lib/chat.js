@@ -2,6 +2,39 @@
 // Менеджер отвечает из админки, ответ уходит туда, откуда человек написал последний раз.
 const shop = require(`${__hooks}/lib/shop.js`);
 
+// Диалог по ключу браузера: ключей может быть несколько, если диалоги склеивали
+function chatByToken(app, token) {
+  try { return app.findFirstRecordByFilter("chats", "token = {:t}", { t: token }); } catch (_) {}
+  try { return app.findFirstRecordByFilter("chats", "alt ~ {:t}", { t: token }); } catch (_) {}
+  return null;
+}
+
+// Кто пишет: вошедший покупатель, если он вошёл
+function whoIs(app, e) {
+  try {
+    const acc = require(`${__hooks}/lib/account.js`);
+    return acc.byToken(app, e.request.header.get("X-Customer-Token"));
+  } catch (_) { return null; }
+}
+
+// Находим диалог так, чтобы переписка не терялась при смене браузера или телефона:
+// вошёл в кабинет — ищем по покупателю, иначе по ключу из его браузера.
+// Нашли по покупателю, а ключ новый — запоминаем ключ, чтобы и без входа находилось.
+function findChat(app, token, cust) {
+  let chat = null;
+  if (cust) {
+    try { chat = app.findFirstRecordByFilter("chats", "customer = {:c}", { c: cust.id }); } catch (_) {}
+  }
+  if (!chat) return chatByToken(app, token);
+  if (token && chat.get("token") !== token && String(chat.get("alt") || "").indexOf(token) < 0) {
+    const alts = String(chat.get("alt") || "").split(",").filter(Boolean);
+    alts.push(token);
+    chat.set("alt", alts.slice(-20).join(","));
+    app.save(chat);
+  }
+  return chat;
+}
+
 // Диалог покупателя: находим по нему, иначе заводим.
 // Ключ браузера всё равно нужен (поле обязательное) — придумываем служебный.
 function chatFor(app, cust, from) {
@@ -69,4 +102,4 @@ function deliver(app, chat, text) {
   return { ok: false, error: "У покупателя нет этого мессенджера." };
 }
 
-module.exports = { chatFor, fromClient, deliver };
+module.exports = { chatFor, fromClient, deliver, chatByToken, whoIs, findChat };

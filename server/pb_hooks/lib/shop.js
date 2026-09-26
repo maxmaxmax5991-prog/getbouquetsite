@@ -18,6 +18,22 @@ function role(e) {
 }
 const can = (e, roles) => roles.indexOf(role(e)) >= 0;
 
+// Замок на действие с заказом: вставка второй такой строки не проходит,
+// поэтому два одновременных запроса не сделают одно и то же дважды.
+// Замок старше 15 минут считаем брошенным — значит, сервер перезапустился посреди дела.
+function claim(app, id, kind) {
+  try {
+    app.db().newQuery("DELETE FROM order_locks WHERE order_id = {:id} AND kind = {:k} AND at < {:old}")
+      .bind({ id, k: kind, old: new Date(Date.now() - 15 * 60000).toISOString() }).execute();
+    app.db().newQuery("INSERT INTO order_locks (order_id, kind, at) VALUES ({:id}, {:k}, {:t})")
+      .bind({ id, k: kind, t: new Date().toISOString() }).execute();
+    return true;
+  } catch (_) { return false; }
+}
+function unclaim(app, id, kind) {
+  try { app.db().newQuery("DELETE FROM order_locks WHERE order_id = {:id} AND kind = {:k}").bind({ id, k: kind }).execute(); } catch (_) {}
+}
+
 function settings(app) {
   return app.findFirstRecordByFilter("settings", "id != ''");
 }
@@ -582,6 +598,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
+  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
   tg, tgPhoto, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

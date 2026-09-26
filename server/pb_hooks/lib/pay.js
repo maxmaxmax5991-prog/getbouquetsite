@@ -70,6 +70,12 @@ function checkOrder(app, o) {
     return false;
   }
   if (Math.round(m.Amount) < Math.round(o.get("total"))) return false;   // оплачено меньше суммы заказа
+
+  // Страница заказа и проверка оплаты приходят одновременно: обе видят «не оплачен»,
+  // обе подтверждают платёж — и флорист получает две одинаковые карточки заказа.
+  // Так задвоился №3026. Первый взявший замок доводит дело до конца, остальные уходят.
+  if (!shop.claim(app, o.id, "paid")) return false;
+
   o.set("payment_status", "paid");
   o.set("payment_id", String(m.TransactionId || ""));
   o.set("paid_at", new Date().toISOString());
