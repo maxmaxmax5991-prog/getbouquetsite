@@ -165,6 +165,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 }
 
 /* perks */
+.soon-note{margin:6px 0 0;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent-text);font-size:12.5px;font-weight:600;line-height:1.35}
 .perks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:clamp(24px,4vw,40px)}
 .perk{display:flex;align-items:center;gap:14px;padding:18px 20px;border-radius:18px;background:var(--paper);border:1px solid var(--line)}
 .perk .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-text);flex:none}
@@ -184,6 +185,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .pd-img .count-tag{left:16px;bottom:16px;font-size:14px;padding:7px 14px}
 .tag{position:absolute;left:10px;top:10px;padding:4px 9px;border-radius:8px;font-size:11px;font-weight:700;background:var(--sale);color:#fff;letter-spacing:.02em}
 .tag.author{background:#14171A}
+.tag.only{background:var(--accent)}
 .fav{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.85);color:#6B7079;backdrop-filter:blur(8px);z-index:2}
 .fav .i{width:17px;height:17px}
 .fav[aria-pressed="true"]{color:var(--accent)}
@@ -564,6 +566,8 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
         <div><p class="eyebrow" id="pdCat"></p><h1 id="pdName"></h1></div>
         <div class="pd-price num"><b id="pdPrice"></b><span class="bonus" id="pdBonus"></span></div>
         <p class="price-note">Оптовая цена: цветы приходят напрямую от производителей, без посредников</p>
+        <p class="price-note" id="pdOnly" hidden><b>Только на сайте</b> — этих роз нет в рознице, мы держим их под интернет-заказы</p>
+        <div class="soon-note" id="pdSoon" hidden></div>
         <div id="pdOptsWrap"><p class="label" id="pdOptsLabel">Количество цветов</p><div class="opts" id="pdOpts"></div></div>
         <div id="pdQtyWrap"><p class="label">Количество</p><div class="qty"><button id="pdMinus" aria-label="Меньше"><svg class="i"><use href="#i-minus"/></svg></button><span class="num" id="pdQty">1</span><button id="pdPlus" aria-label="Больше"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
         <div class="pd-buy">
@@ -607,7 +611,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790409919"></script>
+<script src="data.js?v=1790410424"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -761,12 +765,14 @@ function sizesHTML(p, cls = 'sizes') {
 }
 function card(p) {
   const f = favs.has(p.id);
-  const tag = p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>' : '';
+  const tag = p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
+    : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
   return `<article class="card" data-id="${p.id}">
     <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
     <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
+    ${readyNote(p) ? `<div class="soon-note">🚚 ${esc(readyNote(p))}</div>` : ''}
     ${sizesHTML(p)}
     <div class="buy-slot">${buyHTML(p)}</div>
   </article>`;
@@ -853,6 +859,10 @@ function showProduct(id) {
   $('#pdTag').hidden = !(p.sale || p.author); $('#pdTag').textContent = p.sale ? 'Акция' : 'Авторский'; $('#pdTag').className = 'tag' + (p.sale ? '' : ' author');
   $('#pdCat').textContent = catName[p.cat];
   $('#pdName').textContent = p.name;
+  $('#pdOnly').hidden = !p.site_only;
+  const soon = readyNote(p);
+  $('#pdSoon').hidden = !soon;
+  $('#pdSoon').textContent = soon ? '🚚 ' + soon : '';
   $('#pdBonus').hidden = true;
   $('#pdOptsWrap').hidden = !p.variants;
   if (p.variants) {
@@ -1558,7 +1568,12 @@ function slotList(date, sum) {
   // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
   const till = getType === 'pickup' ? send : Math.max(toMin(SLOTS.till || SLOTS.to), send);
   if (date < now.date) return [];
-  const first = date === now.date ? Math.max(open, now.min + prepMin(sum)) : open;
+  let first = date === now.date ? Math.max(open, now.min + prepMin(sum)) : open;
+  const rd = cartReady();
+  if (rd) {
+    if (date < rd.date) return [];
+    if (date === rd.date) first = Math.max(first, rd.min + prepMin(sum));
+  }
   const start0 = Math.ceil(first / SLOTS.step) * SLOTS.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
   const full = getType === 'pickup' ? SLOTS.step : SLOTS.hours * 60;
@@ -1568,6 +1583,36 @@ function slotList(date, sum) {
   // целое окно уже не помещается — предлагаем последнее, покороче
   if (!out.length && start0 <= send && start0 + Math.min(full, SLOTS.min || 60) <= till) out.push(`${hhmm(start0)}–${hhmm(till)}`);
   return out;
+}
+// «Цветы ещё едут с теплицы»: у товара есть время, когда он будет у нас.
+// Раньше этого времени плюс сборка ни доставить, ни отдать нельзя.
+function readyOf(p) {
+  const m = String((p && p.ready_at) || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})$/);
+  return m ? { date: m[1], min: +m[2] * 60 + +m[3], text: `${m[2]}:${m[3]}` } : null;
+}
+// самый поздний срок среди того, что лежит в корзине
+function cartReady() {
+  let best = null;
+  Object.keys(cart).forEach(k => {
+    const r = readyOf(byId[parseKey(k).id]);
+    if (!r) return;
+    if (!best || r.date > best.date || (r.date === best.date && r.min > best.min)) best = r;
+  });
+  return best;
+}
+// Текст для покупателя. И время приезда, и «доставим с» — из одного поля,
+// чтобы на карточке, на странице товара и в оформлении не разъезжались.
+function readyNote(p) {
+  const r = readyOf(p);
+  if (!r) return '';
+  const from = hhmm(readyStart(r, p.price || 0));
+  const day = r.date === mskToday() ? 'сегодня' :
+    new Date(r.date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  return `Цветы ещё едут с теплицы — будут у нас ${day} к ${r.text}. Доставим с ${from}.`;
+}
+// когда по такому товару возможна ближайшая доставка: приедет + сборка, кратно шагу
+function readyStart(r, sum) {
+  return Math.ceil((r.min + prepMin(sum)) / SLOTS.step) * SLOTS.step;
 }
 function mskNow() { const d = new Date(Date.now() + 3 * 3600e3); return { date: d.toISOString().slice(0, 10), min: d.getUTCHours() * 60 + d.getUTCMinutes() }; }
 const mskToday = () => mskNow().date;
@@ -1586,8 +1631,11 @@ function fillIntervals() {
   if (note) {
     const today = date === mskNow().date;
     note.hidden = !list.length || !today;
-    note.textContent = today && list.length
-      ? `Букет собираем ${prepMin(sum)} минут, поэтому сегодня везём с ${list[0].slice(0, 5)}.`
+    const rd = cartReady();
+    note.hidden = !list.length || (!today && !rd);
+    note.textContent = !list.length ? ''
+      : rd ? `Цветы в заказе едут с теплицы — будут у нас к ${rd.text}, поэтому везём с ${list[0].slice(0, 5)}.`
+      : today ? `Букет собираем ${prepMin(sum)} минут, поэтому сегодня везём с ${list[0].slice(0, 5)}.`
       : '';
   }
 }

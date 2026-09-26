@@ -64,6 +64,18 @@ function priceTables(s) {
 }
 
 // Итоговые варианты товара: по прайсу (если заданы длины) или сохранённые размеры
+// Остаток стеблей по длинам: {"40": 360}. Нет ключа — учёта нет, продаём свободно.
+function stockOf(p) {
+  const v = jget(p, "stock");
+  return (v && typeof v === "object") ? v : {};
+}
+// Хватает ли стеблей на такой размер (длина-количество)
+function stockOk(p, len, cnt) {
+  const st = stockOf(p);
+  const have = st[String(len)];
+  return have === undefined || have === null || +have >= +cnt;
+}
+
 function variantsOf(p, s) {
   const lengths = jget(p, "lengths");
   if (Array.isArray(lengths) && lengths.length) {
@@ -74,7 +86,7 @@ function variantsOf(p, s) {
     const out = [];
     lengths.forEach((L) => counts.forEach((C) => {
       const price = prices[L] && prices[L][C];
-      if (price) out.push({ label: `${L}-${C}`, price: +price, len: +L, cnt: C });
+      if (price && stockOk(p, L, C)) out.push({ label: `${L}-${C}`, price: +price, len: +L, cnt: C });
     }));
     return out;
   }
@@ -120,6 +132,17 @@ function catalog(app) {
         cnt: photos.length ? cntOf(photos[0]) : undefined,
         variants: variants.length ? variants : undefined,
         def_label: defVar ? defVar.label : undefined,
+        site_only: p.get("site_only") ? true : undefined,
+        // «цветы ещё в пути»: сайт покажет предупреждение и не даст ранний интервал
+        ready_at: (function () {
+          const v = String(p.get("ready_at") || "").trim();
+          if (!v) return undefined;
+          const now = moscowNow();
+          const m = v.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})/);
+          if (!m) return undefined;
+          if (m[1] < now.date || (m[1] === now.date && +m[2] * 60 + +m[3] <= now.minutes)) return undefined;
+          return `${m[1]} ${m[2].padStart(2, "0")}:${m[3]}`;
+        })(),
         lengths: Array.isArray(lengths) && lengths.length ? lengths : undefined,
         sale: p.get("badge") === "sale" ? 1 : undefined,
         author: p.get("badge") === "author" ? 1 : undefined,
@@ -166,6 +189,25 @@ function catalog(app) {
 // ---------- Интервалы доставки ----------
 // Считаются от времени заказа: сначала сборка букета (дорогой собирают дольше),
 // потом трёхчасовое окно. Начало всегда кратно получасу — так понятнее покупателю.
+// Самый поздний «цветы будут у нас» среди товаров заказа. Пустое — всё на месте.
+// Прошедшее время не считаем: роза уже приехала.
+function readyOf(app, items) {
+  const now = moscowNow();
+  let best = null;
+  (items || []).forEach((it) => {
+    let p = null;
+    try { p = app.findRecordById("products", String(it.id || "")); } catch (_) {}
+    const v = p && String(p.get("ready_at") || "").trim();
+    if (!v) return;
+    const m = v.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})/);
+    if (!m) return;
+    const cur = { date: m[1], minutes: +m[2] * 60 + +m[3] };
+    if (cur.date < now.date || (cur.date === now.date && cur.minutes <= now.minutes)) return;
+    if (!best || cur.date > best.date || (cur.date === best.date && cur.minutes > best.minutes)) best = cur;
+  });
+  return best;
+}
+
 function slotRules(s) {
   return {
     from: String(s.get("work_from") || "09:00"),
@@ -190,7 +232,7 @@ function prepFor(r, sum) {
 // Все интервалы, которые ещё можно выбрать на эту дату.
 // graceMin — небольшая поблажка при проверке заказа: пока покупатель заполнял форму,
 // время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
-function slotsFor(s, dateIso, sum, graceMin, pickup) {
+function slotsFor(s, dateIso, sum, graceMin, pickup, ready) {
   const r = slotRules(s);
   const open = toMin(r.from), send = toMin(r.to);
   // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
@@ -199,6 +241,11 @@ function slotsFor(s, dateIso, sum, graceMin, pickup) {
   let first = open;
   if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum) - (graceMin || 0));
   else if (dateIso < now.date) return [];
+  // цветы ещё едут: собирать начнём не раньше, чем они приедут
+  if (ready) {
+    if (dateIso < ready.date) return [];
+    if (dateIso === ready.date) first = Math.max(first, ready.minutes + prepFor(r, sum) - (graceMin || 0));
+  }
   const start0 = Math.ceil(first / r.step) * r.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
   const full = pickup ? r.step : r.hours * 60;
@@ -213,7 +260,7 @@ function slotsFor(s, dateIso, sum, graceMin, pickup) {
 }
 
 // Что не так с выбранным интервалом: пустая строка — всё в порядке.
-function slotProblem(s, dateIso, sum, label, pickup) {
+function slotProblem(s, dateIso, sum, label, pickup, ready) {
   const r = slotRules(s);
   const m = String(label).match(/^(\d{1,2}):(\d{2})[–-](\d{1,2}):(\d{2})$/);
   const late = pickup ? "Выберите время, когда заберёте букет." : "На этот интервал уже не успеем. Выберите более поздний.";
@@ -231,6 +278,11 @@ function slotProblem(s, dateIso, sum, label, pickup) {
 
   const now = moscowNow();
   if (dateIso < now.date) return "Эта дата уже прошла.";
+  if (ready) {
+    const wait = "Эти цветы ещё едут к нам — выберите время позже.";
+    if (dateIso < ready.date) return wait;
+    if (dateIso === ready.date && st < ready.minutes + prepFor(r, sum) - 20) return wait;
+  }
   if (dateIso === now.date) {
     const ready = now.minutes + prepFor(r, sum) - 20;   // 20 минут поблажки: пока заполняли форму, время ушло
     if (st < ready) return late;
@@ -264,6 +316,7 @@ function prepareOrder(app, rec) {
   const raw = jget(rec, "items");
   if (!Array.isArray(raw) || !raw.length || raw.length > 50) fail("Корзина пуста.");
   const items = [];
+  const take = [];        // что списать с остатков, когда заказ пройдёт все проверки
   let sum = 0, bonus = 0;
   raw.forEach((it) => {
     let p;
@@ -280,6 +333,16 @@ function prepareOrder(app, rec) {
     }
     // цену проверяем здесь: пустое поле в карточке даёт ноль, и букет уходил бы даром
     if (!(+price > 0)) fail(`У «${p.get("name")}» не указана цена. Позвоните нам — оформим вручную.`);
+    // Остатки: сколько стеблей забронировано под сайт. Проверяем здесь, а списываем
+    // ниже, когда весь заказ уже прошёл проверки — иначе списали бы под отказ.
+    if (label) {
+      const m = String(label).match(/^(\d+)-(\d+)$/);
+      if (m && !stockOk(p, m[1], +m[2] * qty)) {
+        const have = stockOf(p)[m[1]];
+        fail(`«${p.get("name")}» ${m[1]} см: осталось ${have} ${have === 1 ? "цветок" : "штук"}. Уменьшите количество.`);
+      }
+      take.push({ p, len: m ? m[1] : "", stems: m ? +m[2] * qty : 0 });
+    }
     items.push({ id: p.id, name: p.get("name"), label, label_text: label ? labelText(label) : "", price: +price, qty, sum: price * qty });
     sum += price * qty;
     bonus += (p.get("bonus") || 0) * qty;
@@ -339,7 +402,7 @@ function prepareOrder(app, rec) {
   const interval = String(rec.get("interval") || "");
   // Проверяем правилами, а не списком: браузер и сервер считают время в разные секунды,
   // и точное совпадение строки давало отказ на верном интервале.
-  const bad = slotProblem(s, date, sum, interval, pickup);
+  const bad = slotProblem(s, date, sum, interval, pickup, readyOf(app, items));
   if (bad) fail(bad);
 
 const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret"));
@@ -362,6 +425,20 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   rec.set("bonus", bonus);
   rec.set("comment", "");
   rec.set("tg_code", $security.randomString(10));   // по нему покупатель подпишется на статусы в боте
+
+  // Списываем остатки в самом конце, когда заказ уже прошёл все проверки.
+  // Пишем запросом, а не сохранением товара: соседнее сохранение из копии,
+  // прочитанной раньше, вернуло бы старое число обратно.
+  take.forEach((t) => {
+    if (!t.len || !t.stems) return;
+    const st = stockOf(t.p);
+    if (st[t.len] === undefined || st[t.len] === null) return;   // по этой длине учёта нет
+    st[t.len] = Math.max(0, +st[t.len] - t.stems);
+    try {
+      app.db().newQuery("UPDATE products SET stock = {:v} WHERE id = {:id}")
+        .bind({ v: JSON.stringify(st), id: t.p.id }).execute();
+    } catch (err) { console.log("остаток", t.p.id, err); }
+  });
 }
 
 // ---------- Телеграм ----------
@@ -498,6 +575,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer,
+  STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
   tg, tgPhoto, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };
