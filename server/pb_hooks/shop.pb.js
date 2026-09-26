@@ -257,6 +257,7 @@ routerAdd("POST", "/api/shop/stock-set", (e) => {
     p.set("stock", out);
   }
   if (b.site_only !== undefined) p.set("site_only", !!b.site_only);
+  if (b.fresh !== undefined) p.set("fresh_date", b.fresh ? shop.moscowToday() : "");
   $app.save(p);
   return e.json(200, { ok: true });
 }, $apis.requireAuth("managers"));
@@ -360,4 +361,21 @@ routerAdd("GET", "/api/shop/ms-search", (e) => {
   const r = msl.ms(s, "GET", `/entity/product?limit=30&search=${encodeURIComponent(q)}`);
   if (!r.ok) return e.json(400, { message: r.error || "МойСклад не ответил" });
   return e.json(200, { items: (r.data.rows || []).map((x) => ({ id: x.id, name: x.name })) });
+}, $apis.requireAuth("managers"));
+
+
+// «Приехало сегодня с теплицы» сразу для всего, что в наличии
+routerAdd("POST", "/api/shop/fresh-all", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const on = !!(e.requestInfo().body || {}).on;
+  const day = on ? shop.moscowToday() : "";
+  let n = 0;
+  try {
+    const r = $app.db().newQuery(`UPDATE products SET fresh_date = {:d}
+      WHERE active = true AND category IN (SELECT id FROM categories WHERE addon IS NOT TRUE)`)
+      .bind({ d: day }).execute();
+    n = r.rowsAffected ? r.rowsAffected() : 0;
+  } catch (err) { return e.json(400, { message: String(err) }); }
+  return e.json(200, { ok: true, count: n });
 }, $apis.requireAuth("managers"));

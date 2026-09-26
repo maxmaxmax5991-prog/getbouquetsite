@@ -34,6 +34,8 @@ function unclaim(app, id, kind) {
   try { app.db().newQuery("DELETE FROM order_locks WHERE order_id = {:id} AND kind = {:k}").bind({ id, k: kind }).execute(); } catch (_) {}
 }
 
+const moscowToday = () => moscowNow().date;
+
 function settings(app) {
   return app.findFirstRecordByFilter("settings", "id != ''");
 }
@@ -156,6 +158,8 @@ function catalog(app) {
         variants: variants.length ? variants : undefined,
         def_label: defVar ? defVar.label : undefined,
         site_only: p.get("site_only") ? true : undefined,
+        // «сегодня с теплицы» — только в день завоза, назавтра само пропадёт
+        fresh: String(p.get("fresh_date") || "") === moscowNow().date ? true : undefined,
         // «цветы ещё в пути»: сайт покажет предупреждение и не даст ранний интервал
         ready_at: (function () {
           const v = String(p.get("ready_at") || "").trim();
@@ -638,6 +642,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
+  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
   tg, tgPhoto, clientToken, adminIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

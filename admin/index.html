@@ -355,7 +355,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <section id="tab-incoming" hidden>
       <div class="bar" style="justify-content:space-between">
         <h2>Цветы в пути</h2>
-        <button class="btn btn-p" id="inAdd">Добавить строку</button>
+        <div class="bar"><button class="btn btn-g" id="freshAll">🌿 Всё в наличии приехало сегодня</button><button class="btn btn-p" id="inAdd">Добавить строку</button></div>
       </div>
       <p class="hint">Сорт уже продаётся, но приедет позже: в карточке появится «цветы ещё едут с теплицы», а доставку раньше приезда плюс сборку сайт не предложит. Количество — сколько стеблей забронировано под сайт; когда их не хватает на размер, размер скрывается сам.</p>
       <div id="inRows" class="stack"></div>
@@ -703,6 +703,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
     </div>
     <div class="bar" style="gap:18px">
       <div class="swl"><button class="sw" id="eOnly" role="switch" aria-checked="false" aria-label="Только на сайте"></button>Только на сайте</div>
+      <div class="swl"><button class="sw" id="eFresh" role="switch" aria-checked="false" aria-label="Приехал сегодня"></button>Приехал сегодня с теплицы</div>
       <div class="swl"><button class="sw" id="eFeatured" role="switch" aria-checked="false" aria-label="В карусели"></button>В карусели на главной</div>
     </div>
     <div class="row">
@@ -1016,7 +1017,8 @@ function openEditor(p) {
   $('#eMood').value = p ? p.mood || '' : '';
   $('#eTint').value = p && /^#[0-9a-f]{6}$/i.test(p.tint || '') ? p.tint : '#E0178A';
   $('#eDesc').value = p ? p.description || '' : '';
-  sw($('#eActive'), p ? p.active : true); sw($('#eOnly'), p && p.site_only); sw($('#eFeatured'), p && p.featured);
+  sw($('#eActive'), p ? p.active : true); sw($('#eOnly'), p && p.site_only);
+  sw($('#eFresh'), !!(p && p.fresh_date && p.fresh_date === new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10))); sw($('#eFeatured'), p && p.featured);
   // «цветы ещё едут»: в базе одной строкой «ГГГГ-ММ-ДД ЧЧ:ММ» по Москве
   const rd = String((p && p.ready_at) || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
   $('#eReadyDate').value = rd ? rd[1] : '';
@@ -1169,6 +1171,7 @@ $('#eSave').onclick = safe(async () => {
   fd.append('description', $('#eDesc').value.trim());
   fd.append('active', sw($('#eActive')));
   fd.append('site_only', sw($('#eOnly')));
+  fd.append('fresh_date', sw($('#eFresh')) ? new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10) : '');
   const rdD = $('#eReadyDate').value, rdT = $('#eReadyTime').value;
   fd.append('ready_at', rdD && rdT ? `${rdD} ${rdT}` : '');
   fd.append('featured', sw($('#eFeatured')));
@@ -1570,6 +1573,10 @@ function readIncoming() {
     r.time = el.querySelector('[data-t]').value;
   });
 }
+$('#freshAll').onclick = safe(async () => {
+  const r = await api('/api/shop/fresh-all', { method: 'POST', body: { on: true } });
+  toast(`Отмечено сортов: ${r.count}. Плашка пропадёт сама завтра.`);
+});
 $('#inAdd').onclick = safe(async () => {
   if (!IN_PRODS.length) IN_PRODS = await list('products', '&sort=name');
   readIncoming();

@@ -194,6 +194,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 
 /* perks */
 .img-note{position:absolute;left:0;right:0;bottom:0;padding:7px 10px;background:color-mix(in srgb,var(--accent) 92%,#000);color:#fff;font-size:11.5px;font-weight:700;line-height:1.3;text-align:center}
+.img-note.fresh{background:color-mix(in srgb,var(--leaf) 92%,#000)}
 .card-img.has-note .count-tag{bottom:42px}
 .soon-note{margin:6px 0 0;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent-text);font-size:12.5px;font-weight:600;line-height:1.35}
 .perks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:clamp(24px,4vw,40px)}
@@ -597,6 +598,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
         <div><p class="eyebrow" id="pdCat"></p><h1 id="pdName"></h1></div>
         <div class="pd-price num"><b id="pdPrice"></b><span class="bonus" id="pdBonus"></span></div>
         <p class="price-note">Оптовая цена: цветы приходят напрямую от производителей, без посредников</p>
+        <p class="price-note" id="pdFresh" hidden style="color:var(--leaf)"><b>🌿 Этот сорт сегодня приехал к нам напрямую с теплицы</b></p>
         <p class="price-note" id="pdOnly" hidden><b>Только на сайте</b> — этих роз нет в рознице, мы держим их под интернет-заказы</p>
         <div class="soon-note" id="pdSoon" hidden></div>
         <div id="pdOptsWrap"><p class="label" id="pdOptsLabel">Количество цветов</p><div class="opts" id="pdOpts"></div></div>
@@ -642,7 +644,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790428936"></script>
+<script src="data.js?v=1790429111"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -810,7 +812,7 @@ function card(p) {
   const tag = p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
   return `<article class="card" data-id="${p.id}">
-    <a class="card-img${readyShort(p) ? ' has-note' : ''}" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}${readyShort(p) ? `<span class="img-note">🚚 ${esc(readyShort(p))}</span>` : ''}</a>
+    <a class="card-img${readyShort(p) || p.fresh ? ' has-note' : ''}" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}${readyShort(p) ? `<span class="img-note">🚚 ${esc(readyShort(p))}</span>` : p.fresh ? '<span class="img-note fresh">🌿 Этот сорт сегодня приехал к нам напрямую с теплицы</span>' : ''}</a>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
     <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
@@ -904,6 +906,7 @@ function showProduct(id) {
   $('#pdName').textContent = p.name;
   try { window.ev && window.ev('view', p.name); } catch (_) {}
   $('#pdOnly').hidden = !p.site_only;
+  $('#pdFresh').hidden = !p.fresh;
   const soon = readyNote(p);
   $('#pdSoon').hidden = !soon;
   $('#pdSoon').textContent = soon ? '🚚 ' + soon : '';
