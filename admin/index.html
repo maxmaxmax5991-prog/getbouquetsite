@@ -384,6 +384,13 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div class="scroll"><table class="t" id="statFunnel"></table></div>
       </div>
       <div class="card" style="margin-top:12px">
+        <h2>Оценки после вручения</h2>
+        <p class="hint">Три вопроса приходят клиенту, когда заказ стал «Доставлен». Кто поставил тройку и ниже — попадает в «Ждут звонка», кто все пятёрки — получает приглашение на Яндекс.Карты.</p>
+        <div class="tiles4" id="revTiles"></div>
+        <div class="scroll" style="margin-top:10px"><table class="t" id="revNeed"></table></div>
+        <div class="scroll" style="margin-top:10px"><table class="t" id="revComments"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
         <h2>Оценка букетов</h2>
         <div class="scroll"><table class="t" id="statPhoto"></table></div>
       </div>
@@ -557,6 +564,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div class="row">
             <label class="f" for="sPhone">Телефон на сайте<input class="in" id="sPhone" placeholder="+7 900 000-00-00"></label>
             <label class="f" for="sUrl">Адрес сайта<input class="in" id="sUrl" placeholder="https://venikoff.net"></label>
+            <label class="f" for="sReview">Ссылка на отзывы (Яндекс.Карты)<input class="in" id="sReview" placeholder="https://yandex.ru/maps/org/.../reviews/"></label>
           </div>
           <div><button class="btn btn-p" id="sSave">Сохранить</button></div>
         </div>
@@ -1795,6 +1803,29 @@ const loadStats = safe(async () => {
       }).join('');
   } catch (_) { $('#statFunnel').innerHTML = '<tr><td>Пока нет данных</td></tr>'; }
 
+  // Оценки после вручения
+  try {
+    const rv = await api('/api/shop/reviews');
+    const a = rv.avg || {};
+    const m = x => x === null || x === undefined ? '—' : x.toFixed(2);
+    $('#revTiles').innerHTML = [
+      ['Опросов отправлено', rv.total], ['Ответили полностью', rv.answered],
+      ['Оформление', m(a.order)], ['Букет', m(a.bouquet)], ['Доставка', m(a.delivery)],
+      ['Все пятёрки', rv.fives],
+    ].map(([t, v]) => `<div class="tile"><span>${t}</span><b class="num">${v}</b></div>`).join('');
+    $('#revNeed').innerHTML = (rv.need || []).length
+      ? `<tr><th>Ждут звонка</th><th>Оценки</th><th>Телефон</th><th></th></tr>`
+        + rv.need.map(n => `<tr><td>№${n.number} — ${esc(n.name || '')}</td>
+            <td class="num">${n.marks.join(' / ')}</td>
+            <td><a href="tel:${esc(String(n.phone).replace(/[^\d+]/g, ''))}">${esc(n.phone || '')}</a></td>
+            <td><button class="btn btn-p btn-s" data-revok="${n.id}">Взял в работу</button></td></tr>`).join('')
+      : '<tr><td>Недовольных нет — все оценки выше тройки.</td></tr>';
+    $('#revComments').innerHTML = (rv.comments || []).length
+      ? `<tr><th>Отзывы словами</th><th>Оценки</th><th>Когда</th></tr>`
+        + rv.comments.map(c => `<tr><td>№${c.number}: ${esc(c.text)}</td><td class="num">${c.marks.join(' / ')}</td><td>${chatAt(c.at)}</td></tr>`).join('')
+      : '<tr><td class="hint">Отзывов словами пока нет.</td></tr>';
+  } catch (_) {}
+
   // Оценка букетов и причины правок
   const withPhoto = all.filter(o => o.photo_status);
   const good = withPhoto.filter(o => o.photo_status === 'approved').length;
@@ -1866,6 +1897,12 @@ const loadStats = safe(async () => {
       + top.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.qty}</td><td class="num">${rub(v.sum)}</td></tr>`).join('')
     : `<tr><td class="hint">Пока нет продаж за этот период.</td></tr>`;
 });
+document.addEventListener('click', safe(async e => {
+  const b = e.target.closest('[data-revok]');
+  if (!b) return;
+  await api('/api/shop/reviews', { method: 'POST', body: { id: b.dataset.revok, by: (auth && auth.email) || '' } });
+  toast('Отмечено'); loadStats();
+}));
 $('#statRange').onclick = e => { const b = e.target.closest('[data-p]'); if (b) { statPeriod = b.dataset.p; loadStats(); } };
 function chartHTML(byDay, byHour) {
   const days = Object.entries(byDay), max = Math.max(1, ...days.map(([, v]) => v));
@@ -2372,7 +2409,7 @@ const loadSettings = safe(async () => {
   loadStaff();
   await loadSettings0();
   renderUpload();
-  $('#sPhone').value = S.phone || ''; $('#sUrl').value = S.site_url || location.origin;
+  $('#sPhone').value = S.phone || ''; $('#sUrl').value = S.site_url || location.origin; $('#sReview').value = S.review_url || '';
   $('#sTok').value = ''; $('#sTok').placeholder = S.tg_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ от @BotFather';
 $('#sAdm').value = S.tg_admins || '';
 $('#sFlo').value = S.tg_florists || '';
@@ -2388,7 +2425,7 @@ $('#pPub').value = S.cp_public_id || '';
 $('#pSec').value = ''; $('#pSec').placeholder = S.cp_secret ? 'Секрет сохранён. Вставьте новый, чтобы заменить' : 'Вставьте секрет';
 sw($('#pCard'), S.pay_card); sw($('#pDeliv'), S.pay_on_delivery);
 });
-$('#sSave').onclick = safe(async () => { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { phone: $('#sPhone').value.trim(), site_url: $('#sUrl').value.trim().replace(/\/$/, '') } }); toast('Сохранено'); });
+$('#sSave').onclick = safe(async () => { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { phone: $('#sPhone').value.trim(), site_url: $('#sUrl').value.trim().replace(/\/$/, ''), review_url: $('#sReview').value.trim() } }); toast('Сохранено'); });
 $('#cSaveBot').onclick = safe(async () => {
   const raw = $('#cTok').value.trim();
   const found = raw.match(/\d{5,}:[A-Za-z0-9_-]{20,}/);

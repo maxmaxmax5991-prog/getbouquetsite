@@ -103,6 +103,11 @@ onRecordAfterUpdateSuccess((e) => {
         }
       } catch (err) { console.log("отметка статуса", err); }
       shop.notifyCustomer($app, e.record, now);
+      // вручили — просим оценить: оформление, букет, доставку
+      if (now === "done") {
+        try { require(`${__hooks}/lib/review.js`).start($app, e.record); }
+        catch (err) { console.log("опрос", err); require(`${__hooks}/lib/err.js`).note($app, "Опрос", String(err), "запуск после вручения"); }
+      }
     }
   } catch (err) { console.log("customer notify", err); }
   e.next();

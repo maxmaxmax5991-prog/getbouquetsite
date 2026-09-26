@@ -82,3 +82,54 @@ routerAdd("GET", "/api/shop/funnel", (e) => {
   });
   return e.json(200, out);
 }, $apis.requireAuth("managers"));
+
+// Оценки после вручения: средние по трём категориям и кто ждёт звонка
+routerAdd("GET", "/api/shop/reviews", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const list = $app.findRecordsByFilter("reviews", "id != ''", "-created", 200, 0);
+  const avg = (f) => {
+    const v = list.map((r) => +r.get(f) || 0).filter((x) => x > 0);
+    return v.length ? +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : null;
+  };
+  const need = [];
+  list.filter((r) => r.get("needs_call") && !r.get("handled")).forEach((r) => {
+    let o = null;
+    try { o = $app.findRecordById("orders", r.get("order")); } catch (_) {}
+    need.push({
+      id: r.id,
+      number: o ? o.get("number") : "",
+      name: o ? o.get("name") : "",
+      phone: o ? o.get("phone") : "",
+      marks: [+r.get("q_order") || 0, +r.get("q_bouquet") || 0, +r.get("q_delivery") || 0],
+      comment: r.get("comment") || "",
+      at: r.getString("created"),
+    });
+  });
+  const comments = list.filter((r) => r.get("comment")).slice(0, 20).map((r) => {
+    let o = null;
+    try { o = $app.findRecordById("orders", r.get("order")); } catch (_) {}
+    return { number: o ? o.get("number") : "", text: r.get("comment"), at: r.getString("created"),
+      marks: [+r.get("q_order") || 0, +r.get("q_bouquet") || 0, +r.get("q_delivery") || 0] };
+  });
+  return e.json(200, {
+    total: list.length,
+    answered: list.filter((r) => +r.get("q_delivery") > 0).length,
+    avg: { order: avg("q_order"), bouquet: avg("q_bouquet"), delivery: avg("q_delivery") },
+    fives: list.filter((r) => +r.get("q_order") === 5 && +r.get("q_bouquet") === 5 && +r.get("q_delivery") === 5).length,
+    need, comments,
+  });
+}, $apis.requireAuth("managers"));
+
+// Менеджер отметил, что взял недовольного в работу
+routerAdd("POST", "/api/shop/reviews", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head", "manager"])) return e.json(403, { message: "Недостаточно прав." });
+  const b = e.requestInfo().body || {};
+  let r;
+  try { r = $app.findRecordById("reviews", String(b.id || "")); } catch (_) { return e.json(404, { message: "Не найдено" }); }
+  r.set("handled", true);
+  r.set("handled_by", String(b.by || "").slice(0, 120));
+  $app.save(r);
+  return e.json(200, { ok: true });
+}, $apis.requireAuth("managers"));

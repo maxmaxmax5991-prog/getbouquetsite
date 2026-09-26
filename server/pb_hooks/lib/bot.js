@@ -266,6 +266,12 @@ function handleClient(app, upd) {
     let ord = null;
     try { ord = app.findRecordById("orders", parts[1]); } catch (_) {}
     if (!ord) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+    if (parts[0] === "rv") {
+      // оценка после вручения: rv:<id опроса>:<шаг>:<оценка>
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Спасибо!" });
+      try { require(`${__hooks}/lib/review.js`).answer(app, parts[1], parts[2], parts[3]); } catch (err) { console.log("оценка", err); }
+      return;
+    }
     if (parts[0] === "ap") {
       // то же нажатие может прийти дважды (перезапуск сервера, двойной тап) —
       // второй раз молчим, иначе владельцу дублируется «клиент одобрил фото»
@@ -379,6 +385,18 @@ function handleClient(app, upd) {
     return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.${site1 ? `\n\nСтраница заказа: ${site1}/#/order/${order.get("tg_code")}` : ""}` });
   }
 
+  // Ждём свободный отзыв после оценок — он важнее, чем обращение в чат
+  if (text) {
+    try {
+      const rv = require(`${__hooks}/lib/review.js`);
+      const w = rv.waiting(app, "tg_chat", String(chat));
+      if (w) {
+        rv.comment(app, w, text);
+        return shop.tg(token, "sendMessage", { chat_id: chat, text: "Спасибо, передали. Нам это правда важно." });
+      }
+    } catch (err) { console.log("отзыв", err); }
+  }
+
   // Обычное сообщение — это вопрос живому человеку. Кладём его в общую ленту чата,
   // менеджер ответит из админки, и ответ вернётся сюда же. Автоответ не шлём:
   // «Заказ №N — Подтверждён» на вопрос «а можно к 18?» выглядит глухо.
@@ -450,6 +468,18 @@ function handle(app, secret, upd) {
     } else if (kind === "p") {
       sendList(app, s, chat, +a || 0, "", cb.message.message_id);
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+    } else if (kind === "rh") {
+      // «Взял в работу» по недовольному клиенту
+      if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
+      try {
+        const rv = app.findRecordById("reviews", a);
+        rv.set("handled", true);
+        rv.set("handled_by", String(cb.from.first_name || "").slice(0, 120));
+        app.save(rv);
+        shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Отмечено" });
+        shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id,
+          text: `${cb.message.text}\n\n✅ Взял в работу: ${cb.from.first_name || "менеджер"}` });
+      } catch (_) { shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Не нашёл" }); }
     } else if (kind === "ga") {
       if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
       const gid = String(a), set = shop.settings(app);

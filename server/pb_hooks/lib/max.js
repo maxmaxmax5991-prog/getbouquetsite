@@ -165,6 +165,11 @@ function onButton(app, s, token, cb) {
   try { ord = app.findRecordById("orders", parts[1] || ""); } catch (_) {}
   if (!ord) { answer(token, cb.callback_id, "Заказ не найден"); return; }
 
+  if (parts[0] === "rv") {
+    answer(token, cb.callback_id, "Спасибо!");
+    try { require(`${__hooks}/lib/review.js`).answer(app, parts[1], parts[2], parts[3]); } catch (err) { console.log("оценка MAX", err); }
+    return;
+  }
   if (parts[0] === "ap") {
     if (ord.get("photo_status") === "approved") { answer(token, cb.callback_id, "Уже передали, спасибо!"); return; }
     ord.set("photo_status", "approved");
@@ -231,6 +236,15 @@ function handle(app, u) {
   if (code) {
     const done = useCode(app, s, token, userId, name, code);
     if (done) return done;
+  }
+
+  // Ждём свободный отзыв после оценок
+  if (text) {
+    try {
+      const rv = require(`${__hooks}/lib/review.js`);
+      const w = rv.waiting(app, "max_chat", String(userId));
+      if (w) { rv.comment(app, w, text); return say("Спасибо, передали. Нам это правда важно."); }
+    } catch (_) {}
   }
 
   // Клиент написал словами. Сами ничего не решаем — переспрашиваем кнопками,
