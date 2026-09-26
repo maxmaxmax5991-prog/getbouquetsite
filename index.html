@@ -187,7 +187,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .pd-img .count-tag{left:16px;bottom:16px;font-size:14px;padding:7px 14px}
 .tag{position:absolute;left:10px;top:10px;padding:4px 9px;border-radius:8px;font-size:11px;font-weight:700;background:var(--sale);color:#fff;letter-spacing:.02em}
 .tag.author{background:#14171A}
-.tag.only{background:var(--accent)}
+.tag.only{background:var(--leaf)}
 .fav{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.85);color:#6B7079;backdrop-filter:blur(8px);z-index:2}
 .fav .i{width:17px;height:17px}
 .fav[aria-pressed="true"]{color:var(--accent)}
@@ -613,7 +613,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790411213"></script>
+<script src="data.js?v=1790411323"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
