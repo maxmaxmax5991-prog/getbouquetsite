@@ -381,6 +381,22 @@ function prepareOrder(app, rec) {
   });
   if (sum < (s.get("min_order") || 0)) fail(`Минимальная сумма заказа — ${rub(s.get("min_order"))}.`);
 
+  // Двойное нажатие «Оформить» давало два одинаковых заказа с разницей в секунды
+  // (так вышло с №3041 и №3042). Отбиваем повтор: тот же телефон и та же сумма за две минуты.
+  let twin = null;
+  try {
+    const tail = String(rec.get("phone") || "").replace(/\D/g, "").slice(-10);
+    if (tail.length === 10) {
+      const since = new Date(Date.now() - 2 * 60000).toISOString().replace("T", " ").slice(0, 19);
+      // сравниваем сумму букетов: доставка считается ниже и у дубля может отличаться на копейки
+      const same = app.findRecordsByFilter("orders",
+        `phone ~ {:t} && items_sum = {:s} && created > {:since} && status != "cancelled"`,
+        "-created", 1, 0, { t: tail, s: sum, since });
+      if (same.length) twin = same[0];
+    }
+  } catch (_) {}
+  if (twin) fail(`Такой заказ уже оформлен — №${twin.get("number")}. Если нужен второй букет, подождите пару минут.`);
+
   const pickup = String(rec.get("delivery_type") || "delivery") === "pickup";
   if (pickup && !s.get("pickup")) fail("Самовывоз сейчас недоступен.");
   rec.set("delivery_type", pickup ? "pickup" : "delivery");

@@ -3,15 +3,17 @@
 const shop = require(`${__hooks}/lib/shop.js`);
 
 const QUESTIONS = {
-  order: "Насколько удобно было оформить заказ на сайте?",
-  bouquet: "Как вам сам букет?",
-  delivery: "Как прошла доставка?",
+  order: "1 из 3. Удобно было оформить заказ на сайте?",
+  bouquet: "2 из 3. Как вам сам букет?",
+  delivery: "3 из 3. Как прошла доставка?",
 };
+// Пять одинаковых звёздочек с телефона не различить — ставим цифры и подписываем края
+const LABEL = { 1: "1 · плохо", 2: "2", 3: "3", 4: "4", 5: "5 · отлично" };
 const NEXT = { order: "bouquet", bouquet: "delivery", delivery: "comment" };
 const FIELD = { order: "q_order", bouquet: "q_bouquet", delivery: "q_delivery" };
 
 function stars(id, step) {
-  const row = [1, 2, 3, 4, 5].map((n) => ({ text: "⭐".repeat(n) || String(n), callback_data: `rv:${id}:${step}:${n}` }));
+  const row = [1, 2, 3, 4, 5].map((n) => ({ text: LABEL[n], callback_data: `rv:${id}:${step}:${n}` }));
   return [row.slice(0, 3), row.slice(3)];
 }
 
@@ -22,7 +24,9 @@ function ask(app, rec) {
   let o = null;
   try { o = app.findRecordById("orders", rec.get("order")); } catch (_) { return; }
   const via = rec.get("via");
-  const head = step === "order" ? `Заказ №${o.get("number")} доставлен. Оцените нас, пожалуйста — это две минуты.\n\n` : "";
+  const head = step === "order"
+    ? `Заказ №${o.get("number")} доставлен 🌸\n\nПомогите нам стать лучше — три вопроса, по одному нажатию.\n\n`
+    : "";
 
   if (step === "comment") {
     // Развилка: недовольного берёт менеджер, довольного зовём оставить отзыв.
@@ -64,7 +68,7 @@ function ask(app, rec) {
   const text = head + QUESTIONS[step];
   if (via === "max") {
     const mx = require(`${__hooks}/lib/max.js`);
-    const rows = [1, 2, 3, 4, 5].map((n) => mx.btn("⭐".repeat(n), `rv:${rec.id}:${step}:${n}`));
+    const rows = [1, 2, 3, 4, 5].map((n) => mx.btn(LABEL[n], `rv:${rec.id}:${step}:${n}`));
     mx.send(s.get("max_token"), o.get("max_chat"), text, [rows.slice(0, 3), rows.slice(3)]);
   } else {
     shop.tg(shop.clientToken(s), "sendMessage", { chat_id: o.get("tg_chat"), text,
