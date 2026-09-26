@@ -587,7 +587,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <label class="f" for="sTok">Ключ бота<input class="in" id="sTok" type="password" autocomplete="off" placeholder="Вставьте ключ от @BotFather"></label>
           <label class="f" for="sAdm">Кто может управлять ботом (номера через запятую)<input class="in num" id="sAdm" placeholder="512345678"></label>
           <label class="f" for="sFlo">Кто только отправляет фото букетов<input class="in num" id="sFlo" placeholder="512345678"></label>
-          <p class="hint">Флорист получает в бот короткую карточку — что собрать и к какому времени, без телефона и адреса покупателя. Он может прислать фото ответом на карточку или с подписью-номером заказа («3026»), и оно уйдёт клиенту. Цены, товары и «Стоп заказов» ему недоступны.<br>Чтобы узнать его номер: пусть откроет бота и нажмёт «Старт» — бот пришлёт номер в ответ.</p>
+          <p class="hint"><b>Номера сюда вписывать не нужно.</b> Пусть человек откроет бота и нажмёт «Старт» — вам придёт заявка с кнопками «📷 Только фото букетов» и «🛠 Полное управление». Нажали — доступ выдан, номер подставится сам.<br>Флорист получает короткую карточку: что собрать и к какому времени, без телефона и адреса покупателя. Фото отправляет ответом на карточку или с подписью-номером заказа («3026»). Цены, товары и «Стоп заказов» ему недоступны.</p>
           <p class="hint"><b>Что за номер:</b> личный номер аккаунта в Телеграме (не телефон). Узнать свой — откройте бота <b>@userinfobot</b> и нажмите Start, он пришлёт строку «Id: 512345678». Или после сохранения ключа напишите своему боту — он ответит вашим номером.<br>Этим людям приходят уведомления о заказах, и только они могут менять товары через бота.</p>
           <div class="bar"><button class="btn btn-p" id="tSave">Сохранить</button><button class="btn btn-g" id="tTest">Проверить бота</button></div>
         </div>
@@ -686,7 +686,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const rub = n => (+n || 0).toLocaleString('ru-RU') + ' ₽';
-const STATUS = { new: 'Новый', confirmed: 'Подтверждён', assembling: 'Собирается', photo: 'Фото отправлено', delivering: 'В пути', done: 'Доставлен', cancelled: 'Отменён' };
+const STATUS = { new: 'Новый', confirmed: 'Подтверждён', assembling: 'Собирается', photo: 'Букет собран', delivering: 'В пути', done: 'Доставлен', cancelled: 'Отменён' };
 const labelText = l => /^\d+-\d+$/.test(l) ? `${l.split('-')[1]} шт · ${l.split('-')[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
 const LENGTHS = [40, 50, 60, 70, 80], COUNTS = [25, 51, 101];
 

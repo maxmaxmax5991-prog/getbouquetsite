@@ -2,7 +2,7 @@
 // обработчики PocketBase выполняются изолированно и не видят код верхнего уровня файлов.
 
 const STATUS = {
-  new: "Новый", confirmed: "Подтверждён", assembling: "Собирается", photo: "Фото отправлено",
+  new: "Новый", confirmed: "Подтверждён", assembling: "Собирается", photo: "Букет собран",
   delivering: "В пути", done: "Доставлен", cancelled: "Отменён",
 };
 const COUNTS = [25, 51, 101];   // если прайс не настроен
@@ -572,7 +572,7 @@ const CUSTOMER_TEXT = {
   assembling: (o) => `Заказ №${o.get("number")}: начали собирать ваш букет.`,
   photo: (o) => o.get("delivery_type") === "pickup"
     ? `Заказ №${o.get("number")}: букет готов, ждём вас ${whenText(o)}.`
-    : `Заказ №${o.get("number")}: букет собран, фото отправим следом.`,
+    : `Заказ №${o.get("number")}: букет собран, скоро выезжаем.`,
   delivering: (o) => `Заказ №${o.get("number")} в пути. Доставим ${whenText(o)}.` +
     (o.get("comment") ? `\nКурьер: ${o.get("comment")}` : ""),
   done: (o) => o.get("delivery_type") === "pickup"

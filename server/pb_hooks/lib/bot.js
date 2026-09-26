@@ -156,7 +156,7 @@ function sendBouquet(app, s, chat, ord, fileId) {
       if (!sent || !sent.ok) {
         return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото не ушло клиенту — попробуйте отправить ещё раз. Если повторится, скажите мне.` });
       }
-      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}.` });
     }
     if (ord.get("max_chat")) {
       // в MAX кнопок под фото нет — покупатель отвечает сообщением, ответ разбирает lib/max.js
@@ -171,7 +171,7 @@ function sendBouquet(app, s, chat, ord, fileId) {
         if (saved && saved.url) mx.send(s.get("max_token"), ord.get("max_chat"), `${caption}\n\n${saved.url}`, keys);
         return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото ушло клиенту в MAX ссылкой, картинкой не вышло (${(res && res.error) || "нет файла"}). Если повторится, скажите мне.` });
       }
-      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту в MAX: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту в MAX: ${ord.get("name")}, ${ord.get("phone")}.` });
     }
     return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото сохранено. Клиент ${ord.get("name")}, ${ord.get("phone")} не подписан на бота — отправьте фото сами.` });
 }
@@ -444,6 +444,31 @@ function handle(app, secret, upd) {
     } else if (kind === "p") {
       sendList(app, s, chat, +a || 0, "", cb.message.message_id);
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+    } else if (kind === "gr") {
+      // выдача доступа: a — управление, f — только фото, n — отказ
+      if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
+      const uid = String(a), what = String(b || "n");
+      const set = shop.settings(app);
+      const add = (field, id) => {
+        const list = String(set.get(field) || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+        if (list.indexOf(id) < 0) list.push(id);
+        set.set(field, list.join(", "));
+      };
+      const drop = (field, id) => {
+        set.set(field, String(set.get(field) || "").split(/[\s,;]+/).map((x) => x.trim()).filter((x) => x && x !== id).join(", "));
+      };
+      let said = "Отказано";
+      if (what === "a") { drop("tg_florists", uid); add("tg_admins", uid); said = "Выдано полное управление"; }
+      else if (what === "f") { drop("tg_admins", uid); add("tg_florists", uid); said = "Выдан доступ: только фото"; }
+      else { drop("tg_admins", uid); drop("tg_florists", uid); }
+      app.save(set);
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: said });
+      shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id, text: `${cb.message.text}\n\n✅ ${said}` });
+      if (what !== "n") {
+        shop.tg(token, "sendMessage", { chat_id: uid, text: what === "f"
+          ? "Доступ открыт. Присылайте сюда фото готовых букетов: ответом на карточку заказа или с подписью-номером, например 3026."
+          : "Доступ открыт. Напишите «Помощь», чтобы увидеть, что умеет бот." });
+      }
     } else if (kind === "fo") {
       const ord = app.findRecordById("orders", a);
       shop.tg(token, "sendMessage", { chat_id: chat,
@@ -512,7 +537,17 @@ function handle(app, secret, upd) {
 
   if (admins.indexOf(String(msg.from.id)) < 0) {
     if (text.indexOf("/start") === 0) {
-      shop.tg(token, "sendMessage", { chat_id: chat, text: `Здравствуйте! Ваш номер в Телеграме: ${msg.from.id}\n\nЧтобы управлять магазином, добавьте этот номер в админке: Настройки → Телеграм → «Кто может управлять ботом».` });
+      // Номера больше никто не переписывает руками: владельцу приходит заявка с кнопками.
+      const who = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(" ")
+        + (msg.from.username ? ` (@${msg.from.username})` : "");
+      shop.tg(token, "sendMessage", { chat_id: chat, text: "Здравствуйте! Запросил для вас доступ у владельца — подождите, пожалуйста." });
+      admins.forEach((adm) => shop.tg(token, "sendMessage", { chat_id: adm,
+        text: `👤 ${who || "Кто-то"} просит доступ к боту.\nНомер: ${msg.from.id}`,
+        reply_markup: { inline_keyboard: [
+          [{ text: "📷 Только фото букетов", callback_data: `gr:${msg.from.id}:f` }],
+          [{ text: "🛠 Полное управление", callback_data: `gr:${msg.from.id}:a` }],
+          [{ text: "Отказать", callback_data: `gr:${msg.from.id}:n` }],
+        ] } }));
     }
     return;
   }
