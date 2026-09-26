@@ -133,8 +133,12 @@ function photoUrl(app, s, token, fileId, orderId) {
 
 // Фото готового букета клиенту. Зовём из двух мест: ответ на сообщение бота
 // и фото с подписью-номером заказа — флористу так быстрее, карточку искать не надо.
-function sendBouquet(app, s, chat, ord, fileId) {
+function sendBouquet(app, s, chat, ord, fileId, brief) {
   const token = s.get("tg_token");
+  // В группе флористов нельзя называть имя и телефон покупателя — там посторонние глаза
+  const done = (where) => shop.tg(token, "sendMessage", { chat_id: chat,
+    text: brief ? `✅ Фото по заказу №${ord.get("number")} отправлено клиенту${where}.`
+                : `Фото отправлено клиенту${where}: ${ord.get("name")}, ${ord.get("phone")}.` });
     ord.set("photo_file_id", fileId);
     // Статус меняет только МойСклад. Раньше отправка фото сама ставила «Фото отправлено»,
     // и покупатель получал «букет собран, фото отправим следом», а следом — то же самое фото.
@@ -156,7 +160,7 @@ function sendBouquet(app, s, chat, ord, fileId) {
       if (!sent || !sent.ok) {
         return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото не ушло клиенту — попробуйте отправить ещё раз. Если повторится, скажите мне.` });
       }
-      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}.` });
+      return done("");
     }
     if (ord.get("max_chat")) {
       // в MAX кнопок под фото нет — покупатель отвечает сообщением, ответ разбирает lib/max.js
@@ -171,9 +175,11 @@ function sendBouquet(app, s, chat, ord, fileId) {
         if (saved && saved.url) mx.send(s.get("max_token"), ord.get("max_chat"), `${caption}\n\n${saved.url}`, keys);
         return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото ушло клиенту в MAX ссылкой, картинкой не вышло (${(res && res.error) || "нет файла"}). Если повторится, скажите мне.` });
       }
-      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту в MAX: ${ord.get("name")}, ${ord.get("phone")}.` });
+      return done(" в MAX");
     }
-    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото сохранено. Клиент ${ord.get("name")}, ${ord.get("phone")} не подписан на бота — отправьте фото сами.` });
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: brief
+      ? `Фото по заказу №${ord.get("number")} сохранено, но клиент не подписан на бота — отправьте ему сами.`
+      : `Фото сохранено. Клиент ${ord.get("name")}, ${ord.get("phone")} не подписан на бота — отправьте фото сами.` });
 }
 
 function photoFile(token, msg) {
@@ -444,6 +450,17 @@ function handle(app, secret, upd) {
     } else if (kind === "p") {
       sendList(app, s, chat, +a || 0, "", cb.message.message_id);
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+    } else if (kind === "ga") {
+      if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
+      const gid = String(a), set = shop.settings(app);
+      const list = String(set.get("tg_groups") || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+      let said;
+      if (String(b) === "y") { if (list.indexOf(gid) < 0) list.push(gid); said = "Буду забирать фото из этой группы"; }
+      else { const i = list.indexOf(gid); if (i >= 0) list.splice(i, 1); said = "Группу не слушаю"; }
+      set.set("tg_groups", list.join(", "));
+      app.save(set);
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: said });
+      shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id, text: `${cb.message.text}\n\n✅ ${said}` });
     } else if (kind === "gr") {
       // выдача доступа: a — управление, f — только фото, n — отказ
       if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
@@ -513,6 +530,51 @@ function handle(app, secret, upd) {
         text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${when}.\n\nБудем присылать сюда статусы: подтверждение, фото букета, отправку и доставку.${String(s.get("site_url") || "") ? `\n\nСтраница заказа: ${String(s.get("site_url")).replace(/\/$/, "")}/#/order/${order.get("tg_code")}` : ""}` });
     }
     return shop.tg(token, "sendMessage", { chat_id: chat, text: "Не нашёл такой заказ. Проверьте ссылку с сайта." });
+  }
+
+  // ГРУППА ФЛОРИСТОВ. Бот сидит в чате, куда и так кидают фото с номерами заказов,
+  // и забирает оттуда нужные. Работает только в группах, которые разрешил владелец.
+  const chatType = String((msg.chat && msg.chat.type) || "private");
+  if (chatType === "group" || chatType === "supergroup") {
+    const gid = String(msg.chat.id);
+    const allowed = String(s.get("tg_groups") || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    if (allowed.indexOf(gid) < 0) {
+      // просим разрешения у владельца, не чаще раза в 10 минут на группу
+      let ask = true;
+      try {
+        const row = new DynamicModel({ value: "" });
+        app.db().newQuery("SELECT value FROM watchdog_state WHERE key = {:k}").bind({ k: "group:" + gid }).one(row);
+        if (String(row.value || "") > new Date(Date.now() - 10 * 60000).toISOString()) ask = false;
+      } catch (_) {}
+      if (ask) {
+        try {
+          app.db().newQuery(`INSERT INTO watchdog_state (key, value, at) VALUES ({:k}, {:v}, {:v})
+            ON CONFLICT(key) DO UPDATE SET value = {:v}, at = {:v}`)
+            .bind({ k: "group:" + gid, v: new Date().toISOString() }).execute();
+        } catch (_) {}
+        admins.forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm,
+          text: `👥 Бот в группе «${(msg.chat.title || "без названия")}».\nЗабирать оттуда фото с номерами заказов?`,
+          reply_markup: { inline_keyboard: [[
+            { text: "Да, забирать", callback_data: `ga:${gid}:y` },
+            { text: "Нет", callback_data: `ga:${gid}:n` },
+          ]] } }));
+      }
+      return;
+    }
+    // Разрешённая группа: берём только фото, подписанные номером заказа.
+    // Всё остальное молча пропускаем — это рабочая переписка, не наше дело.
+    if (!msg.photo || !msg.photo.length) return;
+    const gnum = (String(msg.caption || "").match(/(?:№|#)?\s*(\d{3,7})/) || [])[1];
+    if (!gnum) return;
+    let gord = null;
+    try { gord = app.findFirstRecordByFilter("orders", "number = {:n}", { n: +gnum }); } catch (_) {}
+    if (!gord) return;
+    if (gord.get("photo_file_id")) {
+      return shop.tg(token, "sendMessage", { chat_id: chat, reply_to_message_id: msg.message_id,
+        text: `По заказу №${gnum} фото клиенту уже отправляли. Если нужно заменить — напишите мне в личку.` });
+    }
+    sendBouquet(app, s, chat, gord, msg.photo[msg.photo.length - 1].file_id, true);
+    return;
   }
 
   // Флорист: ему можно только прислать фото готового букета — ответом на карточку
