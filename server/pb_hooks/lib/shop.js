@@ -554,16 +554,19 @@ function orderKeyboard(o) {
   return { inline_keyboard: [[{ text: "📷 Отправить фото букета клиенту", callback_data: `fo:${o.id}` }]] };
 }
 
+// Что видит флорист: что собрать и к какому времени. Ни телефона, ни адреса,
+// ни имени — ему это не нужно, а персональные данные по чатам гулять не должны.
+function floristText(o) {
+  const items = (jget(o, "items") || []).map((it) => `• ${it.name}${it.label_text ? " · " + it.label_text : ""} × ${it.qty}`).join("\n");
+  return `🌸 Заказ №${o.get("number")} — ${STATUS[o.get("status")] || o.get("status")}\n${items}\n\n${o.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${whenText(o)}`
+    + (o.get("note") ? `\nОткрытка: ${o.get("note")}` : "");
+}
+
 function notifyOrder(app, o) {
   const s = settings(app);
   const token = s.get("tg_token");
   adminIds(s).forEach((chat) => tg(token, "sendMessage", { chat_id: chat, text: orderText(o), reply_markup: orderKeyboard(o) }));
-  // Флористу — что собрать и к какому времени. Ни телефона, ни адреса, ни имени:
-  // ему это не нужно, а персональные данные лишний раз по чатам не гуляют.
-  const items = (jget(o, "items") || []).map((it) => `• ${it.name}${it.label_text ? " · " + it.label_text : ""} × ${it.qty}`).join("\n");
-  const short = `🌸 Заказ №${o.get("number")}\n${items}\n\n${o.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${whenText(o)}`
-    + (o.get("note") ? `\nОткрытка: ${o.get("note")}` : "");
-  floristIds(s).forEach((chat) => tg(token, "sendMessage", { chat_id: chat, text: short, reply_markup: orderKeyboard(o) }));
+  floristIds(s).forEach((chat) => tg(token, "sendMessage", { chat_id: chat, text: floristText(o), reply_markup: orderKeyboard(o) }));
 }
 
 // Сообщения покупателю в Телеграм (если он подписался)
@@ -609,5 +612,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
-  tg, tgPhoto, clientToken, adminIds, floristIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  tg, tgPhoto, clientToken, adminIds, floristIds, floristText, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

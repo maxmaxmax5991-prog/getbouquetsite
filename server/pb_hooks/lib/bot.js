@@ -531,8 +531,14 @@ function handle(app, secret, upd) {
       }
       return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
     }
-    return shop.tg(token, "sendMessage", { chat_id: chat,
-      text: "Присылайте сюда фото готовых букетов: ответом на карточку заказа или с подписью-номером, например 3026. Остальное в этом боте вам недоступно." });
+    // На любое сообщение показываем, что сейчас в работе, — карточку искать не надо
+    const live = app.findRecordsByFilter("orders", `status != "done" && status != "cancelled"`, "-created", 10, 0);
+    if (!live.length) {
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: "Сейчас заказов в работе нет. Как появятся — пришлю сюда." });
+    }
+    shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказы в работе — ${live.length}. Нажмите «Отправить фото» у нужного или пришлите фото с подписью-номером.` });
+    live.forEach((o) => shop.tg(token, "sendMessage", { chat_id: chat, text: shop.floristText(o), reply_markup: shop.orderKeyboard(o) }));
+    return;
   }
 
   if (admins.indexOf(String(msg.from.id)) < 0) {
