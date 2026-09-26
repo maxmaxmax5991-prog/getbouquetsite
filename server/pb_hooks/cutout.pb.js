@@ -76,3 +76,18 @@ cronAdd("cutout", "* * * * *", () => {
   }
   try { $os.remove(dst); } catch (_) {}
 });
+
+// Если у товара поменялись фото — вырезку для карусели надо сделать заново.
+// Без этого товар, заведённый без фото, помечался «вырезано» (резать было нечего),
+// а после загрузки снимка в карусель уже не попадал.
+// Отметку снимаем запросом, мимо хуков, чтобы не разбудить этот же обработчик.
+onRecordAfterUpdateSuccess((e) => {
+  try {
+    const now = JSON.stringify(e.record.get("photo") || []);
+    const was = JSON.stringify(e.record.original().get("photo") || []);
+    if (now !== was) {
+      $app.db().newQuery("UPDATE products SET cut_done = false WHERE id = {:id}").bind({ id: e.record.id }).execute();
+    }
+  } catch (err) { console.log("сброс вырезки", err); }
+  e.next();
+}, "products");

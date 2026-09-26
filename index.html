@@ -611,7 +611,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790410611"></script>
+<script src="data.js?v=1790410964"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -802,7 +802,9 @@ document.addEventListener('click', e => {
 });
 
 /* ---------- home ---------- */
-const POPULAR = API ? P.filter(p => p.popular).map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
+// В «Популярные» попадают все букеты, кроме открыток и игрушек, — галочку
+// у нового товара ставить не нужно, он появляется здесь сам.
+const POPULAR = API ? P.filter(p => !isAddon(p)).map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = POPULAR.map(id => card(byId[id])).join('');
 const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
