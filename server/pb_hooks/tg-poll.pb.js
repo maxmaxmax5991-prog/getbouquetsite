@@ -14,6 +14,28 @@ cronAdd("tg-poll-client", "* * * * *", () => {
   const token = s.get("tg_client_token");
   if (!token) return;   // клиентского бота нет — всё идёт через рабочий
 
+  // Замок на опрос: цикл держится 52 секунды, а задание запускается раз в минуту.
+  // Если запрос к Телеграму подвис, следующий тик поднимал второй опрос поверх первого,
+  // и одно и то же сообщение обрабатывалось дважды-трижды. Живой замок пропускаем.
+  const lockKey = "poll:tg_client";
+  const held = (() => {
+    try {
+      const row = new DynamicModel({ value: "" });
+      $app.db().newQuery("SELECT value FROM watchdog_state WHERE key = {:k}").bind({ k: lockKey }).one(row);
+      return String(row.value || "") > new Date(Date.now() - 70000).toISOString();
+    } catch (_) { return false; }
+  })();
+  if (held) return;
+  const touch = () => {
+    try {
+      $app.db().newQuery(`INSERT INTO watchdog_state (key, value, at) VALUES ({:k}, {:v}, {:v})
+        ON CONFLICT(key) DO UPDATE SET value = {:v}, at = {:v}`)
+        .bind({ k: lockKey, v: new Date().toISOString() }).execute();
+    } catch (_) {}
+  };
+  touch();
+
+
   // позицию пишем запросом в базу, а не обычным сохранением: иначе срабатывает хук на настройках
   // и бот каждый раз заново подключается к Телеграму
   const saveOffset = (v) => {
@@ -25,7 +47,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
   const beat = (f) => { try { $app.db().newQuery(`UPDATE settings SET ${f} = {:v} WHERE id = {:id}`).bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {} };
 
   let offset = s.get("tg_offset_client") || 0;
-  const until = Date.now() + 52000;
+  const until = Date.now() + 45000;   // короче минуты: следующий тик не должен налезть
   let conflicts = 0;
   while (Date.now() < until) {
     let res;
@@ -38,7 +60,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
       continue;
     }
     if (res.statusCode !== 200 || !res.json || !res.json.ok) return;
-    beat("tg_beat_client");
+    beat("tg_beat_client"); touch();
     const updates = res.json.result || [];
     for (const upd of updates) {
       offset = upd.update_id + 1;
@@ -61,6 +83,27 @@ cronAdd("tg-poll", "* * * * *", () => {
   const token = s.get("tg_token");
   if (!token) return;
 
+  // Замок на опрос: цикл держится 52 секунды, а задание запускается раз в минуту.
+  // Если запрос к Телеграму подвис, следующий тик поднимал второй опрос поверх первого,
+  // и одно и то же сообщение обрабатывалось дважды-трижды. Живой замок пропускаем.
+  const lockKey = "poll:tg_main";
+  const held = (() => {
+    try {
+      const row = new DynamicModel({ value: "" });
+      $app.db().newQuery("SELECT value FROM watchdog_state WHERE key = {:k}").bind({ k: lockKey }).one(row);
+      return String(row.value || "") > new Date(Date.now() - 70000).toISOString();
+    } catch (_) { return false; }
+  })();
+  if (held) return;
+  const touch = () => {
+    try {
+      $app.db().newQuery(`INSERT INTO watchdog_state (key, value, at) VALUES ({:k}, {:v}, {:v})
+        ON CONFLICT(key) DO UPDATE SET value = {:v}, at = {:v}`)
+        .bind({ k: lockKey, v: new Date().toISOString() }).execute();
+    } catch (_) {}
+  };
+  touch();
+
   const saveOffset = (v) => {
     try { $app.db().newQuery("UPDATE settings SET tg_offset = {:v} WHERE id = {:id}").bind({ v, id: s.id }).execute(); }
     catch (err) { console.log("offset", err); }
@@ -70,7 +113,7 @@ cronAdd("tg-poll", "* * * * *", () => {
 
   const secret = s.get("tg_secret");
   let offset = s.get("tg_offset") || 0;
-  const until = Date.now() + 52000;
+  const until = Date.now() + 45000;   // короче минуты: следующий тик не должен налезть
   let conflicts = 0;
 
   while (Date.now() < until) {
@@ -88,7 +131,7 @@ cronAdd("tg-poll", "* * * * *", () => {
       continue;
     }
     if (res.statusCode !== 200 || !res.json || !res.json.ok) return;
-    beat("tg_beat");
+    beat("tg_beat"); touch();
 
     const updates = res.json.result || [];
     for (const upd of updates) {

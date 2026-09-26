@@ -519,26 +519,62 @@ function handle(app, secret, upd) {
   // или фото с подписью-номером заказа. Ни цен, ни чужих адресов он не видит.
   const florists = shop.floristIds(s);
   if (admins.indexOf(String(msg.from.id)) < 0 && florists.indexOf(String(msg.from.id)) >= 0) {
+    // Какой заказ сейчас ждёт фото от этого человека (нажал номер на клавиатуре)
+    const waitKey = "wait:" + chat;
+    const pending = () => {
+      try {
+        const row = new DynamicModel({ value: "" });
+        app.db().newQuery("SELECT value FROM watchdog_state WHERE key = {:k}").bind({ k: waitKey }).one(row);
+        const [id, at] = String(row.value || "").split("|");
+        return (id && at > new Date(Date.now() - 30 * 60000).toISOString()) ? id : "";
+      } catch (_) { return ""; }
+    };
+    const setPending = (id) => {
+      try {
+        app.db().newQuery(`INSERT INTO watchdog_state (key, value, at) VALUES ({:k}, {:v}, {:t})
+          ON CONFLICT(key) DO UPDATE SET value = {:v}, at = {:t}`)
+          .bind({ k: waitKey, v: id ? `${id}|${new Date().toISOString()}` : "", t: new Date().toISOString() }).execute();
+      } catch (_) {}
+    };
+
     if (msg.photo && msg.photo.length) {
       const byReply = msg.reply_to_message && orderFromReply(msg.reply_to_message);
       const num = (String(msg.caption || "").trim().match(/^(?:№|#)?\s*(\d{3,7})$/) || [])[1];
       let ord = null;
       if (byReply) { try { ord = app.findRecordById("orders", byReply); } catch (_) {} }
       else if (num) { try { ord = app.findFirstRecordByFilter("orders", "number = {:n}", { n: +num }); } catch (_) {} }
+      else { const w = pending(); if (w) { try { ord = app.findRecordById("orders", w); } catch (_) {} } }
       if (!ord) {
         return shop.tg(token, "sendMessage", { chat_id: chat,
-          text: "Не понял, для какого заказа фото. Пришлите его ответом на карточку заказа или подпишите номером, например: 3026" });
+          text: "Не понял, для какого заказа фото. Нажмите номер заказа внизу и пришлите фото.",
+          reply_markup: shop.floristKeyboard(app) });
       }
-      return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
+      setPending("");
+      sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: "Ждут фото — нажмите номер:", reply_markup: shop.floristKeyboard(app) });
     }
-    // На любое сообщение показываем, что сейчас в работе, — карточку искать не надо
-    const live = app.findRecordsByFilter("orders", `status != "done" && status != "cancelled"`, "-created", 10, 0);
-    if (!live.length) {
-      return shop.tg(token, "sendMessage", { chat_id: chat, text: "Сейчас заказов в работе нет. Как появятся — пришлю сюда." });
+
+    // Нажал номер на клавиатуре — запоминаем, что фото пойдёт в этот заказ
+    const pick = (text.match(/^(?:№|#)?\s*(\d{3,7})$/) || [])[1];
+    if (pick) {
+      let ord = null;
+      try { ord = app.findFirstRecordByFilter("orders", "number = {:n}", { n: +pick }); } catch (_) {}
+      if (!ord) return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказа №${pick} не нашёл.`, reply_markup: shop.floristKeyboard(app) });
+      setPending(ord.id);
+      return shop.tg(token, "sendMessage", { chat_id: chat,
+        text: `${shop.floristText(ord)}\n\n📷 Пришлите фото этого букета — оно уйдёт клиенту.` });
     }
-    shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказы в работе — ${live.length}. Нажмите «Отправить фото» у нужного или пришлите фото с подписью-номером.` });
-    live.forEach((o) => shop.tg(token, "sendMessage", { chat_id: chat, text: shop.floristText(o), reply_markup: shop.orderKeyboard(o) }));
-    return;
+    // Любое другое сообщение — показываем клавиатуру с номерами. Одним сообщением,
+    // а не пачкой карточек: пачка шла долго и выглядела как задвоение.
+    const since2 = new Date(Date.now() - 2 * 864e5).toISOString().replace("T", " ").slice(0, 19);
+    const live = app.findRecordsByFilter("orders",
+      `status != "done" && status != "cancelled" && photo_file_id = "" && created > {:since}`,
+      "number", 12, 0, { since: since2 });
+    return shop.tg(token, "sendMessage", { chat_id: chat,
+      text: live.length
+        ? `Ждут фото — ${live.length}:\n\n${live.map((o) => shop.floristText(o)).join("\n\n")}\n\nНажмите номер внизу и пришлите фото.`
+        : "Сейчас всё отснято. Как появится новый заказ — пришлю сюда.",
+      reply_markup: shop.floristKeyboard(app) });
   }
 
   if (admins.indexOf(String(msg.from.id)) < 0) {

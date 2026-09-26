@@ -562,11 +562,34 @@ function floristText(o) {
     + (o.get("note") ? `\nОткрытка: ${o.get("note")}` : "");
 }
 
+// Клавиатура флориста: внизу всегда висят номера заказов, по которым фото ещё не ушло.
+// Нажал номер — бот ждёт фото именно для него. Ничего печатать не нужно.
+function floristKeyboard(app) {
+  let live = [];
+  try {
+    // только свежие: зависшие вчерашние заказы не должны загромождать клавиатуру
+    const since = new Date(Date.now() - 2 * 864e5).toISOString().replace("T", " ").slice(0, 19);
+    live = app.findRecordsByFilter("orders",
+      `status != "done" && status != "cancelled" && photo_file_id = "" && created > {:since}`,
+      "number", 12, 0, { since });
+  } catch (_) {}
+  const rows = [];
+  for (let i = 0; i < live.length; i += 3) {
+    rows.push(live.slice(i, i + 3).map((o) => ({ text: `№${o.get("number")}` })));
+  }
+  rows.push([{ text: "Обновить список" }]);
+  return { keyboard: rows, resize_keyboard: true, is_persistent: true,
+    input_field_placeholder: live.length ? "Нажмите номер заказа и пришлите фото" : "Заказов без фото нет" };
+}
+
 function notifyOrder(app, o) {
   const s = settings(app);
   const token = s.get("tg_token");
   adminIds(s).forEach((chat) => tg(token, "sendMessage", { chat_id: chat, text: orderText(o), reply_markup: orderKeyboard(o) }));
-  floristIds(s).forEach((chat) => tg(token, "sendMessage", { chat_id: chat, text: floristText(o), reply_markup: orderKeyboard(o) }));
+  floristIds(s).forEach((chat) => {
+    tg(token, "sendMessage", { chat_id: chat, text: floristText(o), reply_markup: orderKeyboard(o) });
+    tg(token, "sendMessage", { chat_id: chat, text: "Ждут фото — нажмите номер:", reply_markup: floristKeyboard(app) });
+  });
 }
 
 // Сообщения покупателю в Телеграм (если он подписался)
@@ -612,5 +635,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
-  tg, tgPhoto, clientToken, adminIds, floristIds, floristText, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  tg, tgPhoto, clientToken, adminIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };
