@@ -95,26 +95,52 @@ function matchProduct(s, item) {
   const exact = ms(s, "GET", `/entity/product?filter=name=${encodeURIComponent(wanted)}&limit=1`);
   if (exact.ok && exact.data.rows && exact.data.rows.length) return { ok: true, id: exact.data.rows[0].id, name: exact.data.rows[0].name };
 
-  const found = ms(s, "GET", `/entity/product?search=${encodeURIComponent(item.name)}&limit=100`);
-  if (!found.ok) return found;
-  const rows = (found.data.rows || []).filter((r) => !prefix || norm(r.name).indexOf(norm(prefix)) === 0);
+  // Ищем несколькими запросами: целиком и по частям. На сайте сорт бывает записан
+  // через дробь — «Черри/Чири», а МойСклад по строке со слэшем не находит ничего.
+  // Собираем находки со всех запросов: по «Черри» и по «Чири» приходят разные сорта,
+  // и выбирать между ними должен подсчёт очков, а не то, что нашлось первым.
+  const terms = [];
+  const addTerm = (t) => {
+    t = String(t || "").trim();
+    if (t.length > 2 && terms.indexOf(t) < 0 && terms.length < 4) terms.push(t);
+  };
+  addTerm(item.name);
+  String(item.name || "").split(/[\/,()]+/).forEach(addTerm);
+  String(item.name || "").split(/\s+/).filter((w) => w.length > 3).forEach(addTerm);
+
+  const rows = [], seenId = {};
+  for (const term of terms) {
+    const found = ms(s, "GET", `/entity/product?search=${encodeURIComponent(term)}&limit=100`);
+    if (!found.ok) return found;
+    (found.data.rows || []).forEach((r) => {
+      if (seenId[r.id]) return;
+      if (prefix && norm(r.name).indexOf(norm(prefix)) !== 0) return;
+      seenId[r.id] = 1;
+      rows.push(r);
+    });
+  }
   if (!rows.length) return { ok: false, error: `Не нашёл в МоёмСкладе номенклатуру «${wanted}». Добавьте её или переименуйте товар на сайте.` };
 
   const words = norm(item.name).split(" ").filter((w) => w.length > 2);
   const size = sizeText(item.label);
   const [len, cnt] = /^\d+-\d+$/.test(String(item.label || "")) ? String(item.label).split("-") : [null, null];
-  let best = null, bestScore = 0;
-  rows.forEach((r) => {
+  const scored = rows.map((r) => {
     const n = norm(r.name);
     let score = words.filter((w) => n.indexOf(w) >= 0).length * 3;
     if (len && (n.indexOf(len + "см") >= 0 || n.indexOf(len + " см") >= 0)) score += 6;
     if (len && (n.indexOf((+len + 10) + "см") >= 0 || n.indexOf((+len - 10) + "см") >= 0)) score -= 4;   // другая длина — хуже
     if (!len && size && n.indexOf(norm(size)) >= 0) score += 6;
     if (item.wantPrice && n.indexOf(String(item.wantPrice)) >= 0) score += 8;
-    if (score > bestScore) { bestScore = score; best = r; }
-  });
-  if (!best || bestScore < 3) return { ok: false, error: `Не нашёл подходящую номенклатуру для «${wanted}».` };
-  return { ok: true, id: best.id, name: best.name };
+    return { id: r.id, name: r.name, score };
+  }).sort((a, b) => b.score - a.score);
+
+  if (!scored.length || scored[0].score < 3) return { ok: false, error: `Не нашёл подходящую номенклатуру для «${wanted}».` };
+  // Двое с одинаковым счётом — молча выбирать нельзя: отгрузят не тот сорт.
+  const rivals = scored.filter((x) => x.score === scored[0].score);
+  if (rivals.length > 1) {
+    return { ok: false, error: `Для «${item.name}» подходят сразу несколько: ${rivals.slice(0, 3).map((r) => `«${r.name}»`).join(" и ")}. Переименуйте товар на сайте точнее — иначе отгрузят не тот сорт.` };
+  }
+  return { ok: true, id: scored[0].id, name: scored[0].name };
 }
 
 // Код товара запоминаем отдельно для каждого размера
@@ -127,6 +153,7 @@ function assortment(app, s, item) {
   if (ids[key]) return { ok: true, id: ids[key] };
 
   let m = matchProduct(s, item);
+  const first = m;   // ошибку показываем про сам товар: запасной вариант ищет по разделу
   // запасной вариант для открыток и игрушек: ищем по разделу и цене, например «ЛФ-Открытка 200»
   if (!m.ok && p) {
     let catName = "";
@@ -137,7 +164,7 @@ function assortment(app, s, item) {
       if (!m.ok) m = matchProduct(s, { name: single, label: "", price: item.price, wantPrice: Math.round(item.price) });
     }
   }
-  if (!m.ok) return m;
+  if (!m.ok) return first;
   if (p) { ids[key] = m.id; p.set("ms_ids", ids); app.save(p); }
   return { ok: true, id: m.id };
 }
