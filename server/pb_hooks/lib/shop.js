@@ -522,6 +522,10 @@ function clientToken(s) { return s.get("tg_client_token") || s.get("tg_token"); 
 function adminIds(s) {
   return String(s.get("tg_admins") || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
 }
+// Флористы: в служебном боте им можно только отправлять фото готовых букетов
+function floristIds(s) {
+  return String(s.get("tg_florists") || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+}
 
 function orderText(o) {
   const items = (jget(o, "items") || []).map((it) => `• ${it.name}${it.label_text ? " · " + it.label_text : ""} × ${it.qty} — ${rub(it.sum)}`).join("\n");
@@ -554,6 +558,12 @@ function notifyOrder(app, o) {
   const s = settings(app);
   const token = s.get("tg_token");
   adminIds(s).forEach((chat) => tg(token, "sendMessage", { chat_id: chat, text: orderText(o), reply_markup: orderKeyboard(o) }));
+  // Флористу — что собрать и к какому времени. Ни телефона, ни адреса, ни имени:
+  // ему это не нужно, а персональные данные лишний раз по чатам не гуляют.
+  const items = (jget(o, "items") || []).map((it) => `• ${it.name}${it.label_text ? " · " + it.label_text : ""} × ${it.qty}`).join("\n");
+  const short = `🌸 Заказ №${o.get("number")}\n${items}\n\n${o.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${whenText(o)}`
+    + (o.get("note") ? `\nОткрытка: ${o.get("note")}` : "");
+  floristIds(s).forEach((chat) => tg(token, "sendMessage", { chat_id: chat, text: short, reply_markup: orderKeyboard(o) }));
 }
 
 // Сообщения покупателю в Телеграм (если он подписался)
@@ -599,5 +609,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
-  tg, tgPhoto, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  tg, tgPhoto, clientToken, adminIds, floristIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

@@ -131,6 +131,51 @@ function photoUrl(app, s, token, fileId, orderId) {
   }
 }
 
+// Фото готового букета клиенту. Зовём из двух мест: ответ на сообщение бота
+// и фото с подписью-номером заказа — флористу так быстрее, карточку искать не надо.
+function sendBouquet(app, s, chat, ord, fileId) {
+  const token = s.get("tg_token");
+    ord.set("photo_file_id", fileId);
+    // Статус меняет только МойСклад. Раньше отправка фото сама ставила «Фото отправлено»,
+    // и покупатель получал «букет собран, фото отправим следом», а следом — то же самое фото.
+    const st = ord.get("status");
+    if (!s.get("ms_enabled") && (st === "new" || st === "confirmed" || st === "assembling")) ord.set("status", "photo");
+    // Сохраняем ОДИН раз. Два сохранения подряд присылали клиенту «букет собран» дважды:
+    // хук уведомления сравнивает статус с тем, каким запись была при загрузке, и на втором
+    // сохранении снова считал статус только что изменившимся.
+    if (ord.get("tg_chat") || ord.get("max_chat")) ord.set("photo_status", "waiting");
+    app.save(ord);
+    if (ord.get("tg_chat")) {
+      const saved = photoUrl(app, s, token, fileId, ord.id);
+      const caption = `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`;
+      const keys = { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] };
+      // файлом, а не ссылкой: до нашего сервера Телеграм не достукивается
+      const sent = saved && saved.path
+        ? shop.tgPhoto(shop.clientToken(s), ord.get("tg_chat"), saved.path, caption, keys)
+        : null;
+      if (!sent || !sent.ok) {
+        return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото не ушло клиенту — попробуйте отправить ещё раз. Если повторится, скажите мне.` });
+      }
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
+    }
+    if (ord.get("max_chat")) {
+      // в MAX кнопок под фото нет — покупатель отвечает сообщением, ответ разбирает lib/max.js
+      const mx = require(`${__hooks}/lib/max.js`);
+      const saved = photoUrl(app, s, token, fileId, ord.id);
+      const caption = `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`;
+      // картинкой, а не ссылкой: файл кладём в MAX и отправляем вложением
+      const keys = [[mx.btn("👍 Нравится", `ap:${ord.id}`), mx.btn("👎 Поправить", `rw:${ord.id}`)]];
+      const res = saved && saved.path ? mx.sendPhoto(s.get("max_token"), ord.get("max_chat"), saved.path, caption, keys) : null;
+      if (!res || !res.ok) {
+        // запасной путь: хотя бы ссылка на фото, чтобы клиент не остался без него
+        if (saved && saved.url) mx.send(s.get("max_token"), ord.get("max_chat"), `${caption}\n\n${saved.url}`, keys);
+        return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото ушло клиенту в MAX ссылкой, картинкой не вышло (${(res && res.error) || "нет файла"}). Если повторится, скажите мне.` });
+      }
+      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту в MAX: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
+    }
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото сохранено. Клиент ${ord.get("name")}, ${ord.get("phone")} не подписан на бота — отправьте фото сами.` });
+}
+
 function photoFile(token, msg) {
   const photo = msg.photo[msg.photo.length - 1];
   const info = shop.tg(token, "getFile", { file_id: photo.file_id });
@@ -360,7 +405,12 @@ function handle(app, secret, upd) {
 
   if (upd.callback_query) {
     const cb = upd.callback_query, chat = cb.message.chat.id;
-    if (admins.indexOf(String(cb.from.id)) < 0) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
+    const isAdmin = admins.indexOf(String(cb.from.id)) >= 0;
+    const isFlorist = shop.floristIds(s).indexOf(String(cb.from.id)) >= 0;
+    // флористу — только кнопка «отправить фото букета»
+    if (!isAdmin && !(isFlorist && String(cb.data).indexOf("fo:") === 0)) {
+      return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
+    }
     const [kind, a, b] = String(cb.data).split(":");
     const ask = (title, hint) => {
       const p = app.findRecordById("products", a);
@@ -440,6 +490,26 @@ function handle(app, secret, upd) {
     return shop.tg(token, "sendMessage", { chat_id: chat, text: "Не нашёл такой заказ. Проверьте ссылку с сайта." });
   }
 
+  // Флорист: ему можно только прислать фото готового букета — ответом на карточку
+  // или фото с подписью-номером заказа. Ни цен, ни чужих адресов он не видит.
+  const florists = shop.floristIds(s);
+  if (admins.indexOf(String(msg.from.id)) < 0 && florists.indexOf(String(msg.from.id)) >= 0) {
+    if (msg.photo && msg.photo.length) {
+      const byReply = msg.reply_to_message && orderFromReply(msg.reply_to_message);
+      const num = (String(msg.caption || "").trim().match(/^(?:№|#)?\s*(\d{3,7})$/) || [])[1];
+      let ord = null;
+      if (byReply) { try { ord = app.findRecordById("orders", byReply); } catch (_) {} }
+      else if (num) { try { ord = app.findFirstRecordByFilter("orders", "number = {:n}", { n: +num }); } catch (_) {} }
+      if (!ord) {
+        return shop.tg(token, "sendMessage", { chat_id: chat,
+          text: "Не понял, для какого заказа фото. Пришлите его ответом на карточку заказа или подпишите номером, например: 3026" });
+      }
+      return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
+    }
+    return shop.tg(token, "sendMessage", { chat_id: chat,
+      text: "Присылайте сюда фото готовых букетов: ответом на карточку заказа или с подписью-номером, например 3026. Остальное в этом боте вам недоступно." });
+  }
+
   if (admins.indexOf(String(msg.from.id)) < 0) {
     if (text.indexOf("/start") === 0) {
       shop.tg(token, "sendMessage", { chat_id: chat, text: `Здравствуйте! Ваш номер в Телеграме: ${msg.from.id}\n\nЧтобы управлять магазином, добавьте этот номер в админке: Настройки → Телеграм → «Кто может управлять ботом».` });
@@ -473,46 +543,7 @@ function handle(app, secret, upd) {
     if (!msg.photo || !msg.photo.length) return shop.tg(token, "sendMessage", { chat_id: chat, text: "Пришлите именно фотографию в ответ на то сообщение." });
     let ord;
     try { ord = app.findRecordById("orders", ordId); } catch (_) { return shop.tg(token, "sendMessage", { chat_id: chat, text: "Заказ не найден." }); }
-    const fileId = msg.photo[msg.photo.length - 1].file_id;
-    ord.set("photo_file_id", fileId);
-    // Статус меняет только МойСклад. Раньше отправка фото сама ставила «Фото отправлено»,
-    // и покупатель получал «букет собран, фото отправим следом», а следом — то же самое фото.
-    const st = ord.get("status");
-    if (!s.get("ms_enabled") && (st === "new" || st === "confirmed" || st === "assembling")) ord.set("status", "photo");
-    // Сохраняем ОДИН раз. Два сохранения подряд присылали клиенту «букет собран» дважды:
-    // хук уведомления сравнивает статус с тем, каким запись была при загрузке, и на втором
-    // сохранении снова считал статус только что изменившимся.
-    if (ord.get("tg_chat") || ord.get("max_chat")) ord.set("photo_status", "waiting");
-    app.save(ord);
-    if (ord.get("tg_chat")) {
-      const saved = photoUrl(app, s, token, fileId, ord.id);
-      const caption = `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`;
-      const keys = { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] };
-      // файлом, а не ссылкой: до нашего сервера Телеграм не достукивается
-      const sent = saved && saved.path
-        ? shop.tgPhoto(shop.clientToken(s), ord.get("tg_chat"), saved.path, caption, keys)
-        : null;
-      if (!sent || !sent.ok) {
-        return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото не ушло клиенту — попробуйте отправить ещё раз. Если повторится, скажите мне.` });
-      }
-      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
-    }
-    if (ord.get("max_chat")) {
-      // в MAX кнопок под фото нет — покупатель отвечает сообщением, ответ разбирает lib/max.js
-      const mx = require(`${__hooks}/lib/max.js`);
-      const saved = photoUrl(app, s, token, fileId, ord.id);
-      const caption = `Ваш букет по заказу №${ord.get("number")} готов. ${ord.get("delivery_type") === "pickup" ? "Ждём вас" : "Везём"} ${shop.whenText(ord)}.\n\nНравится?`;
-      // картинкой, а не ссылкой: файл кладём в MAX и отправляем вложением
-      const keys = [[mx.btn("👍 Нравится", `ap:${ord.id}`), mx.btn("👎 Поправить", `rw:${ord.id}`)]];
-      const res = saved && saved.path ? mx.sendPhoto(s.get("max_token"), ord.get("max_chat"), saved.path, caption, keys) : null;
-      if (!res || !res.ok) {
-        // запасной путь: хотя бы ссылка на фото, чтобы клиент не остался без него
-        if (saved && saved.url) mx.send(s.get("max_token"), ord.get("max_chat"), `${caption}\n\n${saved.url}`, keys);
-        return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото ушло клиенту в MAX ссылкой, картинкой не вышло (${(res && res.error) || "нет файла"}). Если повторится, скажите мне.` });
-      }
-      return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото отправлено клиенту в MAX: ${ord.get("name")}, ${ord.get("phone")}. Статус — «Фото отправлено».` });
-    }
-    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото сохранено. Клиент ${ord.get("name")}, ${ord.get("phone")} не подписан на бота — отправьте фото сами.` });
+    return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
   }
 
   // ответ на вопрос бота: новая цена, название или фото
@@ -539,7 +570,18 @@ function handle(app, secret, upd) {
     return shop.tg(token, "sendMessage", { chat_id: chat, text: "Сохранено.\n\n" + card.text, reply_markup: card.markup });
   }
 
-  if (msg.photo && msg.photo.length) return addProduct(app, s, chat, msg);
+  if (msg.photo && msg.photo.length) {
+    // Подпись — только номер заказа: фото уходит клиенту, карточку искать не нужно.
+    // Строго «3026» или «№3026», чтобы не спутать с подписью нового товара.
+    const num = (String(msg.caption || "").trim().match(/^(?:№|#)?\s*(\d{3,7})$/) || [])[1];
+    if (num) {
+      let ord = null;
+      try { ord = app.findFirstRecordByFilter("orders", "number = {:n}", { n: +num }); } catch (_) {}
+      if (!ord) return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказа №${num} не нашёл. Проверьте номер.` });
+      return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
+    }
+    return addProduct(app, s, chat, msg);
+  }
   if (text === "/start" || text === "Меню") return shop.tg(token, "sendMessage", { chat_id: chat, text: "Готово! Меню внизу. Чтобы добавить товар, пришлите фото с подписью.", reply_markup: menu(s.get("accepting")) });
   if (text === "Помощь" || text === "/help" || text === "Добавить товар") return shop.tg(token, "sendMessage", { chat_id: chat, text: HELP, reply_markup: menu(s.get("accepting")) });
   if (text === "Стоп заказов" || text === "Включить заказы" || text === "/stop" || text === "/go") {

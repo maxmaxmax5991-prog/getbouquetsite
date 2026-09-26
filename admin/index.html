@@ -586,6 +586,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
           </ol>
           <label class="f" for="sTok">Ключ бота<input class="in" id="sTok" type="password" autocomplete="off" placeholder="Вставьте ключ от @BotFather"></label>
           <label class="f" for="sAdm">Кто может управлять ботом (номера через запятую)<input class="in num" id="sAdm" placeholder="512345678"></label>
+          <label class="f" for="sFlo">Кто только отправляет фото букетов<input class="in num" id="sFlo" placeholder="512345678"></label>
+          <p class="hint">Флорист получает в бот короткую карточку — что собрать и к какому времени, без телефона и адреса покупателя. Он может прислать фото ответом на карточку или с подписью-номером заказа («3026»), и оно уйдёт клиенту. Цены, товары и «Стоп заказов» ему недоступны.<br>Чтобы узнать его номер: пусть откроет бота и нажмёт «Старт» — бот пришлёт номер в ответ.</p>
           <p class="hint"><b>Что за номер:</b> личный номер аккаунта в Телеграме (не телефон). Узнать свой — откройте бота <b>@userinfobot</b> и нажмите Start, он пришлёт строку «Id: 512345678». Или после сохранения ключа напишите своему боту — он ответит вашим номером.<br>Этим людям приходят уведомления о заказах, и только они могут менять товары через бота.</p>
           <div class="bar"><button class="btn btn-p" id="tSave">Сохранить</button><button class="btn btn-g" id="tTest">Проверить бота</button></div>
         </div>
@@ -2074,6 +2076,7 @@ const loadSettings = safe(async () => {
   $('#sPhone').value = S.phone || ''; $('#sUrl').value = S.site_url || location.origin;
   $('#sTok').value = ''; $('#sTok').placeholder = S.tg_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ от @BotFather';
 $('#sAdm').value = S.tg_admins || '';
+$('#sFlo').value = S.tg_florists || '';
 $('#msTok').value = ''; $('#msTok').placeholder = S.ms_token ? 'Токен сохранён. Вставьте новый, чтобы заменить' : 'Вставьте токен из МоегоСклада';
 msFill(S.ms_org_id, S.ms_org_name, S.ms_store_id, S.ms_store_name);
 sw($('#msOn'), S.ms_enabled);
@@ -2117,7 +2120,9 @@ $('#mxTest').onclick = safe(async () => {
 $('#tSave').onclick = safe(async () => {
   const admins = $('#sAdm').value.split(/[^\d]+/).filter(Boolean).join(', ');
   if ($('#sAdm').value.trim() && !admins) return toast('Номер — это только цифры, например 512345678. Узнать свой: бот @userinfobot', true);
-  const body = { tg_admins: admins, site_url: S.site_url || location.origin };
+  const florists = $('#sFlo').value.split(/[^\d]+/).filter(Boolean).join(', ');
+  if ($('#sFlo').value.trim() && !florists) return toast('Номер флориста — это только цифры, например 512345678', true);
+  const body = { tg_admins: admins, tg_florists: florists, site_url: S.site_url || location.origin };
   const raw = $('#sTok').value.trim();
   if (raw) {
     const found = raw.match(/\d{5,}:[A-Za-z0-9_-]{20,}/);   // ключ могли вставить вместе с текстом сообщения
