@@ -127,8 +127,15 @@ function matchProduct(s, item) {
   const scored = rows.map((r) => {
     const n = norm(r.name);
     let score = words.filter((w) => n.indexOf(w) >= 0).length * 3;
-    if (len && (n.indexOf(len + "см") >= 0 || n.indexOf(len + " см") >= 0)) score += 6;
-    if (len && (n.indexOf((+len + 10) + "см") >= 0 || n.indexOf((+len - 10) + "см") >= 0)) score -= 4;   // другая длина — хуже
+    // Длину в МоёмСкладе пишут по-разному: «50см», «50 см» и просто «50».
+    // Из-за последнего варианта «ЛФ-Роза Эльторо 40» и «…50» набирали поровну,
+    // и заказ №3029 встал с «подходят сразу несколько».
+    const pad = " " + n + " ";
+    const hasLen = (L) => pad.indexOf(" " + L + " ") >= 0 || n.indexOf(L + "см") >= 0 || n.indexOf(L + " см") >= 0;
+    if (len) {
+      if (hasLen(len)) score += 6;
+      [30, 40, 50, 60, 70, 80, 90, 100, 110, 120].forEach((L) => { if (L !== +len && hasLen(String(L))) score -= 4; });
+    }
     if (!len && size && n.indexOf(norm(size)) >= 0) score += 6;
     if (item.wantPrice && n.indexOf(String(item.wantPrice)) >= 0) score += 8;
     return { id: r.id, name: r.name, score };
