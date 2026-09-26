@@ -109,9 +109,11 @@ function variantsOf(p, s) {
     const counts = Array.isArray(t.counts) && t.counts.length ? t.counts : COUNTS;
     const prices = t.prices || {};
     const out = [];
+    // Размер, на который не хватает стеблей, не убираем — показываем блёклым
+    // с подписью «закончились». Так видно, что сорт есть, просто кончился.
     lengths.forEach((L) => counts.forEach((C) => {
       const price = prices[L] && prices[L][C];
-      if (price && stockOk(p, L, C)) out.push({ label: `${L}-${C}`, price: +price, len: +L, cnt: C });
+      if (price) out.push({ label: `${L}-${C}`, price: +price, len: +L, cnt: C, out: stockOk(p, L, C) ? undefined : true });
     }));
     return out;
   }
@@ -138,12 +140,14 @@ function catalog(app) {
       // какой размер показывать сразу: задаётся в прайсе («по умолчанию»)
       const table = priceTables(s).find((x) => x.id === p.get("price_table"));
       const defCnt = table && +table.def_count > 0 ? +table.def_count : 0;
-      const defVar = defCnt ? variants.find((v) => v.cnt === defCnt) : null;
+      const defVar = (defCnt ? variants.find((v) => v.cnt === defCnt && !v.out) : null) || variants.find((v) => !v.out) || null;
       return {
         id: p.id,
         name: p.get("name"),
         cat: catById[p.get("category")].get("slug"),
-        price: variants.length ? Math.min.apply(null, variants.map((v) => v.price)) : p.get("price"),
+        price: variants.length ? Math.min.apply(null, (variants.filter((v) => !v.out).length ? variants.filter((v) => !v.out) : variants).map((v) => v.price)) : p.get("price"),
+        // всё закончилось — карточка гаснет и купить нельзя
+        soldout: variants.length && variants.every((v) => v.out) ? true : undefined,
         // товар без цены (пустое поле в карточке) нельзя купить — сайт покажет его без кнопки
         no_price: variants.length ? undefined : (+p.get("price") > 0 ? undefined : true),
         bonus: p.get("bonus") || 0,

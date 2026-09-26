@@ -389,6 +389,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div class="tiles4" id="revTiles"></div>
         <div class="scroll" style="margin-top:10px"><table class="t" id="revNeed"></table></div>
         <div class="scroll" style="margin-top:10px"><table class="t" id="revComments"></table></div>
+        <h2 style="margin-top:14px">Все оценки</h2>
+        <div class="scroll"><table class="t" id="revAll"></table></div>
       </div>
       <div class="card" style="margin-top:12px">
         <h2>Оценка букетов</h2>
@@ -1820,6 +1822,17 @@ const loadStats = safe(async () => {
             <td><a href="tel:${esc(String(n.phone).replace(/[^\d+]/g, ''))}">${esc(n.phone || '')}</a></td>
             <td><button class="btn btn-p btn-s" data-revok="${n.id}">Взял в работу</button></td></tr>`).join('')
       : '<tr><td>Недовольных нет — все оценки выше тройки.</td></tr>';
+    const STEP_RU = { order: 'ждём ответа', bouquet: 'ответил 1 из 3', delivery: 'ответил 2 из 3', comment: 'ответил, ждём отзыв', done: 'готово' };
+    const star = n => n ? '⭐'.repeat(n) : '—';
+    $('#revAll').innerHTML = (rv.rows || []).length
+      ? `<tr><th>Заказ</th><th>Оформление</th><th>Букет</th><th>Доставка</th><th>Отзыв</th><th>Состояние</th><th>Когда</th></tr>`
+        + rv.rows.map(r => `<tr${r.needs_call && !r.handled ? ' style="background:color-mix(in srgb,var(--sale) 8%,transparent)"' : ''}>
+            <td>№${r.number}${r.name ? '<br><span class="hint">' + esc(r.name) + '</span>' : ''}</td>
+            <td>${star(r.marks[0])}</td><td>${star(r.marks[1])}</td><td>${star(r.marks[2])}</td>
+            <td>${esc(r.comment || '')}</td>
+            <td>${r.needs_call ? (r.handled ? 'взяли в работу' : '<b style="color:var(--sale)">нужен звонок</b>') : (STEP_RU[r.step] || '')}</td>
+            <td>${chatAt(r.at)}</td></tr>`).join('')
+      : '<tr><td>Опросов ещё не было.</td></tr>';
     $('#revComments').innerHTML = (rv.comments || []).length
       ? `<tr><th>Отзывы словами</th><th>Оценки</th><th>Когда</th></tr>`
         + rv.comments.map(c => `<tr><td>№${c.number}: ${esc(c.text)}</td><td class="num">${c.marks.join(' / ')}</td><td>${chatAt(c.at)}</td></tr>`).join('')

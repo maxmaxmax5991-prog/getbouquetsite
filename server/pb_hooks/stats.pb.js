@@ -120,7 +120,25 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
     return { number: o ? o.get("number") : "", text: r.get("comment"), at: r.getString("created"),
       marks: [+r.get("q_order") || 0, +r.get("q_bouquet") || 0, +r.get("q_delivery") || 0] };
   });
+  // Полный список — владелец хочет видеть каждую оценку, а не только средние
+  const rows = all.map((r) => {
+    let o = null;
+    try { o = $app.findRecordById("orders", r.get("order")); } catch (_) {}
+    return {
+      id: r.id,
+      number: o ? o.get("number") : "",
+      name: o ? o.get("name") : "",
+      phone: o ? o.get("phone") : "",
+      marks: [+r.get("q_order") || 0, +r.get("q_bouquet") || 0, +r.get("q_delivery") || 0],
+      comment: r.get("comment") || "",
+      step: r.get("step") || "",
+      needs_call: !!r.get("needs_call"),
+      handled: !!r.get("handled"),
+      at: r.getString("created"),
+    };
+  });
   return e.json(200, {
+    rows,
     total: list.length,
     answered: list.filter((r) => +r.get("q_delivery") > 0).length,
     avg: { order: avg("q_order"), bouquet: avg("q_bouquet"), delivery: avg("q_delivery") },
