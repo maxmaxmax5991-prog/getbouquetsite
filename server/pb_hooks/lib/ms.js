@@ -296,19 +296,14 @@ function unclaim(app, id, kind) {
   try { app.db().newQuery("DELETE FROM order_locks WHERE order_id = {:id} AND kind = {:k}").bind({ id, k: kind }).execute(); } catch (_) {}
 }
 
-function pushOrder(app, o) {
-  const s = shop.settings(app);
-  if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция выключена." };
-  if (o.get("ms_id")) return { ok: true, id: o.get("ms_id") };
-  // доставку оформляем в МоёмСкладе только после оплаты; самовывоз — сразу
-  if (o.get("delivery_type") !== "pickup" && o.get("payment_status") !== "paid") {
-    return { ok: false, wait: true, error: "Ждём оплату — заказ уйдёт в МойСклад после неё." };
-  }
-  if (!s.get("ms_org_id") || !s.get("ms_store_id")) return { ok: false, error: "Не выбраны организация и склад." };
+// Есть ли такой сорт нужной длины в МоёмСкладе — проверяем до сохранения замены
+function checkItem(app, item) {
+  return assortment(app, shop.settings(app), item);
+}
 
-  const a = agent(s, o);
-  if (!a.ok) return a;
-
+// Позиции заказа для МоегоСклада: цветы в стеблях + доставка услугой.
+// Отдельной функцией, потому что то же самое нужно при замене сорта в заказе.
+function positionsFor(app, s, o) {
   const items = shop.jget(o, "items") || [];
   const positions = [];
   let posKop = 0, itemsKop = 0;
@@ -322,13 +317,42 @@ function pushOrder(app, o) {
     posKop += priceKop * qty;
     itemsKop += Math.round(it.price * 100) * it.qty;
   }
-const delivery = o.get("delivery_price") || 0;
-if (delivery > 0) {
-  const svc = deliveryService(s);
-  // копейки, потерянные при делении цены букета на стебли, добавляем к доставке — итог сходится с сайтом
-  const kop = Math.round(delivery * 100) + (itemsKop - posKop);
-  if (svc) positions.push({ quantity: 1, price: kop, assortment: meta("service", svc) });
+  const delivery = o.get("delivery_price") || 0;
+  if (delivery > 0) {
+    const svc = deliveryService(s);
+    // копейки, потерянные при делении цены букета на стебли, добавляем к доставке — итог сходится с сайтом
+    const kop = Math.round(delivery * 100) + (itemsKop - posKop);
+    if (svc) positions.push({ quantity: 1, price: kop, assortment: meta("service", svc) });
+  }
+  return { ok: true, positions };
 }
+
+// Переписать позиции уже созданного заказа — после замены сорта.
+// Сумма и количество не меняются, меняется только номенклатура.
+function syncPositions(app, o) {
+  const s = shop.settings(app);
+  if (!o.get("ms_id")) return { ok: true };
+  const pos = positionsFor(app, s, o);
+  if (!pos.ok) return pos;
+  return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { positions: pos.positions });
+}
+
+function pushOrder(app, o) {
+  const s = shop.settings(app);
+  if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция выключена." };
+  if (o.get("ms_id")) return { ok: true, id: o.get("ms_id") };
+  // доставку оформляем в МоёмСкладе только после оплаты; самовывоз — сразу
+  if (o.get("delivery_type") !== "pickup" && o.get("payment_status") !== "paid") {
+    return { ok: false, wait: true, error: "Ждём оплату — заказ уйдёт в МойСклад после неё." };
+  }
+  if (!s.get("ms_org_id") || !s.get("ms_store_id")) return { ok: false, error: "Не выбраны организация и склад." };
+
+  const a = agent(s, o);
+  if (!a.ok) return a;
+
+  const pos = positionsFor(app, s, o);
+  if (!pos.ok) return pos;
+  const positions = pos.positions;
 
   const body = {
     name: String(o.get("number")),
@@ -398,4 +422,4 @@ function markPaid(app, o) {
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { state: meta("state", st) });
 }
 
-module.exports = { ms, refs, pushOrder, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+module.exports = { ms, refs, pushOrder, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };

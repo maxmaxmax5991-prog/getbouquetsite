@@ -98,6 +98,8 @@ label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .order .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 18px;font-size:14px}
 .order .meta span{color:var(--ink-3);font-size:12px;display:block}
 .order-f{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lnk{font-size:12.5px;font-weight:700;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.lnk:hover{opacity:.75}
 .order-f select{width:auto}
 
 /* products */
@@ -597,7 +599,7 @@ function orderHTML(o) {
     <div class="order-h"><b>№${o.number}</b><span class="pill st-${o.status}">${STATUS[o.status]}</span>${payPill(o)}
       <span class="hint" style="margin:0">создан ${created.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
       <span class="sum num">${rub(o.total)}</span></div>
-    <ul>${(o.items || []).map(it => `<li>${esc(it.name)}${it.label_text ? ' · ' + esc(it.label_text) : ''} × ${it.qty} — <span class="num">${rub(it.sum)}</span></li>`).join('')}</ul>
+    <ul>${(o.items || []).map((it, n) => `<li data-i="${n}">${esc(it.name)}${it.label_text ? ' · ' + esc(it.label_text) : ''} × ${it.qty} — <span class="num">${rub(it.sum)}</span> <button class="lnk" data-swap title="Собрали из другого сорта">заменить сорт</button></li>`).join('')}</ul>
     <div class="meta">
       <div><span>Когда</span><b>${new Date(o.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })}</b>, ${esc(o.interval || '—')}</div>
       <div><span>${o.delivery_type === 'pickup' ? 'Самовывоз' : 'Куда'}</span>${esc(o.address)}${o.expand && o.expand.zone ? ` <span style="display:inline">(${esc(o.expand.zone.name)}, доставка ${rub(o.delivery_price)})</span>` : ''}</div>
@@ -619,7 +621,35 @@ $('#orders').addEventListener('change', safe(async e => {
   await api(`/api/collections/orders/records/${el.dataset.id}`, { method: 'PATCH', body: { status: e.target.value } });
   toast('Статус: ' + STATUS[e.target.value]); loadOrders();
 }));
+// Замена сорта в позиции заказа: флорист собрал из другого, а в МоёмСкладе
+// должна списаться правильная номенклатура. Сумма и размер не меняются.
+let swapList = null;
+async function swapProducts() {
+  if (!swapList) swapList = (await list('products', '&sort=name')).map(p => ({ id: p.id, name: p.name, active: p.active }));
+  return swapList;
+}
 $('#orders').addEventListener('click', safe(async e => {
+  if (e.target.matches('[data-swap]')) {
+    const li = e.target.closest('li');
+    if (li.querySelector('select')) return;
+    const items = await swapProducts();
+    const sel = document.createElement('select');
+    sel.className = 'in sm';
+    sel.style.cssText = 'margin:0 6px;max-width:230px';
+    sel.innerHTML = items.map(p => `<option value="${p.id}">${esc(p.name)}${p.active ? '' : ' (скрыт)'}</option>`).join('');
+    const go = document.createElement('button');
+    go.className = 'btn btn-p btn-s'; go.textContent = 'Заменить'; go.dataset.swapgo = '';
+    e.target.replaceWith(sel); li.append(go);
+    return;
+  }
+  if (e.target.matches('[data-swapgo]')) {
+    const li = e.target.closest('li'), el = e.target.closest('.order');
+    e.target.disabled = true;
+    const r = await api('/api/shop/order-swap', { method: 'POST',
+      body: { order: el.dataset.id, index: +li.dataset.i, product: li.querySelector('select').value } });
+    toast(r.warn || `Сорт заменён на «${r.name}»`, !!r.warn);
+    return loadOrders();
+  }
   if (e.target.matches('[data-mspush]')) {
     const el = e.target.closest('.order');
     await api('/api/shop/ms-push', { method: 'POST', body: { order: el.dataset.id } });
