@@ -435,6 +435,23 @@ function handle(app, secret, upd) {
     return;
   }
 
+  // ответ в чат на сайте: реплай на сообщение с меткой [chat:<id>]
+  const chatId = msg.reply_to_message && (String(msg.reply_to_message.text || "").match(/\[chat:([\w]+)\]/) || [])[1];
+  if (chatId && text) {
+    let c;
+    try { c = app.findRecordById("chats", chatId); } catch (_) { return shop.tg(token, "sendMessage", { chat_id: chat, text: "Этот диалог уже удалён." }); }
+    const m = new Record(app.findCollectionByNameOrId("chat_messages"));
+    m.set("chat", c.id); m.set("side", "shop"); m.set("text", text.slice(0, 2000));
+    m.set("author", String(msg.from.first_name || "").slice(0, 120));
+    app.save(m);
+    c.set("last_text", text.slice(0, 300));
+    c.set("last_at", new Date().toISOString());
+    c.set("answered", true);
+    c.set("unread", 0);
+    app.save(c);
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: "Ответ отправлен в чат на сайте." });
+  }
+
   // фото готового букета для клиента
   const ordId = msg.reply_to_message && orderFromReply(msg.reply_to_message);
   if (ordId) {

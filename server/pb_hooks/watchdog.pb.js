@@ -97,6 +97,16 @@ cronAdd("watchdog", "*/10 * * * *", () => {
     }
   } catch (err) { console.log("watchdog dup", err); }
 
+  // 3б. В чате на сайте ждут ответа
+  try {
+    const waiting = $app.findRecordsByFilter("chats",
+      `answered = false && unread > 0 && last_at < {:t}`, "last_at", 20, 0,
+      { t: new Date(Date.now() - 15 * 60000).toISOString() });
+    check("chat:wait", waiting.length
+      ? `В чате на сайте ждут ответа больше 15 минут: ${waiting.map((c) => c.get("name") || c.get("phone") || "гость").join(", ")}. Откройте админку → Чат.`
+      : "", "В чате все ответы даны.");
+  } catch (err) { console.log("watchdog chat", err); }
+
   // 4. Фото букета отправлено, а покупатель не ответил больше двух часов
   try {
     const silent = $app.findRecordsByFilter("orders",
