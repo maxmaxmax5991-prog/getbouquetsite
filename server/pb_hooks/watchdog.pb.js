@@ -71,6 +71,17 @@ cronAdd("watchdog", "*/10 * * * *", () => {
       : "", "Все оплаты проведены в МоёмСкладе.");
   } catch (err) { console.log("watchdog nopay", err); }
 
+  // 2в. Доставка в МоёмСкладе без оплаты — такого быть не может: доставка уходит
+  // туда только после платежа. Если случилось — где-то потерялись деньги.
+  try {
+    const bad = $app.findRecordsByFilter("orders",
+      `delivery_type = "delivery" && payment_status != "paid" && ms_id != "" && status != "cancelled"`,
+      "-created", 20, 0);
+    check("pay:delivery", bad.length
+      ? `Доставка в МоёмСкладе без оплаты: ${bad.map((o) => "№" + o.get("number")).join(", ")}. Проверьте платёж, прежде чем отдавать курьеру.`
+      : "", "Неоплаченных доставок нет.");
+  } catch (err) { console.log("watchdog paydelivery", err); }
+
   // 3. Дубли в МоёмСкладе — два одинаковых заказа означают двойную отгрузку
   try {
     if (s.get("ms_enabled") && s.get("ms_token")) {
