@@ -189,6 +189,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="orders" aria-selected="true">Заказы <span class="dot" id="newCount" hidden>0</span></button>
       <button role="tab" data-tab="products">Товары</button>
+      <button role="tab" data-tab="incoming">В пути</button>
       <button role="tab" data-tab="cats">Разделы</button>
       <button role="tab" data-tab="delivery">Доставка</button>
       <button role="tab" data-tab="prices">Прайс роз</button>
@@ -216,6 +217,15 @@ table.t td{padding:4px 6px;vertical-align:middle}
     </section>
 
     <!-- Разделы -->
+    <section id="tab-incoming" hidden>
+      <div class="bar" style="justify-content:space-between">
+        <h2>Цветы в пути</h2>
+        <button class="btn btn-p" id="inAdd">Добавить строку</button>
+      </div>
+      <p class="hint">Сорт уже продаётся, но приедет позже: в карточке появится «цветы ещё едут с теплицы», а доставку раньше приезда плюс сборку сайт не предложит. Количество — сколько стеблей забронировано под сайт; когда их не хватает на размер, размер скрывается сам.</p>
+      <div id="inRows" class="stack"></div>
+      <div class="bar"><button class="btn btn-p" id="inSave">Сохранить</button></div>
+    </section>
     <section id="tab-cats" hidden>
       <div class="card">
         <h2>Разделы каталога</h2>
@@ -485,6 +495,11 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <label class="f" for="eTable" style="max-width:280px;margin-bottom:10px">Прайс<select class="in" id="eTable"></select></label>
         <div class="bar" id="eLens"></div>
         <p class="hint">Цены берутся из выбранного прайса на вкладке «Прайс роз».</p>
+        <div id="eStockBox" style="margin-top:12px">
+          <p class="label">Остаток, стеблей</p>
+          <div class="bar" id="eStock"></div>
+          <p class="hint">Сколько цветов забронировано под сайт. Пусто — без учёта, продаём без ограничений. Размер скрывается сам, когда стеблей не хватает; при заказе остаток списывается.</p>
+        </div>
       </div>
       <div id="mSingle"><input class="in num" id="ePrice" type="number" min="0" step="10" style="max-width:200px"></div>
     </div>
@@ -493,9 +508,14 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <label class="f" for="eSort">Порядок (меньше — выше)<input class="in num" id="eSort" type="number"></label>
     </div>
     <div class="bar" style="gap:18px">
-      <div class="swl"><button class="sw" id="ePopular" role="switch" aria-checked="false" aria-label="Популярный"></button>В «Популярных»</div>
+      <div class="swl"><button class="sw" id="eOnly" role="switch" aria-checked="false" aria-label="Только на сайте"></button>Только на сайте</div>
       <div class="swl"><button class="sw" id="eFeatured" role="switch" aria-checked="false" aria-label="В карусели"></button>В карусели на главной</div>
     </div>
+    <div class="row">
+      <label class="f" for="eReadyDate">Цветы приедут (если ещё в пути)<input class="in" id="eReadyDate" type="date"></label>
+      <label class="f" for="eReadyTime">во сколько<input class="in" id="eReadyTime" type="time" step="300"></label>
+    </div>
+    <p class="hint" style="margin-top:-6px">Пока не приехали, в карточке будет «цветы ещё едут с теплицы», а доставку раньше этого времени плюс сборку сайт не предложит. Пусто — цветы уже у нас. «Популярные» заполняются сами: туда попадают все букеты, кроме открыток и игрушек.</p>
     <div id="featBox" class="card stack" style="background:var(--ground)">
       <div class="row">
         <label class="f" for="eMood">Подпись в карусели<input class="in" id="eMood" placeholder="Нежность в каждом лепестке"></label>
@@ -570,7 +590,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ orders: loadOrders, products: loadProducts, cats: loadCats, delivery: loadDelivery, prices: loadPrices, stats: loadStats, settings: loadSettings })[t]();
+  ({ orders: loadOrders, products: loadProducts, incoming: loadIncoming, cats: loadCats, delivery: loadDelivery, prices: loadPrices, stats: loadStats, settings: loadSettings })[t]();
 }
 
 let S = null, CATS = [];
@@ -754,6 +774,7 @@ function openEditor(p) {
     variants: p && p.variants ? JSON.parse(JSON.stringify(p.variants)) : [],
     lengths: p && p.lengths ? [...p.lengths] : [50, 60],
     table: (p && p.price_table) || (tablesOf(S)[0] || {}).id || "single",
+    stock: (p && p.stock && typeof p.stock === 'object') ? { ...p.stock } : {},
   };
   $('#edTitle').textContent = p ? 'Товар' : 'Новый товар';
   $('#eName').value = p ? p.name : '';
@@ -764,7 +785,11 @@ function openEditor(p) {
   $('#eMood').value = p ? p.mood || '' : '';
   $('#eTint').value = p && /^#[0-9a-f]{6}$/i.test(p.tint || '') ? p.tint : '#E0178A';
   $('#eDesc').value = p ? p.description || '' : '';
-  sw($('#eActive'), p ? p.active : true); sw($('#ePopular'), p && p.popular); sw($('#eFeatured'), p && p.featured);
+  sw($('#eActive'), p ? p.active : true); sw($('#eOnly'), p && p.site_only); sw($('#eFeatured'), p && p.featured);
+  // «цветы ещё едут»: в базе одной строкой «ГГГГ-ММ-ДД ЧЧ:ММ» по Москве
+  const rd = String((p && p.ready_at) || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
+  $('#eReadyDate').value = rd ? rd[1] : '';
+  $('#eReadyTime').value = rd ? rd[2] : '';
   $('#featBox').hidden = !(p && p.featured);
   $('#eDel').hidden = !p;
   renderPhotos(); renderCut(); renderMode();
@@ -849,9 +874,23 @@ function renderLens() {
   // 0 — «без длины»: у гортензий покупатель выбирает только количество
   const lens = [...new Set([...LENGTHS, ...Object.keys(t.prices || {}).map(Number)])].filter(x => !isNaN(x)).sort((a, b) => a - b);
   $('#eLens').innerHTML = lens.map(L => `<button class="chip" data-len="${L}" aria-pressed="${E.lengths.includes(L)}">${L ? L + " см" : "без длины"}</button>`).join('');
+  renderStock();
+}
+// остаток задаём отдельно для каждой выбранной длины
+function renderStock() {
+  const box = $('#eStock');
+  if (!box) return;
+  box.innerHTML = E.lengths.length
+    ? E.lengths.map(L => `<label class="f" style="max-width:150px;margin:0">${L ? L + ' см' : 'без длины'}<input class="in num" data-stock="${L}" type="number" min="0" step="1" placeholder="без учёта" value="${E.stock[L] ?? ''}"></label>`).join('')
+    : '<span class="hint">Сначала отметьте длины</span>';
+}
+function readStock() {
+  const out = {};
+  $$('#eStock [data-stock]').forEach(el => { if (el.value !== '') out[el.dataset.stock] = Math.max(0, +el.value || 0); });
+  E.stock = out;
 }
 $('#eTable').onchange = e => { E.table = e.target.value; renderLens(); };
-$('#eLens').onclick = e => { const b = e.target.closest('[data-len]'); if (!b) return; const L = +b.dataset.len; E.lengths = E.lengths.includes(L) ? E.lengths.filter(x => x !== L) : [...E.lengths, L].sort((a, b) => a - b); renderLens(); };
+$('#eLens').onclick = e => { const b = e.target.closest('[data-len]'); if (!b) return; readStock(); const L = +b.dataset.len; E.lengths = E.lengths.includes(L) ? E.lengths.filter(x => x !== L) : [...E.lengths, L].sort((a, b) => a - b); renderLens(); };
 $('#eCancel').onclick = () => $('#ed').close();
 $('#eDel').onclick = safe(async () => {
   if (!confirm(`Удалить «${E.rec.name}» насовсем? Если нужно временно убрать с сайта — используйте переключатель «На сайте».`)) return;
@@ -872,11 +911,15 @@ $('#eSave').onclick = safe(async () => {
   fd.append('tint', $('#eTint').value);
   fd.append('description', $('#eDesc').value.trim());
   fd.append('active', sw($('#eActive')));
-  fd.append('popular', sw($('#ePopular')));
+  fd.append('site_only', sw($('#eOnly')));
+  const rdD = $('#eReadyDate').value, rdT = $('#eReadyTime').value;
+  fd.append('ready_at', rdD && rdT ? `${rdD} ${rdT}` : '');
   fd.append('featured', sw($('#eFeatured')));
   if (E.mode === 'lengths') {
     if (!E.lengths.length) return toast('Выбран режим «Длина × количество»: отметьте хотя бы одну длину или переключитесь на «Одна цена»', true);
+    readStock();
     fd.append('lengths', JSON.stringify(E.lengths)); fd.append('variants', 'null'); fd.append('price', 0); fd.append('price_table', E.table);
+    fd.append('stock', JSON.stringify(E.stock));
   } else if (E.mode === 'variants') {
     const vs = E.variants.filter(v => v.label && v.price > 0);
     if (!vs.length) return toast('Выбран режим «Размеры (кнопки)»: заполните хотя бы одну кнопку с ценой или переключитесь на «Одна цена»', true);
@@ -917,6 +960,95 @@ $('#eSave').onclick = safe(async () => {
 const slugify = s => s.toLowerCase().replace(/[^a-zа-яё0-9]+/g, '-').replace(/^-|-$/g, '')
   .replace(/[а-яё]/g, c => ({ а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya' }[c] || '')).slice(0, 40) || 'razdel';
 let CATUSE = [];
+/* ---------- в пути ---------- */
+/* Одна строка = сорт + длина: когда приедет и сколько стеблей забронировано.
+   Время приезда у сорта одно (доставка приходит целиком), остаток — по каждой длине. */
+let IN = [];
+const loadIncoming = safe(async () => {
+  const prods = await list('products', '&sort=name');
+  IN = [];
+  prods.forEach(p => {
+    const lens = Array.isArray(p.lengths) ? p.lengths : [];
+    const stock = (p.stock && typeof p.stock === 'object') ? p.stock : {};
+    const rd = String(p.ready_at || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
+    if (!rd) return;                          // показываем только то, что действительно в пути
+    lens.forEach(L => IN.push({ id: p.id, len: L, qty: stock[L] ?? '', date: rd[1], time: rd[2] }));
+    if (!lens.length) IN.push({ id: p.id, len: '', qty: '', date: rd[1], time: rd[2] });
+  });
+  renderIncoming(prods);
+});
+let IN_PRODS = [];
+function renderIncoming(prods) {
+  if (prods) IN_PRODS = prods;
+  const opts = (sel) => IN_PRODS.map(p => `<option value="${p.id}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}${p.active ? '' : ' (скрыт)'}</option>`).join('');
+  const lensOf = (id) => {
+    const p = IN_PRODS.find(x => x.id === id);
+    return Array.isArray(p && p.lengths) ? p.lengths : [];
+  };
+  $('#inRows').innerHTML = IN.length ? IN.map((r, i) => `
+    <div class="card row" data-in="${i}" style="align-items:flex-end;gap:10px">
+      <label class="f" style="flex:1;min-width:180px">Сорт<select class="in" data-p>${opts(r.id)}</select></label>
+      <label class="f" style="max-width:120px">Длина<select class="in" data-l>${lensOf(r.id).map(L => `<option value="${L}"${String(L) === String(r.len) ? ' selected' : ''}>${L ? L + ' см' : 'без длины'}</option>`).join('') || '<option value="">—</option>'}</select></label>
+      <label class="f" style="max-width:130px">Стеблей<input class="in num" data-q type="number" min="0" placeholder="без учёта" value="${r.qty}"></label>
+      <label class="f" style="max-width:160px">Приедет<input class="in" data-d type="date" value="${r.date}"></label>
+      <label class="f" style="max-width:120px">во сколько<input class="in" data-t type="time" step="300" value="${r.time}"></label>
+      <button class="btn btn-g btn-s" data-inrm="${i}">Убрать</button>
+    </div>`).join('') : '<div class="empty">Ничего не едет. Нажмите «Добавить строку».</div>';
+}
+function readIncoming() {
+  $$('#inRows [data-in]').forEach(el => {
+    const r = IN[+el.dataset.in];
+    r.id = el.querySelector('[data-p]').value;
+    r.len = el.querySelector('[data-l]').value;
+    r.qty = el.querySelector('[data-q]').value === '' ? '' : Math.max(0, +el.querySelector('[data-q]').value || 0);
+    r.date = el.querySelector('[data-d]').value;
+    r.time = el.querySelector('[data-t]').value;
+  });
+}
+$('#inAdd').onclick = safe(async () => {
+  if (!IN_PRODS.length) IN_PRODS = await list('products', '&sort=name');
+  readIncoming();
+  const p = IN_PRODS[0] || {};
+  const lens = Array.isArray(p.lengths) ? p.lengths : [];
+  const d = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+  IN.push({ id: p.id, len: lens[0] ?? '', qty: '', date: d, time: '15:00' });
+  renderIncoming();
+});
+$('#inRows').addEventListener('change', safe(async e => {
+  readIncoming();
+  if (e.target.matches('[data-p]')) renderIncoming();   // у другого сорта свои длины
+}));
+$('#inRows').addEventListener('click', safe(async e => {
+  const b = e.target.closest('[data-inrm]');
+  if (!b) return;
+  readIncoming();
+  const r = IN[+b.dataset.inrm];
+  // «Убрать» = цветы приехали: снимаем отметку «в пути», остаток оставляем как есть
+  await api(`/api/collections/products/records/${r.id}`, { method: 'PATCH', body: { ready_at: '' } });
+  IN = IN.filter(x => x.id !== r.id);
+  renderIncoming();
+  toast('Отметка «в пути» снята — цветы уже у нас');
+}));
+$('#inSave').onclick = safe(async () => {
+  readIncoming();
+  const bad = IN.find(r => !r.id || !r.date || !r.time);
+  if (bad) return toast('Заполните сорт, дату и время приезда', true);
+  // собираем по товару: время одно, остатки по длинам
+  const byProd = {};
+  IN.forEach(r => {
+    byProd[r.id] = byProd[r.id] || { ready_at: `${r.date} ${r.time}`, stock: {} };
+    if (r.len !== '' && r.qty !== '') byProd[r.id].stock[r.len] = r.qty;
+  });
+  for (const id of Object.keys(byProd)) {
+    const p = IN_PRODS.find(x => x.id === id) || {};
+    const stock = { ...((p.stock && typeof p.stock === 'object') ? p.stock : {}), ...byProd[id].stock };
+    await api(`/api/collections/products/records/${id}`, { method: 'PATCH',
+      body: { ready_at: byProd[id].ready_at, stock, site_only: p.site_only } });
+  }
+  toast('Сохранено');
+  loadIncoming();
+});
+
 const loadCats = safe(async () => { await loadSettings0(); CATUSE = await list("products", "&fields=id,category"); renderCats(); });
 function renderCats() {
   const used = id => CATUSE.filter(p => p.category === id).length;
