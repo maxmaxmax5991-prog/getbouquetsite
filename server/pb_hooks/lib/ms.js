@@ -155,6 +155,13 @@ function assortment(app, s, item) {
   let p = null;
   try { p = app.findRecordById("products", item.id); } catch (_) {}
   const key = String(item.label || "-");
+  // Ручная привязка сильнее автоподбора: её задал человек, глядя на обе базы
+  if (p) {
+    const pick = shop.jget(p, "ms_pick") || {};
+    const len = (key.match(/^(\d+)-/) || [])[1] || "0";
+    const hit = pick[len] || pick[key];
+    if (hit && hit.id) return { ok: true, id: hit.id };
+  }
   let ids = {};
   if (p) { try { ids = JSON.parse(p.getString("ms_ids") || "{}") || {}; } catch (_) { ids = {}; } }
   if (ids[key]) return { ok: true, id: ids[key] };

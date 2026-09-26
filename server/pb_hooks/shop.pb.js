@@ -336,3 +336,16 @@ routerAdd("POST", "/api/shop/staff-edit", (e) => {
   $app.save(m);
   return e.json(200, { ok: true });
 }, $apis.requireAuth("managers"));
+
+// Поиск номенклатуры в МоёмСкладе — для ручной привязки товара
+routerAdd("GET", "/api/shop/ms-search", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const msl = require(`${__hooks}/lib/ms.js`);
+  const s = shop.settings($app);
+  const q = String(e.request.url.query().get("q") || "").trim();
+  if (q.length < 2) return e.json(200, { items: [] });
+  const r = msl.ms(s, "GET", `/entity/product?limit=30&search=${encodeURIComponent(q)}`);
+  if (!r.ok) return e.json(400, { message: r.error || "МойСклад не ответил" });
+  return e.json(200, { items: (r.data.rows || []).map((x) => ({ id: x.id, name: x.name })) });
+}, $apis.requireAuth("managers"));
