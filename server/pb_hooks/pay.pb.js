@@ -88,7 +88,7 @@ cronAdd("pay-poll", "* * * * *", () => {
   if (!s.get("cp_public_id") || !s.get("cp_secret")) return;
   const since = new Date(Date.now() - 3 * 3600 * 1000).toISOString().replace("T", " ").slice(0, 19);
   const list = $app.findRecordsByFilter("orders", `payment_method = "card" && payment_status = "unpaid" && created > {:since}`, "-created", 50, 0, { since });
-  list.forEach((o) => { try { pay.checkOrder($app, o); } catch (err) { console.log("pay-poll", err); } });
+  list.forEach((o) => { try { pay.checkOrder($app, o); } catch (err) { console.log("pay-poll", err); require(`${__hooks}/lib/err.js`).note($app, "Оплата", String(err), "проверка платежей"); } });
 });
 
 // Кнопка «Проверить оплату» в админке

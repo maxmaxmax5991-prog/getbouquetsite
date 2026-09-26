@@ -46,6 +46,6 @@ cronAdd("ms-status", "* * * * *", () => {
       shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", {
         chat_id: chat, text: `🔄 Заказ №${o.get("number")}: ${name} (из МоегоСклада)`,
       }));
-    } catch (err) { console.log("ms-status", err); }
+    } catch (err) { console.log("ms-status", err); require(`${__hooks}/lib/err.js`).note($app, "МойСклад", String(err), "чтение статусов"); }
   });
 });

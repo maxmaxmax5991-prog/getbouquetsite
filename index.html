@@ -642,7 +642,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790421994"></script>
+<script src="data.js?v=1790428281"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2071,6 +2071,24 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
       fetch('/api/shop/hit', { method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ vid, source: src || 'прямой заход' }) }).catch(() => {});
     } catch (_) {}
+  })();
+
+  // Ошибки скриптов у покупателя: без этого поломка видна только тому, у кого она случилась.
+  // Шлём не больше трёх за сеанс и без повторов — чтобы не завалить табло.
+  (function () {
+    const seen = new Set();
+    let sent = 0;
+    const send = (text, where) => {
+      try {
+        const k = String(text).slice(0, 120);
+        if (sent >= 3 || seen.has(k)) return;
+        seen.add(k); sent++;
+        fetch('/api/shop/js-error', { method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text: String(text).slice(0, 400), where: String(where || location.hash || '/').slice(0, 200) }) }).catch(() => {});
+      } catch (_) {}
+    };
+    window.addEventListener('error', (e) => send(e.message + (e.filename ? ` (${String(e.filename).split('/').pop()}:${e.lineno})` : ''), location.hash));
+    window.addEventListener('unhandledrejection', (e) => send('Обещание отклонено: ' + ((e.reason && e.reason.message) || e.reason), location.hash));
   })();
 
 loadMe().then(() => { badges(); router(); resumeOrder(); });

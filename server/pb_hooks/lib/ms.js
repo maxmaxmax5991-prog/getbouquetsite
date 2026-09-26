@@ -381,7 +381,7 @@ if (st) body.state = meta("state", st);
   // номер обратно в пустоту, и очередь отправила бы заказ в МойСклад второй раз
   try {
     app.db().newQuery("UPDATE orders SET ms_id = {:v} WHERE id = {:id}").bind({ v: created.data.id, id: o.id }).execute();
-  } catch (err) { console.log("ms_id", err); }
+  } catch (err) { console.log("ms_id", err); require(`${__hooks}/lib/err.js`).note(app, "МойСклад", String(err), "запись номера заказа"); }
   return { ok: true, id: created.data.id };
 }
 
@@ -406,7 +406,7 @@ function addPayment(app, o) {
   app.save(o);
   try {
     app.db().newQuery("UPDATE orders SET ms_payment_id = {:v} WHERE id = {:id}").bind({ v: created.data.id, id: o.id }).execute();
-  } catch (err) { console.log("ms_payment_id", err); }
+  } catch (err) { console.log("ms_payment_id", err); require(`${__hooks}/lib/err.js`).note(app, "МойСклад", String(err), "запись платежа"); }
   return { ok: true, id: created.data.id };
 }
 

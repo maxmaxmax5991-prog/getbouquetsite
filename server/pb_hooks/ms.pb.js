@@ -12,7 +12,7 @@ cronAdd("ms-push", "* * * * *", () => {
     try {
       const r = msl.pushOrder($app, o);
       if (!r.ok && !r.wait && o.get("ms_error") !== r.error) { o.set("ms_error", r.error); $app.save(o); }
-    } catch (err) { console.log("ms-push", err); }
+    } catch (err) { console.log("ms-push", err); require(`${__hooks}/lib/err.js`).note($app, "МойСклад", String(err), "очередь отправки"); }
   });
 
   // Добор входящих платежей. Платёж создаётся один раз, сразу после оплаты;
@@ -25,7 +25,7 @@ cronAdd("ms-push", "* * * * *", () => {
     try {
       const r = msl.addPayment($app, o);
       if (!r.ok && !r.wait) console.log("добор платежа", o.get("number"), r.error || "");
-    } catch (err) { console.log("ms-pay", err); }
+    } catch (err) { console.log("ms-pay", err); require(`${__hooks}/lib/err.js`).note($app, "МойСклад", String(err), "добор платежа"); }
   });
 });
 

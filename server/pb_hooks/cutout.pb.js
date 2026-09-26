@@ -70,7 +70,7 @@ cronAdd("cutout", "* * * * *", () => {
     rec.set("cut_done", true);
     $app.save(rec);
   } catch (err) {
-    console.log("вырезка не вышла", rec.get("name"), err);
+    console.log("вырезка не вышла", rec.get("name"), err); require(`${__hooks}/lib/err.js`).note($app, "Вырезка фона", String(err), rec.get("name"));
     rec.set("cut_done", true);   // второй раз не пробуем, чтобы не крутиться вечно
     try { $app.save(rec); } catch (_) {}
   }

@@ -250,6 +250,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="prices">Прайс роз</button>
       <button role="tab" data-tab="bc">Рассылка</button>
       <button role="tab" data-tab="stats">Статистика</button>
+      <button role="tab" data-tab="errors">Ошибки <span class="dot" id="errCount" hidden>0</span></button>
       <button role="tab" data-tab="settings">Настройки</button>
     </nav>
   </div>
@@ -317,6 +318,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <!-- Заказы -->
     <section id="tab-orders">
       <div class="bar" id="orderFilters"></div>
+      <div class="bar" id="orderDays"></div>
+      <div class="bar" id="orderKind"></div>
       <div class="orders" id="orders"></div>
     </section>
 
@@ -489,6 +492,17 @@ table.t td{padding:4px 6px;vertical-align:middle}
     </section>
 
     <!-- Настройки -->
+    <section id="tab-errors" hidden>
+      <div class="bar" style="justify-content:space-between">
+        <h2>Что ломалось</h2>
+        <div class="bar">
+          <button class="chip" id="errAll" aria-pressed="false">Показать починенные</button>
+          <button class="btn btn-g btn-s" id="errClear">Убрать починенные</button>
+        </div>
+      </div>
+      <p class="hint">Сюда попадает всё, что сломалось: МойСклад, боты, оплата, вырезка фона и ошибки скриптов у покупателей на сайте. Одинаковые складываются в одну строку со счётчиком. «Починено» — убрать из списка; если повторится, строка вернётся сама.</p>
+      <div class="scroll"><table class="t" id="errTable"></table></div>
+    </section>
     <section id="tab-settings" hidden>
       <div class="stack">
         <div class="card stack">
@@ -739,7 +753,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, stats: loadStats, settings: loadSettings })[t]();
+  ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, stats: loadStats, settings: loadSettings })[t]();
 }
 
 let S = null, CATS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1 } };
@@ -756,15 +770,37 @@ async function loadRole() {
 }
 
 /* ---------- заказы ---------- */
-let oFilter = 'active';
+let oFilter = 'active', oDay = 'today', oKind = 'all';
 const OF = [['active', 'Активные'], ['new', 'Новые'], ['unpaid', 'Ждут оплаты'], ['done', 'Доставленные'], ['cancelled', 'Отменённые'], ['all', 'Все']];
-function renderOF() { $('#orderFilters').innerHTML = OF.map(([k, t]) => `<button class="chip" data-f="${k}" aria-pressed="${oFilter === k}">${t}</button>`).join(''); }
+// день доставки, а не день оформления: флористу важно, что везём сегодня
+const ODAY = [['today', 'Сегодня'], ['tomorrow', 'Завтра'], ['week', 'Ближайшая неделя'], ['all', 'Любой день']];
+const OKIND = [['all', 'Доставка и самовывоз'], ['delivery', 'Только доставка'], ['pickup', 'Только самовывоз']];
+const mskDay = (plus = 0) => new Date(Date.now() + 3 * 3600e3 + plus * 864e5).toISOString().slice(0, 10);
+function renderOF() {
+  $('#orderFilters').innerHTML = OF.map(([k, t]) => `<button class="chip" data-f="${k}" aria-pressed="${oFilter === k}">${t}</button>`).join('');
+  $('#orderDays').innerHTML = ODAY.map(([k, t]) => `<button class="chip" data-day="${k}" aria-pressed="${oDay === k}">${t}</button>`).join('');
+  $('#orderKind').innerHTML = OKIND.map(([k, t]) => `<button class="chip" data-kind="${k}" aria-pressed="${oKind === k}">${t}</button>`).join('');
+}
 $('#orderFilters').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { oFilter = b.dataset.f; loadOrders(); } };
+$('#orderDays').onclick = e => { const b = e.target.closest('[data-day]'); if (b) { oDay = b.dataset.day; loadOrders(); } };
+$('#orderKind').onclick = e => { const b = e.target.closest('[data-kind]'); if (b) { oKind = b.dataset.kind; loadOrders(); } };
 const loadOrders = safe(async () => {
   renderOF();
+  const parts = [];
   const f = { active: "status!='done'&&status!='cancelled'", new: "status='new'", unpaid: "payment_method='card'&&payment_status='unpaid'", done: "status='done'", cancelled: "status='cancelled'", all: '' }[oFilter];
-  const items = await list('orders', `&sort=-created${f ? '&filter=' + encodeURIComponent(f) : ''}&expand=zone`);
-  $('#orders').innerHTML = items.length ? items.map(orderHTML).join('') : `<div class="empty">Заказов нет.</div>`;
+  if (f) parts.push(`(${f})`);
+  if (oDay === 'today') parts.push(`date='${mskDay()}'`);
+  else if (oDay === 'tomorrow') parts.push(`date='${mskDay(1)}'`);
+  else if (oDay === 'week') parts.push(`date>='${mskDay()}'&&date<='${mskDay(7)}'`);
+  if (oKind !== 'all') parts.push(`delivery_type='${oKind}'`);
+  const q = parts.join('&&');
+  // сортируем по времени доставки: так список идёт в порядке работы, а не оформления
+  const items = await list('orders', `&sort=${oDay === 'all' ? '-created' : 'date,interval'}${q ? '&filter=' + encodeURIComponent(q) : ''}&expand=zone`);
+  const dl = items.filter(o => o.delivery_type !== 'pickup').length;
+  const pk = items.length - dl;
+  $('#orders').innerHTML = items.length
+    ? `<div class="hint" style="margin:0 0 4px">Всего ${items.length}: доставок ${dl}, самовывозов ${pk}</div>` + items.map(orderHTML).join('')
+    : `<div class="empty">За этот день таких заказов нет.</div>`;
   countNew();
 });
 const payPill = o => o.payment_method === 'card'
@@ -1339,6 +1375,34 @@ const loadBc = safe(async () => {
   // пока идёт рассылка — обновляем ход каждые 4 секунды
   if (BC.history.some(r => r.status === 'queued' || r.status === 'sending')) bcTimer = setTimeout(() => { if (tab === 'bc' && auth) loadBc(); }, 4000);
 });
+
+/* ---------- табло ошибок ---------- */
+let errAll = false;
+const loadErrors = safe(async () => {
+  const d = await api(`/api/shop/errors${errAll ? '?all=1' : ''}`);
+  const rows = d.errors || [];
+  $('#errAll').setAttribute('aria-pressed', errAll);
+  $('#errCount').hidden = !rows.filter(r => !r.fixed).length;
+  $('#errCount').textContent = rows.filter(r => !r.fixed).length;
+  $('#errTable').innerHTML = rows.length
+    ? `<tr><th>Где</th><th>Что</th><th class="num">Раз</th><th>Последний раз</th><th></th></tr>`
+      + rows.map(r => `<tr${r.fixed ? ' style="opacity:.5"' : ''}>
+          <td><b>${esc(r.place)}</b></td>
+          <td>${esc(r.text)}${r.ctx ? `<br><span class="hint">${esc(r.ctx)}</span>` : ''}</td>
+          <td class="num">${r.count}</td>
+          <td>${chatAt(r.last_at)}</td>
+          <td>${r.fixed ? '' : `<button class="btn btn-g btn-s" data-errfix="${esc(r.key)}">Починено</button>`}</td>
+        </tr>`).join('')
+    : '<tr><td>Пока ничего не ломалось.</td></tr>';
+});
+$('#errAll').onclick = () => { errAll = !errAll; loadErrors(); };
+$('#errClear').onclick = safe(async () => { await api('/api/shop/errors', { method: 'POST', body: { clear: true } }); toast('Убрано'); loadErrors(); });
+$('#errTable').addEventListener('click', safe(async e => {
+  const b = e.target.closest('[data-errfix]');
+  if (!b) return;
+  await api('/api/shop/errors', { method: 'POST', body: { key: b.dataset.errfix } });
+  loadErrors();
+}));
 
 /* ---------- сотрудники ---------- */
 const ROLE_RU = { owner: 'Владелец', head: 'Управляющий', manager: 'Менеджер' };

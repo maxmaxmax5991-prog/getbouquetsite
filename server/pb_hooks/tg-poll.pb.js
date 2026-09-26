@@ -68,7 +68,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
       // (например, на выкладке), то же нажатие пришло бы второй раз, и владельцу
       // прилетало «Клиент одобрил фото» по четыре раза.
       saveOffset(offset);
-      try { bot.handleClient($app, upd); } catch (err) { console.log("client bot", err); }
+      try { bot.handleClient($app, upd); } catch (err) { console.log("client bot", err); require(`${__hooks}/lib/err.js`).note($app, "Клиентский бот", String(err), ""); }
     }
   }
 });
@@ -137,7 +137,7 @@ cronAdd("tg-poll", "* * * * *", () => {
     for (const upd of updates) {
       offset = upd.update_id + 1;
       saveOffset(offset);   // до обработки: перезапуск не должен повторять сообщение
-      try { bot.handle($app, secret, upd); } catch (err) { console.log("bot error", err); }
+      try { bot.handle($app, secret, upd); } catch (err) { console.log("bot error", err); require(`${__hooks}/lib/err.js`).note($app, "Служебный бот", String(err), ""); }
     }
   }
 });

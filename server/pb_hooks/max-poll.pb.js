@@ -29,7 +29,7 @@ cronAdd("max-poll", "* * * * *", () => {
     try { $app.db().newQuery("UPDATE settings SET max_beat = {:v} WHERE id = {:id}").bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {}                      // нет связи или ключ не подошёл — попробуем через минуту
     const list = (r.data && r.data.updates) || [];
     for (const u of list) {
-      try { mx.handle($app, u); } catch (err) { console.log("max bot", err); }
+      try { mx.handle($app, u); } catch (err) { console.log("max bot", err); require(`${__hooks}/lib/err.js`).note($app, "MAX", String(err), ""); }
     }
     const next = r.data && r.data.marker;
     if (next && next !== marker) { marker = next; saveMarker(marker); }
