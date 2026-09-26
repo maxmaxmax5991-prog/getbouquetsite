@@ -642,7 +642,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790414285"></script>
+<script src="data.js?v=1790414674"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2055,6 +2055,23 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
   win.hidden = true; fab.hidden = false;
   load(true); tick();
 })();
+
+
+  // Свой счётчик: один заход — одна отметка в день. Никаких чужих скриптов,
+  // данные остаются у нас. Источник берём из utm_source или домена, откуда пришли.
+  (function () {
+    try {
+      let vid = store.get('vid', '');
+      if (!vid || vid.length < 8) { vid = (Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 24); store.set('vid', vid); }
+      const q = new URLSearchParams(location.search);
+      let src = q.get('utm_source') || '';
+      if (!src && document.referrer) {
+        try { const h = new URL(document.referrer).hostname.replace(/^www\./, ''); if (h && h !== location.hostname) src = h; } catch (_) {}
+      }
+      fetch('/api/shop/hit', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ vid, source: src || 'прямой заход' }) }).catch(() => {});
+    } catch (_) {}
+  })();
 
 loadMe().then(() => { badges(); router(); resumeOrder(); });
 })();

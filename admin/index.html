@@ -372,6 +372,10 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div id="statChart"></div>
       </div>
       <div class="card" style="margin-top:12px">
+        <h2>Откуда приходят</h2>
+        <div class="scroll"><table class="t" id="statSrc"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
         <h2>Что покупают</h2>
         <div class="scroll"><table class="t" id="statTop"></table></div>
       </div>
@@ -1517,7 +1521,19 @@ $('#cSave').onclick = safe(async () => {
 
 /* ---------- статистика ---------- */
 let statDays = 14;
+// Посещаемость: свой счётчик, одна отметка на посетителя в день
+const loadVisits = safe(async () => {
+  const d = await api(`/api/shop/stats-visits?days=${statDays}`);
+  VISITS = d;
+  $('#statSrc').innerHTML = (d.sources || []).length
+    ? `<tr><th>Источник</th><th class="num">Посетителей</th><th class="num">Доля</th></tr>`
+      + d.sources.map(x => `<tr><td>${esc(x.source)}</td><td class="num">${x.n}</td><td class="num">${d.total ? Math.round(x.n * 100 / d.total) : 0}%</td></tr>`).join('')
+    : '<tr><td>Пока никто не заходил</td></tr>';
+});
+let VISITS = null;
+
 const loadStats = safe(async () => {
+  await loadVisits();
   $('#statRange').innerHTML = [[7, '7 дней'], [14, '14 дней'], [30, '30 дней'], [90, '3 месяца']]
     .map(([d, t]) => `<button class="chip" data-days="${d}" aria-pressed="${statDays === d}">${t}</button>`).join('');
   const from = new Date(Date.now() - (statDays - 1) * 864e5).toISOString().slice(0, 10);
@@ -1537,8 +1553,11 @@ const loadStats = safe(async () => {
   });
   const avg = orders.length ? Math.round(sum / orders.length) : 0;
   const delivered = orders.filter(o => o.status === 'done').length;
+  const guests = (VISITS && VISITS.total) || 0;
+  const conv = guests ? (orders.length * 100 / guests) : 0;
   $('#statTiles').innerHTML = [
     ['Заказов', orders.length], ['Выручка', rub(sum)], ['Средний чек', rub(avg)], ['Доставлено', delivered],
+    ['Посетителей', guests], ['Заказов на 100 гостей', conv.toFixed(1)],
   ].map(([t, v]) => `<div class="tile"><span>${t}</span><b class="num">${v}</b></div>`).join('');
   $('#statChart').innerHTML = chartHTML(byDay);
   const top = Object.entries(byItem).sort((a, b) => b[1].sum - a[1].sum).slice(0, 10);
