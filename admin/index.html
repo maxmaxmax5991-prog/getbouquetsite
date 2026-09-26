@@ -710,7 +710,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const rub = n => (+n || 0).toLocaleString('ru-RU') + ' ₽';
-const STATUS = { new: 'Новый', confirmed: 'Подтверждён', assembling: 'Собирается', photo: 'Букет собран', delivering: 'В пути', done: 'Доставлен', cancelled: 'Отменён' };
+// Названия этапов совпадают с МоимСкладом: иначе «Принят» там и «Подтверждён» здесь
+// читаются как разные состояния, и кажется, что заказ не прошёл.
+const STATUS = { new: 'Новый', confirmed: 'Принят', assembling: 'Собирается', photo: 'Букет собран', delivering: 'В пути', done: 'Доставлен', cancelled: 'Отменён' };
 const labelText = l => /^\d+-\d+$/.test(l) ? `${l.split('-')[1]} шт · ${l.split('-')[0]} см` : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
 const LENGTHS = [40, 50, 60, 70, 80], COUNTS = [25, 51, 101];
 
