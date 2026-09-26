@@ -18,20 +18,27 @@ routerAdd("POST", "/api/shop/hit", (e) => {
 
 // Сводка: посетители по дням, откуда пришли, конверсия в заказы
 routerAdd("GET", "/api/shop/stats-visits", (e) => {
-  const days = Math.min(365, Math.max(1, +e.request.url.query().get("days") || 7));
-  const from = new Date(Date.now() + 3 * 3600 * 1000 - (days - 1) * 864e5).toISOString().slice(0, 10);
+  // Можно спросить «с какого по какой день» (дни московские) или просто «за N дней»
+  const q = e.request.url.query();
+  const days = Math.min(365, Math.max(1, +q.get("days") || 7));
+  const from = String(q.get("from") || "").match(/^\d{4}-\d{2}-\d{2}$/)
+    ? q.get("from")
+    : new Date(Date.now() + 3 * 3600 * 1000 - (days - 1) * 864e5).toISOString().slice(0, 10);
+  const to = String(q.get("to") || "").match(/^\d{4}-\d{2}-\d{2}$/)
+    ? q.get("to")
+    : new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 
   const out = { days: [], sources: [], total: 0 };
   try {
     const list = arrayOf(new DynamicModel({ day: "", n: 0 }));
-    $app.db().newQuery("SELECT day, COUNT(*) as n FROM visits WHERE day >= {:f} GROUP BY day ORDER BY day")
-      .bind({ f: from }).all(list);
+    $app.db().newQuery("SELECT day, COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t} GROUP BY day ORDER BY day")
+      .bind({ f: from, t: to }).all(list);
     list.forEach((r) => { out.days.push({ day: r.day, n: +r.n }); out.total += +r.n; });
   } catch (err) { console.log("сводка дней", err); }
   try {
     const list = arrayOf(new DynamicModel({ source: "", n: 0 }));
-    $app.db().newQuery("SELECT source, COUNT(*) as n FROM visits WHERE day >= {:f} GROUP BY source ORDER BY n DESC LIMIT 12")
-      .bind({ f: from }).all(list);
+    $app.db().newQuery("SELECT source, COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t} GROUP BY source ORDER BY n DESC LIMIT 12")
+      .bind({ f: from, t: to }).all(list);
     list.forEach((r) => out.sources.push({ source: r.source || "прямой заход", n: +r.n }));
   } catch (err) { console.log("сводка источников", err); }
   return e.json(200, out);

@@ -136,6 +136,10 @@ label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .prow{grid-template-columns:auto 56px 1fr auto}
 
 /* статистика */
+.tile i{display:block;margin-top:3px;font-style:normal;font-size:11.5px;font-weight:600}
+.tile i.up{color:var(--leaf)}
+.tile i.down{color:var(--sale)}
+.tile i.same{color:var(--ink-2)}
 .tiles4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .tile{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
 .tile span{display:block;font-size:12.5px;color:var(--ink-2)}
@@ -371,8 +375,13 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <div class="bar" id="statRange"></div>
       <div class="tiles4" id="statTiles"></div>
       <div class="card" style="margin-top:12px">
-        <h2>Выручка по дням</h2>
+        <h2 id="statChartTitle">Выручка по дням</h2>
         <div id="statChart"></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Когда просят доставку</h2>
+        <p class="hint">По какому интервалу сколько заказов — видно, на какие часы ставить людей.</p>
+        <div class="scroll"><table class="t" id="statSlots"></table></div>
       </div>
       <div class="card" style="margin-top:12px">
         <h2>Откуда приходят</h2>
@@ -1627,45 +1636,134 @@ const loadVisits = safe(async () => {
 });
 let VISITS = null;
 
+/* Статистика. Периоды считаем по московским суткам, а не по UTC: сервер хранит
+   время в UTC, и «сегодня» без поправки начиналось бы в три часа ночи.
+   Для коротких периодов график по часам, для длинных — по дням. */
+const PERIODS = [
+  ['today', 'Сегодня', 0, 0], ['yesterday', 'Вчера', -1, -1],
+  ['7', '7 дней', -6, 0], ['30', '30 дней', -29, 0], ['90', '3 месяца', -89, 0],
+];
+let statPeriod = 'today';
+// полночь по Москве, выраженная во времени сервера (UTC)
+function mskEdge(plusDays) {
+  const m = new Date(Date.now() + 3 * 3600e3);
+  const d = Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), m.getUTCDate() + plusDays);
+  return new Date(d - 3 * 3600e3).toISOString().replace('T', ' ').slice(0, 19);
+}
+const mskDate = (plusDays) => new Date(Date.now() + 3 * 3600e3 + plusDays * 864e5).toISOString().slice(0, 10);
+const pct = (now, was) => {
+  if (!was) return now ? '' : '';
+  const d = Math.round((now - was) * 100 / was);
+  if (!d) return '<i class="same">без изменений</i>';
+  return `<i class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}% к прошлому периоду</i>`;
+};
+
+async function ordersBetween(fromUtc, toUtc) {
+  return list('orders', `&sort=created&filter=${encodeURIComponent(`created>="${fromUtc}" && created<"${toUtc}"`)}`);
+}
+
 const loadStats = safe(async () => {
-  await loadVisits();
-  $('#statRange').innerHTML = [[7, '7 дней'], [14, '14 дней'], [30, '30 дней'], [90, '3 месяца']]
-    .map(([d, t]) => `<button class="chip" data-days="${d}" aria-pressed="${statDays === d}">${t}</button>`).join('');
-  const from = new Date(Date.now() - (statDays - 1) * 864e5).toISOString().slice(0, 10);
-  const orders = await list('orders', `&sort=created&filter=${encodeURIComponent(`created>="${from} 00:00:00" && status!="cancelled"`)}`);
-  const byDay = {}, byItem = {};
-  for (let i = 0; i < statDays; i++) byDay[new Date(Date.now() - (statDays - 1 - i) * 864e5).toISOString().slice(0, 10)] = 0;
-  let sum = 0;
-  orders.forEach(o => {
-    const d = o.created.slice(0, 10);
-    if (d in byDay) byDay[d] += o.total;
-    sum += o.total;
-    (o.items || []).forEach(it => {
-      const k = it.name + (it.label_text ? ' · ' + it.label_text : '');
-      byItem[k] = byItem[k] || { qty: 0, sum: 0 };
-      byItem[k].qty += it.qty; byItem[k].sum += it.sum;
-    });
-  });
-  const avg = orders.length ? Math.round(sum / orders.length) : 0;
-  const delivered = orders.filter(o => o.status === 'done').length;
-  const guests = (VISITS && VISITS.total) || 0;
-  const conv = guests ? (orders.length * 100 / guests) : 0;
+  const p = PERIODS.find(x => x[0] === statPeriod) || PERIODS[0];
+  const [, , dFrom, dTo] = p;
+  const span = dTo - dFrom + 1;                       // сколько суток в периоде
+  $('#statRange').innerHTML = PERIODS.map(([k, t]) => `<button class="chip" data-p="${k}" aria-pressed="${statPeriod === k}">${t}</button>`).join('');
+
+  const fromUtc = mskEdge(dFrom), toUtc = mskEdge(dTo + 1);
+  const prevFrom = mskEdge(dFrom - span), prevTo = mskEdge(dFrom);
+  const [all, prevAll, vis] = await Promise.all([
+    ordersBetween(fromUtc, toUtc),
+    ordersBetween(prevFrom, prevTo),
+    api(`/api/shop/stats-visits?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`).catch(() => ({ total: 0, sources: [] })),
+  ]);
+  VISITS = vis;
+
+  const live = all.filter(o => o.status !== 'cancelled');
+  const prevLive = prevAll.filter(o => o.status !== 'cancelled');
+  const money = a => a.reduce((n, o) => n + (o.total || 0), 0);
+  const sum = money(live), prevSum = money(prevLive);
+  const avg = live.length ? Math.round(sum / live.length) : 0;
+  const dl = live.filter(o => o.delivery_type !== 'pickup');
+  const pk = live.filter(o => o.delivery_type === 'pickup');
+  const cancelled = all.length - live.length;
+  const byCard = live.filter(o => o.payment_method === 'card');
+  const paid = byCard.filter(o => o.payment_status === 'paid');
+  const guests = vis.total || 0;
+  const conv = guests ? (live.length * 100 / guests) : 0;
+  const delivMoney = live.reduce((n, o) => n + (o.delivery_price || 0), 0);
+  // повторные: покупатель уже встречался раньше в этом же периоде или по телефону
+  const phones = {};
+  live.forEach(o => { const t = String(o.phone || '').replace(/\D/g, '').slice(-10); if (t) phones[t] = (phones[t] || 0) + 1; });
+  const repeat = Object.values(phones).filter(n => n > 1).length;
+
+  const tile = (t, v, extra) => `<div class="tile"><span>${t}</span><b class="num">${v}</b>${extra || ''}</div>`;
   $('#statTiles').innerHTML = [
-    ['Заказов', orders.length], ['Выручка', rub(sum)], ['Средний чек', rub(avg)], ['Доставлено', delivered],
-    ['Посетителей', guests], ['Заказов на 100 гостей', conv.toFixed(1)],
-  ].map(([t, v]) => `<div class="tile"><span>${t}</span><b class="num">${v}</b></div>`).join('');
-  $('#statChart').innerHTML = chartHTML(byDay);
-  const top = Object.entries(byItem).sort((a, b) => b[1].sum - a[1].sum).slice(0, 10);
+    tile('Заказов', live.length, pct(live.length, prevLive.length)),
+    tile('Выручка', rub(sum), pct(sum, prevSum)),
+    tile('Средний чек', rub(avg), pct(avg, prevLive.length ? Math.round(prevSum / prevLive.length) : 0)),
+    tile('Доставок', `${dl.length}`, `<i class="same">${live.length ? Math.round(dl.length * 100 / live.length) : 0}% заказов</i>`),
+    tile('Самовывозов', `${pk.length}`, `<i class="same">${live.length ? Math.round(pk.length * 100 / live.length) : 0}% заказов</i>`),
+    tile('Выручка с доставки', rub(delivMoney)),
+    tile('Оплачено картой', `${paid.length}`, `<i class="same">из ${byCard.length} выбравших карту</i>`),
+    tile('Отменено', cancelled, cancelled ? `<i class="down">${all.length ? Math.round(cancelled * 100 / all.length) : 0}% от всех</i>` : ''),
+    tile('Посетителей', guests, pct(guests, 0)),
+    tile('Заказов на 100 гостей', conv.toFixed(1)),
+    tile('Повторных покупателей', repeat),
+  ].join('');
+
+  // График: короткий период — по часам, длинный — по дням
+  const byHour = span <= 1;
+  const buckets = {};
+  if (byHour) {
+    for (let h = 0; h < 24; h++) buckets[String(h).padStart(2, '0') + ':00'] = 0;
+    live.forEach(o => {
+      const t = new Date(o.created.replace(' ', 'T') + (o.created.endsWith('Z') ? '' : 'Z'));
+      const h = new Date(t.getTime() + 3 * 3600e3).getUTCHours();
+      buckets[String(h).padStart(2, '0') + ':00'] += o.total || 0;
+    });
+  } else {
+    for (let i = dFrom; i <= dTo; i++) buckets[mskDate(i)] = 0;
+    live.forEach(o => {
+      const t = new Date(o.created.replace(' ', 'T') + (o.created.endsWith('Z') ? '' : 'Z'));
+      const d = new Date(t.getTime() + 3 * 3600e3).toISOString().slice(0, 10);
+      if (d in buckets) buckets[d] += o.total || 0;
+    });
+  }
+  $('#statChart').innerHTML = chartHTML(buckets, byHour);
+  $('#statChartTitle').textContent = byHour ? 'Выручка по часам' : 'Выручка по дням';
+
+  // Когда просят доставку — по интервалам, помогает ставить смены
+  const slots = {};
+  live.forEach(o => { const k = String(o.interval || '—').slice(0, 11); slots[k] = (slots[k] || 0) + 1; });
+  const slotRows = Object.entries(slots).sort((a, b) => a[0].localeCompare(b[0]));
+  $('#statSlots').innerHTML = slotRows.length
+    ? `<tr><th>Интервал</th><th class="num">Заказов</th></tr>` + slotRows.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="num">${n}</td></tr>`).join('')
+    : '<tr><td>Нет заказов за период</td></tr>';
+
+  // Источники
+  $('#statSrc').innerHTML = (vis.sources || []).length
+    ? `<tr><th>Источник</th><th class="num">Посетителей</th><th class="num">Доля</th></tr>`
+      + vis.sources.map(x => `<tr><td>${esc(x.source)}</td><td class="num">${x.n}</td><td class="num">${guests ? Math.round(x.n * 100 / guests) : 0}%</td></tr>`).join('')
+    : '<tr><td>Пока никто не заходил</td></tr>';
+
+  // Что покупают
+  const byItem = {};
+  live.forEach(o => (o.items || []).forEach(it => {
+    const k = it.name + (it.label_text ? ' · ' + it.label_text : '');
+    byItem[k] = byItem[k] || { qty: 0, sum: 0 };
+    byItem[k].qty += it.qty; byItem[k].sum += it.sum;
+  }));
+  const top = Object.entries(byItem).sort((a, b) => b[1].sum - a[1].sum).slice(0, 12);
   $('#statTop').innerHTML = top.length
-    ? `<tr><th>Товар</th><th>Штук</th><th>Сумма</th></tr>` + top.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.qty}</td><td class="num">${rub(v.sum)}</td></tr>`).join('')
+    ? `<tr><th>Товар</th><th class="num">Штук</th><th class="num">Сумма</th></tr>`
+      + top.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.qty}</td><td class="num">${rub(v.sum)}</td></tr>`).join('')
     : `<tr><td class="hint">Пока нет продаж за этот период.</td></tr>`;
 });
-$('#statRange').onclick = e => { const b = e.target.closest('[data-days]'); if (b) { statDays = +b.dataset.days; loadStats(); } };
-function chartHTML(byDay) {
+$('#statRange').onclick = e => { const b = e.target.closest('[data-p]'); if (b) { statPeriod = b.dataset.p; loadStats(); } };
+function chartHTML(byDay, byHour) {
   const days = Object.entries(byDay), max = Math.max(1, ...days.map(([, v]) => v));
   const W = 700, H = 200, pad = 26, bw = (W - pad) / days.length;
   const y = v => H - 24 - (v / max) * (H - 48);
-  const fmtDay = d => new Date(d + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  const fmtDay = d => byHour ? d : new Date(d + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
   const ticks = [0, max / 2, max].map(v => `<line class="grid" x1="${pad}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="0" y="${y(v) + 4}">${Math.round(v / 1000) ? Math.round(v / 1000) + 'к' : Math.round(v)}</text>`).join('');
   const bars = days.map(([d, v], i) => {
     const h = Math.max(v > 0 ? 3 : 0, H - 24 - y(v)), x = pad + i * bw + bw * 0.15, w = bw * 0.7;
