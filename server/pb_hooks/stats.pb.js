@@ -87,13 +87,21 @@ routerAdd("GET", "/api/shop/funnel", (e) => {
 routerAdd("GET", "/api/shop/reviews", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
-  const list = $app.findRecordsByFilter("reviews", "id != ''", "-created", 200, 0);
+  // Оценки за выбранный период — как и всё остальное на вкладке статистики.
+  // «Ждут звонка» при этом показываем все: висящий недовольный клиент важнее периода.
+  const q = e.request.url.query();
+  const fromU = String(q.get("from") || "").match(/^\d{4}-\d{2}-\d{2}$/) ? `${q.get("from")} 00:00:00` : "";
+  const toU = String(q.get("to") || "").match(/^\d{4}-\d{2}-\d{2}$/) ? `${q.get("to")} 23:59:59` : "";
+  const all = $app.findRecordsByFilter("reviews", "id != ''", "-created", 500, 0);
+  const list = (fromU && toU)
+    ? all.filter((r) => { const c = r.getString("created"); return c >= fromU && c <= toU; })
+    : all;
   const avg = (f) => {
     const v = list.map((r) => +r.get(f) || 0).filter((x) => x > 0);
     return v.length ? +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : null;
   };
   const need = [];
-  list.filter((r) => r.get("needs_call") && !r.get("handled")).forEach((r) => {
+  all.filter((r) => r.get("needs_call") && !r.get("handled")).forEach((r) => {
     let o = null;
     try { o = $app.findRecordById("orders", r.get("order")); } catch (_) {}
     need.push({

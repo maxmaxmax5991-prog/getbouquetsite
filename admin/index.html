@@ -1805,7 +1805,7 @@ const loadStats = safe(async () => {
 
   // Оценки после вручения
   try {
-    const rv = await api('/api/shop/reviews');
+    const rv = await api(`/api/shop/reviews?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`);
     const a = rv.avg || {};
     const m = x => x === null || x === undefined ? '—' : x.toFixed(2);
     $('#revTiles').innerHTML = [
