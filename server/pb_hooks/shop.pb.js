@@ -126,6 +126,8 @@ onRecordAfterUpdateSuccess((e) => {
 
 // Кнопка «Проверить адрес» в админке: работает и когда расчёт по километрам ещё выключен
 routerAdd("POST", "/api/shop/geo-test", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const shop = require(`${__hooks}/lib/shop.js`);
   const geo = require(`${__hooks}/lib/geo.js`);
   const s = shop.settings($app);
@@ -142,6 +144,8 @@ routerAdd("POST", "/api/shop/geo-test", (e) => {
 
 // Кнопка «Проверить» у мессенджера MAX: заодно подставляем имя бота для ссылки
 routerAdd("POST", "/api/shop/max-check", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const shop = require(`${__hooks}/lib/shop.js`);
   const mx = require(`${__hooks}/lib/max.js`);
   const s = shop.settings($app);
@@ -157,6 +161,8 @@ routerAdd("POST", "/api/shop/max-check", (e) => {
 // Отправить клиенту сохранённое фото ещё раз: если первая попытка не дошла,
 // не нужно заново просить флориста фотографировать.
 routerAdd("POST", "/api/shop/photo-resend", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const shop = require(`${__hooks}/lib/shop.js`);
   const b = e.requestInfo().body || {};
   const s = shop.settings($app);
@@ -181,6 +187,8 @@ routerAdd("POST", "/api/shop/photo-resend", (e) => {
 // Проверка бота без телефона: подсовываем боту сообщение и смотрим, что он сделает.
 // Нужна, чтобы чинить вход и подписку, не прося владельца жать кнопки.
 routerAdd("POST", "/api/shop/tg-sim", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const bot = require(`${__hooks}/lib/bot.js`);
   const b = e.requestInfo().body || {};
   const chat = +b.chat || 0;
@@ -203,6 +211,8 @@ routerAdd("POST", "/api/shop/tg-sim", (e) => {
 }, $apis.requireAuth("managers"));
 
 routerAdd("POST", "/api/shop/tg-test", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
 
   const shop = require(`${__hooks}/lib/shop.js`);
   const bot = require(`${__hooks}/lib/bot.js`);
@@ -213,4 +223,107 @@ routerAdd("POST", "/api/shop/tg-test", (e) => {
   const admins = shop.adminIds(s);
   admins.forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat, text: "Бот подключён к сайту venikoff.net ✅ Напишите «Меню»." }));
   return e.json(200, { bot: me.result.username, webhook: !!(hook && hook.ok), admins: admins.length });
+}, $apis.requireAuth("managers"));
+
+// Остатки и «цветы в пути». Отдельный маршрут, а не правка товара напрямую:
+// товары целиком может менять только владелец, а остатками ведает и управляющий.
+routerAdd("POST", "/api/shop/stock-set", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Остатками управляет владелец или управляющий." });
+  const b = e.requestInfo().body || {};
+  let p;
+  try { p = $app.findRecordById("products", String(b.product || "")); } catch (_) { return e.json(404, { message: "Товар не найден" }); }
+
+  if (b.ready_at !== undefined) {
+    const v = String(b.ready_at || "").trim();
+    if (v && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(v)) return e.json(400, { message: "Время приезда: ГГГГ-ММ-ДД ЧЧ:ММ" });
+    p.set("ready_at", v);
+  }
+  if (b.stock !== undefined && b.stock && typeof b.stock === "object") {
+    const out = {};
+    Object.keys(b.stock).forEach((k) => { if (/^\d+$/.test(k)) out[k] = Math.max(0, Math.round(+b.stock[k] || 0)); });
+    p.set("stock", out);
+  }
+  if (b.site_only !== undefined) p.set("site_only", !!b.site_only);
+  $app.save(p);
+  return e.json(200, { ok: true });
+}, $apis.requireAuth("managers"));
+
+// Кто я и что мне можно — админка прячет по этому лишние вкладки
+routerAdd("GET", "/api/shop/me-role", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const r = shop.role(e);
+  return e.json(200, {
+    role: r,
+    name: (() => { try { return e.auth.get("name") || e.auth.get("email") || ""; } catch (_) { return ""; } })(),
+    can: {
+      orders: true, chat: true, swap: true,          // это может каждый
+      stock: r === "owner" || r === "head",
+      all: r === "owner",
+    },
+  });
+}, $apis.requireAuth("managers"));
+
+// Сотрудники: список, добавление, смена роли, удаление. Только владелец.
+routerAdd("GET", "/api/shop/staff", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  const list = $app.findRecordsByFilter("managers", "id != ''", "created", 100, 0);
+  return e.json(200, {
+    staff: list.map((m) => ({ id: m.id, email: m.get("email"), name: m.get("name") || "", role: m.get("role") || "manager", me: m.id === e.auth.id })),
+  });
+}, $apis.requireAuth("managers"));
+
+routerAdd("POST", "/api/shop/staff", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  const b = e.requestInfo().body || {};
+  const email = String(b.email || "").trim().toLowerCase();
+  const pass = String(b.password || "");
+  const rl = ["owner", "head", "manager"].indexOf(String(b.role || "")) >= 0 ? String(b.role) : "manager";
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return e.json(400, { message: "Проверьте почту." });
+  if (pass.length < 8) return e.json(400, { message: "Пароль — не короче 8 знаков." });
+  try { $app.findFirstRecordByFilter("managers", "email = {:m}", { m: email }); return e.json(400, { message: "Такой сотрудник уже есть." }); } catch (_) {}
+
+  const rec = new Record($app.findCollectionByNameOrId("managers"));
+  rec.set("email", email);
+  rec.set("name", String(b.name || "").slice(0, 120));
+  rec.set("role", rl);
+  rec.set("password", pass);
+  rec.set("passwordConfirm", pass);
+  rec.set("verified", true);
+  $app.save(rec);
+  return e.json(200, { ok: true, id: rec.id });
+}, $apis.requireAuth("managers"));
+
+routerAdd("POST", "/api/shop/staff-edit", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  const b = e.requestInfo().body || {};
+  let m;
+  try { m = $app.findRecordById("managers", String(b.id || "")); } catch (_) { return e.json(404, { message: "Сотрудник не найден" }); }
+
+  if (b.remove) {
+    if (m.id === e.auth.id) return e.json(400, { message: "Себя удалить нельзя." });
+    $app.delete(m);
+    return e.json(200, { ok: true });
+  }
+  if (b.role) {
+    const rl = ["owner", "head", "manager"].indexOf(String(b.role)) >= 0 ? String(b.role) : "";
+    if (!rl) return e.json(400, { message: "Неизвестная роль" });
+    // нельзя снять с себя права владельца, если владелец один — иначе некому будет управлять
+    if (m.id === e.auth.id && rl !== "owner") {
+      const owners = $app.findRecordsByFilter("managers", "role = 'owner'", "", 5, 0);
+      if (owners.length < 2) return e.json(400, { message: "Вы единственный владелец — сначала назначьте второго." });
+    }
+    m.set("role", rl);
+  }
+  if (b.password) {
+    if (String(b.password).length < 8) return e.json(400, { message: "Пароль — не короче 8 знаков." });
+    m.set("password", String(b.password));
+    m.set("passwordConfirm", String(b.password));
+  }
+  if (b.name !== undefined) m.set("name", String(b.name).slice(0, 120));
+  $app.save(m);
+  return e.json(200, { ok: true });
 }, $apis.requireAuth("managers"));

@@ -635,7 +635,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790412719"></script>
+<script src="data.js?v=1790413204"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2022,7 +2022,9 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
     try {
       const r = await fetch('/api/shop/chat/send', { method: 'POST',
         headers: { 'content-type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ token, text }) });
+        // код последнего заказа — чтобы менеджер сразу видел, о каком заказе речь,
+        // даже если человек оформлял без входа в кабинет
+        body: JSON.stringify({ token, text, order: (store.get('last', null) || {}).code || '' }) });
       if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.message || 'Сообщение не ушло', true); }
       load();
     } catch (_) { toast('Нет связи. Сообщение не ушло', true); }

@@ -11,6 +11,13 @@ const rub = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") +
 // JSON-поля записи: читаем как строку и разбираем (напрямую приходят байтами)
 const jget = (rec, name) => { try { const s = rec.getString(name); return s ? JSON.parse(s) : null; } catch (_) { return null; } };
 
+// Роль вошедшего сотрудника: owner (владелец), head (управляющий), manager (менеджер).
+// Нет роли — считаем менеджером: меньше прав, чем нужно, безопаснее, чем больше.
+function role(e) {
+  try { return String(e.auth.get("role") || "manager"); } catch (_) { return "manager"; }
+}
+const can = (e, roles) => roles.indexOf(role(e)) >= 0;
+
 function settings(app) {
   return app.findFirstRecordByFilter("settings", "id != ''");
 }
@@ -575,6 +582,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
+  STATUS, COUNTS, rub, jget, settings, role, can, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
   tg, tgPhoto, clientToken, adminIds, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

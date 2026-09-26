@@ -93,6 +93,8 @@ cronAdd("pay-poll", "* * * * *", () => {
 
 // Кнопка «Проверить оплату» в админке
 routerAdd("POST", "/api/shop/cp-test", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const shop = require(`${__hooks}/lib/shop.js`);
   const pay = require(`${__hooks}/lib/pay.js`);
   const r = pay.test(shop.settings($app));

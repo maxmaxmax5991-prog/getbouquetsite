@@ -625,8 +625,18 @@ function show(t) {
   ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, cats: loadCats, delivery: loadDelivery, prices: loadPrices, stats: loadStats, settings: loadSettings })[t]();
 }
 
-let S = null, CATS = [];
+let S = null, CATS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1 } };
 async function loadSettings0() { S = (await list('settings'))[0]; CATS = await list('categories', '&sort=sort'); }
+
+// Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
+const TAB_NEED = { orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', stats: 'all', settings: 'all' };
+async function loadRole() {
+  try { ME = await api('/api/shop/me-role'); } catch (_) {}
+  $$('.tabs button').forEach(b => { b.hidden = !ME.can[TAB_NEED[b.dataset.tab] || 'all']; });
+  const first = $$('.tabs button').find(b => !b.hidden);
+  if (first && $$('.tabs button').find(b => b.getAttribute('aria-selected') === 'true' && b.hidden)) show(first.dataset.tab);
+  return ME;
+}
 
 /* ---------- заказы ---------- */
 let oFilter = 'active';
@@ -1003,7 +1013,7 @@ const loadChats = safe(async () => {
   $('#chatList').innerHTML = CHATS.length ? CHATS.map(c => `
     <button class="chat2-item" data-chat="${c.id}" aria-current="${c.id === CHAT}">
       ${c.unread ? `<span class="dot">${c.unread}</span>` : ''}
-      <b>${esc(c.name || 'Гость с сайта')}${c.phone ? ' · ' + esc(c.phone) : ''}</b>
+      <b>${esc(c.name || 'Гость с сайта')}${c.phone ? ' · ' + esc(c.phone) : ''}${c.order ? ' · №' + esc(c.order) : ''}</b>
       <span>${esc(c.last_text || '')}</span>
       <span>${chatAt(c.last_at)}</span>
     </button>`).join('') : '<div class="empty">Пока никто не писал.</div>';
@@ -1098,7 +1108,7 @@ $('#inRows').addEventListener('click', safe(async e => {
   readIncoming();
   const r = IN[+b.dataset.inrm];
   // «Убрать» = цветы приехали: снимаем отметку «в пути», остаток оставляем как есть
-  await api(`/api/collections/products/records/${r.id}`, { method: 'PATCH', body: { ready_at: '' } });
+  await api('/api/shop/stock-set', { method: 'POST', body: { product: r.id, ready_at: '' } });
   IN = IN.filter(x => x.id !== r.id);
   renderIncoming();
   toast('Отметка «в пути» снята — цветы уже у нас');
@@ -1116,8 +1126,8 @@ $('#inSave').onclick = safe(async () => {
   for (const id of Object.keys(byProd)) {
     const p = IN_PRODS.find(x => x.id === id) || {};
     const stock = { ...((p.stock && typeof p.stock === 'object') ? p.stock : {}), ...byProd[id].stock };
-    await api(`/api/collections/products/records/${id}`, { method: 'PATCH',
-      body: { ready_at: byProd[id].ready_at, stock, site_only: p.site_only } });
+    await api('/api/shop/stock-set', { method: 'POST',
+      body: { product: id, ready_at: byProd[id].ready_at, stock } });
   }
   toast('Сохранено');
   loadIncoming();
@@ -1819,7 +1829,9 @@ $('#mSave').onclick = safe(async () => {
 async function start() {
   $('#login').hidden = true; $('#app').hidden = false;
   try { const r = await api('/api/collections/managers/auth-refresh', { method: 'POST' }); auth.token = r.token; localStorage.setItem('vk.admin', JSON.stringify(auth)); } catch {}
-  show('orders');
+  await loadRole();
+  const first = $$('.tabs button').find(b => !b.hidden);
+  show(first ? first.dataset.tab : 'orders');
 }
 if (auth) start(); else logout();
 })();

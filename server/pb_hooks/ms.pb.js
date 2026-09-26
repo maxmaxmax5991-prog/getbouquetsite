@@ -31,6 +31,8 @@ cronAdd("ms-push", "* * * * *", () => {
 
 // Проверка токена + списки организаций и складов для админки
 routerAdd("POST", "/api/shop/ms-test", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const shop = require(`${__hooks}/lib/shop.js`);
   const msl = require(`${__hooks}/lib/ms.js`);
   const r = msl.refs(shop.settings($app));
@@ -39,6 +41,8 @@ routerAdd("POST", "/api/shop/ms-test", (e) => {
 
 // Кнопка «Отправить в МойСклад» у заказа
 routerAdd("POST", "/api/shop/ms-push", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const msl = require(`${__hooks}/lib/ms.js`);
   const body = e.requestInfo().body || {};
   let o;

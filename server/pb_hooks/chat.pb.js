@@ -36,6 +36,16 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
       if (!chat.get("phone")) chat.set("phone", c.get("phone") || "");
     }
   } catch (_) {}
+  // заказывал без входа — узнаём по коду последнего заказа из его браузера
+  if (b.order) {
+    let o = null;
+    try { o = $app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: String(b.order) }); } catch (_) {}
+    if (o) {
+      if (!chat.get("name")) chat.set("name", o.get("name") || "");
+      if (!chat.get("phone")) chat.set("phone", o.get("phone") || "");
+      if (!chat.get("customer") && o.get("customer")) chat.set("customer", o.get("customer"));
+    }
+  }
   if (b.name && !chat.get("name")) chat.set("name", String(b.name).slice(0, 120));
   if (b.phone && !chat.get("phone")) chat.set("phone", String(b.phone).slice(0, 40));
 
@@ -55,7 +65,14 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
   // дублируем в служебный бот: ответить можно прямо оттуда, реплаем
   try {
     const s = shop.settings($app);
-    const who = [chat.get("name"), chat.get("phone")].filter(Boolean).join(", ") || "гость с сайта";
+    let who = [chat.get("name"), chat.get("phone")].filter(Boolean).join(", ") || "гость с сайта";
+    try {
+      const tail = String(chat.get("phone") || "").replace(/\D/g, "").slice(-10);
+      if (tail.length === 10) {
+        const last = $app.findRecordsByFilter("orders", "phone ~ {:t}", "-created", 1, 0, { t: tail });
+        if (last.length) who += ` · заказ №${last[0].get("number")} (${shop.STATUS[last[0].get("status")] || last[0].get("status")})`;
+      }
+    } catch (_) {}
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", {
       chat_id: adm,
       text: `💬 Чат на сайте — ${who}\n\n«${text.slice(0, 900)}»\n\nОтветьте на это сообщение [chat:${chat.id}]`,
@@ -87,6 +104,14 @@ routerAdd("GET", "/api/shop/chats", (e) => {
       id: c.id, name: c.get("name") || "", phone: c.get("phone") || "",
       last_text: c.get("last_text") || "", last_at: c.get("last_at") || "",
       unread: +c.get("unread") || 0, answered: !!c.get("answered"), customer: c.get("customer") || "",
+      order: (() => {
+        try {
+          const tail = String(c.get("phone") || "").replace(/\D/g, "").slice(-10);
+          if (tail.length !== 10) return "";
+          const l = $app.findRecordsByFilter("orders", "phone ~ {:t}", "-created", 1, 0, { t: tail });
+          return l.length ? String(l[0].get("number")) : "";
+        } catch (_) { return ""; }
+      })(),
     })),
   });
 }, $apis.requireAuth("managers"));
@@ -100,11 +125,26 @@ routerAdd("GET", "/api/shop/chat-one", (e) => {
   chat.set("unread", 0);
   $app.save(chat);
   const list = $app.findRecordsByFilter("chat_messages", "chat = {:c}", "created", 200, 0, { c: chat.id });
-  let orders = [];
-  if (chat.get("customer")) {
-    orders = $app.findRecordsByFilter("orders", "customer = {:c}", "-created", 5, 0, { c: chat.get("customer") })
-      .map((o) => ({ number: o.get("number"), status: shop.STATUS[o.get("status")] || o.get("status"), total: o.get("total") }));
-  }
+  // Заказы ищем и по связи с кабинетом, и по телефону: покупатель мог заказать без входа.
+  // Телефоны сравниваем по последним десяти цифрам — записывают их кто как.
+  const seen = {}, orders = [];
+  const add = (o) => {
+    if (seen[o.id]) return;
+    seen[o.id] = 1;
+    orders.push({ number: o.get("number"), status: shop.STATUS[o.get("status")] || o.get("status"), total: o.get("total"), code: o.get("tg_code") });
+  };
+  try {
+    if (chat.get("customer")) {
+      $app.findRecordsByFilter("orders", "customer = {:c}", "-created", 5, 0, { c: chat.get("customer") }).forEach(add);
+    }
+  } catch (_) {}
+  try {
+    const tail = String(chat.get("phone") || "").replace(/\D/g, "").slice(-10);
+    if (tail.length === 10) {
+      $app.findRecordsByFilter("orders", "phone ~ {:t}", "-created", 5, 0, { t: tail }).forEach(add);
+    }
+  } catch (_) {}
+  orders.sort((a, b2) => b2.number - a.number);
   return e.json(200, {
     name: chat.get("name") || "", phone: chat.get("phone") || "", orders,
     messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"), author: m.get("author") || "" })),

@@ -118,6 +118,8 @@ onRecordCreateRequest((e) => {
 
 // 6. Рассылка всем покупателям, кто пользуется клиентским ботом
 routerAdd("POST", "/api/shop/broadcast", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const shop = require(`${__hooks}/lib/shop.js`);
   const body = e.requestInfo().body || {};
   const text = String(body.text || "").trim();
@@ -141,12 +143,16 @@ routerAdd("POST", "/api/shop/broadcast", (e) => {
 
 // 7. Сколько получателей у рассылки
 routerAdd("GET", "/api/shop/broadcast", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const list = $app.findRecordsByFilter("customers", "tg_chat != '' || max_chat != ''", "", 2000, 0);
   return e.json(200, { total: list.length });
 }, $apis.requireAuth("managers"));
 
 // 8. Проверка клиентского бота и запоминание его имени
 routerAdd("POST", "/api/shop/client-bot-check", (e) => {
+  const _s = require(`${__hooks}/lib/shop.js`);
+  if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
   const shop = require(`${__hooks}/lib/shop.js`);
   const s = shop.settings($app);
   const token = s.get("tg_client_token");
