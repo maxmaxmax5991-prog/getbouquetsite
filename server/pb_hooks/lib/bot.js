@@ -397,6 +397,28 @@ function handleClient(app, upd) {
     } catch (err) { console.log("отзыв", err); }
   }
 
+  // Покупатель прислал фото: часто он не описывает, а показывает — пятно, не тот оттенок.
+  // Кладём картинку в общую ленту чата и сразу шлём менеджеру.
+  if (msg.photo && msg.photo.length) {
+    let cust = null;
+    try { cust = app.findFirstRecordByFilter("customers", "tg_chat = {:c}", { c: String(chat) }); } catch (_) {}
+    if (cust) {
+      try {
+        const info = shop.tg(token, "getFile", { file_id: msg.photo[msg.photo.length - 1].file_id });
+        let file = null;
+        if (info && info.ok) {
+          file = $filesystem.fileFromURL(`https://api.telegram.org/file/bot${token}/${info.result.file_path}`, 60);
+          file.name = "photo.jpg";
+        }
+        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, String(msg.caption || ""), "tg", file);
+        return shop.tg(token, "sendMessage", { chat_id: chat, text: "Спасибо, фото получили — сейчас посмотрим." });
+      } catch (err) {
+        console.log("фото из чата", err);
+        require(`${__hooks}/lib/err.js`).note(app, "Чат", String(err), "фото от покупателя");
+      }
+    }
+  }
+
   // Обычное сообщение — это вопрос живому человеку. Кладём его в общую ленту чата,
   // менеджер ответит из админки, и ответ вернётся сюда же. Автоответ не шлём:
   // «Заказ №N — Подтверждён» на вопрос «а можно к 18?» выглядит глухо.

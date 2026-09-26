@@ -7,11 +7,23 @@
 // Покупатель пишет
 routerAdd("POST", "/api/shop/chat/send", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  const b = e.requestInfo().body || {};
+  // Сообщение приходит либо обычным JSON, либо формой с файлом — фото из чата.
+  let b = {}, file = null;
+  const ct = String(e.request.header.get("Content-Type") || "");
+  if (ct.indexOf("multipart/form-data") >= 0) {
+    e.request.parseMultipartForm(14 << 20);
+    const form = e.request.multipartForm;
+    const val = (n) => { const v = form.value[n]; return v && v.length ? String(v[0]) : ""; };
+    b = { token: val("token"), text: val("text"), order: val("order") };
+    const fh = (form.file["photo"] || [])[0];
+    if (fh) file = $filesystem.fileFromMultipart(fh);
+  } else {
+    b = e.requestInfo().body || {};
+  }
   const token = String(b.token || "").trim();
   const text = String(b.text || "").trim().slice(0, 2000);
   if (token.length < 16 || token.length > 64) return e.json(400, { message: "Обновите страницу." });
-  if (!text) return e.json(400, { message: "Напишите сообщение." });
+  if (!text && !file) return e.json(400, { message: "Напишите сообщение." });
 
   // не даём завалить нас сообщениями с одной вкладки
   const recent = $app.findRecordsByFilter("chat_messages",
@@ -46,7 +58,7 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
   if (b.name && !chat.get("name")) chat.set("name", String(b.name).slice(0, 120));
   if (b.phone && !chat.get("phone")) chat.set("phone", String(b.phone).slice(0, 40));
 
-  chat.set("last_text", text.slice(0, 300));
+  chat.set("last_text", (text || "📷 фото").slice(0, 300));
   chat.set("last_at", new Date().toISOString());
   chat.set("unread", (+chat.get("unread") || 0) + 1);
   chat.set("answered", false);
@@ -59,6 +71,7 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
   m.set("side", "client");
   m.set("text", text);
   m.set("via", "site");
+  if (file) m.set("photo", file);
   $app.save(m);
 
   // дублируем в служебный бот: ответить можно прямо оттуда, реплаем
@@ -74,9 +87,13 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
     } catch (_) {}
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", {
       chat_id: adm,
-      text: `💬 Чат на сайте — ${who}\n\n«${text.slice(0, 900)}»\n\nОтветьте на это сообщение [chat:${chat.id}]`,
+      text: `💬 Чат на сайте — ${who}\n\n«${(text || "прислал фото").slice(0, 900)}»\n\nОтветьте на это сообщение [chat:${chat.id}]`,
       reply_markup: { force_reply: true },
     }));
+    if (file) {
+      const path = `${$app.dataDir()}/storage/${m.collection().id}/${m.id}/${m.get("photo")}`;
+      shop.adminIds(s).forEach((adm) => shop.tgPhoto(s.get("tg_token"), adm, path, `Фото из чата — ${who}`));
+    }
   } catch (err) { console.log("chat tg", err); }
 
   return e.json(200, { ok: true });
@@ -91,7 +108,9 @@ routerAdd("GET", "/api/shop/chat", (e) => {
   if (!chat) return e.json(200, { messages: [] });
   const list = $app.findRecordsByFilter("chat_messages", "chat = {:c}", "created", 100, 0, { c: chat.id });
   return e.json(200, {
-    messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created") })),
+    messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"),
+      photo: m.get("photo") ? `/api/files/chat_messages/${m.id}/${m.get("photo")}?thumb=480x0` : undefined,
+      big: m.get("photo") ? `/api/files/chat_messages/${m.id}/${m.get("photo")}` : undefined })),
   });
 });
 
@@ -146,15 +165,28 @@ routerAdd("GET", "/api/shop/chat-one", (e) => {
   orders.sort((a, b2) => b2.number - a.number);
   return e.json(200, {
     name: chat.get("name") || "", phone: chat.get("phone") || "", orders, customer: chat.get("customer") || "",
-    messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"), author: m.get("author") || "", via: m.get("via") || "site" })),
+    messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"), author: m.get("author") || "", via: m.get("via") || "site",
+      photo: m.get("photo") ? `/api/files/chat_messages/${m.id}/${m.get("photo")}?thumb=480x0` : undefined,
+      big: m.get("photo") ? `/api/files/chat_messages/${m.id}/${m.get("photo")}` : undefined })),
   });
 }, $apis.requireAuth("managers"));
 
 // Админка: ответить
 routerAdd("POST", "/api/shop/chat-reply", (e) => {
-  const b = e.requestInfo().body || {};
+  let b = {}, file = null;
+  const ct = String(e.request.header.get("Content-Type") || "");
+  if (ct.indexOf("multipart/form-data") >= 0) {
+    e.request.parseMultipartForm(14 << 20);
+    const form = e.request.multipartForm;
+    const val = (n) => { const v = form.value[n]; return v && v.length ? String(v[0]) : ""; };
+    b = { chat: val("chat"), text: val("text"), author: val("author") };
+    const fh = (form.file["photo"] || [])[0];
+    if (fh) file = $filesystem.fileFromMultipart(fh);
+  } else {
+    b = e.requestInfo().body || {};
+  }
   const text = String(b.text || "").trim().slice(0, 2000);
-  if (!text) return e.json(400, { message: "Пустой ответ" });
+  if (!text && !file) return e.json(400, { message: "Пустой ответ" });
   let chat;
   try { chat = $app.findRecordById("chats", String(b.chat || "")); } catch (_) { return e.json(404, { message: "Диалог не найден" }); }
 
@@ -163,9 +195,10 @@ routerAdd("POST", "/api/shop/chat-reply", (e) => {
   m.set("side", "shop");
   m.set("text", text);
   m.set("author", String(b.author || "").slice(0, 120));
+  if (file) m.set("photo", file);
   $app.save(m);
 
-  chat.set("last_text", text.slice(0, 300));
+  chat.set("last_text", (text || "📷 фото").slice(0, 300));
   chat.set("last_at", new Date().toISOString());
   chat.set("answered", true);
   chat.set("unread", 0);
@@ -173,7 +206,10 @@ routerAdd("POST", "/api/shop/chat-reply", (e) => {
 
   // человек писал из бота — туда ответ и доставляем
   let sent = { ok: true };
-  try { sent = require(`${__hooks}/lib/chat.js`).deliver($app, chat, text); } catch (err) { console.log("доставка ответа", err); sent = { ok: false, error: "Не вышло отправить" }; }
+  try {
+    const path = file ? `${$app.dataDir()}/storage/${m.collection().id}/${m.id}/${m.get("photo")}` : "";
+    sent = require(`${__hooks}/lib/chat.js`).deliver($app, chat, text, path);
+  } catch (err) { console.log("доставка ответа", err); sent = { ok: false, error: "Не вышло отправить" }; }
   return e.json(200, { ok: true, warn: sent.ok ? undefined : sent.error });
 }, $apis.requireAuth("managers"));
 

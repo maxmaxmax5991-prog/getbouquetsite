@@ -51,12 +51,13 @@ function chatFor(app, cust, from) {
   return chat;
 }
 
-// Сообщение покупателя из бота — кладём в общую ленту и зовём менеджера
-function fromClient(app, cust, text, from) {
+// Сообщение покупателя из бота — кладём в общую ленту и зовём менеджера.
+// file — картинка, если прислали фото (покупатели часто показывают, а не описывают)
+function fromClient(app, cust, text, from, file) {
   const t = String(text || "").trim().slice(0, 2000);
-  if (!t) return null;
+  if (!t && !file) return null;
   const chat = chatFor(app, cust, from);
-  chat.set("last_text", t.slice(0, 300));
+  chat.set("last_text", (t || "📷 фото").slice(0, 300));
   chat.set("last_at", new Date().toISOString());
   chat.set("unread", (+chat.get("unread") || 0) + 1);
   chat.set("answered", false);
@@ -67,6 +68,7 @@ function fromClient(app, cust, text, from) {
   m.set("side", "client");
   m.set("text", t);
   m.set("via", from);
+  if (file) m.set("photo", file);
   app.save(m);
 
   try {
@@ -75,15 +77,19 @@ function fromClient(app, cust, text, from) {
     const who = [chat.get("name"), chat.get("phone")].filter(Boolean).join(", ") || "покупатель";
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", {
       chat_id: adm,
-      text: `💬 ${where} — ${who}\n\n«${t.slice(0, 900)}»\n\nОтветьте на это сообщение [chat:${chat.id}]`,
+      text: `💬 ${where} — ${who}\n\n«${(t || "прислал фото").slice(0, 900)}»\n\nОтветьте на это сообщение [chat:${chat.id}]`,
       reply_markup: { force_reply: true },
     }));
+    if (file) {
+      const path = `${app.dataDir()}/storage/${m.collection().id}/${m.id}/${m.get("photo")}`;
+      shop.adminIds(s).forEach((adm) => shop.tgPhoto(s.get("tg_token"), adm, path, `Фото из чата — ${who}`));
+    }
   } catch (err) { console.log("chat from bot", err); }
   return chat;
 }
 
 // Ответ менеджера: в ленту он уже записан, здесь доставляем его человеку
-function deliver(app, chat, text) {
+function deliver(app, chat, text, photoPath) {
   const from = String(chat.get("last_from") || "site");
   if (from === "site") return { ok: true };            // сайт заберёт сам, когда покупатель откроет окно
   let cust = null;
@@ -91,12 +97,16 @@ function deliver(app, chat, text) {
   if (!cust) return { ok: false, error: "Не знаем, кому писать." };
   const s = shop.settings(app);
   if (from === "tg" && cust.get("tg_chat")) {
-    const r = shop.tg(shop.clientToken(s), "sendMessage", { chat_id: cust.get("tg_chat"), text });
+    const r = photoPath
+      ? shop.tgPhoto(shop.clientToken(s), cust.get("tg_chat"), photoPath, text)
+      : shop.tg(shop.clientToken(s), "sendMessage", { chat_id: cust.get("tg_chat"), text });
     return r && r.ok ? { ok: true } : { ok: false, error: "Телеграм не принял сообщение." };
   }
   if (from === "max" && cust.get("max_chat")) {
     const mx = require(`${__hooks}/lib/max.js`);
-    const r = mx.send(s.get("max_token"), cust.get("max_chat"), text);
+    const r = photoPath
+      ? mx.sendPhoto(s.get("max_token"), cust.get("max_chat"), photoPath, text)
+      : mx.send(s.get("max_token"), cust.get("max_chat"), text);
     return r && r.ok ? { ok: true } : { ok: false, error: (r && r.error) || "MAX не принял сообщение." };
   }
   return { ok: false, error: "У покупателя нет этого мессенджера." };

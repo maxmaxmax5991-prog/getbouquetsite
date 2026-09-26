@@ -111,6 +111,7 @@ label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .chat2-msg{max-width:72%;padding:9px 12px;border-radius:14px;font-size:13.5px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
 .chat2-msg.client{align-self:flex-start;background:var(--paper);border:1px solid var(--line)}
 .chat2-msg.shop{align-self:flex-end;background:var(--accent);color:#fff}
+.chat2-msg img{display:block;max-width:100%;width:240px;border-radius:10px;margin-bottom:4px}
 .chat2-msg .t{display:block;margin-top:3px;font-size:10.5px;opacity:.65}
 .chat2-foot{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}
 .chat2-foot .in{flex:1}
@@ -346,6 +347,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div class="chat2-head" id="chatWho">Выберите диалог слева</div>
           <div class="chat2-body" id="chatThread"></div>
           <form class="chat2-foot" id="chatReply" hidden>
+            <input type="file" id="chatFile2" accept="image/*,.heic,.heif" hidden>
+            <button type="button" class="btn btn-g" id="chatClip2" aria-label="Прикрепить фото" style="width:44px;padding:0">📎</button>
             <input class="in" id="chatInput" placeholder="Ответ покупателю…" maxlength="2000" autocomplete="off">
             <button class="btn btn-p" type="submit">Ответить</button>
           </form>
@@ -1524,18 +1527,35 @@ const openChat = safe(async (id, quiet) => {
   $('#chatInput').placeholder = vias.length ? `Ответ уйдёт ${VIA_RU[(d.messages.filter(m => m.side === 'client').pop() || {}).via] === 'сайт' ? 'в чат на сайте' : 'в ' + (VIA_RU[(d.messages.filter(m => m.side === 'client').pop() || {}).via] || 'чат')}…` : 'Ответ покупателю…'
     + (d.orders && d.orders.length ? `<small>Заказы: ${d.orders.map(o => `№${o.number} — ${esc(o.status)}, ${rub(o.total)}`).join(' · ')}</small>` : '<small>Заказов на сайте нет</small>');
   $('#chatThread').innerHTML = (d.messages || []).map(m =>
-    `<div class="chat2-msg ${m.side}">${esc(m.text)}<span class="t">${chatAt(m.at)} · ${VIA_RU[m.via] || 'сайт'}${m.author ? ' · ' + esc(m.author) : ''}</span></div>`).join('');
+    `<div class="chat2-msg ${m.side}">${m.photo ? `<a href="${m.big}" target="_blank" rel="noopener"><img src="${m.photo}" alt="фото"></a>` : ''}${esc(m.text || '')}<span class="t">${chatAt(m.at)} · ${VIA_RU[m.via] || 'сайт'}${m.author ? ' · ' + esc(m.author) : ''}</span></div>`).join('');
   $('#chatThread').scrollTop = $('#chatThread').scrollHeight;
   $('#chatReply').hidden = false;
   if (!quiet) $$('.chat2-item').forEach(b => b.setAttribute('aria-current', b.dataset.chat === id));
 });
 $('#chatList').addEventListener('click', e => { const b = e.target.closest('[data-chat]'); if (b) { openChat(b.dataset.chat); loadChats(); } });
+$('#chatClip2').onclick = () => $('#chatFile2').click();
+$('#chatFile2').onchange = () => {
+  const f = $('#chatFile2').files[0];
+  if (f) $('#chatInput').placeholder = `📷 ${f.name} — напишите подпись и нажмите «Ответить»`;
+};
 $('#chatReply').addEventListener('submit', safe(async e => {
   e.preventDefault();
   const text = $('#chatInput').value.trim();
-  if (!text || !CHAT) return;
+  const f = $('#chatFile2').files[0];
+  if ((!text && !f) || !CHAT) return;
   $('#chatInput').value = '';
-  await api('/api/shop/chat-reply', { method: 'POST', body: { chat: CHAT, text, author: (auth && auth.record && auth.record.name) || '' } });
+  let r;
+  if (f) {
+    const fd = new FormData();
+    fd.append('chat', CHAT); fd.append('text', text);
+    fd.append('author', (auth && auth.email) || '');
+    fd.append('photo', f);
+    r = await api('/api/shop/chat-reply', { method: 'POST', body: fd });
+    $('#chatFile2').value = ''; $('#chatInput').placeholder = 'Ответ покупателю…';
+  } else {
+    r = await api('/api/shop/chat-reply', { method: 'POST', body: { chat: CHAT, text, author: (auth && auth.email) || '' } });
+  }
+  if (r && r.warn) toast(r.warn, true);
   openChat(CHAT, true); loadChats();
 }));
 // новые сообщения подтягиваем сами, пока вкладка открыта
