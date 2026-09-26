@@ -83,12 +83,14 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
   chat.set("unread", (+chat.get("unread") || 0) + 1);
   chat.set("answered", false);
   chat.set("closed", false);
+  chat.set("last_from", "site");
   $app.save(chat);
 
   const m = new Record($app.findCollectionByNameOrId("chat_messages"));
   m.set("chat", chat.id);
   m.set("side", "client");
   m.set("text", text);
+  m.set("via", "site");
   $app.save(m);
 
   // дублируем в служебный бот: ответить можно прямо оттуда, реплаем
@@ -131,7 +133,7 @@ routerAdd("GET", "/api/shop/chats", (e) => {
     chats: list.map((c) => ({
       id: c.id, name: c.get("name") || "", phone: c.get("phone") || "",
       last_text: c.get("last_text") || "", last_at: c.get("last_at") || "",
-      unread: +c.get("unread") || 0, answered: !!c.get("answered"), customer: c.get("customer") || "",
+      unread: +c.get("unread") || 0, answered: !!c.get("answered"), customer: c.get("customer") || "", from: c.get("last_from") || "site",
       order: (() => {
         try {
           const tail = String(c.get("phone") || "").replace(/\D/g, "").slice(-10);
@@ -175,7 +177,7 @@ routerAdd("GET", "/api/shop/chat-one", (e) => {
   orders.sort((a, b2) => b2.number - a.number);
   return e.json(200, {
     name: chat.get("name") || "", phone: chat.get("phone") || "", orders, customer: chat.get("customer") || "",
-    messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"), author: m.get("author") || "" })),
+    messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"), author: m.get("author") || "", via: m.get("via") || "site" })),
   });
 }, $apis.requireAuth("managers"));
 
@@ -199,7 +201,11 @@ routerAdd("POST", "/api/shop/chat-reply", (e) => {
   chat.set("answered", true);
   chat.set("unread", 0);
   $app.save(chat);
-  return e.json(200, { ok: true });
+
+  // человек писал из бота — туда ответ и доставляем
+  let sent = { ok: true };
+  try { sent = require(`${__hooks}/lib/chat.js`).deliver($app, chat, text); } catch (err) { console.log("доставка ответа", err); sent = { ok: false, error: "Не вышло отправить" }; }
+  return e.json(200, { ok: true, warn: sent.ok ? undefined : sent.error });
 }, $apis.requireAuth("managers"));
 
 // Человек написал до входа, потом вошёл (или оформил заказ) — привязываем диалог к нему.

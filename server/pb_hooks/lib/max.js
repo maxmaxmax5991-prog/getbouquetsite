@@ -245,7 +245,20 @@ function handle(app, u) {
     ]);
   }
 
-  // обычное сообщение: состояние последнего заказа
+  // Обычное сообщение — вопрос живому человеку: кладём в общую ленту чата,
+  // менеджер ответит из админки, ответ вернётся сюда же.
+  if (text) {
+    let cust = null;
+    try { cust = app.findFirstRecordByFilter("customers", "max_chat = {:c}", { c: String(userId) }); } catch (_) {}
+    if (cust) {
+      try {
+        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, text, "max");
+        return;
+      } catch (err) { console.log("чат из MAX", err); }
+    }
+  }
+
+  // не знаем, кто это: показываем состояние последнего заказа
   let last = null;
   try { last = app.findFirstRecordByFilter("orders", "max_chat = {:c}", { c: String(userId) }); } catch (_) {}
   if (last) {

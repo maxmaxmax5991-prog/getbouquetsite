@@ -328,8 +328,20 @@ function handleClient(app, upd) {
     return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.${site1 ? `\n\nСтраница заказа: ${site1}/#/order/${order.get("tg_code")}` : ""}` });
   }
 
-  // обычное сообщение: показываем состояние последнего заказа
+  // Обычное сообщение — это вопрос живому человеку. Кладём его в общую ленту чата,
+  // менеджер ответит из админки, и ответ вернётся сюда же. Автоответ не шлём:
+  // «Заказ №N — Подтверждён» на вопрос «а можно к 18?» выглядит глухо.
   const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  if (text) {
+    let cust = null;
+    try { cust = app.findFirstRecordByFilter("customers", "tg_chat = {:c}", { c: String(chat) }); } catch (_) {}
+    if (cust) {
+      try {
+        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, text, "tg");
+        return;
+      } catch (err) { console.log("чат из Телеграма", err); }
+    }
+  }
   let last = null;
   try { last = app.findFirstRecordByFilter("orders", "tg_chat = {:c}", { c: String(chat) }); } catch (_) {}
   if (last) {
@@ -449,7 +461,10 @@ function handle(app, secret, upd) {
     c.set("answered", true);
     c.set("unread", 0);
     app.save(c);
-    return shop.tg(token, "sendMessage", { chat_id: chat, text: "Ответ отправлен в чат на сайте." });
+    let sent = { ok: true };
+    try { sent = require(`${__hooks}/lib/chat.js`).deliver(app, c, text); } catch (_) {}
+    const where = c.get("last_from") === "tg" ? "в Телеграм" : c.get("last_from") === "max" ? "в MAX" : "в чат на сайте";
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: sent.ok ? `Ответ отправлен ${where}.` : `Записал, но доставить не вышло: ${sent.error}` });
   }
 
   // фото готового букета для клиента

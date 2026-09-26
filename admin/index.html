@@ -392,6 +392,22 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <section id="tab-settings" hidden>
       <div class="stack">
         <div class="card stack">
+          <h2>Сотрудники</h2>
+          <p class="hint">Кто и что может:<br>
+            <b>Менеджер</b> — чаты и заказы, может заменить сорт в заказе. Больше ничего.<br>
+            <b>Управляющий</b> — то же плюс остатки и «в пути».<br>
+            <b>Владелец</b> — всё: товары, цены, доставка, настройки, сотрудники.</p>
+          <div id="staffList" class="stack"></div>
+          <div class="row" style="align-items:flex-end">
+            <label class="f" for="stEmail">Почта<input class="in" id="stEmail" type="email" placeholder="почта@пример.ру"></label>
+            <label class="f" for="stName" style="max-width:190px">Имя<input class="in" id="stName" placeholder="Как зовут"></label>
+            <label class="f" for="stRole" style="max-width:170px">Роль<select class="in" id="stRole"><option value="manager">Менеджер</option><option value="head">Управляющий</option><option value="owner">Владелец</option></select></label>
+            <label class="f" for="stPass" style="max-width:190px">Пароль<input class="in" id="stPass" type="password" autocomplete="new-password" placeholder="не короче 8 знаков"></label>
+            <button class="btn btn-p" id="stAdd">Добавить</button>
+          </div>
+          <p class="hint">Пароль придумываете вы и передаёте сотруднику сами — мы его не показываем и восстановить не сможем, только заменить.</p>
+        </div>
+        <div class="card stack">
           <h2>Магазин</h2>
           <div class="row">
             <label class="f" for="sPhone">Телефон на сайте<input class="in" id="sPhone" placeholder="+7 900 000-00-00"></label>
@@ -1002,6 +1018,49 @@ $('#eSave').onclick = safe(async () => {
 const slugify = s => s.toLowerCase().replace(/[^a-zа-яё0-9]+/g, '-').replace(/^-|-$/g, '')
   .replace(/[а-яё]/g, c => ({ а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya' }[c] || '')).slice(0, 40) || 'razdel';
 let CATUSE = [];
+/* ---------- сотрудники ---------- */
+const ROLE_RU = { owner: 'Владелец', head: 'Управляющий', manager: 'Менеджер' };
+const VIA_RU = { site: 'сайт', tg: 'Телеграм', max: 'MAX' };
+const loadStaff = safe(async () => {
+  if (!ME.can.all) return;
+  const d = await api('/api/shop/staff');
+  $('#staffList').innerHTML = (d.staff || []).map(m => `
+    <div class="row" data-st="${m.id}" style="align-items:flex-end">
+      <div class="f" style="flex:1"><b>${esc(m.name || m.email)}</b><span class="hint">${esc(m.email)}${m.me ? ' · это вы' : ''}</span></div>
+      <label class="f" style="max-width:170px">Роль<select class="in" data-strole>${Object.entries(ROLE_RU).map(([k, t]) => `<option value="${k}"${k === m.role ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+      <button class="btn btn-g btn-s" data-stpass>Сменить пароль</button>
+      ${m.me ? '' : '<button class="btn btn-g btn-s" data-strm>Удалить</button>'}
+    </div>`).join('') || '<div class="empty">Пока только вы.</div>';
+});
+$('#staffList').addEventListener('change', safe(async e => {
+  if (!e.target.matches('[data-strole]')) return;
+  const id = e.target.closest('[data-st]').dataset.st;
+  await api('/api/shop/staff-edit', { method: 'POST', body: { id, role: e.target.value } });
+  toast('Роль изменена'); loadStaff();
+}));
+$('#staffList').addEventListener('click', safe(async e => {
+  const row = e.target.closest('[data-st]');
+  if (!row) return;
+  const id = row.dataset.st;
+  if (e.target.matches('[data-strm]')) {
+    if (!confirm('Удалить сотрудника? Он больше не сможет войти.')) return;
+    await api('/api/shop/staff-edit', { method: 'POST', body: { id, remove: true } });
+    toast('Удалён'); return loadStaff();
+  }
+  if (e.target.matches('[data-stpass]')) {
+    const pass = prompt('Новый пароль (не короче 8 знаков):');
+    if (!pass) return;
+    await api('/api/shop/staff-edit', { method: 'POST', body: { id, password: pass } });
+    toast('Пароль изменён');
+  }
+}));
+$('#stAdd').onclick = safe(async () => {
+  const body = { email: $('#stEmail').value.trim(), name: $('#stName').value.trim(), role: $('#stRole').value, password: $('#stPass').value };
+  await api('/api/shop/staff', { method: 'POST', body });
+  $('#stEmail').value = ''; $('#stName').value = ''; $('#stPass').value = '';
+  toast('Сотрудник добавлен'); loadStaff();
+});
+
 /* ---------- чат ---------- */
 /* Переписка с сайта: слева диалоги, справа переписка и ответ.
    То же самое дублируется в служебный бот — можно отвечать реплаем оттуда. */
@@ -1015,7 +1074,7 @@ const loadChats = safe(async () => {
       ${c.unread ? `<span class="dot">${c.unread}</span>` : ''}
       <b>${esc(c.name || 'Гость с сайта')}${c.phone ? ' · ' + esc(c.phone) : ''}${c.order ? ' · №' + esc(c.order) : ''}${c.customer ? '' : ' <span class="pill st-new" style="font-size:10px;padding:0 6px;height:17px">гость</span>'}</b>
       <span>${esc(c.last_text || '')}</span>
-      <span>${chatAt(c.last_at)}</span>
+      <span>${chatAt(c.last_at)} · ${VIA_RU[c.from] || 'сайт'}</span>
     </button>`).join('') : '<div class="empty">Пока никто не писал.</div>';
   const un = CHATS.reduce((n, c) => n + (c.unread || 0), 0);
   $('#chatCount').hidden = !un; $('#chatCount').textContent = un;
@@ -1025,10 +1084,12 @@ const openChat = safe(async (id, quiet) => {
   CHAT = id;
   const d = await api(`/api/shop/chat-one?chat=${encodeURIComponent(id)}`);
   $('#chatWho').innerHTML = `${esc(d.name || 'Гость с сайта')}${d.phone ? ` · <a href="tel:${esc(d.phone.replace(/[^\d+]/g, ''))}">${esc(d.phone)}</a>` : ''}`
-    + (d.customer ? '' : '<small style="color:var(--sale)">Личность не подтверждена — не называйте адрес и состав чужого заказа, попросите войти на сайте</small>')
+    + (d.customer ? '' : '<small style="color:var(--sale)">Личность не подтверждена — не называйте адрес и состав чужого заказа, попросите войти на сайте</small>');
+  const vias = [...new Set((d.messages || []).filter(m => m.side === 'client').map(m => m.via || 'site'))];
+  $('#chatInput').placeholder = vias.length ? `Ответ уйдёт ${VIA_RU[(d.messages.filter(m => m.side === 'client').pop() || {}).via] === 'сайт' ? 'в чат на сайте' : 'в ' + (VIA_RU[(d.messages.filter(m => m.side === 'client').pop() || {}).via] || 'чат')}…` : 'Ответ покупателю…'
     + (d.orders && d.orders.length ? `<small>Заказы: ${d.orders.map(o => `№${o.number} — ${esc(o.status)}, ${rub(o.total)}`).join(' · ')}</small>` : '<small>Заказов на сайте нет</small>');
   $('#chatThread').innerHTML = (d.messages || []).map(m =>
-    `<div class="chat2-msg ${m.side}">${esc(m.text)}<span class="t">${chatAt(m.at)}${m.author ? ' · ' + esc(m.author) : ''}</span></div>`).join('');
+    `<div class="chat2-msg ${m.side}">${esc(m.text)}<span class="t">${chatAt(m.at)} · ${VIA_RU[m.via] || 'сайт'}${m.author ? ' · ' + esc(m.author) : ''}</span></div>`).join('');
   $('#chatThread').scrollTop = $('#chatThread').scrollHeight;
   $('#chatReply').hidden = false;
   if (!quiet) $$('.chat2-item').forEach(b => b.setAttribute('aria-current', b.dataset.chat === id));
@@ -1701,6 +1762,7 @@ $('#rpSave').onclick = safe(async () => {
 
 /* ---------- настройки ---------- */
 const loadSettings = safe(async () => {
+  loadStaff();
   await loadSettings0();
   renderUpload();
   $('#sPhone').value = S.phone || ''; $('#sUrl').value = S.site_url || location.origin;
