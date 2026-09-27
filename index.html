@@ -204,6 +204,12 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .buy.gone{font-size:12.5px;line-height:1.25;text-align:center;padding:0 10px}
 .card.is-gone .card-img img{filter:grayscale(.55) opacity(.6)}
 .card.is-gone h3{opacity:.65}
+/* выключенный сорт: показываем, но в тумане — видно, что он у нас бывает */
+.card.is-off .card-img img{filter:blur(6px) grayscale(.5) opacity(.75);transform:scale(1.06)}
+.card.is-off .card-img{position:relative}
+.card.is-off .card-img::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,.35)}
+.card.is-off h3,.card.is-off .price{opacity:.6}
+.card.is-off .fav,.card.is-off .count-tag{display:none}
 .card-note{margin-top:8px;min-height:34px;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;line-height:1.25}
 .card-note.fresh{background:var(--leaf-soft);color:var(--leaf)}
 .card-note.way{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent-text)}
@@ -775,7 +781,7 @@ const parseKey = k => { const [id, label = ''] = k.split('|'); return { id, labe
 const cardKey = p => p.variants ? `${p.id}|${curLabel(p)}` : p.id;
 for (const k of Object.keys(cart)) {
   const { id, label } = parseKey(k), p = byId[id];
-  if (!p || (p.variants ? !variant(p, label) : label)) delete cart[k];
+  if (!p || p.off || (p.variants ? !variant(p, label) : label)) delete cart[k];
 }
 const keyPrice = k => { const { id, label } = parseKey(k), p = byId[id]; return label ? variant(p, label).price : p.price; };
 const keyBonus = k => byId[parseKey(k).id].bonus || 0;
@@ -807,6 +813,7 @@ function buyHTML(p) {
   if (p.no_price || !(keyPrice(cardKey(p)) > 0)) return '<span class="buy soon">Цену уточняем</span>';
   // весь сорт или выбранный размер закончился — показываем, но продать не даём
   const cv = p.variants ? variant(p, curLabel(p)) : null;
+  if (p.off) return '<span class="buy soon gone">Товар закончился — новая срезка уже скоро</span>';
   if (p.soldout || (cv && cv.out)) return '<span class="buy soon gone">Закончились, ждём в следующую срезку</span>';
   const k = cardKey(p), n = cart[k];
   return n
@@ -844,7 +851,7 @@ function card(p) {
   const tag = p.badge_text ? `<span class="tag own">${esc(p.badge_text)}</span>`
     : p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
-  return `<article class="card${p.soldout ? ' is-gone' : ''}" data-id="${p.id}">
+  return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}">
     <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
     <div class="card-note${readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${readyShort(p) ? `🚚 ${esc(readyShort(p))}` : p.fresh ? '🌿 <b class="wide">Этот сорт сегодня приехал к нам напрямую с теплицы</b><b class="slim">Сегодня с теплицы</b>' : ''}</div>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
@@ -872,11 +879,12 @@ document.addEventListener('click', e => {
 /* ---------- home ---------- */
 // В «Популярные» попадают все букеты, кроме открыток и игрушек, — галочку
 // у нового товара ставить не нужно, он появляется здесь сам.
-const POPULAR = API ? P.filter(p => !isAddon(p)).map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
+// на главной только то, что можно купить: погасшие сорта живут в каталоге
+const POPULAR = API ? P.filter(p => !isAddon(p) && !p.off).map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = POPULAR.map(id => card(byId[id])).join('');
 const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
-  const pic = (!API && TILE_IMG[k]) || (P.find(p => p.cat === k) || {}).id;
+  const pic = (!API && TILE_IMG[k]) || (P.find(p => p.cat === k && !p.off) || P.find(p => p.cat === k) || {}).id;
   // считаем то, что есть в наличии; пусто — обещаем привезти, а не пишем «0 позиций»
   const n = count[k] || 0;
   const note = n ? `${n} ${plural(n, 'позиция', 'позиции', 'позиций')}` : 'скоро подвезём';
@@ -904,7 +912,8 @@ function list() {
   if (q && !state.favOnly && state.cat === 'all') r = P.filter(p => p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
   if (state.sort === 'asc') r = [...r].sort((a, b) => a.price - b.price);
   if (state.sort === 'desc') r = [...r].sort((a, b) => b.price - a.price);
-  return r;
+  // выключенные сорта всегда внизу: они для настроения, а не для покупки
+  return [...r].sort((a, b) => (a.off ? 1 : 0) - (b.off ? 1 : 0));
 }
 function renderGrid() {
   const r = list();

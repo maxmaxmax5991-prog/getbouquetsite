@@ -126,9 +126,7 @@ function catalog(app) {
   const cats = app.findRecordsByFilter("categories", "active = true", "sort", 100, 0);
   const catById = {};
   cats.forEach((c) => catById[c.id] = c);
-  const products = app.findRecordsByFilter("products", "active = true", "sort,-created", 1000, 0)
-    .filter((p) => catById[p.get("category")])
-    .map((p) => {
+  const card = (p) => {
       const photos = p.get("photo") || [];
       // сколько цветов на самом снимке — подпись поверх фото берётся отсюда, а не из выбранного размера
       const counts = jget(p, "photo_counts") || {};
@@ -183,7 +181,27 @@ function catalog(app) {
         featured: p.get("featured") && cut ? { cut: fileUrl(p, cut), mood: p.get("mood") || "", tint: p.get("tint") || "#E0178A" } : undefined,
         description: p.get("description") || undefined,
       };
+  };
+
+  const products = app.findRecordsByFilter("products", "active = true", "sort,-created", 1000, 0)
+    .filter((p) => catById[p.get("category")])
+    .map(card);
+
+  // Выключенные розы тоже показываем в плитке — размытыми и без возможности купить:
+  // покупатель видит, что сорт у нас бывает, и вернётся за ним. Только одноголовые и
+  // кустовые и только со снимком — карточка без фотографии выглядела бы сломанной.
+  const OFF = ["single", "kustovye-rozy"];
+  app.findRecordsByFilter("products", "active = false", "sort,-created", 300, 0)
+    .filter((p) => catById[p.get("category")] && OFF.indexOf(catById[p.get("category")].get("slug")) >= 0)
+    .filter((p) => (p.get("photo") || []).length)
+    .forEach((p) => {
+      const c = card(p);
+      c.off = true; c.soldout = true;
+      // в студию-карусель, в популярное и в «сегодня с теплицы» такой товар не попадает
+      c.featured = undefined; c.popular = undefined; c.fresh = undefined; c.ready_at = undefined;
+      products.push(c);
     });
+
   const zones = app.findRecordsByFilter("delivery_zones", "active = true", "sort", 100, 0)
     .map((z) => ({ id: z.id, name: z.get("name"), price: z.get("price"), free_from: z.get("free_from"), radius_km: +z.get("radius_km") || 0 }));
   return {
