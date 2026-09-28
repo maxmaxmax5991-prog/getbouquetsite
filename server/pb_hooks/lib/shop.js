@@ -147,7 +147,8 @@ function catalog(app) {
         cat: catById[p.get("category")].get("slug"),
         price: variants.length ? Math.min.apply(null, (variants.filter((v) => !v.out).length ? variants.filter((v) => !v.out) : variants).map((v) => v.price)) : p.get("price"),
         // всё закончилось — карточка гаснет и купить нельзя
-        soldout: variants.length && variants.every((v) => v.out) ? true : undefined,
+        soldout: (p.get("is_express") && !(+p.get("ready_qty") > 0))
+          || (variants.length && variants.every((v) => v.out)) ? true : undefined,
         // товар без цены (пустое поле в карточке) нельзя купить — сайт покажет его без кнопки
         no_price: variants.length ? undefined : (+p.get("price") > 0 ? undefined : true),
         bonus: p.get("bonus") || 0,
@@ -162,6 +163,9 @@ function catalog(app) {
         variants: variants.length ? variants : undefined,
         def_label: defVar ? defVar.label : undefined,
         site_only: p.get("site_only") ? true : undefined,
+        // экспресс: готовый букет, продаём штуками. Пусто — обычный товар.
+        express: p.get("is_express") ? true : undefined,
+        ready: p.get("is_express") ? Math.max(0, +p.get("ready_qty") || 0) : undefined,
         badge_text: String(p.get("badge_text") || "").trim() || undefined,
         // «сегодня с теплицы» — только в день завоза, назавтра само пропадёт
         fresh: String(p.get("fresh_date") || "") === moscowNow().date ? true : undefined,
@@ -375,6 +379,14 @@ function prepareOrder(app, rec) {
       }
       take.push({ p, len: m ? m[1] : "", stems: m ? +m[2] * qty : 0 });
     }
+    // экспресс-букет: проверяем, сколько готовых осталось
+    if (p.get("is_express")) {
+      const have = Math.max(0, +p.get("ready_qty") || 0);
+      if (have < qty) {
+        fail(have ? `«${p.get("name")}»: остался${have === 1 ? "" : "ось"} ${have} шт. Уменьшите количество.` : `«${p.get("name")}» уже разобрали.`);
+      }
+      take.push({ p, express: true, qty });
+    }
     items.push({ id: p.id, name: p.get("name"), label, label_text: label ? labelText(label) : "", price: +price, qty, sum: price * qty });
     sum += price * qty;
     bonus += (p.get("bonus") || 0) * qty;
@@ -482,6 +494,14 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   // Пишем запросом, а не сохранением товара: соседнее сохранение из копии,
   // прочитанной раньше, вернуло бы старое число обратно.
   take.forEach((t) => {
+    if (t.express) {
+      // готовых букетов стало меньше — пишем запросом, мимо сохранения записи
+      try {
+        app.db().newQuery("UPDATE products SET ready_qty = MAX(0, IFNULL(ready_qty,0) - {:n}) WHERE id = {:id}")
+          .bind({ n: t.qty, id: t.p.id }).execute();
+      } catch (err) { console.log("экспресс", t.p.id, err); }
+      return;
+    }
     if (!t.len || !t.stems) return;
     const st = stockOf(t.p);
     if (st[t.len] === undefined || st[t.len] === null) return;   // по этой длине учёта нет

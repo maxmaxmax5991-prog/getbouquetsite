@@ -718,6 +718,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <div class="bar" style="gap:18px">
       <div class="swl"><button class="sw" id="eOnly" role="switch" aria-checked="false" aria-label="Только на сайте"></button>Только на сайте</div>
       <div class="swl"><button class="sw" id="eFresh" role="switch" aria-checked="false" aria-label="Приехал сегодня"></button>Приехал сегодня с теплицы</div>
+      <div class="swl"><button class="sw" id="eExpress" role="switch" aria-checked="false" aria-label="Экспресс"></button>Экспресс — готовый букет</div>
+      <label class="f" for="eReady" style="max-width:190px;margin:0">Готовых букетов, шт<input class="in num" id="eReady" type="number" min="0" placeholder="сколько продать"></label>
       <div class="swl"><button class="sw" id="eFeatured" role="switch" aria-checked="false" aria-label="В карусели"></button>В карусели на главной</div>
     </div>
     <div class="row">
@@ -1033,6 +1035,8 @@ function openEditor(p) {
   $('#eTint').value = p && /^#[0-9a-f]{6}$/i.test(p.tint || '') ? p.tint : '#E0178A';
   $('#eDesc').value = p ? p.description || '' : '';
   sw($('#eActive'), p ? p.active : true); sw($('#eOnly'), p && p.site_only);
+  sw($('#eExpress'), !!(p && p.is_express));
+  $('#eReady').value = p && p.ready_qty != null ? p.ready_qty : '';
   sw($('#eFresh'), !!(p && p.fresh_date && p.fresh_date === new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10))); sw($('#eFeatured'), p && p.featured);
   // «цветы ещё едут»: в базе одной строкой «ГГГГ-ММ-ДД ЧЧ:ММ» по Москве
   const rd = String((p && p.ready_at) || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
@@ -1187,6 +1191,8 @@ $('#eSave').onclick = safe(async () => {
   fd.append('description', $('#eDesc').value.trim());
   fd.append('active', sw($('#eActive')));
   fd.append('site_only', sw($('#eOnly')));
+  fd.append('is_express', sw($('#eExpress')));
+  fd.append('ready_qty', $('#eReady').value === '' ? 0 : Math.max(0, +$('#eReady').value || 0));
   fd.append('fresh_date', sw($('#eFresh')) ? new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10) : '');
   const rdD = $('#eReadyDate').value, rdT = $('#eReadyTime').value;
   fd.append('ready_at', rdD && rdT ? `${rdD} ${rdT}` : '');
