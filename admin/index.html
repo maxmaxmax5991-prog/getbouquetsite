@@ -721,6 +721,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <div class="swl"><button class="sw" id="eFresh" role="switch" aria-checked="false" aria-label="Приехал сегодня"></button>Приехал сегодня с теплицы</div>
       <div class="swl"><button class="sw" id="eExpress" role="switch" aria-checked="false" aria-label="Экспресс"></button>Экспресс — готовый букет</div>
       <label class="f" for="eReady" style="max-width:190px;margin:0">Готовых букетов, шт<input class="in num" id="eReady" type="number" min="0" placeholder="сколько продать"></label>
+      <label class="f" for="eExpPrice" style="max-width:190px;margin:0" id="eExpPriceBox" hidden>Цена букета, ₽<input class="in num" id="eExpPrice" type="number" min="0" step="10"></label>
       <div class="swl"><button class="sw" id="eFeatured" role="switch" aria-checked="false" aria-label="В карусели"></button>В карусели на главной</div>
     </div>
     <div class="row">
@@ -1037,6 +1038,7 @@ function openEditor(p) {
   $('#eDesc').value = p ? p.description || '' : '';
   sw($('#eActive'), p ? p.active : true); sw($('#eOnly'), p && p.site_only);
   sw($('#eExpress'), !!(p && p.is_express));
+  $('#eExpPrice').value = p && p.is_express ? (p.price || '') : '';
   $('#eReady').value = p && p.ready_qty != null ? p.ready_qty : '';
   sw($('#eFresh'), !!(p && p.fresh_date && p.fresh_date === new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10))); sw($('#eFeatured'), p && p.featured);
   // «цветы ещё едут»: в базе одной строкой «ГГГГ-ММ-ДД ЧЧ:ММ» по Москве
@@ -1045,7 +1047,7 @@ function openEditor(p) {
   $('#eReadyTime').value = rd ? rd[2] : '';
   $('#featBox').hidden = !(p && p.featured);
   $('#eDel').hidden = !p;
-  renderPhotos(); renderCut(); renderMode();
+  renderPhotos(); renderCut(); renderMode(); expressMode();
   $('#ed').showModal();
 }
 function photoSrc(ph) { return ph.url || fileUrl(E.rec, ph.name, '160x160'); }
@@ -1077,6 +1079,19 @@ function renderCut() {
 }
 $('#eCut').addEventListener('click', e => { if (e.target.closest('[data-rmcut]')) { E.cutFile = null; E.cutRemoved = true; renderCut(); } });
 $('#eMode').onclick = e => { const b = e.target.closest('[data-mode]'); if (b) { readVars(); E.mode = b.dataset.mode; renderMode(); } };
+// У готового букета размеров не бывает: включили «Экспресс» — сразу одна цена,
+// и поле цены встаёт рядом с количеством, чтобы не искать его по всей форме.
+function expressMode() {
+  const on = sw($('#eExpress'));
+  $('#eExpPriceBox').hidden = !on;
+  $('#eMode').hidden = on;
+  if (on) {
+    if (E.mode !== 'single') { E.mode = 'single'; renderMode(); }
+    if (!$('#eExpPrice').value) $('#eExpPrice').value = $('#ePrice').value || '';
+  }
+}
+$('#eExpress').addEventListener('click', () => setTimeout(expressMode, 0));
+$('#eExpPrice').addEventListener('input', () => { $('#ePrice').value = $('#eExpPrice').value; });
 function renderMode() {
   $$('#eMode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === E.mode));
   $('#mVariants').hidden = E.mode !== 'variants'; $('#mLengths').hidden = E.mode !== 'lengths'; $('#mSingle').hidden = E.mode !== 'single';
@@ -1210,7 +1225,8 @@ $('#eSave').onclick = safe(async () => {
     if (new Set(vs.map(v => v.label)).size !== vs.length) return toast('Названия кнопок размеров повторяются', true);
     fd.append('variants', JSON.stringify(vs)); fd.append('lengths', 'null'); fd.append('price', Math.min(...vs.map(v => v.price)));
   } else {
-    if (!(+$('#ePrice').value > 0)) return toast('Укажите цену', true);
+    if (sw($('#eExpress')) && +$('#eExpPrice').value > 0) $('#ePrice').value = $('#eExpPrice').value;
+    if (!(+$('#ePrice').value > 0)) return toast('Укажите цену букета', true);
     fd.append('price', +$('#ePrice').value); fd.append('variants', 'null'); fd.append('lengths', 'null');
   }
   E.photos.filter(p => p.file).forEach(p => fd.append(E.rec ? 'photo+' : 'photo', p.file));
