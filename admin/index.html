@@ -728,7 +728,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <b id="ePartsTitle">Состав для МоегоСклада</b>
         <button class="btn btn-g btn-s" id="ePartAdd">Добавить цветок</button>
       </div>
-      <p class="hint">Что списать со склада, когда букет купят: номенклатура и сколько стеблей. Без состава букет уйдёт в МойСклад как одна штука, и остатки не сойдутся. Цена букета разложится по стеблям сама.</p>
+      <p class="hint">Что списать со склада, когда букет купят: номенклатура и сколько стеблей. Без состава букет уйдёт в МойСклад как одна штука, и остатки не сойдутся. Цена букета разложится по стеблям сама. Если в карточке несколько букетов, состав заполняется на каждый отдельно — кнопкой в таблице выше.</p>
       <div id="eParts" class="stack"></div>
       <div class="swl"><button class="sw" id="eFeatured" role="switch" aria-checked="false" aria-label="В карусели"></button>В карусели на главной</div>
     </div>
@@ -1126,7 +1126,7 @@ function renderVars() {
       <td><input class="in sm num" data-v="price" data-i="${i}" type="number" min="0" step="10" value="${v.price || ''}" style="width:110px"></td>
       ${exp
         ? `<td><input class="in sm num" data-v="ready" data-i="${i}" type="number" min="0" value="${v.ready ?? ''}" style="width:90px" placeholder="0"></td>
-           <td><button class="btn btn-g btn-s" data-vparts="${i}"${E.partsFor === i ? ' aria-pressed="true"' : ''}>${(v.parts || []).length ? `${(v.parts || []).length} поз.` : 'задать'}</button></td>`
+           <td><button class="btn btn-g btn-s" data-vparts="${i}"${E.partsFor === i ? ' aria-pressed="true"' : ''}>${E.partsFor === i ? 'правим ниже' : (v.parts || []).length ? `${(v.parts || []).length} поз.` : 'задать'}</button></td>`
         : `<td><select class="in sm" data-v="photo" data-i="${i}" style="width:100px">${opts(v.photo)}</select></td>
            <td><input type="checkbox" data-v="estimated" data-i="${i}"${v.estimated ? ' checked' : ''} aria-label="Расчётная цена"></td>`}
       <td><button class="btn btn-d btn-s" data-rmv="${i}">Убрать</button></td></tr>`).join('');
@@ -1177,9 +1177,17 @@ function renderParts() {
   // у экспресса с вариантами состав свой для каждого: правим тот, что выбрали кнопкой
   const vi = E.partsFor;
   const list = (vi !== undefined && E.variants[vi]) ? (E.variants[vi].parts || []) : (E.parts || []);
-  const title = (vi !== undefined && E.variants[vi]) ? `Состав варианта «${E.variants[vi].label || '?'}»` : 'Состав для МоегоСклада';
+  const title = (vi !== undefined && E.variants[vi]) ? `Состав букета «${E.variants[vi].label || '?'}»` : 'Состав для МоегоСклада';
   const h = $('#ePartsTitle'); if (h) h.textContent = title;
   E.partsList = list;
+  // вариантов несколько, а состав у каждого свой — сначала выбираем, чей правим
+  const need = sw($('#eExpress')) && E.variants.length > 0 && vi === undefined;
+  $('#ePartAdd').hidden = need;
+  if (need) {
+    E.partsList = [];
+    box.innerHTML = '<span class="hint">Состав у каждого букета свой. Нажмите кнопку в столбце «Состав» у нужной строки выше — и заполните здесь.</span>';
+    return;
+  }
   box.innerHTML = list.length
     ? list.map((x, i) => `<div class="row" data-part="${i}" style="align-items:flex-end;gap:8px">
         <label class="f" style="flex:1;margin:0">Цветок<input class="in" data-pname list="msList" value="${esc(x.name || '')}" placeholder="начните печатать название"></label>
@@ -1214,6 +1222,10 @@ $('#eVars').addEventListener('click', e => {
   readVars(); readParts();
   E.partsFor = (E.partsFor === +b.dataset.vparts) ? undefined : +b.dataset.vparts;
   renderVars(); renderParts();
+  if (E.partsFor !== undefined) {
+    $('#ePartsBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!(E.variants[E.partsFor].parts || []).length) $('#ePartAdd').click();
+  }
 });
 $('#eParts').addEventListener('click', e => {
   const b = e.target.closest('[data-prm]');
