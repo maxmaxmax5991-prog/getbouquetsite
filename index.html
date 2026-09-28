@@ -674,7 +674,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790590453"></script>
+<script src="data.js?v=1790590577"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -697,10 +697,17 @@ const DEL = API ? API.delivery : null;
 /* Интервалы считаем прямо здесь, теми же правилами, что и сервер: сначала сборка букета
    (дорогой собирают дольше), потом трёхчасовое окно, начало кратно получасу.
    Сервер при оформлении проверяет выбранное время заново. */
-const SLOTS = (DEL && DEL.slots) || { from: '09:00', to: '21:00', till: '23:00', prep: 45, prep_big: 65, big_from: 10000, hours: 3, step: 30, min: 60 };
+const SLOTS = (DEL && DEL.slots) || { from: '09:00', to: '21:00', till: '23:00', prep: 45, prep_big: 75, prep_express: 20, big_from: 10000, hours: 3, step: 30, min: 60 };
 const toMin = t => +String(t).slice(0, 2) * 60 + +String(t).slice(3, 5);
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-const prepMin = sum => (SLOTS.big_from > 0 && sum > SLOTS.big_from) ? SLOTS.prep_big : SLOTS.prep;
+// Сколько минут собираем. Экспресс — только если в корзине одни готовые букеты:
+// рядом с обычным собирать всё равно придётся.
+const cartAllExpress = () => {
+  const keys = Object.keys(cart);
+  return keys.length > 0 && keys.every(k => (byId[parseKey(k).id] || {}).express);
+};
+const prepMin = sum => cartAllExpress() ? (SLOTS.prep_express || 20)
+  : (SLOTS.big_from > 0 && sum > SLOTS.big_from) ? SLOTS.prep_big : SLOTS.prep;
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rub = n => n.toLocaleString('ru-RU') + ' ₽';
 const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };

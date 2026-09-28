@@ -516,6 +516,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div class="row">
             <label class="f" for="dPrep">Сборка букета, минут<input class="in num" id="dPrep" type="number" min="0" step="5"></label>
             <label class="f" for="dPrepBig">Сборка дорогого, минут<input class="in num" id="dPrepBig" type="number" min="0" step="5"></label>
+            <label class="f" for="dPrepExp">Сборка экспресс-букета, мин<input class="in num" id="dPrepExp" type="number" min="0"></label>
             <label class="f" for="dPrepFrom">Дорогой букет — дороже, ₽<input class="in num" id="dPrepFrom" type="number" min="0" step="500"></label>
           </div>
           <p class="hint" id="slotDemo"></p>
@@ -1991,7 +1992,8 @@ function renderSlots() {
   $('#dSlotStep').value = S.slot_step || 30;
   $('#dSlotMin').value = S.slot_min == null ? 60 : S.slot_min;
   $('#dPrep').value = S.prep_min || 45;
-  $('#dPrepBig').value = S.prep_min_big || 65;
+  $('#dPrepBig').value = S.prep_min_big || 75;
+  $('#dPrepExp').value = S.prep_express || 20;
   $('#dPrepFrom').value = S.prep_big_from || 0;
   slotDemo();
 }
@@ -2022,7 +2024,7 @@ function slotDemo() {
     + `а дороже — <b>${first(prepBig)}</b>. На завтра предложим ${all.length} интервалов: `
     + `${all.length ? `с ${hhmm(all[0])}–${hhmm(all[0] + hours * 60)} до ${hhmm(all[all.length - 1])}–${hhmm(all[all.length - 1] + hours * 60)}` : 'ни одного — проверьте часы работы и длину интервала'}.`;
 }
-['#dWorkFrom', '#dWorkTo', '#dDelTo', '#dSlotHours', '#dSlotStep', '#dSlotMin', '#dPrep', '#dPrepBig', '#dPrepFrom']
+['#dWorkFrom', '#dWorkTo', '#dDelTo', '#dSlotHours', '#dSlotStep', '#dSlotMin', '#dPrep', '#dPrepBig', '#dPrepExp', '#dPrepFrom']
   .forEach(sel => $(sel).addEventListener('input', slotDemo));
 
 /* ---------- ссылка для загрузки товаров ---------- */
@@ -2051,6 +2053,7 @@ $('#dSlotSave').onclick = safe(async () => {
     work_from: from, work_to: to, delivery_to: till, slot_hours: hours, slot_step: +$('#dSlotStep').value || 30,
     slot_min: +$('#dSlotMin').value || 0,
     prep_min: +$('#dPrep').value || 0, prep_min_big: +$('#dPrepBig').value || 0,
+    prep_express: +$('#dPrepExp').value || 20,
     prep_big_from: +$('#dPrepFrom').value || 0 } });
   slotDemo();
   toast('Сохранено');

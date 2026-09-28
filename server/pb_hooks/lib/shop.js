@@ -270,7 +270,8 @@ function slotRules(s) {
     to: String(s.get("work_to") || "21:00"),
     till: String(s.get("delivery_to") || s.get("work_to") || "23:00"),
     prep: +s.get("prep_min") || 45,
-    prep_big: +s.get("prep_min_big") || 65,
+    prep_big: +s.get("prep_min_big") || 75,
+    prep_express: +s.get("prep_express") || 20,   // готовый букет: только упаковать и отдать
     big_from: +s.get("prep_big_from") || 0,
     hours: +s.get("slot_hours") || 3,
     step: +s.get("slot_step") || 30,
@@ -280,27 +281,30 @@ function slotRules(s) {
 
 const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
-// Сколько минут собираем букет на такую сумму
-function prepFor(r, sum) {
+// Сколько минут собираем букет на такую сумму.
+// Экспресс считаем отдельно и только когда в заказе одни готовые букеты:
+// если рядом лежит обычный, собирать всё равно придётся.
+function prepFor(r, sum, express) {
+  if (express) return r.prep_express;
   return (r.big_from > 0 && sum > r.big_from) ? r.prep_big : r.prep;
 }
 
 // Все интервалы, которые ещё можно выбрать на эту дату.
 // graceMin — небольшая поблажка при проверке заказа: пока покупатель заполнял форму,
 // время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
-function slotsFor(s, dateIso, sum, graceMin, pickup, ready) {
+function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express) {
   const r = slotRules(s);
   const open = toMin(r.from), send = toMin(r.to);
   // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
   const till = pickup ? send : Math.max(toMin(r.till), send);
   const now = moscowNow();
   let first = open;
-  if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum) - (graceMin || 0));
+  if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum, express) - (graceMin || 0));
   else if (dateIso < now.date) return [];
   // цветы ещё едут: собирать начнём не раньше, чем они приедут
   if (ready) {
     if (dateIso < ready.date) return [];
-    if (dateIso === ready.date) first = Math.max(first, ready.minutes + prepFor(r, sum) - (graceMin || 0));
+    if (dateIso === ready.date) first = Math.max(first, ready.minutes + prepFor(r, sum, express) - (graceMin || 0));
   }
   const start0 = Math.ceil(first / r.step) * r.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
@@ -316,7 +320,7 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready) {
 }
 
 // Что не так с выбранным интервалом: пустая строка — всё в порядке.
-function slotProblem(s, dateIso, sum, label, pickup, ready) {
+function slotProblem(s, dateIso, sum, label, pickup, ready, express) {
   const r = slotRules(s);
   const m = String(label).match(/^(\d{1,2}):(\d{2})[–-](\d{1,2}):(\d{2})$/);
   const late = pickup ? "Выберите время, когда заберёте букет." : "На этот интервал уже не успеем. Выберите более поздний.";
@@ -337,10 +341,10 @@ function slotProblem(s, dateIso, sum, label, pickup, ready) {
   if (ready) {
     const wait = "Эти цветы ещё едут к нам — выберите время позже.";
     if (dateIso < ready.date) return wait;
-    if (dateIso === ready.date && st < ready.minutes + prepFor(r, sum) - 20) return wait;
+    if (dateIso === ready.date && st < ready.minutes + prepFor(r, sum, express) - 20) return wait;
   }
   if (dateIso === now.date) {
-    const ready = now.minutes + prepFor(r, sum) - 20;   // 20 минут поблажки: пока заполняли форму, время ушло
+    const ready = now.minutes + prepFor(r, sum, express) - 20;   // 20 минут поблажки: пока заполняли форму, время ушло
     if (st < ready) return late;
     if (Math.ceil(Math.max(open, ready) / r.step) * r.step > send) {
       return pickup ? "На сегодня забрать уже не получится. Выберите другую дату." : "На сегодня доставка уже не успеет. Выберите другую дату.";
@@ -483,7 +487,10 @@ function prepareOrder(app, rec) {
   const interval = String(rec.get("interval") || "");
   // Проверяем правилами, а не списком: браузер и сервер считают время в разные секунды,
   // и точное совпадение строки давало отказ на верном интервале.
-  const bad = slotProblem(s, date, sum, interval, pickup, readyOf(app, items));
+  const allExpress = items.length > 0 && items.every((it) => {
+    try { return !!app.findRecordById("products", String(it.id)).get("is_express"); } catch (_) { return false; }
+  });
+  const bad = slotProblem(s, date, sum, interval, pickup, readyOf(app, items), allExpress);
   if (bad) fail(bad);
 
 const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret"));
