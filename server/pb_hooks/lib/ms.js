@@ -305,6 +305,28 @@ function positionsFor(app, s, o) {
   const positions = [];
   let posKop = 0, itemsKop = 0;
   for (const it of items) {
+    itemsKop += Math.round(it.price * 100) * it.qty;
+
+    // Готовый букет: в складе списываем сами цветы по расписанному составу,
+    // а не «1 штуку» — иначе остатки в МоёмСкладе не сходятся.
+    let parts = null, prod = null;
+    try { prod = app.findRecordById("products", String(it.id)); } catch (_) {}
+    if (prod && prod.get("is_express")) {
+      const v = shop.jget(prod, "ms_parts");
+      if (Array.isArray(v) && v.length) parts = v.filter((x) => x && x.id && +x.qty > 0);
+    }
+
+    if (parts && parts.length) {
+      const stemsTotal = parts.reduce((n, x) => n + (+x.qty || 0), 0) * it.qty;
+      const perStem = Math.floor(Math.round(it.price * 100) * it.qty / Math.max(1, stemsTotal));
+      parts.forEach((x) => {
+        const q = (+x.qty || 0) * it.qty;
+        positions.push({ quantity: q, price: perStem, assortment: meta("product", String(x.id)) });
+        posKop += perStem * q;
+      });
+      continue;
+    }
+
     const as = assortment(app, s, it);
     if (!as.ok) return as;
     const st = stemsOf(it);   // в МоёмСкладе номенклатура — стебель: количество стеблей и цена за стебель
@@ -312,7 +334,6 @@ function positionsFor(app, s, o) {
     const priceKop = Math.round(st.price * 100);
     positions.push({ quantity: qty, price: priceKop, assortment: meta("product", as.id) });
     posKop += priceKop * qty;
-    itemsKop += Math.round(it.price * 100) * it.qty;
   }
   const delivery = o.get("delivery_price") || 0;
   if (delivery > 0) {

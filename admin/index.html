@@ -722,6 +722,14 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <div class="swl"><button class="sw" id="eExpress" role="switch" aria-checked="false" aria-label="Экспресс"></button>Экспресс — готовый букет</div>
       <label class="f" for="eReady" style="max-width:190px;margin:0">Готовых букетов, шт<input class="in num" id="eReady" type="number" min="0" placeholder="сколько продать"></label>
       <label class="f" for="eExpPrice" style="max-width:190px;margin:0" id="eExpPriceBox" hidden>Цена букета, ₽<input class="in num" id="eExpPrice" type="number" min="0" step="10"></label>
+    </div>
+    <div id="ePartsBox" hidden class="card stack" style="background:var(--ground)">
+      <div class="bar" style="justify-content:space-between">
+        <b>Состав для МоегоСклада</b>
+        <button class="btn btn-g btn-s" id="ePartAdd">Добавить цветок</button>
+      </div>
+      <p class="hint">Что списать со склада, когда букет купят: номенклатура и сколько стеблей. Без состава букет уйдёт в МойСклад как одна штука, и остатки не сойдутся. Цена букета разложится по стеблям сама.</p>
+      <div id="eParts" class="stack"></div>
       <div class="swl"><button class="sw" id="eFeatured" role="switch" aria-checked="false" aria-label="В карусели"></button>В карусели на главной</div>
     </div>
     <div class="row">
@@ -1025,6 +1033,7 @@ function openEditor(p) {
     table: (p && p.price_table) || (tablesOf(S)[0] || {}).id || "single",
     stock: (p && p.stock && typeof p.stock === 'object') ? { ...p.stock } : {},
     pick: (p && p.ms_pick && typeof p.ms_pick === 'object') ? { ...p.ms_pick } : {},
+    parts: Array.isArray(p && p.ms_parts) ? JSON.parse(JSON.stringify(p.ms_parts)) : [],
   };
   $('#edTitle').textContent = p ? 'Товар' : 'Новый товар';
   $('#eName').value = p ? p.name : '';
@@ -1084,6 +1093,8 @@ $('#eMode').onclick = e => { const b = e.target.closest('[data-mode]'); if (b) {
 function expressMode() {
   const on = sw($('#eExpress'));
   $('#eExpPriceBox').hidden = !on;
+  $('#ePartsBox').hidden = !on;
+  if (on) renderParts();
   $('#eMode').hidden = on;
   if (on) {
     if (E.mode !== 'single') { E.mode = 'single'; renderMode(); }
@@ -1145,6 +1156,39 @@ function renderLens() {
   renderStock();
 }
 // остаток задаём отдельно для каждой выбранной длины
+// Состав готового букета: что списать со склада при покупке
+function renderParts() {
+  const box = $('#eParts');
+  if (!box) return;
+  box.innerHTML = (E.parts || []).length
+    ? E.parts.map((x, i) => `<div class="row" data-part="${i}" style="align-items:flex-end;gap:8px">
+        <label class="f" style="flex:1;margin:0">Цветок<input class="in" data-pname list="msList" value="${esc(x.name || '')}" placeholder="начните печатать название"></label>
+        <label class="f" style="max-width:130px;margin:0">Стеблей<input class="in num" data-pqty type="number" min="1" value="${x.qty || ''}"></label>
+        <button class="btn btn-g btn-s" data-prm="${i}">Убрать</button>
+      </div>`).join('')
+    : '<span class="hint">Состав не указан</span>';
+}
+function readParts() {
+  const out = [];
+  $$('#eParts [data-part]').forEach(el => {
+    const name = el.querySelector('[data-pname]').value.trim();
+    const qty = Math.max(0, +el.querySelector('[data-pqty]').value || 0);
+    if (!name || !qty) return;
+    const old = (E.parts || [])[+el.dataset.part] || {};
+    const hit = MSFOUND.find(x => x.name === name) || (old.name === name ? old : null);
+    if (hit && hit.id) out.push({ id: hit.id, name: hit.name || name, qty });
+  });
+  E.parts = out;
+}
+$('#ePartAdd').onclick = () => { readParts(); E.parts = (E.parts || []).concat([{ id: '', name: '', qty: '' }]); renderParts(); };
+$('#eParts').addEventListener('click', e => {
+  const b = e.target.closest('[data-prm]');
+  if (!b) return;
+  readParts();
+  E.parts.splice(+b.dataset.prm, 1);
+  renderParts();
+});
+
 function renderStock() {
   const box = $('#eStock');
   if (!box) return;
@@ -1208,6 +1252,8 @@ $('#eSave').onclick = safe(async () => {
   fd.append('active', sw($('#eActive')));
   fd.append('site_only', sw($('#eOnly')));
   fd.append('is_express', sw($('#eExpress')));
+  readParts();
+  fd.append('ms_parts', JSON.stringify(E.parts || []));
   fd.append('ready_qty', $('#eReady').value === '' ? 0 : Math.max(0, +$('#eReady').value || 0));
   fd.append('fresh_date', sw($('#eFresh')) ? new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10) : '');
   const rdD = $('#eReadyDate').value, rdT = $('#eReadyTime').value;
