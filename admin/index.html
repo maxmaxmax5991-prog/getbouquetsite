@@ -986,9 +986,17 @@ async function moveTo(id, to) {
   const [p] = PRODS.splice(from, 1);
   PRODS.splice(to, 0, p);
   renderProducts();
-  const changed = PRODS.slice(Math.min(from, to), Math.max(from, to) + 1);
-  for (const [i, x] of PRODS.entries()) x.sort = i;
-  for (const x of changed) await api(`/api/collections/products/records/${x.id}`, { method: 'PATCH', body: { sort: x.sort } });
+  // раньше сохраняли только сдвинутый кусок, а у остальных оставались старые числа
+  // (у половины товаров порядок был 0, у открыток — 162), и карточка не вставала на место.
+  // Теперь переписываем номера у всех, у кого они разъехались.
+  const was = new Map(PRODS.map(x => [x.id, x.sort]));
+  PRODS.forEach((x, i) => x.sort = i);
+  const changed = PRODS.filter(x => was.get(x.id) !== x.sort);
+  if (changed.length > 12) toast('Сохраняю порядок…');
+  for (let i = 0; i < changed.length; i += 8) {
+    await Promise.all(changed.slice(i, i + 8).map(x =>
+      api(`/api/collections/products/records/${x.id}`, { method: 'PATCH', body: { sort: x.sort } })));
+  }
   toast('Порядок сохранён');
 }
 const loadProducts = safe(async () => {
@@ -1201,10 +1209,12 @@ function readParts() {
   $$('#eParts [data-part]').forEach(el => {
     const name = el.querySelector('[data-pname]').value.trim();
     const qty = Math.max(0, +el.querySelector('[data-pqty]').value || 0);
-    if (!name || !qty) return;
+    if (!name && !qty) return;
     const old = (E.partsList || [])[+el.dataset.part] || {};
-    const hit = MSFOUND.find(x => x.name === name) || (old.name === name ? old : null);
-    if (hit && hit.id) out.push({ id: hit.id, name: hit.name || name, qty });
+    const hit = MSFOUND.find(x => x.name === name) || (old.name === name && old.id ? old : null);
+    // цветок не с подсказки — строку сохраняем как есть, чтобы не пропала из формы,
+    // а при сохранении товара скажем, что надо выбрать из списка
+    out.push(hit && hit.id ? { id: hit.id, name: hit.name || name, qty } : { id: '', name, qty });
   });
   if (E.partsFor !== undefined && E.variants[E.partsFor]) E.variants[E.partsFor].parts = out;
   else E.parts = out;
@@ -1261,15 +1271,19 @@ function readStock() {
 // Поиск номенклатуры: подсказки в выпадающем списке, как в адресной строке
 let MSFOUND = [], msTimer = null;
 document.addEventListener('input', e => {
-  if (!e.target.matches('[data-ms]')) return;
+  // поле состава букета (data-pname) тоже ищет по складу — без этого подсказок не было
+  // и строка состава молча пропадала при сохранении
+  if (!e.target.matches('[data-ms], [data-pname]')) return;
   clearTimeout(msTimer);
   const q = e.target.value.trim();
   if (q.length < 2) return;
   msTimer = setTimeout(async () => {
     try {
       const d = await api(`/api/shop/ms-search?q=${encodeURIComponent(q)}`);
-      MSFOUND = d.items || [];
-      $('#msList').innerHTML = MSFOUND.map(x => `<option value="${esc(x.name)}">`).join('');
+      // копим найденное: выбранный раньше цветок не должен исчезнуть из-за нового поиска
+      const seen = new Set(MSFOUND.map(x => x.id));
+      MSFOUND = MSFOUND.concat((d.items || []).filter(x => !seen.has(x.id)));
+      $('#msList').innerHTML = (d.items || []).map(x => `<option value="${esc(x.name)}">`).join('');
     } catch (_) {}
   }, 350);
 });
@@ -1299,7 +1313,14 @@ $('#eSave').onclick = safe(async () => {
   fd.append('site_only', sw($('#eOnly')));
   fd.append('is_express', sw($('#eExpress')));
   readVars(); readParts();
-  fd.append('ms_parts', JSON.stringify(E.parts || []));
+  if (sw($('#eExpress'))) {
+    const rows = (E.parts || []).concat(...E.variants.map(v => v.parts || []));
+    const bad = rows.find(x => !x.id || !(x.qty > 0));
+    if (bad) return toast(bad.id
+      ? `Укажите, сколько стеблей: «${bad.name || 'цветок'}»`
+      : `Цветок «${bad.name || ''}» не найден в МоёмСкладе — начните печатать название и выберите из подсказок`, true);
+  }
+  fd.append('ms_parts', JSON.stringify((E.parts || []).filter(x => x.id && x.qty > 0)));
   fd.append('ready_qty', $('#eReady').value === '' ? 0 : Math.max(0, +$('#eReady').value || 0));
   fd.append('fresh_date', sw($('#eFresh')) ? new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10) : '');
   const rdD = $('#eReadyDate').value, rdT = $('#eReadyTime').value;
@@ -1312,12 +1333,14 @@ $('#eSave').onclick = safe(async () => {
     fd.append('stock', JSON.stringify(E.stock));
     fd.append('ms_pick', JSON.stringify(E.pick));
   } else if (E.mode === 'variants') {
-    const vs = E.variants.filter(v => v.label && v.price > 0);
+    const vs = E.variants.filter(v => v.label && v.price > 0)
+      .map(v => Object.assign({}, v, { parts: (v.parts || []).length ? v.parts.filter(x => x.id && x.qty > 0) : undefined }));
     if (!vs.length) return toast('Выбран режим «Размеры (кнопки)»: заполните хотя бы одну кнопку с ценой или переключитесь на «Одна цена»', true);
     if (new Set(vs.map(v => v.label)).size !== vs.length) return toast('Названия кнопок размеров повторяются', true);
     fd.append('variants', JSON.stringify(vs)); fd.append('lengths', 'null'); fd.append('price', Math.min(...vs.map(v => v.price)));
   } else if (sw($('#eExpress')) && E.variants.filter(v => v.label && v.price > 0).length) {
-    const vs = E.variants.filter(v => v.label && v.price > 0);
+    const vs = E.variants.filter(v => v.label && v.price > 0)
+      .map(v => Object.assign({}, v, { parts: (v.parts || []).filter(x => x.id && x.qty > 0) }));
     if (new Set(vs.map(v => v.label)).size !== vs.length) return toast('Названия вариантов повторяются', true);
     fd.append('variants', JSON.stringify(vs)); fd.append('lengths', 'null'); fd.append('price', Math.min(...vs.map(v => v.price)));
   } else {
