@@ -211,6 +211,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .card.is-off h3,.card.is-off .price{opacity:.6}
 .card.is-off .fav,.card.is-off .count-tag{display:none}
 .card-note{margin-top:8px;min-height:34px;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;line-height:1.25}
+.sub.made{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-note.express{background:color-mix(in srgb,#F59E0B 16%,transparent);color:#92400E}
 .card-note.fresh{background:var(--leaf-soft);color:var(--leaf)}
 .card-note.way{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent-text)}
@@ -673,7 +674,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790590292"></script>
+<script src="data.js?v=1790590453"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -862,7 +863,7 @@ function card(p) {
       p.fresh ? '🌿 <b class="wide">Этот сорт сегодня приехал к нам напрямую с теплицы</b><b class="slim">Сегодня с теплицы</b>' : ''}</div>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
     <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
-    ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
+    ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : p.made ? `<div class="sub made" title="${esc(p.made)}">${esc(p.made)}</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
     ${sizesHTML(p)}
     <div class="buy-slot">${buyHTML(p)}</div>
   </article>`;

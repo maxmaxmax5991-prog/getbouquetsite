@@ -164,6 +164,8 @@ function catalog(app) {
         // экспресс: готовый букет, продаём штуками. Пусто — обычный товар.
         express: p.get("is_express") ? true : undefined,
         ready: p.get("is_express") ? Math.max(0, +p.get("ready_qty") || 0) : undefined,
+        // состав готового букета показываем прямо в карточке: по нему и выбирают
+        made: p.get("is_express") ? String(p.get("description") || "").replace(/\s+/g, " ").trim().slice(0, 90) || undefined : undefined,
         badge_text: String(p.get("badge_text") || "").trim() || undefined,
         // «сегодня с теплицы» — только в день завоза, назавтра само пропадёт
         fresh: String(p.get("fresh_date") || "") === moscowNow().date ? true : undefined,
