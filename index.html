@@ -674,7 +674,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
 <script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790597987"></script>
+<script src="data.js?v=1790598534"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -818,12 +818,18 @@ function badges() {
 }
 
 /* ---------- product card ---------- */
+// сколько таких букетов готово: у карточки с вариантами — по выбранному
+function readyNow(p) {
+  if (!p.express) return 0;
+  const v = p.variants ? variant(p, curLabel(p)) : null;
+  return (v && v.ready !== undefined) ? Math.max(0, +v.ready || 0) : Math.max(0, +p.ready || 0);
+}
 function buyHTML(p) {
   // цена не проставлена — купить нельзя, иначе букет уйдёт даром
   if (p.no_price || !(keyPrice(cardKey(p)) > 0)) return '<span class="buy soon">Цену уточняем</span>';
   // весь сорт или выбранный размер закончился — показываем, но продать не даём
   const cv = p.variants ? variant(p, curLabel(p)) : null;
-  if (p.express && !p.ready) return '<span class="buy soon gone">Этот букет разобрали</span>';
+  if (p.express && (cv && cv.ready !== undefined ? !(cv.ready > 0) : !p.ready)) return '<span class="buy soon gone">Этот букет разобрали</span>';
   if (p.off) return '<span class="buy soon gone">Товар закончился — новая срезка уже скоро</span>';
   if (p.soldout || (cv && cv.out)) return '<span class="buy soon gone">Закончились, ждём в следующую срезку</span>';
   const k = cardKey(p), n = cart[k];
@@ -854,7 +860,7 @@ function sizesHTML(p, cls = 'sizes') {
   }
   const cur = curLabel(p);
   return `<div class="${cls}" role="group" aria-label="${/^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер букета'}">${p.variants.map(v =>
-    `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === cur}">${esc(v.label)}</button>`).join('')}</div>`;
+    `<button class="num${v.out ? ' gone' : ''}" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === cur}"${v.out ? ` title="${p.express ? 'Этот букет разобрали' : 'Закончились, ждём в следующую срезку'}"` : ''}>${esc(v.label)}</button>`).join('')}</div>`;
 }
 function card(p) {
   const f = favs.has(p.id);
@@ -864,8 +870,8 @@ function card(p) {
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
   return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}">
     <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
-    <div class="card-note${p.express && p.ready ? ' express' : readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${
-      p.express && p.ready ? `⚡ Готов сейчас — ${p.ready === 1 ? 'остался 1' : 'осталось ' + p.ready}` :
+    <div class="card-note${readyNow(p) ? ' express' : readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${
+      readyNow(p) ? `⚡ Готов сейчас — ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)}` :
       readyShort(p) ? `🚚 ${esc(readyShort(p))}` :
       p.fresh ? '🌿 <b class="wide">Этот сорт сегодня приехал к нам напрямую с теплицы</b><b class="slim">Сегодня с теплицы</b>' : ''}</div>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
@@ -954,7 +960,11 @@ function pdSync() {
 
   const ct = countText(p, label);
   $('#pdCount').hidden = !ct; $('#pdCount').textContent = ct;
-  if (p.variants) $('#pdOpts').innerHTML = p.lengths ? sizesHTML(p, 'opts') : p.variants.map(v => `<button class="num" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === label}">${esc(v.label)}</button>`).join('');
+  if (p.variants) $('#pdOpts').innerHTML = p.lengths ? sizesHTML(p, 'opts') : p.variants.map(v =>
+    `<button class="num${v.out ? ' gone' : ''}" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === label}"${v.out ? ` title="${p.express ? 'Этот букет разобрали' : 'Закончились, ждём в следующую срезку'}"` : ''}>${esc(v.label)}</button>`).join('');
+  // у экспресса с вариантами остаток свой на каждый букет — обновляем вместе с кнопками
+  $('#pdExpress').hidden = !readyNow(p);
+  if (readyNow(p)) $('#pdExpress').innerHTML = `<b>⚡ Готов сейчас</b> — букет уже собран, ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)} шт. Везём без времени на сборку.`;
   const f = favs.has(p.id); $('#pdFav').setAttribute('aria-pressed', f); $('#pdFav').dataset.fav = p.id;
 }
 function showProduct(id) {
@@ -969,8 +979,8 @@ function showProduct(id) {
   try { window.ev && window.ev('view', p.name); } catch (_) {}
   $('#pdOnly').hidden = !p.site_only;
   $('#pdFresh').hidden = !p.fresh;
-  $('#pdExpress').hidden = !(p.express && p.ready);
-  if (p.express && p.ready) $('#pdExpress').innerHTML = `<b>⚡ Готов сейчас</b> — букет уже собран, ${p.ready === 1 ? 'остался 1' : 'осталось ' + p.ready} шт. Везём без времени на сборку.`;
+  $('#pdExpress').hidden = !readyNow(p);
+  if (readyNow(p)) $('#pdExpress').innerHTML = `<b>⚡ Готов сейчас</b> — букет уже собран, ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)} шт. Везём без времени на сборку.`;
   $('#pdCat').textContent = p.badge_text || catName[p.cat] || '';
   const soon = readyNote(p);
   $('#pdSoon').hidden = !soon;

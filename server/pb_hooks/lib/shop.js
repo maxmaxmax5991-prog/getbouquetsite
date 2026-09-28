@@ -118,7 +118,14 @@ function variantsOf(p, s) {
     return out;
   }
   const v = jget(p, "variants");
-  return Array.isArray(v) ? v.filter((x) => x && x.label && +x.price > 0) : [];
+  if (!Array.isArray(v)) return [];
+  // Экспресс с вариантами: у каждого своё количество готовых букетов.
+  // Кончились — вариант остаётся видно, но купить нельзя (out).
+  const express = !!p.get("is_express");
+  return v.filter((x) => x && x.label && +x.price > 0).map((x) => {
+    const out = express && x.ready !== undefined && x.ready !== null && !(+x.ready > 0);
+    return Object.assign({}, x, { parts: undefined, ready: express ? Math.max(0, +x.ready || 0) : undefined, out: out || undefined });
+  });
 }
 
 function catalog(app) {
@@ -145,8 +152,8 @@ function catalog(app) {
         cat: catById[p.get("category")].get("slug"),
         price: variants.length ? Math.min.apply(null, (variants.filter((v) => !v.out).length ? variants.filter((v) => !v.out) : variants).map((v) => v.price)) : p.get("price"),
         // всё закончилось — карточка гаснет и купить нельзя
-        soldout: (p.get("is_express") && !(+p.get("ready_qty") > 0))
-          || (variants.length && variants.every((v) => v.out)) ? true : undefined,
+        soldout: (variants.length ? variants.every((v) => v.out)
+          : (p.get("is_express") && !(+p.get("ready_qty") > 0))) ? true : undefined,
         // товар без цены (пустое поле в карточке) нельзя купить — сайт покажет его без кнопки
         no_price: variants.length ? undefined : (+p.get("price") > 0 ? undefined : true),
         bonus: p.get("bonus") || 0,
@@ -163,7 +170,12 @@ function catalog(app) {
         site_only: p.get("site_only") ? true : undefined,
         // экспресс: готовый букет, продаём штуками. Пусто — обычный товар.
         express: p.get("is_express") ? true : undefined,
-        ready: p.get("is_express") ? Math.max(0, +p.get("ready_qty") || 0) : undefined,
+        // у экспресса с вариантами готовые считаются по каждому букету отдельно
+        ready: p.get("is_express")
+          ? (variants.some((v) => v.ready !== undefined && v.ready !== null)
+            ? variants.reduce((a, v) => a + Math.max(0, +v.ready || 0), 0)
+            : Math.max(0, +p.get("ready_qty") || 0))
+          : undefined,
         // состав готового букета показываем прямо в карточке: по нему и выбирают
         made: p.get("is_express") ? String(p.get("description") || "").replace(/\s+/g, " ").trim().slice(0, 90) || undefined : undefined,
         badge_text: String(p.get("badge_text") || "").trim() || undefined,
@@ -405,11 +417,15 @@ function prepareOrder(app, rec) {
     }
     // экспресс-букет: проверяем, сколько готовых осталось
     if (p.get("is_express")) {
-      const have = Math.max(0, +p.get("ready_qty") || 0);
+      const raw = jget(p, "variants");
+      const vrow = (label && Array.isArray(raw)) ? raw.find((x) => x && x.label === label) : null;
+      const perVariant = vrow && vrow.ready !== undefined && vrow.ready !== null;
+      const have = perVariant ? Math.max(0, +vrow.ready || 0) : Math.max(0, +p.get("ready_qty") || 0);
+      const what = `«${p.get("name")}»${label ? ` (${labelText(label)})` : ""}`;
       if (have < qty) {
-        fail(have ? `«${p.get("name")}»: остался${have === 1 ? "" : "ось"} ${have} шт. Уменьшите количество.` : `«${p.get("name")}» уже разобрали.`);
+        fail(have ? `${what}: остал${have === 1 ? "ся" : "ось"} ${have} шт. Уменьшите количество.` : `${what} уже разобрали.`);
       }
-      take.push({ p, express: true, qty });
+      take.push({ p, express: true, qty, label: perVariant ? label : "" });
     }
     items.push({ id: p.id, name: p.get("name"), label, label_text: label ? labelText(label) : "", price: +price, qty, sum: price * qty });
     sum += price * qty;
@@ -522,10 +538,18 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   // прочитанной раньше, вернуло бы старое число обратно.
   take.forEach((t) => {
     if (t.express) {
-      // готовых букетов стало меньше — пишем запросом, мимо сохранения записи
       try {
-        app.db().newQuery("UPDATE products SET ready_qty = MAX(0, IFNULL(ready_qty,0) - {:n}) WHERE id = {:id}")
-          .bind({ n: t.qty, id: t.p.id }).execute();
+        if (t.label) {
+          // количество лежит внутри варианта — правим json и пишем запросом
+          const raw = jget(t.p, "variants") || [];
+          const next = raw.map((x) => (x && x.label === t.label)
+            ? Object.assign({}, x, { ready: Math.max(0, (+x.ready || 0) - t.qty) }) : x);
+          app.db().newQuery("UPDATE products SET variants = {:v} WHERE id = {:id}")
+            .bind({ v: JSON.stringify(next), id: t.p.id }).execute();
+        } else {
+          app.db().newQuery("UPDATE products SET ready_qty = MAX(0, IFNULL(ready_qty,0) - {:n}) WHERE id = {:id}")
+            .bind({ n: t.qty, id: t.p.id }).execute();
+        }
       } catch (err) { console.log("экспресс", t.p.id, err); }
       return;
     }

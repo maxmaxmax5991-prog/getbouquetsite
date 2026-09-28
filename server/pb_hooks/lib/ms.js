@@ -312,7 +312,10 @@ function positionsFor(app, s, o) {
     let parts = null, prod = null;
     try { prod = app.findRecordById("products", String(it.id)); } catch (_) {}
     if (prod && prod.get("is_express")) {
-      const v = shop.jget(prod, "ms_parts");
+      // у варианта может быть свой состав (9 и 11 стеблей — разные букеты)
+      const raw = shop.jget(prod, "variants");
+      const vrow = (it.label && Array.isArray(raw)) ? raw.find((x) => x && x.label === it.label) : null;
+      const v = (vrow && Array.isArray(vrow.parts) && vrow.parts.length) ? vrow.parts : shop.jget(prod, "ms_parts");
       if (Array.isArray(v) && v.length) parts = v.filter((x) => x && x.id && +x.qty > 0);
     }
 
