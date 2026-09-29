@@ -25,8 +25,17 @@ function b64(str) {
   return out;
 }
 
-function cp(s, path, body) {
-  const id = s.get("cp_public_id"), secret = s.get("cp_secret");
+// Ключи берём у витрины: это разные магазины, деньги идут на разные терминалы.
+// У витрины не заведены — работаем на общих из настроек.
+function keysOf(s, brand) {
+  if (brand && brand.get("cp_public_id") && brand.get("cp_secret")) {
+    return { id: brand.get("cp_public_id"), secret: brand.get("cp_secret") };
+  }
+  return { id: s.get("cp_public_id"), secret: s.get("cp_secret") };
+}
+
+function cp(s, path, body, brand) {
+  const { id, secret } = keysOf(s, brand);
   if (!id || !secret) return { ok: false, error: "Не указаны ключи CloudPayments." };
   try {
     const res = $http.send({
@@ -49,8 +58,8 @@ function cp(s, path, body) {
 }
 
 // Проверка ключей — кнопка «Проверить оплату» в админке
-function test(s) {
-  const r = cp(s, "/test", {});
+function test(s, brand) {
+  const r = cp(s, "/test", {}, brand);
   if (!r.ok) return { ok: false, error: r.error };
   if (!r.data || !r.data.Success) return { ok: false, error: (r.data && r.data.Message) || "Ключи не подошли." };
   return { ok: true };
@@ -60,7 +69,9 @@ function test(s) {
 function checkOrder(app, o) {
   if (o.get("payment_status") === "paid" || o.get("payment_method") !== "card") return false;
   const s = shop.settings(app);
-  const r = cp(s, "/v2/payments/find", { InvoiceId: String(o.get("number")) });
+  // сверяем платёж на терминале ТОЙ витрины, где заказ и оформляли
+  const brand = shop.brandOfOrder(app, o);
+  const r = cp(s, "/v2/payments/find", { InvoiceId: String(o.get("number")) }, brand);
   if (!r.ok || !r.data) return false;
   const m = r.data.Model;
   if (!r.data.Success || !m) return false;
@@ -117,4 +128,4 @@ function checkOrder(app, o) {
   return true;
 }
 
-module.exports = { cp, test, checkOrder };
+module.exports = { cp, keysOf, test, checkOrder };

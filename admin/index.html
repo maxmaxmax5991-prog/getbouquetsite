@@ -2712,10 +2712,17 @@ function renderBrandsCard() {
         <label class="f">Ключ бота MAX<input class="in" type="password" autocomplete="off" data-btok="max" data-bid="${b.id}"
           placeholder="${b.max_token ? 'Ключ сохранён' + (b.max_bot ? ' — ' + b.max_bot : '') + '. Вставьте новый, чтобы заменить' : 'Вставьте ключ из MAX для бизнеса'}"></label>
       </div>
+      <div class="row">
+        <label class="f">CloudPayments: Public ID<input class="in" data-bf="cp_public_id" data-bid="${b.id}" value="${esc(b.cp_public_id || '')}" placeholder="pk_..."></label>
+        <label class="f">CloudPayments: пароль для API<input class="in" type="password" autocomplete="off" data-btok="cp" data-bid="${b.id}"
+          placeholder="${b.cp_secret ? 'Пароль сохранён. Вставьте новый, чтобы заменить' : 'Вставьте пароль для API'}"></label>
+      </div>
+      <p class="hint">Свой терминал у каждого сайта: деньги приходят на свой счёт и не путаются в выписке. Не заполнено — работает общий терминал из блока «Оплата картой».</p>
       <div class="bar">
         <button class="btn btn-p" data-bsave="${b.id}">Сохранить</button>
         <button class="btn btn-g" data-bcheck="tg|${b.id}">Проверить Телеграм</button>
         <button class="btn btn-g" data-bcheck="max|${b.id}">Проверить MAX</button>
+        <button class="btn btn-g" data-bcheck="cp|${b.id}">Проверить оплату</button>
       </div>
     </div>`).join('');
 }
@@ -2726,7 +2733,7 @@ $('#brandsBox').addEventListener('click', safe(async e => {
     $$(`#brandsBox [data-bf][data-bid="${id}"]`).forEach(i => body[i.dataset.bf] = i.value.trim());
     $$(`#brandsBox [data-btok][data-bid="${id}"]`).forEach(i => {
       const v = i.value.trim();
-      if (v) body[i.dataset.btok === 'max' ? 'max_token' : 'tg_client_token'] = v;
+      if (v) body[{ max: 'max_token', cp: 'cp_secret', tg: 'tg_client_token' }[i.dataset.btok]] = v;
     });
     await api(`/api/collections/brands/records/${id}`, { method: 'PATCH', body });
     BRANDS = await list('brands', '&sort=sort');

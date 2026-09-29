@@ -188,6 +188,14 @@ routerAdd("POST", "/api/shop/brand-bot-check", (e) => {
   let br;
   try { br = $app.findRecordById("brands", String(b.brand || "")); } catch (_) { return e.json(404, { message: "Витрина не найдена" }); }
 
+  if (String(b.kind) === "cp") {
+    const pay = require(`${__hooks}/lib/pay.js`);
+    const r = pay.test(shop.settings($app), br);
+    if (!r.ok) return e.json(400, { message: r.error });
+    const k = pay.keysOf(shop.settings($app), br);
+    return e.json(200, { bot: "терминал " + String(k.id).slice(0, 10) + "…" });
+  }
+
   if (String(b.kind) === "max") {
     const mx = require(`${__hooks}/lib/max.js`);
     const token = br.get("max_token");

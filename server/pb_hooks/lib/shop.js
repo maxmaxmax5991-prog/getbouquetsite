@@ -254,11 +254,16 @@ function catalog(app, brand) {
       address: (brand && brand.get("pickup_address")) || s.get("pickup_address") || "",
       hours: (brand && brand.get("pickup_hours")) || s.get("pickup_hours") || "",
     } : null,
-    payment: {
-      card: !!(s.get("pay_card") && s.get("cp_public_id")),
-      on_delivery: !!(s.get("pay_on_delivery") && s.get("pickup")),   // при получении — только самовывоз
-      public_id: s.get("pay_card") ? (s.get("cp_public_id") || "") : "",
-    },
+    // окно оплаты открывается ключом своей витрины: у брендов разные терминалы
+    payment: (function () {
+      const own = brand && brand.get("cp_public_id") && brand.get("cp_secret");
+      const pub = own ? brand.get("cp_public_id") : (s.get("cp_public_id") || "");
+      return {
+        card: !!(s.get("pay_card") && pub),
+        on_delivery: !!(s.get("pay_on_delivery") && s.get("pickup")),   // при получении — только самовывоз
+        public_id: s.get("pay_card") ? pub : "",
+      };
+    })(),
     suggest: !!(s.get("ymaps_suggest_key") || s.get("ymaps_key")),   // подсказывать ли улицы при вводе
     // у каждой витрины свой бот для покупателей; не заведён — общий
     bot: (brand && brand.get("tg_client_bot")) || s.get("tg_client_bot") || s.get("tg_bot") || "",

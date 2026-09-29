@@ -85,7 +85,12 @@ cronAdd("pay-poll", "* * * * *", () => {
   const pay = require(`${__hooks}/lib/pay.js`);
   const shop = require(`${__hooks}/lib/shop.js`);
   const s = shop.settings($app);
-  if (!s.get("cp_public_id") || !s.get("cp_secret")) return;
+  // ключи могут быть не в общих настройках, а у витрины — тогда сверка тоже нужна
+  let anyKeys = !!(s.get("cp_public_id") && s.get("cp_secret"));
+  if (!anyKeys) {
+    try { anyKeys = $app.findRecordsByFilter("brands", "cp_public_id != '' && cp_secret != ''", "", 1, 0).length > 0; } catch (_) {}
+  }
+  if (!anyKeys) return;
   const since = new Date(Date.now() - 3 * 3600 * 1000).toISOString().replace("T", " ").slice(0, 19);
   const list = $app.findRecordsByFilter("orders", `payment_method = "card" && payment_status = "unpaid" && created > {:since}`, "-created", 50, 0, { since });
   list.forEach((o) => { try { pay.checkOrder($app, o); } catch (err) { console.log("pay-poll", err); require(`${__hooks}/lib/err.js`).note($app, "Оплата", String(err), "проверка платежей"); } });
@@ -98,7 +103,10 @@ routerAdd("POST", "/api/shop/cp-find", (e) => {
   const b = e.requestInfo().body || {};
   const inv = String(b.invoice || "").trim();
   if (!inv) return e.json(400, { message: "Укажите номер счёта" });
-  const r = pay.cp(shop.settings($app), "/v2/payments/find", { InvoiceId: inv });
+  // терминал выбираем по витрине, если её передали
+  let br = null;
+  try { if (b.brand) br = $app.findRecordById("brands", String(b.brand)); } catch (_) {}
+  const r = pay.cp(shop.settings($app), "/v2/payments/find", { InvoiceId: inv }, br);
   if (!r.ok) return e.json(400, { message: r.error });
   const m = (r.data && r.data.Model) || null;
   return e.json(200, {
