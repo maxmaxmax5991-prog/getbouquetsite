@@ -91,6 +91,28 @@ cronAdd("pay-poll", "* * * * *", () => {
   list.forEach((o) => { try { pay.checkOrder($app, o); } catch (err) { console.log("pay-poll", err); require(`${__hooks}/lib/err.js`).note($app, "Оплата", String(err), "проверка платежей"); } });
 });
 
+// Служебная проверка: что банк отвечает по номеру счёта. Только смотрим, ничего не меняем.
+routerAdd("POST", "/api/shop/cp-find", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const pay = require(`${__hooks}/lib/pay.js`);
+  const b = e.requestInfo().body || {};
+  const inv = String(b.invoice || "").trim();
+  if (!inv) return e.json(400, { message: "Укажите номер счёта" });
+  const r = pay.cp(shop.settings($app), "/v2/payments/find", { InvoiceId: inv });
+  if (!r.ok) return e.json(400, { message: r.error });
+  const m = (r.data && r.data.Model) || null;
+  return e.json(200, {
+    success: !!(r.data && r.data.Success),
+    message: (r.data && r.data.Message) || "",
+    payment: m ? {
+      id: m.TransactionId, status: m.Status, amount: m.Amount, currency: m.Currency,
+      created: m.CreatedDateIso || m.CreatedDate, confirmed: m.ConfirmDateIso || m.ConfirmDate,
+      invoice: m.InvoiceId, account: m.AccountId, test: m.TestMode,
+      reason: m.Reason || "", card: m.CardLastFour || "",
+    } : null,
+  });
+}, $apis.requireAuth("managers"));
+
 // Кнопка «Проверить оплату» в админке
 routerAdd("POST", "/api/shop/cp-test", (e) => {
   const _s = require(`${__hooks}/lib/shop.js`);

@@ -69,6 +69,25 @@ function checkOrder(app, o) {
     if (m.Status === "Declined") { o.set("payment_status", "failed"); app.save(o); }
     return false;
   }
+  // Тестовый платёж деньгами не является. Заказ №3122 стал «оплаченным» через 118 мс
+  // после создания: банк вернул майский ТЕСТОВЫЙ платёж с тем же номером счёта —
+  // нумерация заказов дошла до диапазона, который гоняли при отладке.
+  if (m.TestMode) {
+    console.log("pay: тестовый платёж по счёту", o.get("number"), "— не засчитываем");
+    return false;
+  }
+  // Платёж не может быть раньше заказа. Это отсекает любые совпадения номеров со старыми
+  // счетами: настоящая оплата всегда позже, чем запись заказа.
+  const iso = String(m.CreatedDateIso || m.CreatedDate || "").trim();
+  if (iso) {
+    // банк отдаёт время по Гринвичу, но без буквы Z — без неё JS считает его местным
+    const made = Date.parse(/(Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? iso : iso + "Z");
+    const born = Date.parse(String(o.get("created")).replace(" ", "T").replace(/Z?$/, "Z"));
+    if (made && born && made < born - 5 * 60 * 1000) {
+      console.log("pay: платёж по счёту", o.get("number"), "старше самого заказа (", iso, ") — не засчитываем");
+      return false;
+    }
+  }
   if (Math.round(m.Amount) < Math.round(o.get("total"))) return false;   // оплачено меньше суммы заказа
 
   // Страница заказа и проверка оплаты приходят одновременно: обе видят «не оплачен»,
