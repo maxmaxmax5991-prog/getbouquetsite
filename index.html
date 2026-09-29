@@ -673,11 +673,37 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastBtn">Корзина</button></div>
 
-<script>window.SHOP = location.hostname.endsWith('github.io') ? Promise.resolve(null) : fetch('/api/shop/catalog').then(r => r.ok ? r.json() : null).catch(() => null);</script>
-<script src="data.js?v=1790671013"></script>
+<script>
+/* Каталог грузим с тремя попытками: на мобильной связи и во встроенных браузерах
+   (MAX, Телеграм) один запрос легко срывается. Важно различать два случая:
+   «мы на статичной копии» и «запрос не прошёл» — раньше оба давали пустой каталог,
+   и покупателю на рабочем сайте писали «это копия сайта, заказать нельзя». */
+window.SHOP = (async () => {
+  if (location.hostname.endsWith('github.io')) { window.SHOP_COPY = 1; return null; }
+  for (let i = 0; i < 3; i++) {
+    try { const r = await fetch('/api/shop/catalog'); if (r.ok) return await r.json(); } catch (e) {}
+    await new Promise(ok => setTimeout(ok, 700 * (i + 1)));
+  }
+  window.SHOP_FAILED = 1;
+  return null;
+})();
+</script>
+<script src="data.js?v=1790671136"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
+// Связь оборвалась: честно говорим об этом и НЕ показываем старые цены из data.js —
+// это рабочий сайт, и цена на экране должна быть настоящей.
+if (!API && window.SHOP_FAILED) {
+  document.querySelector('main').innerHTML = `<div class="wrap" style="padding:56px 0;text-align:center">
+    <p class="notice" style="margin-bottom:16px">Не получилось загрузить каталог — похоже, пропала связь.</p>
+    <button class="btn btn-primary" id="tryAgain">Попробовать ещё раз</button>
+    <p class="hint" style="margin-top:14px">Если не помогает, позвоните нам — примем заказ по телефону.</p>
+  </div>`;
+  const again = document.querySelector('#tryAgain');
+  if (again) again.onclick = () => location.reload();
+  return;
+}
 if (API && API.products && API.products.length) { window.PRODUCTS = API.products; window.ROSE_PRICES = API.rose_prices; }
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
