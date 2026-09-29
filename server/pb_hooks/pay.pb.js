@@ -106,6 +106,41 @@ routerAdd("POST", "/api/shop/cp-day", (e) => {
   });
 }, $apis.requireAuth("managers"));
 
+// Сверка кассы: раз в сутки сравниваем, что сайт посчитал оплаченным, с тем,
+// что реально пришло в банк по каждому терминалу. Сервер живёт по Гринвичу,
+// поэтому 06:10 здесь — это 09:10 по Москве.
+cronAdd("cash-check", "10 6 * * *", () => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const cash = require(`${__hooks}/lib/cash.js`);
+  try {
+    const s = shop.settings($app);
+    const day = cash.yesterday();
+    const parts = cash.report($app, day);
+    const msg = cash.text(day, parts);
+    shop.adminIds(s).forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat, text: msg }));
+  } catch (err) {
+    console.log("cash-check", err);
+    require(`${__hooks}/lib/err.js`).note($app, "Сверка кассы", String(err), "");
+  }
+});
+
+// Та же сверка по кнопке: за любой день, с показом результата и без отправки в бот
+routerAdd("POST", "/api/shop/cash-check", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const cash = require(`${__hooks}/lib/cash.js`);
+  if (!shop.can(e, ["owner"])) return e.json(403, { message: "Только владелец." });
+  const b = e.requestInfo().body || {};
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || "")) ? String(b.date) : cash.yesterday();
+  const parts = cash.report($app, day);
+  const msg = cash.text(day, parts);
+  if (b.send) shop.adminIds(shop.settings($app)).forEach((chat) => shop.tg(shop.settings($app).get("tg_token"), "sendMessage", { chat_id: chat, text: msg }));
+  return e.json(200, { day, text: msg, parts: parts.map((p) => ({
+    витрина: p.name, ошибка: p.error, сайт: p.ourSum, банк: p.bankSum,
+    заказов: p.count, платежей: p.bankCount,
+    без_денег: (p.пусто || []).map((o) => o.get("number")),
+    проморгали: p.проморгали || [], чужих: p.чужих || 0, чужая_сумма: p.чужаяСумма || 0 })) });
+}, $apis.requireAuth("managers"));
+
 // Оплата могла пройти, а браузер закрыться — дочищаем сами
 cronAdd("pay-poll", "* * * * *", () => {
   const pay = require(`${__hooks}/lib/pay.js`);
