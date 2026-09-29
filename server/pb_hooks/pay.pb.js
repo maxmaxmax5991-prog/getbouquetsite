@@ -102,7 +102,7 @@ routerAdd("POST", "/api/shop/cp-day", (e) => {
     прошедших: ok.length,
     сумма: ok.reduce((a, x) => a + (+x.Amount || 0), 0),
     тестовых: rows.filter((x) => x.TestMode).length,
-    пример: rows.slice(0, 3).map((x) => ({ счёт: x.InvoiceId, сумма: x.Amount, статус: x.Status, тест: x.TestMode, когда: x.CreatedDateIso || x.CreatedDate })),
+    пример: rows.slice(0, b.all ? 200 : 3).map((x) => ({ счёт: x.InvoiceId, сумма: x.Amount, статус: x.Status, тест: x.TestMode, когда: x.CreatedDateIso || x.CreatedDate, карта: x.CardLastFour, телефон: x.AccountId })),
   });
 }, $apis.requireAuth("managers"));
 

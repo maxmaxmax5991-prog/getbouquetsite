@@ -48,6 +48,33 @@ routerAdd("POST", "/api/shop/ms-states", (e) => {
   });
 }, $apis.requireAuth("managers"));
 
+// Служебное: какие доп. поля заказа есть в МоёмСкладе и что мы в них кладём.
+// Значения-справочники ищутся по названию и при промахе молча пропускаются —
+// так «Тип Оплаты» остался пустым у заказа №3143.
+routerAdd("POST", "/api/shop/ms-attrs", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const msl = require(`${__hooks}/lib/ms.js`);
+  const s = shop.settings($app);
+  const md = msl.ms(s, "GET", "/entity/customerorder/metadata/attributes");
+  if (!md.ok) return e.json(400, { message: md.error });
+  const хотим = {
+    "Способ доставки": ["Самовывоз", "Доставка"],
+    "Тип Оплаты": [s.get("ms_pay_card") || "CloudPayments", s.get("ms_pay_cash") || "Наличные/карта на ТТ"],
+  };
+  const out = (md.data.rows || []).map((a) => {
+    const row = { поле: a.name, вид: a.type };
+    if (a.type === "customentity" && a.customEntityMeta) {
+      const id = String(a.customEntityMeta.href || "").split("/").pop();
+      const list = msl.ms(s, "GET", `/entity/customentity/${id}?limit=100`);
+      row.значения = list.ok ? (list.data.rows || []).map((r) => r.name) : ["(не смог прочитать)"];
+      const want = хотим[a.name];
+      if (want) row.ищем = want.map((w) => w + (row.значения.some((v) => String(v).toLowerCase().trim() === String(w).toLowerCase().trim()) ? " ✓" : " ✗ НЕ НАЙДЕНО"));
+    }
+    return row;
+  });
+  return e.json(200, { поля: out });
+}, $apis.requireAuth("managers"));
+
 routerAdd("POST", "/api/shop/ms-test", (e) => {
   const _s = require(`${__hooks}/lib/shop.js`);
   if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });

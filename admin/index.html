@@ -846,6 +846,9 @@ function brandPill(id) {
 const TAB_NEED = { bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', stats: 'all', settings: 'all' };
 async function loadRole() {
   try { ME = await api('/api/shop/me-role'); } catch (_) {}
+  // витрины нужны всем вкладкам, а не только настройкам: без них заказы
+  // и диалоги не показывали, с какого сайта пришли
+  try { BRANDS = await list('brands', '&sort=sort'); } catch (_) {}
   $$('.tabs button').forEach(b => { b.hidden = !ME.can[TAB_NEED[b.dataset.tab] || 'all']; });
   const first = $$('.tabs button').find(b => !b.hidden);
   if (first && $$('.tabs button').find(b => b.getAttribute('aria-selected') === 'true' && b.hidden)) show(first.dataset.tab);
@@ -893,7 +896,9 @@ const payPill = o => o.payment_method === 'card'
   : '<span class="pill" style="background:var(--ground);color:var(--ink-2)">Оплата при получении</span>';
 function orderHTML(o) {
   const created = new Date(o.created.replace(' ', 'T'));
-  return `<article class="order${o.status === 'new' ? ' is-new' : ''}" data-id="${o.id}">
+  const br = brandOf(o.brand);
+  const цвет = br ? (br.tag_color || br.accent || '') : '';
+  return `<article class="order${o.status === 'new' ? ' is-new' : ''}" data-id="${o.id}"${цвет && BRANDS.length > 1 ? ` style="border-left:5px solid ${esc(цвет)}"` : ''}>
     <div class="order-h"><b>№${o.number}</b>${brandPill(o.brand)}<span class="pill st-${o.status}">${STATUS[o.status]}</span>${payPill(o)}
       <span class="hint" style="margin:0">создан ${created.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
       <span class="sum num">${rub(o.total)}</span></div>

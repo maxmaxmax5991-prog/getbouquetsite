@@ -233,20 +233,33 @@ function deliveryService(s) {
 function attrMeta(id) {
   return { meta: { href: `${BASE}/entity/customerorder/metadata/attributes/${id}`, type: "attributemetadata", mediaType: "application/json" } };
 }
-function customValue(s, attr, valueName) {
+// Значение справочника запоминаем: иначе каждое доп. поле — лишний запрос к складу,
+// а при сбое связи поле молча остаётся пустым (так вышло с «Тип Оплаты» у №3143).
+function customValue(app, s, attr, valueName) {
   if (!attr.customEntityMeta || !valueName) return null;
   const dict = String(attr.customEntityMeta.href).split("/").pop();
+  const key = dict + "|" + norm(valueName);
+
+  let cache = {};
+  try { cache = shop.jget(s, "ms_dict_cache") || {}; } catch (_) { cache = {}; }
+  if (cache[key]) return { meta: { href: `${BASE}/entity/customentity/${dict}/${cache[key]}`, type: "customentity", mediaType: "application/json" } };
+
   const list = ms(s, "GET", `/entity/customentity/${dict}?limit=100`);
   if (!list.ok) return null;
   const want = norm(valueName);
   const row = (list.data.rows || []).find((r) => norm(r.name) === want) ||
               (list.data.rows || []).find((r) => norm(r.name).indexOf(want) >= 0);
   if (!row) return null;
+
+  cache[key] = row.id;
+  // пишем запросом, мимо хуков на настройках
+  try { app.db().newQuery("UPDATE settings SET ms_dict_cache = {:v} WHERE id = {:id}").bind({ v: JSON.stringify(cache), id: s.id }).execute(); }
+  catch (err) { console.log("ms dict cache", err); }
   return { meta: { href: `${BASE}/entity/customentity/${dict}/${row.id}`, type: "customentity", mediaType: "application/json" } };
 }
-function buildAttributes(s, o) {
+function buildAttributes(app, s, o, missed) {
   const md = ms(s, "GET", "/entity/customerorder/metadata/attributes");
-  if (!md.ok) return [];
+  if (!md.ok) { if (missed) missed.push("все доп. поля (склад не ответил)"); return []; }
   const rows = md.data.rows || [];
   const byName = (name) => rows.find((r) => norm(r.name) === norm(name));
   const pickup = o.get("delivery_type") === "pickup";
@@ -255,13 +268,15 @@ function buildAttributes(s, o) {
   const add = (name, value) => {
     const a = byName(name);
     if (!a || value === null || value === undefined || value === "") return;
-    out.push(Object.assign(attrMeta(a.id), { value: a.type === "customentity" ? customValue(s, a, value) : value }));
+    out.push(Object.assign(attrMeta(a.id), { value: a.type === "customentity" ? customValue(app, s, a, value) : value }));
   };
   const addEntity = (name, valueName) => {
     const a = byName(name);
-    if (!a) return;
-    const v = customValue(s, a, valueName);
-    if (v) out.push(Object.assign(attrMeta(a.id), { value: v }));
+    if (!a) { if (missed) missed.push(name + " (нет такого поля)"); return; }
+    const v = customValue(app, s, a, valueName);
+    // не нашли значение — говорим вслух, а не оставляем поле пустым молча
+    if (!v) { if (missed) missed.push(`${name} = «${valueName}»`); return; }
+    out.push(Object.assign(attrMeta(a.id), { value: v }));
   };
   addEntity("Способ доставки", pickup ? "Самовывоз" : "Доставка");
   addEntity("Тип Оплаты", paidCard ? (s.get("ms_pay_card") || "CloudPayments") : (s.get("ms_pay_cash") || "Наличные/карта на ТТ"));
@@ -351,6 +366,33 @@ function positionsFor(app, s, o) {
       continue;
     }
 
+    // Микс: один товар на сайте — несколько сортов на складе. Храним доли,
+    // а раскладываем по заказанному количеству: «7 пинк, 7 сноу, 11 блю» на 25
+    // превращается в 4/4/7 на 15 и 14/14/23 на 51. Остаток отдаём тем, у кого
+    // дробная часть больше — так сумма сходится ровно, без потерянных стеблей.
+    const mix = prod ? shop.jget(prod, "ms_mix") : null;
+    if (Array.isArray(mix) && mix.length) {
+      const доли = mix.filter((x) => x && x.id && +x.share > 0);
+      if (доли.length) {
+        const st0 = stemsOf(it);
+        const всего = st0.cnt * it.qty;
+        const суммаДолей = доли.reduce((n, x) => n + (+x.share || 0), 0);
+        const сырое = доли.map((x) => (+x.share || 0) * всего / суммаДолей);
+        const целые = сырое.map((v) => Math.floor(v));
+        let остаток = всего - целые.reduce((a, b) => a + b, 0);
+        сырое.map((v, i) => ({ i, хвост: v - Math.floor(v) }))
+          .sort((a, b) => b.хвост - a.хвост)
+          .forEach((r) => { if (остаток > 0) { целые[r.i]++; остаток--; } });
+        const заСтебель = Math.round(st0.price * 100);
+        доли.forEach((x, i) => {
+          if (!целые[i]) return;
+          positions.push({ quantity: целые[i], price: заСтебель, assortment: meta("product", String(x.id)) });
+          posKop += заСтебель * целые[i];
+        });
+        continue;
+      }
+    }
+
     const as = assortment(app, s, it);
     if (!as.ok) return as;
     const st = stemsOf(it);   // в МоёмСкладе номенклатура — стебель: количество стеблей и цена за стебель
@@ -396,6 +438,8 @@ function pushOrder(app, o) {
   if (!pos.ok) return pos;
   const positions = pos.positions;
 
+  // сюда собираем поля, которые не удалось заполнить: молчать о них нельзя
+  const missedAttrs = [];
   const body = {
     name: String(o.get("number")),
     organization: meta("organization", s.get("ms_org_id")),
@@ -406,7 +450,7 @@ function pushOrder(app, o) {
     positions,
     shipmentAddress: o.get("delivery_type") === "pickup" ? "" : o.get("address") || "",
   vatEnabled: false,
-attributes: buildAttributes(s, o),
+attributes: buildAttributes(app, s, o, missedAttrs),
 };
 const ch = channelId(s);
 if (ch) body.salesChannel = meta("saleschannel", ch);
@@ -429,6 +473,15 @@ else {
   if (!claim(app, o.id, "push")) return { ok: false, wait: true, error: "Заказ уже отправляется в МойСклад." };
   const created = ms(s, "POST", "/entity/customerorder", body);
   if (!created.ok) { unclaim(app, o.id, "push"); return created; }
+  // Заказ ушёл, но часть полей не заполнилась — чаще всего склад не ответил.
+  // Раньше это проходило незаметно: у №3143 так пропал способ доставки.
+  if (missedAttrs.length) {
+    console.log("ms: не заполнены поля у заказа", o.get("number"), missedAttrs.join("; "));
+    try {
+      shop.adminIds(s).forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat,
+        text: `⚠️ Заказ №${o.get("number")} ушёл в МойСклад, но не заполнились поля:\n${missedAttrs.join("\n")}\nПроставьте их вручную.` }));
+    } catch (_) {}
+  }
   o.set("ms_id", created.data.id);
   o.set("ms_error", "");
   app.save(o);
