@@ -155,7 +155,7 @@ function sendBouquet(app, s, chat, ord, fileId, brief) {
       const keys = { inline_keyboard: [[{ text: "👍", callback_data: `ap:${ord.id}` }, { text: "👎", callback_data: `rw:${ord.id}` }]] };
       // файлом, а не ссылкой: до нашего сервера Телеграм не достукивается
       const sent = saved && saved.path
-        ? shop.tgPhoto(shop.clientToken(s), ord.get("tg_chat"), saved.path, caption, keys)
+        ? shop.tgPhoto(shop.clientToken(s, shop.brandOfOrder(app, ord)), ord.get("tg_chat"), saved.path, caption, keys)
         : null;
       if (!sent || !sent.ok) {
         return shop.tg(token, "sendMessage", { chat_id: chat, text: `Фото не ушло клиенту — попробуйте отправить ещё раз. Если повторится, скажите мне.` });
@@ -255,9 +255,10 @@ function addProduct(app, s, chat, msg) {
 }
 
 // Клиентский бот: только вход в кабинет, подписка на заказ и приветствие
-function handleClient(app, upd) {
+// brand — витрина, чьим ботом пришло сообщение: им же и отвечаем
+function handleClient(app, upd, brand) {
   const s = shop.settings(app);
-  const token = shop.clientToken(s);
+  const token = shop.clientToken(s, brand);
 
   // клиент оценил фото букета
   if (upd.callback_query) {

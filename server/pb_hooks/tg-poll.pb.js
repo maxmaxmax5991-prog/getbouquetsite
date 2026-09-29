@@ -6,74 +6,87 @@
 // Внимание: обработчики PocketBase не видят код верхнего уровня, поэтому всё нужное пишем внутри задания.
 
 // опрос клиентского бота (@venikoffnetbot) — статусы заказа, вход в кабинет, оценка фото
+// Клиентские боты всех витрин. У каждой витрины свой бот и своя позиция чтения:
+// один ключ — один опрос, иначе Телеграм отвечает 409 и сообщения теряются.
+// Время делим между ботами, чтобы задание укладывалось в минуту.
 cronAdd("tg-poll-client", "* * * * *", () => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const bot = require(`${__hooks}/lib/bot.js`);
   let s;
   try { s = shop.settings($app); } catch (_) { return; }
-  const token = s.get("tg_client_token");
-  if (!token) return;   // клиентского бота нет — всё идёт через рабочий
 
-  // Замок на опрос: цикл держится 52 секунды, а задание запускается раз в минуту.
-  // Если запрос к Телеграму подвис, следующий тик поднимал второй опрос поверх первого,
-  // и одно и то же сообщение обрабатывалось дважды-трижды. Живой замок пропускаем.
-  const lockKey = "poll:tg_client";
-  const held = (() => {
+  let brands = [];
+  try { brands = $app.findRecordsByFilter("brands", "active = true && tg_client_token != ''", "sort", 20, 0); } catch (_) {}
+  // ни у одной витрины ключа нет — работаем по-старому, от общих настроек
+  const legacy = !brands.length && s.get("tg_client_token");
+  if (!brands.length && !legacy) return;
+
+  const held = (key) => {
     try {
       const row = new DynamicModel({ value: "" });
-      $app.db().newQuery("SELECT value FROM watchdog_state WHERE key = {:k}").bind({ k: lockKey }).one(row);
+      $app.db().newQuery("SELECT value FROM watchdog_state WHERE key = {:k}").bind({ k: key }).one(row);
       return String(row.value || "") > new Date(Date.now() - 70000).toISOString();
     } catch (_) { return false; }
-  })();
-  if (held) return;
-  const touch = () => {
+  };
+  const touch = (key) => {
     try {
       $app.db().newQuery(`INSERT INTO watchdog_state (key, value, at) VALUES ({:k}, {:v}, {:v})
         ON CONFLICT(key) DO UPDATE SET value = {:v}, at = {:v}`)
-        .bind({ k: lockKey, v: new Date().toISOString() }).execute();
+        .bind({ k: key, v: new Date().toISOString() }).execute();
     } catch (_) {}
   };
-  touch();
+  const beat = () => { try { $app.db().newQuery("UPDATE settings SET tg_beat_client = {:v} WHERE id = {:id}").bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {} };
 
-
-  // позицию пишем запросом в базу, а не обычным сохранением: иначе срабатывает хук на настройках
-  // и бот каждый раз заново подключается к Телеграму
-  const saveOffset = (v) => {
-    try { $app.db().newQuery("UPDATE settings SET tg_offset_client = {:v} WHERE id = {:id}").bind({ v, id: s.id }).execute(); }
-    catch (err) { console.log("offset client", err); }
+  // один бот: опрашиваем, пока не кончится его доля времени
+  const pump = (name, token, brand, getOffset, saveOffset, budget) => {
+    const key = "poll:tg_client:" + name;
+    if (held(key)) return;
+    touch(key);
+    let offset = getOffset();
+    const until = Date.now() + budget;
+    let conflicts = 0;
+    while (Date.now() < until) {
+      const wait = Math.max(1, Math.min(20, Math.round((until - Date.now()) / 1000) - 5));
+      let res;
+      try {
+        res = $http.send({ url: `https://api.telegram.org/bot${token}/getUpdates?timeout=${wait}&offset=${offset}&allowed_updates=["message","callback_query"]`, method: "GET", timeout: wait + 10 });
+      } catch (err) { return; }
+      if (res.statusCode === 409) {            // остался webhook или чужой опрос
+        if (++conflicts > 2) return;
+        $http.send({ url: `https://api.telegram.org/bot${token}/deleteWebhook`, method: "POST", timeout: 15 });
+        continue;
+      }
+      if (res.statusCode !== 200 || !res.json || !res.json.ok) return;
+      beat(); touch(key);
+      const updates = res.json.result || [];
+      for (const upd of updates) {
+        offset = upd.update_id + 1;
+        // Позицию сохраняем ДО обработки: если сервер перезапустится посреди пачки,
+        // то же нажатие пришло бы второй раз.
+        saveOffset(offset);
+        try { bot.handleClient($app, upd, brand); }
+        catch (err) { console.log("client bot", name, err); require(`${__hooks}/lib/err.js`).note($app, "Клиентский бот " + name, String(err), ""); }
+      }
+    }
   };
 
-  // «бот жив» — по этой отметке сторож понимает, что опрос идёт
-  const beat = (f) => { try { $app.db().newQuery(`UPDATE settings SET ${f} = {:v} WHERE id = {:id}`).bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {} };
-
-  let offset = s.get("tg_offset_client") || 0;
-  const until = Date.now() + 45000;   // короче минуты: следующий тик не должен налезть
-  let conflicts = 0;
-  while (Date.now() < until) {
-    let res;
-    try {
-      res = $http.send({ url: `https://api.telegram.org/bot${token}/getUpdates?timeout=20&offset=${offset}&allowed_updates=["message","callback_query"]`, method: "GET", timeout: 30 });
-    } catch (err) { return; }
-    if (res.statusCode === 409) {                 // другой опрос ещё идёт или остался webhook
-      if (++conflicts > 2) return;                // не долбим Телеграм — подождём до следующей минуты
-      $http.send({ url: `https://api.telegram.org/bot${token}/deleteWebhook`, method: "POST", timeout: 15 });
-      continue;
-    }
-    if (res.statusCode !== 200 || !res.json || !res.json.ok) return;
-    beat("tg_beat_client"); touch();
-    const updates = res.json.result || [];
-    for (const upd of updates) {
-      offset = upd.update_id + 1;
-      // Позицию сохраняем ДО обработки: если сервер перезапустится посреди пачки
-      // (например, на выкладке), то же нажатие пришло бы второй раз, и владельцу
-      // прилетало «Клиент одобрил фото» по четыре раза.
-      saveOffset(offset);
-      try { bot.handleClient($app, upd); } catch (err) { console.log("client bot", err); require(`${__hooks}/lib/err.js`).note($app, "Клиентский бот", String(err), ""); }
-    }
+  if (legacy) {
+    pump("main", s.get("tg_client_token"), null,
+      () => s.get("tg_offset_client") || 0,
+      (v) => { try { $app.db().newQuery("UPDATE settings SET tg_offset_client = {:v} WHERE id = {:id}").bind({ v, id: s.id }).execute(); } catch (_) {} },
+      45000);
+    return;
   }
+
+  const budget = Math.floor(45000 / brands.length);
+  brands.forEach((b) => {
+    pump(b.get("slug"), b.get("tg_client_token"), b,
+      () => b.get("tg_offset") || 0,
+      (v) => { try { $app.db().newQuery("UPDATE brands SET tg_offset = {:v} WHERE id = {:id}").bind({ v, id: b.id }).execute(); } catch (_) {} },
+      budget);
+  });
 });
 
-// опрос служебного бота (@newbouquet_bot) — товары, заказы, фото букета
 cronAdd("tg-poll", "* * * * *", () => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const bot = require(`${__hooks}/lib/bot.js`);

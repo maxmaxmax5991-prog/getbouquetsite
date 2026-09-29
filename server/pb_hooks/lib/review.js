@@ -39,7 +39,7 @@ function ask(app, rec) {
       app.save(rec);
       const text = "Спасибо за честность. Жаль, что не всё получилось — мы свяжемся с вами и разберёмся.";
       if (via === "max") require(`${__hooks}/lib/max.js`).send(s.get("max_token"), o.get("max_chat"), text);
-      else shop.tg(shop.clientToken(s), "sendMessage", { chat_id: o.get("tg_chat"), text });
+      else shop.tg(shop.clientToken(s, shop.brandOfOrder(app, o)), "sendMessage", { chat_id: o.get("tg_chat"), text });
       shop.adminIds(s).forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat,
         text: `🔴 Недовольный клиент — заказ №${o.get("number")}\nОформление ${marks[0]}, букет ${marks[1]}, доставка ${marks[2]}\n${o.get("name")}, ${o.get("phone")}\n\nНужно позвонить.`,
         reply_markup: { inline_keyboard: [[{ text: "✅ Взял в работу", callback_data: `rh:${rec.id}` }]] } }));
@@ -52,7 +52,7 @@ function ask(app, rec) {
         const mx = require(`${__hooks}/lib/max.js`);
         mx.send(s.get("max_token"), o.get("max_chat"), text, [[mx.btnLink("Оставить отзыв", url)]]);
       } else {
-        shop.tg(shop.clientToken(s), "sendMessage", { chat_id: o.get("tg_chat"), text,
+        shop.tg(shop.clientToken(s, shop.brandOfOrder(app, o)), "sendMessage", { chat_id: o.get("tg_chat"), text,
           reply_markup: { inline_keyboard: [[{ text: "⭐ Оставить отзыв на Яндекс.Картах", url }]] } });
       }
       rec.set("step", "done");
@@ -62,7 +62,7 @@ function ask(app, rec) {
 
     const text = "Спасибо! Если хотите что-то добавить — напишите одним сообщением. Если нет, просто не отвечайте.";
     if (via === "max") require(`${__hooks}/lib/max.js`).send(s.get("max_token"), o.get("max_chat"), text);
-    else shop.tg(shop.clientToken(s), "sendMessage", { chat_id: o.get("tg_chat"), text });
+    else shop.tg(shop.clientToken(s, shop.brandOfOrder(app, o)), "sendMessage", { chat_id: o.get("tg_chat"), text });
     return;
   }
   const text = head + QUESTIONS[step];
@@ -71,7 +71,7 @@ function ask(app, rec) {
     const rows = [1, 2, 3, 4, 5].map((n) => mx.btn(LABEL[n], `rv:${rec.id}:${step}:${n}`));
     mx.send(s.get("max_token"), o.get("max_chat"), text, [rows.slice(0, 3), rows.slice(3)]);
   } else {
-    shop.tg(shop.clientToken(s), "sendMessage", { chat_id: o.get("tg_chat"), text,
+    shop.tg(shop.clientToken(s, shop.brandOfOrder(app, o)), "sendMessage", { chat_id: o.get("tg_chat"), text,
       reply_markup: { inline_keyboard: stars(rec.id, step) } });
   }
 }

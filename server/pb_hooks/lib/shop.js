@@ -628,7 +628,18 @@ function tgPhoto(token, chat, path, caption, keyboard) {
 
 // ключ клиентского бота (если не задан — общий)
 
-function clientToken(s) { return s.get("tg_client_token") || s.get("tg_token"); }
+// Каким ботом писать покупателю. У витрины свой бот; нет — общий из настроек.
+function clientToken(s, brand) {
+  return (brand && brand.get("tg_client_token")) || s.get("tg_client_token") || s.get("tg_token");
+}
+// Витрина заказа: по ней и выбираем бота. В Телеграме номер собеседника у разных
+// ботов одинаковый (это номер человека), поэтому «каким ботом отвечать» можно
+// понять только из заказа, а не из номера.
+function brandOfOrder(app, o) {
+  const id = o && o.get("brand");
+  if (!id) return null;
+  try { return app.findRecordById("brands", String(id)); } catch (_) { return null; }
+}
 
 function adminIds(s) {
   return String(s.get("tg_admins") || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
@@ -728,7 +739,7 @@ function notifyCustomer(app, o, status) {
   // Если сообщение не ушло — покупатель об этом не узнает, поэтому говорим владельцу.
   const failed = [];
   if (tgChat) {
-    const r = tg(clientToken(s), "sendMessage", { chat_id: tgChat, text });
+    const r = tg(clientToken(s, brandOfOrder(app, o)), "sendMessage", { chat_id: tgChat, text });
     if (!r || !r.ok) failed.push(`Телеграм (${(r && r.description) || "нет ответа"})`);
   }
   if (maxChat) {
@@ -746,5 +757,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
-  tg, tgPhoto, clientToken, adminIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  tg, tgPhoto, clientToken, brandOfOrder, adminIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };
