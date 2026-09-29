@@ -409,6 +409,10 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .cat-note{margin:6px 0 0;font-size:13.5px;color:var(--accent-text);font-weight:600}
 .price-note{margin:6px 0 0;font-size:13px;color:var(--ink-2);line-height:1.35}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* без этого поле даты на узком экране раздувается до своей «родной» ширины
+   и съедает соседа: «Дата» 146 px против «Интервала» 119 — строка кривая */
+.two>*,.three>*{min-width:0}
+.two input,.two select,.three input,.three select{min-width:0;width:100%}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .foot .contacts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
@@ -685,7 +689,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790685613"></script>
+<script src="data.js?v=1790687010"></script>
 <script>
 (async () => {
 const API = await window.SHOP;

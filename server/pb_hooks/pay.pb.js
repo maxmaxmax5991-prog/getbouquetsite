@@ -80,6 +80,32 @@ routerAdd("GET", "/api/shop/order/{code}", (e) => {
   });
 });
 
+// Служебное: что банк отдаёт за день. Нужно для сверки кассы — сначала проверяем,
+// каким запросом и в каком виде приходят платежи.
+routerAdd("POST", "/api/shop/cp-day", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const pay = require(`${__hooks}/lib/pay.js`);
+  if (!shop.can(e, ["owner"])) return e.json(403, { message: "Только владелец." });
+  const b = e.requestInfo().body || {};
+  const date = String(b.date || "").trim();          // ГГГГ-ММ-ДД
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return e.json(400, { message: "Дата в виде ГГГГ-ММ-ДД" });
+  let br = null;
+  try { if (b.brand) br = $app.findRecordById("brands", String(b.brand)); } catch (_) {}
+  const path = String(b.path || "/payments/list");
+  const r = pay.cp(shop.settings($app), path, { Date: date, TimeZone: "MSK" }, br);
+  if (!r.ok) return e.json(400, { message: r.error, путь: path });
+  const rows = (r.data && r.data.Model) || [];
+  const ok = rows.filter((x) => x.Status === "Completed" || x.Status === "Authorized");
+  return e.json(200, {
+    успех: !!(r.data && r.data.Success),
+    всего: rows.length,
+    прошедших: ok.length,
+    сумма: ok.reduce((a, x) => a + (+x.Amount || 0), 0),
+    тестовых: rows.filter((x) => x.TestMode).length,
+    пример: rows.slice(0, 3).map((x) => ({ счёт: x.InvoiceId, сумма: x.Amount, статус: x.Status, тест: x.TestMode, когда: x.CreatedDateIso || x.CreatedDate })),
+  });
+}, $apis.requireAuth("managers"));
+
 // Оплата могла пройти, а браузер закрыться — дочищаем сами
 cronAdd("pay-poll", "* * * * *", () => {
   const pay = require(`${__hooks}/lib/pay.js`);
