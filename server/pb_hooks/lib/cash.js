@@ -46,7 +46,7 @@ function forBrand(app, s, brand, day) {
   const ourSum = ours.reduce((a, o) => a + (+o.get("total") || 0), 0);
 
   // Заказ отмечен оплаченным, а денег за этот счёт в банке нет — самое опасное.
-  const пусто = ours.filter((o) => !bankByInvoice[String(o.get("number"))]);
+  const пусто = ours.filter((o) => !bankByInvoice[shop.invoiceOf(o)]);
 
   // Терминал может обслуживать не только сайт: у «Гет Букет» там нашлись счета
   // 17121 и подобные — это чужая нумерация. Поэтому в обратную сторону смотрим
@@ -55,12 +55,16 @@ function forBrand(app, s, brand, day) {
   const проморгали = [], чужие = [];
   let нашиВБанке = 0;
   Object.keys(bankByInvoice).forEach((inv) => {
-    if (!/^\d+$/.test(inv)) { чужие.push(inv); return; }
     let o = null;
-    try { o = app.findFirstRecordByFilter("orders", "number = {:n}", { n: +inv }); } catch (_) {}
+    // сначала по счёту с буквой витрины, потом по голому номеру — так у заказов,
+    // оформленных до перехода на буквы
+    try { o = app.findFirstRecordByFilter("orders", "invoice = {:i}", { i: inv }); } catch (_) {}
+    if (!o && /^\d+$/.test(inv)) {
+      try { o = app.findFirstRecordByFilter("orders", "number = {:n} && invoice = ''", { n: +inv }); } catch (_) {}
+    }
     if (!o || (brand && String(o.get("brand") || "") !== brand.id)) { чужие.push(inv); return; }
     нашиВБанке += bankByInvoice[inv];
-    if (o.get("payment_status") !== "paid") проморгали.push(inv);
+    if (o.get("payment_status") !== "paid") проморгали.push(o.get("number"));
   });
   const чужаяСумма = bankSum - нашиВБанке;
 

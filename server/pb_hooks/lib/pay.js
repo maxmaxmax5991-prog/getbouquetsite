@@ -71,10 +71,18 @@ function checkOrder(app, o) {
   const s = shop.settings(app);
   // сверяем платёж на терминале ТОЙ витрины, где заказ и оформляли
   const brand = shop.brandOfOrder(app, o);
-  const r = cp(s, "/v2/payments/find", { InvoiceId: String(o.get("number")) }, brand);
+  const inv = shop.invoiceOf(o);
+  let r = cp(s, "/v2/payments/find", { InvoiceId: inv }, brand);
   if (!r.ok || !r.data) return false;
-  const m = r.data.Model;
-  if (!r.data.Success || !m) return false;
+  let m = r.data.Success ? r.data.Model : null;
+  // Страховка на переход: страница заказа могла остаться открытой со старой версией
+  // сайта и выставить голый номер. Поблажки это не даёт — платёж ниже всё равно
+  // проверяется на тестовость, дату и сумму, а это и ловило старые совпадения.
+  if (!m && inv !== String(o.get("number"))) {
+    const r2 = cp(s, "/v2/payments/find", { InvoiceId: String(o.get("number")) }, brand);
+    if (r2.ok && r2.data && r2.data.Success && r2.data.Model) { r = r2; m = r2.data.Model; }
+  }
+  if (!m) return false;
   const okStatus = m.Status === "Completed" || m.Status === "Authorized";
   if (!okStatus) {
     if (m.Status === "Declined") { o.set("payment_status", "failed"); app.save(o); }

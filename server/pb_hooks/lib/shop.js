@@ -402,6 +402,27 @@ function moscowNow() {
 const addDays = (iso, n) => new Date(Date.parse(iso + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
 const toMin = (hhmm) => { const [h, m] = String(hhmm).split(":"); return (+h) * 60 + (+m); };
 
+// Номер счёта для банка. В кабинете CloudPayments копятся счета за все годы —
+// майские тесты и чужая нумерация на том же терминале, — и голый номер заказа
+// рано или поздно наступает на занятый (так «оплатились» №3122 и №3112).
+// Буква витрины делает совпадение невозможным и сразу показывает, чей это платёж.
+function invoicePrefix(app, brandId) {
+  if (!brandId) return "";
+  try {
+    const b = app.findRecordById("brands", String(brandId));
+    const p = String(b.get("pay_prefix") || "").trim();
+    if (p) return p;
+    const slug = String(b.get("slug") || "").trim();
+    return slug ? slug.slice(0, 1).toLowerCase() : "";
+  } catch (_) { return ""; }
+}
+
+// Счёт заказа. У заказов до перехода поле пустое — там счёт остаётся голым номером:
+// ссылки на оплату уже у покупателей на руках, менять их задним числом нельзя.
+function invoiceOf(o) {
+  return String(o.get("invoice") || "") || String(o.get("number"));
+}
+
 function prepareOrder(app, rec) {
   const s = settings(app);
   const fail = (msg) => { throw new BadRequestError(msg); };
@@ -548,6 +569,7 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   // первый заказ после чистки истории начинается с number_base, чтобы номера не повторялись в МоёмСкладе
   const last = app.findRecordsByFilter("orders", "number > 0", "-number", 1, 0);
   rec.set("number", last.length ? last[0].get("number") + 1 : (+s.get("number_base") || 1001));
+  rec.set("invoice", invoicePrefix(app, rec.get("brand")) + rec.get("number"));
   rec.set("status", "new");
   rec.set("items", items);
   rec.set("items_sum", sum);
@@ -772,6 +794,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, notifyCustomer, readyOf, stockOf, stockOk,
+  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, invoicePrefix, invoiceOf, notifyCustomer, readyOf, stockOf, stockOk,
   tg, tgPhoto, clientToken, brandOfOrder, adminIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

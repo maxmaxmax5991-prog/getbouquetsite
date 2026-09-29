@@ -14,18 +14,22 @@ routerAdd("POST", "/api/shop/pay-link", (e) => {
   if (o.get("payment_status") === "paid") return e.json(200, { paid: true });
   if (o.get("payment_method") !== "card") return e.json(400, { message: "Этот заказ оплачивается при получении." });
 
-  const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  // Витрина заказа решает две вещи: на чей терминал уйдут деньги и куда вернуть
+  // покупателя. Раньше ссылка всегда открывалась ключом venikoff — у «Гет Букета»
+  // оплата уходила бы на чужой счёт.
+  const brand = shop.brandOfOrder($app, o);
+  const site = String((brand && brand.get("domain") ? "https://" + brand.get("domain") : "") || s.get("site_url") || "").replace(/\/$/, "");
   const back = `${site}/#/order/${o.get("tg_code")}`;
   const r = pay.cp(s, "/orders/create", {
     Amount: o.get("total"),
     Currency: "RUB",
-    Description: `Заказ №${o.get("number")} — venikoff.net`,
-    InvoiceId: String(o.get("number")),
+    Description: `Заказ №${o.get("number")} — ${(brand && brand.get("name")) || "venikoff.net"}`,
+    InvoiceId: shop.invoiceOf(o),
     AccountId: String(o.get("phone") || ""),
     RequireConfirmation: false,
     SuccessRedirectUrl: back,
     FailRedirectUrl: back,
-  });
+  }, brand);
   if (!r.ok || !r.data || !r.data.Success || !r.data.Model || !r.data.Model.Url) {
     console.log("pay-link", JSON.stringify(r.data || r.error || ""));
     return e.json(502, { message: "Не получилось открыть оплату. Попробуйте ещё раз." });
@@ -43,7 +47,9 @@ routerAdd("POST", "/api/shop/pay-check", (e) => {
   let o;
   try { o = $app.findRecordById("orders", String(body.order || "")); } catch (_) { return e.json(404, { message: "Заказ не найден" }); }
   const paid = pay.checkOrder($app, o) || o.get("payment_status") === "paid";
-  return e.json(200, { paid, number: o.get("number") });
+  // счёт отдаём сайту: окно оплаты должно выставить ровно тот номер, по которому
+  // мы потом ищем платёж, иначе оплата «потеряется»
+  return e.json(200, { paid, number: o.get("number"), invoice: shop.invoiceOf(o) });
 });
 
 // Состояние заказа по его коду — единственный источник правды для покупателя.
@@ -167,9 +173,19 @@ routerAdd("POST", "/api/shop/cp-find", (e) => {
   // терминал выбираем по витрине, если её передали
   let br = null;
   try { if (b.brand) br = $app.findRecordById("brands", String(b.brand)); } catch (_) {}
-  const r = pay.cp(shop.settings($app), "/v2/payments/find", { InvoiceId: inv }, br);
+  let r = pay.cp(shop.settings($app), "/v2/payments/find", { InvoiceId: inv }, br);
   if (!r.ok) return e.json(400, { message: r.error });
-  const m = (r.data && r.data.Model) || null;
+  let m = (r.data && r.data.Model) || null;
+  // вбили голый номер, а счёт ушёл с буквой витрины — поищем и так
+  if (!m && /^\d+$/.test(inv)) {
+    let o = null;
+    try { o = $app.findFirstRecordByFilter("orders", "number = {:n}", { n: +inv }); } catch (_) {}
+    const alt = o ? shop.invoiceOf(o) : "";
+    if (alt && alt !== inv) {
+      const r2 = pay.cp(shop.settings($app), "/v2/payments/find", { InvoiceId: alt }, br || shop.brandOfOrder($app, o));
+      if (r2.ok && r2.data && r2.data.Model) { r = r2; m = r2.data.Model; }
+    }
+  }
   return e.json(200, {
     success: !!(r.data && r.data.Success),
     message: (r.data && r.data.Message) || "",

@@ -689,7 +689,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790693129"></script>
+<script src="data.js?v=1790695189"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1764,7 +1764,7 @@ async function payWidget(order, name, phone) {
         description: `Заказ №${order.number} — ${SITE}`,
         amount: order.total,
         currency: 'RUB',
-        invoiceId: String(order.number),
+        invoiceId: String(order.invoice || order.number),   // счёт с буквой витрины, чтобы не совпасть со старым
         accountId: phone,
         skin: 'mini',
         // куда вернуть покупателя, если их кнопка «Вернуться в магазин» всё же сработает
@@ -1807,6 +1807,9 @@ async function payCard(order, name, phone) {
     }
     const d = await r.json().catch(() => ({}));
     if (d && d.paid) return { paid: true };     // уже оплачен, второй раз не берём
+    // Номер счёта берём у сервера: в «Моих заказах» и в боте на руках только номер
+    // заказа, а в банк должен уйти счёт с буквой витрины — иначе платёж потеряется.
+    if (d && d.invoice) order = Object.assign({}, order, { invoice: d.invoice });
   } catch (_) {}
 
   try {

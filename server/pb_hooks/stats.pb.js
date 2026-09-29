@@ -9,9 +9,12 @@ routerAdd("POST", "/api/shop/hit", (e) => {
   if (vid.length < 8) return e.json(200, { ok: true });
   const src = String(b.source || "прямой заход").slice(0, 60);
   const day = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);   // день по Москве
+  // с какого сайта зашли — решает домен, а не браузер
+  let bid = "";
+  try { const b = require(`${__hooks}/lib/brand.js`).byHost($app, e); bid = b ? b.id : ""; } catch (_) {}
   try {
-    $app.db().newQuery("INSERT OR IGNORE INTO visits (day, vid, source, at) VALUES ({:d}, {:v}, {:s}, {:t})")
-      .bind({ d: day, v: vid, s: src, t: new Date().toISOString() }).execute();
+    $app.db().newQuery("INSERT OR IGNORE INTO visits (day, vid, brand, source, at) VALUES ({:d}, {:v}, {:b}, {:s}, {:t})")
+      .bind({ d: day, v: vid, b: bid, s: src, t: new Date().toISOString() }).execute();
   } catch (err) { console.log("счётчик", err); }
   return e.json(200, { ok: true });
 });
@@ -28,19 +31,31 @@ routerAdd("GET", "/api/shop/stats-visits", (e) => {
     ? q.get("to")
     : new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 
-  const out = { days: [], sources: [], total: 0 };
+  // ?brand=<id> — только этот сайт; без него считаем оба вместе
+  const bid = String(q.get("brand") || "").trim();
+  const only = bid ? " AND brand = {:b}" : "";
+  const args = bid ? { f: from, t: to, b: bid } : { f: from, t: to };
+
+  const out = { days: [], sources: [], total: 0, brands: [] };
   try {
     const list = arrayOf(new DynamicModel({ day: "", n: 0 }));
-    $app.db().newQuery("SELECT day, COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t} GROUP BY day ORDER BY day")
-      .bind({ f: from, t: to }).all(list);
+    $app.db().newQuery(`SELECT day, COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t}${only} GROUP BY day ORDER BY day`)
+      .bind(args).all(list);
     list.forEach((r) => { out.days.push({ day: r.day, n: +r.n }); out.total += +r.n; });
   } catch (err) { console.log("сводка дней", err); }
   try {
     const list = arrayOf(new DynamicModel({ source: "", n: 0 }));
-    $app.db().newQuery("SELECT source, COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t} GROUP BY source ORDER BY n DESC LIMIT 12")
-      .bind({ f: from, t: to }).all(list);
+    $app.db().newQuery(`SELECT source, COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t}${only} GROUP BY source ORDER BY n DESC LIMIT 12`)
+      .bind(args).all(list);
     list.forEach((r) => out.sources.push({ source: r.source || "прямой заход", n: +r.n }));
   } catch (err) { console.log("сводка источников", err); }
+  // разбивка по витринам — чтобы в режиме «вместе» показать оба сайта в одной таблице
+  try {
+    const list = arrayOf(new DynamicModel({ brand: "", n: 0 }));
+    $app.db().newQuery("SELECT brand, COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t} GROUP BY brand")
+      .bind({ f: from, t: to }).all(list);
+    list.forEach((r) => out.brands.push({ brand: r.brand || "", n: +r.n }));
+  } catch (err) { console.log("сводка витрин", err); }
   return e.json(200, out);
 }, $apis.requireAuth("managers"));
 
@@ -52,9 +67,11 @@ routerAdd("POST", "/api/shop/ev", (e) => {
   const kind = String(b.kind || "").slice(0, 20);
   if (vid.length < 8 || ["view", "cart", "checkout"].indexOf(kind) < 0) return e.json(200, { ok: true });
   const day = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  let bid = "";
+  try { const br = require(`${__hooks}/lib/brand.js`).byHost($app, e); bid = br ? br.id : ""; } catch (_) {}
   try {
-    $app.db().newQuery("INSERT OR IGNORE INTO events (day, vid, kind, ctx, at) VALUES ({:d}, {:v}, {:k}, {:c}, {:t})")
-      .bind({ d: day, v: vid, k: kind, c: String(b.ctx || "").slice(0, 60), t: new Date().toISOString() }).execute();
+    $app.db().newQuery("INSERT OR IGNORE INTO events (day, vid, brand, kind, ctx, at) VALUES ({:d}, {:v}, {:b}, {:k}, {:c}, {:t})")
+      .bind({ d: day, v: vid, b: bid, k: kind, c: String(b.ctx || "").slice(0, 60), t: new Date().toISOString() }).execute();
   } catch (err) { console.log("событие", err); }
   return e.json(200, { ok: true });
 });
@@ -66,17 +83,20 @@ routerAdd("GET", "/api/shop/funnel", (e) => {
   const q = e.request.url.query();
   const from = String(q.get("from") || "").match(/^\d{4}-\d{2}-\d{2}$/) ? q.get("from") : new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
   const to = String(q.get("to") || "").match(/^\d{4}-\d{2}-\d{2}$/) ? q.get("to") : from;
+  const bid = String(q.get("brand") || "").trim();
+  const only = bid ? " AND brand = {:b}" : "";
   const out = { visits: 0, view: 0, cart: 0, checkout: 0 };
   try {
     const row = new DynamicModel({ n: 0 });
-    $app.db().newQuery("SELECT COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t}").bind({ f: from, t: to }).one(row);
+    $app.db().newQuery(`SELECT COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t}${only}`)
+      .bind(bid ? { f: from, t: to, b: bid } : { f: from, t: to }).one(row);
     out.visits = +row.n;
   } catch (_) {}
   ["view", "cart", "checkout"].forEach((k) => {
     try {
       const row = new DynamicModel({ n: 0 });
-      $app.db().newQuery("SELECT COUNT(DISTINCT vid) as n FROM events WHERE day >= {:f} AND day <= {:t} AND kind = {:k}")
-        .bind({ f: from, t: to, k }).one(row);
+      $app.db().newQuery(`SELECT COUNT(DISTINCT vid) as n FROM events WHERE day >= {:f} AND day <= {:t} AND kind = {:k}${only}`)
+        .bind(bid ? { f: from, t: to, k, b: bid } : { f: from, t: to, k }).one(row);
       out[k] = +row.n;
     } catch (_) {}
   });

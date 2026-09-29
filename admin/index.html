@@ -379,6 +379,12 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <!-- Статистика -->
     <section id="tab-stats" hidden>
       <div class="bar" id="statRange"></div>
+      <div class="bar" id="statBrands" style="margin-top:6px"></div>
+      <div class="card" id="statSplitCard" style="margin-top:12px" hidden>
+        <h2>Сайты по отдельности</h2>
+        <p class="hint">Одни и те же цифры по каждой витрине и вместе. Чтобы посмотреть сайт целиком — выберите его кнопкой выше.</p>
+        <div class="scroll"><table class="t" id="statSplit"></table></div>
+      </div>
       <div class="tiles4" id="statTiles"></div>
       <div class="card" style="margin-top:12px">
         <h2 id="statChartTitle">Выручка по дням</h2>
@@ -1929,6 +1935,8 @@ const PERIODS = [
   ['7', '7 дней', -6, 0], ['30', '30 дней', -29, 0], ['90', '3 месяца', -89, 0],
 ];
 let statPeriod = 'today';
+// какую витрину показываем: пусто — обе вместе
+let statBrand = '';
 // полночь по Москве, выраженная во времени сервера (UTC)
 function mskEdge(plusDays) {
   const m = new Date(Date.now() + 3 * 3600e3);
@@ -1953,13 +1961,23 @@ const loadStats = safe(async () => {
   const span = dTo - dFrom + 1;                       // сколько суток в периоде
   $('#statRange').innerHTML = PERIODS.map(([k, t]) => `<button class="chip" data-p="${k}" aria-pressed="${statPeriod === k}">${t}</button>`).join('');
 
+  // Витрины: смотрим сайты по отдельности или вместе. Заказ помнит свою витрину,
+  // счётчик посещений и шаги воронки — тоже (колонка brand).
+  $('#statBrands').innerHTML = (BRANDS || []).length < 2 ? '' :
+    [['', 'Вместе']].concat(BRANDS.map(b => [b.id, b.name]))
+      .map(([k, t]) => `<button class="chip" data-sb="${k}" aria-pressed="${statBrand === k}">${esc(t)}</button>`).join('');
+  if (statBrand && !(BRANDS || []).some(b => b.id === statBrand)) statBrand = '';
+  const bq = statBrand ? `&brand=${statBrand}` : '';
+
   const fromUtc = mskEdge(dFrom), toUtc = mskEdge(dTo + 1);
   const prevFrom = mskEdge(dFrom - span), prevTo = mskEdge(dFrom);
-  const [all, prevAll, vis] = await Promise.all([
+  const [allRaw, prevRaw, vis] = await Promise.all([
     ordersBetween(fromUtc, toUtc),
     ordersBetween(prevFrom, prevTo),
-    api(`/api/shop/stats-visits?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`).catch(() => ({ total: 0, sources: [] })),
+    api(`/api/shop/stats-visits?from=${mskDate(dFrom)}&to=${mskDate(dTo)}${bq}`).catch(() => ({ total: 0, sources: [], brands: [] })),
   ]);
+  const ofBrand = a => statBrand ? a.filter(o => o.brand === statBrand) : a;
+  const all = ofBrand(allRaw), prevAll = ofBrand(prevRaw);
   VISITS = vis;
 
   const live = all.filter(o => o.status !== 'cancelled');
@@ -1994,6 +2012,44 @@ const loadStats = safe(async () => {
     tile('Заказов на 100 гостей', conv.toFixed(1)),
     tile('Повторных покупателей', repeat),
   ].join('');
+
+  // Сайты рядом: те же цифры по каждой витрине и итог. Показываем только в режиме
+  // «Вместе» — когда выбран один сайт, сравнивать не с чем.
+  const splitCard = $('#statSplitCard');
+  if (!statBrand && (BRANDS || []).length > 1) {
+    splitCard.hidden = false;
+    const guestsBy = {};
+    (vis.brands || []).forEach(x => { guestsBy[x.brand || ''] = x.n; });
+    const cols = BRANDS.map(b => {
+      const o = allRaw.filter(x => x.brand === b.id);
+      const l = o.filter(x => x.status !== 'cancelled');
+      const m = money(l);
+      const card = l.filter(x => x.payment_method === 'card');
+      const g = guestsBy[b.id] || 0;
+      return { name: b.name, color: b.tag_color || b.accent || '#888',
+        n: l.length, sum: m, avg: l.length ? Math.round(m / l.length) : 0,
+        paid: card.filter(x => x.payment_status === 'paid').length, card: card.length,
+        cancel: o.length - l.length, guests: g,
+        conv: g ? (l.length * 100 / g).toFixed(1) : '—' };
+    });
+    const totalGuests = cols.reduce((a, c) => a + c.guests, 0);
+    const tn = cols.reduce((a, c) => a + c.n, 0), tsum = cols.reduce((a, c) => a + c.sum, 0);
+    const total = { name: 'Вместе', color: '', n: tn, sum: tsum, avg: tn ? Math.round(tsum / tn) : 0,
+      paid: cols.reduce((a, c) => a + c.paid, 0), card: cols.reduce((a, c) => a + c.card, 0),
+      cancel: cols.reduce((a, c) => a + c.cancel, 0), guests: totalGuests,
+      conv: totalGuests ? (tn * 100 / totalGuests).toFixed(1) : '—' };
+    const rows = [
+      ['Заказов', c => c.n], ['Выручка', c => rub(c.sum)], ['Средний чек', c => rub(c.avg)],
+      ['Оплачено картой', c => `${c.paid} из ${c.card}`], ['Отменено', c => c.cancel],
+      ['Посетителей', c => c.guests], ['Заказов на 100 гостей', c => c.conv],
+    ];
+    const head = cols.concat([total]);
+    $('#statSplit').innerHTML = `<tr><th></th>${head.map(c =>
+        `<th class="num">${c.color ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(c.color)};margin-right:6px"></span>` : ''}${esc(c.name)}</th>`).join('')}</tr>`
+      + rows.map(([t, f]) => `<tr><td>${t}</td>${head.map(c => `<td class="num">${f(c)}</td>`).join('')}</tr>`).join('');
+  } else {
+    splitCard.hidden = true;
+  }
 
   // График: короткий период — по часам, длинный — по дням
   const byHour = span <= 1;
@@ -2032,7 +2088,7 @@ const loadStats = safe(async () => {
 
   // Воронка: посетители → карточка → корзина → оформление → заказ → оплата
   try {
-    const fn = await api(`/api/shop/funnel?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`);
+    const fn = await api(`/api/shop/funnel?from=${mskDate(dFrom)}&to=${mskDate(dTo)}${bq}`);
     const steps = [
       ['Зашли на сайт', fn.visits], ['Открыли карточку', fn.view], ['Положили в корзину', fn.cart],
       ['Начали оформлять', fn.checkout], ['Оформили заказ', live.length], ['Оплатили', paid.length],
@@ -2158,6 +2214,7 @@ document.addEventListener('click', safe(async e => {
   toast('Отмечено'); loadStats();
 }));
 $('#statRange').onclick = e => { const b = e.target.closest('[data-p]'); if (b) { statPeriod = b.dataset.p; loadStats(); } };
+$('#statBrands').onclick = e => { const b = e.target.closest('[data-sb]'); if (b) { statBrand = b.dataset.sb; loadStats(); } };
 function chartHTML(byDay, byHour) {
   const days = Object.entries(byDay), max = Math.max(1, ...days.map(([, v]) => v));
   const W = 700, H = 200, pad = 26, bw = (W - pad) / days.length;
@@ -2721,6 +2778,10 @@ function renderBrandsCard() {
         <label class="f">CloudPayments: Public ID<input class="in" data-bf="cp_public_id" data-bid="${b.id}" value="${esc(b.cp_public_id || '')}" placeholder="pk_..."></label>
         <label class="f">CloudPayments: пароль для API<input class="in" type="password" autocomplete="off" data-btok="cp" data-bid="${b.id}"
           placeholder="${b.cp_secret ? 'Пароль сохранён. Вставьте новый, чтобы заменить' : 'Вставьте пароль для API'}"></label>
+      </div>
+      <div class="row">
+        <label class="f">Буква счёта<input class="in" data-bf="pay_prefix" data-bid="${b.id}" value="${esc(b.pay_prefix || '')}" placeholder="v" maxlength="4" style="max-width:120px"></label>
+        <p class="hint" style="flex:1;align-self:center">С этой буквой номер уходит в банк: заказ №3171 → счёт «${esc(b.pay_prefix || 'v')}3171». Так наш счёт не совпадёт со старым чужим из того же кабинета. Номер заказа на сайте и в МоёмСкладе не меняется.</p>
       </div>
       <p class="hint">Свой терминал у каждого сайта: деньги приходят на свой счёт и не путаются в выписке. Не заполнено — работает общий терминал из блока «Оплата картой».</p>
       <div class="bar">
