@@ -30,6 +30,20 @@ cronAdd("ms-push", "* * * * *", () => {
 });
 
 // Проверка токена + списки организаций и складов для админки
+// Служебное: какие этапы заказа есть в МоёмСкладе и какой из них мы выберем.
+routerAdd("POST", "/api/shop/ms-states", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const msl = require(`${__hooks}/lib/ms.js`);
+  const s = shop.settings($app);
+  const r = msl.ms(s, "GET", "/entity/customerorder/metadata");
+  if (!r.ok) return e.json(400, { message: r.error });
+  return e.json(200, {
+    этапы: (r.data.states || []).map((x) => x.name),
+    выберем_оплачен: msl.stateName(s, true),
+    выберем_не_оплачен: msl.stateName(s, false),
+  });
+}, $apis.requireAuth("managers"));
+
 routerAdd("POST", "/api/shop/ms-test", (e) => {
   const _s = require(`${__hooks}/lib/shop.js`);
   if (_s.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });

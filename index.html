@@ -654,7 +654,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
     <div class="contacts">
       <span class="lbl">Связаться с нами</span>
       <a class="btn btn-ghost btn-sm" id="footTg" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
-      <a class="btn btn-ghost btn-sm" href="https://max.ru/id3123484572_biz" target="_blank" rel="noopener">Написать в MAX</a>
+      <a class="btn btn-ghost btn-sm" id="footMax" href="https://max.ru/id3123484572_biz" target="_blank" rel="noopener">Написать в MAX</a>
     </div>
     <span id="footAbout">Москва, Маленковская улица, 14к1<br>Оптовые цены в розницу<br>© venikoff.net, 2026</span>
   </div>
@@ -685,7 +685,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790682080"></script>
+<script src="data.js?v=1790685142"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -721,6 +721,8 @@ function applyBrand(b) {
   if (b.slug !== 'venikoff') ['#logoTop', '#logoFoot'].forEach(sel => { const el = document.querySelector(sel); if (el) el.textContent = b.name; });
   const tg = document.querySelector('#footTg');
   if (tg) { if (b.tg_link) tg.href = b.tg_link; else tg.hidden = true; }
+  const mx = document.querySelector('#footMax');
+  if (mx) { if (b.max_link) mx.href = b.max_link; else mx.hidden = true; }
   const about = document.querySelector('#footAbout');
   if (about) {
     about.textContent = '';

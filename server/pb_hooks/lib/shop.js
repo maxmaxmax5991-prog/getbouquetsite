@@ -249,7 +249,11 @@ function catalog(app, brand) {
       closed_dates: jget(s, "closed_dates") || [],
       accepting: s.get("accepting"),
     },
-    pickup: s.get("pickup") ? { address: s.get("pickup_address") || "", hours: s.get("pickup_hours") || "" } : null,
+    // адрес выдачи витрина может называть по-своему: точка одна, а бренды разные
+    pickup: s.get("pickup") ? {
+      address: (brand && brand.get("pickup_address")) || s.get("pickup_address") || "",
+      hours: (brand && brand.get("pickup_hours")) || s.get("pickup_hours") || "",
+    } : null,
     payment: {
       card: !!(s.get("pay_card") && s.get("cp_public_id")),
       on_delivery: !!(s.get("pay_on_delivery") && s.get("pickup")),   // при получении — только самовывоз
@@ -259,7 +263,9 @@ function catalog(app, brand) {
     // у каждой витрины свой бот для покупателей; не заведён — общий
     bot: (brand && brand.get("tg_client_bot")) || s.get("tg_client_bot") || s.get("tg_bot") || "",
     brand: require(`${__hooks}/lib/brand.js`).pub(brand),
-    maxBot: s.get("max_token") ? (s.get("max_bot") || "") : "",
+    // бот MAX тоже свой у каждой витрины
+    maxBot: (brand && brand.get("max_token")) ? (brand.get("max_bot") || "")
+      : (!brand && s.get("max_token") ? (s.get("max_bot") || "") : ""),
     phone: s.get("phone") || "",
     notice: s.get("notice") || "",
   };
@@ -463,7 +469,12 @@ function prepareOrder(app, rec) {
   const pickup = String(rec.get("delivery_type") || "delivery") === "pickup";
   if (pickup && !s.get("pickup")) fail("Самовывоз сейчас недоступен.");
   rec.set("delivery_type", pickup ? "pickup" : "delivery");
-  if (pickup) { rec.set("zone", ""); rec.set("address", s.get("pickup_address") || "Самовывоз"); }
+  if (pickup) {
+    rec.set("zone", "");
+    // тот же текст, что покупатель видел на своей витрине: точка одна, названия разные
+    const br = brandOfOrder(app, rec);
+    rec.set("address", (br && br.get("pickup_address")) || s.get("pickup_address") || "Самовывоз");
+  }
 
   let delivery = 0;
   if (!pickup) {

@@ -196,6 +196,18 @@ function stateId(s, paid) {
   return found ? found.id : null;
 }
 
+// то же самое, но возвращает название — для служебной проверки
+function stateName(s, paid) {
+  const md = ms(s, "GET", "/entity/customerorder/metadata");
+  if (!md.ok) return "(нет связи)";
+  const states = md.data.states || [];
+  const found = states.find((x) => {
+    const n = norm(x.name);
+    return n.indexOf("принят") >= 0 && (paid ? n.indexOf("не оплачен") < 0 && n.indexOf("оплачен") >= 0 : n.indexOf("не оплачен") >= 0);
+  });
+  return found ? found.name : "(не нашли — МойСклад поставит свой первый этап)";
+}
+
 // Услуга доставки: «ЛФ-Доставка Москва»
 function deliveryService(s) {
   const name = (s.get("ms_delivery_name") || "").trim();
@@ -443,4 +455,4 @@ function markPaid(app, o) {
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { state: meta("state", st) });
 }
 
-module.exports = { ms, refs, pushOrder, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+module.exports = { stateName, ms, refs, pushOrder, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };

@@ -58,6 +58,7 @@ function pub(b) {
     hero_em: b.get("hero_em") || "",
     hero_text: b.get("hero_text") || "",
     tg_link: b.get("tg_link") || "",
+    max_link: b.get("max_link") || (b.get("max_bot") ? `https://max.ru/${b.get("max_bot")}` : ""),
     phone: b.get("phone") || "",
     address: b.get("address") || "",
   };

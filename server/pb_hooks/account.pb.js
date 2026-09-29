@@ -5,8 +5,11 @@
 routerAdd("POST", "/api/shop/login-start", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const s = shop.settings($app);
-  const bot = s.get("tg_client_bot") || s.get("tg_bot");
-  const maxBot = s.get("max_token") ? (s.get("max_bot") || "") : "";
+  // вход — через бота той витрины, с которой пришёл покупатель
+  const br = require(`${__hooks}/lib/brand.js`).byHost($app, e);
+  const bot = (br && br.get("tg_client_token") && br.get("tg_client_bot")) || s.get("tg_client_bot") || s.get("tg_bot");
+  const maxBot = (br && br.get("max_token")) ? (br.get("max_bot") || "")
+    : (!br && s.get("max_token") ? (s.get("max_bot") || "") : "");
   if (!bot && !maxBot) return e.json(400, { message: "Вход через мессенджер пока не настроен." });
   const code = $security.randomString(24);
   const rec = new Record($app.findCollectionByNameOrId("logins"));
