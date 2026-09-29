@@ -518,6 +518,18 @@ function handle(app, secret, upd) {
       // выдача доступа: a — управление, f — только фото, n — отказ
       if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
       const uid = String(a), what = String(b || "n");
+      // Полное управление — это все заказы, телефоны и адреса покупателей.
+      // Случайно нажатая кнопка не должна их открывать, поэтому переспрашиваем.
+      if (what === "a?") {
+        shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+        return shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id,
+          text: `${cb.message.text}\n\n⚠️ Полное управление откроет этому человеку все заказы, телефоны и адреса покупателей, переписку и цены. Точно выдаём?`,
+          reply_markup: { inline_keyboard: [
+            [{ text: "Да, полное управление", callback_data: `gr:${uid}:a` }],
+            [{ text: "📷 Лучше только фото", callback_data: `gr:${uid}:f` }],
+            [{ text: "Отмена", callback_data: `gr:${uid}:n` }],
+          ] } });
+      }
       const set = shop.settings(app);
       const add = (field, id) => {
         const list = String(set.get(field) || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
@@ -713,10 +725,10 @@ function handle(app, secret, upd) {
           .bind({ k: "access:" + uid, v: new Date().toISOString() }).execute();
       } catch (_) {}
       admins.forEach((adm) => shop.tg(token, "sendMessage", { chat_id: adm,
-        text: `👤 ${who || "Кто-то"} пишет в бот, но доступа у него нет.${msg.photo ? "\n\n⚠️ Он прислал фото — оно не ушло клиенту." : ""}\nНомер: ${uid}`,
+        text: `👤 ${who || "Кто-то"} пишет в бот, но доступа у него нет.${msg.photo ? "\n\n⚠️ Он прислал фото — оно не ушло клиенту." : ""}\nНомер: ${uid}\n\nДоступ не выдаётся сам: пока вы не нажмёте кнопку, человек не видит ничего. Если не узнаёте его — «Отказать».`,
         reply_markup: { inline_keyboard: [
           [{ text: "📷 Только фото букетов", callback_data: `gr:${uid}:f` }],
-          [{ text: "🛠 Полное управление", callback_data: `gr:${uid}:a` }],
+          [{ text: "🛠 Полное управление", callback_data: `gr:${uid}:a?` }],
           [{ text: "Отказать", callback_data: `gr:${uid}:n` }],
         ] } }));
     }

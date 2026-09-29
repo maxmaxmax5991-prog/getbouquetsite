@@ -281,9 +281,30 @@ routerAdd("POST", "/api/shop/tg-test", (e) => {
   const me = shop.tg(s.get("tg_token"), "getMe", {});
   if (!me || !me.ok) return e.json(400, { message: "Ключ бота не подходит. Скопируйте его из @BotFather ещё раз." });
   const hook = bot.setup($app, s);
-  const admins = shop.adminIds(s);
-  admins.forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat, text: "Бот подключён к сайту venikoff.net ✅ Напишите «Меню»." }));
-  return e.json(200, { bot: me.result.username, webhook: !!(hook && hook.ok), admins: admins.length });
+  const token = s.get("tg_token");
+  // Проверяем каждого поимённо. Телеграм не даёт боту написать первым: пока человек
+  // сам не нажал «Старт», сообщения ему молча не доходят, и владелец об этом
+  // никак не узнавал — просто «сотрудник не получает уведомления».
+  const who = (chat) => {
+    const c = shop.tg(token, "getChat", { chat_id: chat });
+    if (!c || !c.ok || !c.result) return "";
+    const r = c.result;
+    return [r.first_name, r.last_name].filter(Boolean).join(" ") + (r.username ? ` (@${r.username})` : "");
+  };
+  const human = (d) => {
+    const t = String(d || "").toLowerCase();
+    if (t.indexOf("blocked") >= 0) return "заблокировал бота";
+    if (t.indexOf("chat not found") >= 0 || t.indexOf("initiate conversation") >= 0) return "не открывал бота — пусть нажмёт «Старт»";
+    if (t.indexOf("deactivated") >= 0) return "аккаунт удалён";
+    return d || "не дошло";
+  };
+  const check = (chat, role, text) => {
+    const r = shop.tg(token, "sendMessage", { chat_id: chat, text });
+    return { id: chat, role, name: who(chat), ok: !!(r && r.ok), error: (r && r.ok) ? "" : human(r && r.description) };
+  };
+  const rows = shop.adminIds(s).map((c) => check(c, "Полное управление", "Бот подключён к сайту venikoff.net ✅ Напишите «Меню»."))
+    .concat(shop.floristIds(s).map((c) => check(c, "Только фото букетов", "Проверка связи ✅ Сюда будут приходить карточки заказов — присылайте фото готовых букетов ответом на них.")));
+  return e.json(200, { bot: me.result.username, webhook: !!(hook && hook.ok), admins: shop.adminIds(s).length, rows });
 }, $apis.requireAuth("managers"));
 
 // Остатки и «цветы в пути». Отдельный маршрут, а не правка товара напрямую:

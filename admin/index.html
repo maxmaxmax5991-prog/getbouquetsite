@@ -664,6 +664,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <p class="hint"><b>Номера сюда вписывать не нужно.</b> Пусть человек откроет бота и нажмёт «Старт» — вам придёт заявка с кнопками «📷 Только фото букетов» и «🛠 Полное управление». Нажали — доступ выдан, номер подставится сам.<br>Флорист получает короткую карточку: что собрать и к какому времени, без телефона и адреса покупателя. Фото отправляет ответом на карточку или с подписью-номером заказа («3026»). Цены, товары и «Стоп заказов» ему недоступны.</p>
           <p class="hint"><b>Что за номер:</b> личный номер аккаунта в Телеграме (не телефон). Узнать свой — откройте бота <b>@userinfobot</b> и нажмите Start, он пришлёт строку «Id: 512345678». Или после сохранения ключа напишите своему боту — он ответит вашим номером.<br>Этим людям приходят уведомления о заказах, и только они могут менять товары через бота.</p>
           <div class="bar"><button class="btn btn-p" id="tSave">Сохранить</button><button class="btn btn-g" id="tTest">Проверить бота</button></div>
+          <div class="scroll" id="tWhoBox" hidden><table class="t" id="tWho"></table></div>
         </div>
         <div class="card stack">
           <h2>Ссылка для загрузки товаров</h2>
@@ -2897,7 +2898,16 @@ $('#tTest').onclick = safe(async () => {
   const body = {}; if (tok) body.tg_token = tok; if (adm) body.tg_admins = adm;
   if (Object.keys(body).length) { body.site_url = S.site_url || location.origin; S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body }); $('#sTok').value = ''; }
   const r = await api('/api/shop/tg-test', { method: 'POST' });
-  toast(r.admins ? `Бот @${r.bot} подключён — проверьте Телеграм` : `Бот @${r.bot} подключён. Добавьте свой номер в «Кто может управлять ботом»`);
+  // Поимённо: кому сообщение дошло, а кому нет. Телеграм не даёт боту написать
+  // первым — пока человек не нажал «Старт», уведомления до него молча не идут.
+  const rows = r.rows || [];
+  $('#tWhoBox').hidden = !rows.length;
+  if (rows.length) $('#tWho').innerHTML = `<tr><th>Кто</th><th>Доступ</th><th>Сообщение дошло</th></tr>`
+    + rows.map(x => `<tr><td>${esc(x.name || '')} <span class="hint" style="margin:0">${x.id}</span></td><td>${esc(x.role)}</td>`
+      + `<td>${x.ok ? '✅ да' : `❗ нет — ${esc(x.error)}`}</td></tr>`).join('');
+  const bad = rows.filter(x => !x.ok).length;
+  toast(!rows.length ? `Бот @${r.bot} подключён. Добавьте свой номер в «Кто может управлять ботом»`
+    : bad ? `Бот @${r.bot} подключён, но ${bad} чел. не получают сообщения — смотрите таблицу` : `Бот @${r.bot} подключён, сообщения дошли всем`, !!bad);
 });
 $('#mSave').onclick = safe(async () => {
   const oldPassword = $('#mOld').value, password = $('#mNew').value;
