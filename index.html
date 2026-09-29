@@ -597,6 +597,14 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 </div>
 
 <!-- ============ КАБИНЕТ ============ -->
+<div id="viewDelivery" hidden>
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Доставка</span></nav>
+    <div class="cat-head"><div><h1>Доставка по Москве</h1><p>Введите адрес — посчитаем стоимость</p></div></div>
+    <div id="dlvBody"></div>
+  </div>
+</div>
+
 <div id="viewMe" hidden>
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Личный кабинет</span></nav>
@@ -688,7 +696,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790671136"></script>
+<script src="data.js?v=1790671666"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1036,9 +1044,10 @@ function go404() { location.hash = '#/catalog'; }
 function router() {
   const h = location.hash.replace(/^#\/?/, '');
   const [a, b] = h.split('/');
-  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder') };
+  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery') };
   let name = 'home', scrollTo = null;
-  if (a === 'order' && b) { name = 'order'; document.title = 'Заказ — venikoff.net'; renderOrder(b); }
+  if (a === 'delivery') { name = 'delivery'; document.title = 'Доставка по Москве — venikoff.net'; renderDelivery(); }
+  else if (a === 'order' && b) { name = 'order'; document.title = 'Заказ — venikoff.net'; renderOrder(b); }
   else if (a === 'me') { name = 'me'; document.title = 'Личный кабинет — venikoff.net'; renderMe(); }
   else if (a === 'catalog' || a === 'favorites') {
     name = 'catalog';
@@ -1046,7 +1055,7 @@ function router() {
     renderChips(); renderGrid();
     document.title = (state.favOnly ? 'Избранное' : state.cat === 'all' ? 'Каталог' : catName[state.cat]) + ' — venikoff.net';
   } else if (a === 'p' && b) { name = 'product'; route = { name, id: b }; showProduct(b); }
-  else { scrollTo = a === 'studio' ? '#studio-sec' : a === 'delivery' ? '#delivery' : null; document.title = 'venikoff.net'; }
+  else { scrollTo = a === 'studio' ? '#studio-sec' : null; document.title = 'venikoff.net'; }
   if (name !== 'product') route = { name };
   Object.entries(views).forEach(([k, v]) => v.hidden = k !== name);
   $$('.nav a').forEach(l => l.toggleAttribute('aria-current', l.dataset.nav === (name === 'catalog' ? 'catalog' : a)));
@@ -1058,6 +1067,68 @@ function scrollTo0() { window.scrollTo(0, 0); }
 addEventListener('hashchange', router);
 $('#favBtn').onclick = () => { location.hash = '#/favorites'; if (!favs.size) toast('Отмечайте букеты сердечком', false); };
 $('#meBtn').onclick = () => { location.hash = '#/me'; };
+
+/* ---------- «Рассчитать доставку» ----------
+   Отдельная страница #/delivery: покупатель вводит адрес и сразу видит цену,
+   не начиная заказ. Спрашиваем тот же /api/shop/address, что и форма заказа,
+   поэтому цифра здесь и в корзине всегда одна и та же.
+   Код самостоятельный и ничего не берёт у формы заказа — чтобы её не задеть. */
+let dlvSeq = 0;
+function renderDelivery() {
+  const box = $('#dlvBody');
+  const pickup = API && API.pickup;
+  box.innerHTML = `
+    <div class="me-card">
+      <div class="me-form">
+        <label for="dStreet">Улица в Москве<input id="dStreet" list="dStreetList" autocomplete="off" placeholder="Маленковская улица" maxlength="200"></label>
+        <datalist id="dStreetList"></datalist>
+        <div class="two">
+          <label for="dHouse">Дом<input id="dHouse" inputmode="numeric" placeholder="14" maxlength="20"></label>
+          <label for="dBlock">Корпус<input id="dBlock" placeholder="1" maxlength="20"></label>
+        </div>
+      </div>
+      <p class="addr-hint" id="dHint" hidden></p>
+    </div>
+    <div class="me-card">
+      <h3>Как это работает</h3>
+      <p class="hint">Возим <b>только по Москве</b>. Цена зависит от того, куда ехать: внутри Садового дешевле, за МКАД дороже и добавляется километраж. Считаем от нашей точки${(DEL && DEL.km && DEL.km.from) ? ' — ' + esc(DEL.km.from) : ''}.</p>
+      ${pickup ? `<p class="hint">Можно забрать самому: ${esc(pickup.address || '')}${pickup.hours ? `, ${esc(pickup.hours)}` : ''} — это бесплатно.</p>` : ''}
+      ${API && API.phone ? `<p class="hint">Не нашли свой адрес? Позвоните: <a href="tel:${esc(String(API.phone).replace(/[^+\d]/g, ''))}">${esc(API.phone)}</a></p>` : ''}
+    </div>
+    <p class="hint"><a href="#/catalog">Перейти в каталог</a></p>`;
+
+  const hint = $('#dHint');
+  const say = (text, bad) => { hint.hidden = !text; hint.innerHTML = text || ''; hint.className = 'addr-hint' + (text ? (bad ? ' bad' : ' good') : ''); };
+  let timer = 0;
+  const later = (fn, ms) => { clearTimeout(timer); timer = setTimeout(fn, ms); };
+
+  const suggest = async () => {
+    const q = $('#dStreet').value.trim();
+    if (q.length < 3) return;
+    try {
+      const r = await fetch(`/api/shop/suggest?q=${encodeURIComponent(q)}`);
+      const d = await r.json();
+      $('#dStreetList').innerHTML = (d.items || []).map(i => `<option value="${esc(i.title)}"></option>`).join('');
+    } catch (_) {}
+  };
+
+  const calc = async () => {
+    const mine = ++dlvSeq;
+    const street = $('#dStreet').value.trim(), house = $('#dHouse').value.trim(), block = $('#dBlock').value.trim();
+    if (!street || !house) { say('', false); return; }
+    say('Считаем…', false);
+    try {
+      const r = await fetch('/api/shop/address', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ street, house, block }) });
+      const d = await r.json().catch(() => ({}));
+      if (mine !== dlvSeq) return;                 // адрес успели поправить — ответ устарел
+      if (!r.ok) return say(esc(d.message || 'Не нашли такой адрес.'), true);
+      say(`<b style="font-size:17px">Доставка ${d.price ? rub(d.price) : 'бесплатно'}</b><br>${esc(d.address || '')}${d.zone ? ' · ' + esc(d.zone) : ''}${d.km ? ' · ' + d.km + ' км от нас' : ''}`, false);
+    } catch (_) { if (mine === dlvSeq) say('Не получилось посчитать. Проверьте связь и попробуйте ещё раз.', true); }
+  };
+
+  $('#dStreet').oninput = () => { suggest(); later(calc, 600); };
+  ['#dHouse', '#dBlock'].forEach(sel => { $(sel).oninput = () => later(calc, 600); });
+}
 
 /* ---------- страница заказа ----------
    Постоянный адрес #/order/<код>. Что показать, решает сервер — не память браузера,
