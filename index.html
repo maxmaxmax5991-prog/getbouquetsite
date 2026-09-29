@@ -499,9 +499,9 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <section class="hero" id="studio-sec">
     <div class="wrap">
       <div class="hero-copy">
-        <p class="eyebrow">Оптовые цены в розницу · Москва 🌷</p>
-        <h1>Букет, <em>а не веник.</em></h1>
-        <p class="lede">Тот самый цветочный: оптовые цены, невероятный ассортимент. Берём цветы напрямую от производителей и присылаем фото букета перед доставкой.</p>
+        <p class="eyebrow" id="heroEyebrow">Оптовые цены в розницу · Москва 🌷</p>
+        <h1 id="heroTitle">Букет, <em>а не веник.</em></h1>
+        <p class="lede" id="heroText">Тот самый цветочный: оптовые цены, невероятный ассортимент. Берём цветы напрямую от производителей и присылаем фото букета перед доставкой.</p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="#/catalog">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
           <a class="btn btn-ghost" href="#/delivery">Как мы доставляем</a>
@@ -698,7 +698,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790676956"></script>
+<script src="data.js?v=1790677984"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -714,7 +714,10 @@ if (!API && window.SHOP_FAILED) {
   if (again) again.onclick = () => location.reload();
   return;
 }
-if (API && API.products && API.products.length) { window.PRODUCTS = API.products; window.ROSE_PRICES = API.rose_prices; }
+// Ответил сервер — верим ему целиком, даже если каталог пуст. Раньше пустой ответ
+// подменялся старым списком из data.js: новая витрина показала 64 чужих товара
+// со вчерашними ценами, хотя у неё не отмечено ни одного.
+if (API) { window.PRODUCTS = API.products || []; window.ROSE_PRICES = API.rose_prices; }
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
@@ -739,6 +742,17 @@ function applyBrand(b) {
         if (i) about.appendChild(document.createElement('br'));
         about.appendChild(document.createTextNode(line));
       });
+  }
+  // тексты шапки: у каждой витрины свои
+  const put = (sel, text) => { if (!text) return; const el = document.querySelector(sel); if (el) el.textContent = text; };
+  put('#heroEyebrow', b.hero_eyebrow);
+  put('#heroText', b.hero_text);
+  if (b.hero_title || b.hero_em) {
+    const h = document.querySelector('#heroTitle');
+    if (h) {
+      h.textContent = (b.hero_title || '') + (b.hero_em ? ' ' : '');
+      if (b.hero_em) { const em = document.createElement('em'); em.textContent = b.hero_em; h.appendChild(em); }
+    }
   }
   if (!b.accent) return;
   const rgba = (hex, a) => {

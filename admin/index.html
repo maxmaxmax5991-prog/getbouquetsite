@@ -718,6 +718,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
     </div>
     <div class="bar" style="gap:18px">
       <div class="swl"><button class="sw" id="eOnly" role="switch" aria-checked="false" aria-label="Только на сайте"></button>Только на сайте</div>
+      <span class="bar" id="eBrands" style="gap:14px" hidden></span>
       <div class="swl"><button class="sw" id="eFresh" role="switch" aria-checked="false" aria-label="Приехал сегодня"></button>Приехал сегодня с теплицы</div>
       <div class="swl"><button class="sw" id="eExpress" role="switch" aria-checked="false" aria-label="Экспресс"></button>Экспресс — готовый букет</div>
       <label class="f" for="eReady" style="max-width:190px;margin:0">Готовых букетов, шт<input class="in num" id="eReady" type="number" min="0" placeholder="сколько продать"></label>
@@ -816,8 +817,21 @@ function show(t) {
   ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, stats: loadStats, settings: loadSettings })[t]();
 }
 
-let S = null, CATS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1 } };
-async function loadSettings0() { S = (await list('settings'))[0]; CATS = await list('categories', '&sort=sort'); }
+let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1 } };
+async function loadSettings0() {
+  S = (await list('settings'))[0];
+  CATS = await list('categories', '&sort=sort');
+  try { BRANDS = await list('brands', '&sort=sort'); } catch (_) { BRANDS = []; }
+}
+// Метка витрины: показываем, только когда витрин больше одной — иначе лишний шум
+const brandOf = id => BRANDS.find(b => b.id === id);
+function brandPill(id) {
+  if (BRANDS.length < 2) return '';
+  const b = brandOf(id);
+  if (!b) return '';
+  const c = b.tag_color || b.accent || '#888';
+  return `<span class="pill" style="background:${esc(c)}22;color:${esc(c)}">${esc(b.name)}</span>`;
+}
 
 // Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
 const TAB_NEED = { bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', stats: 'all', settings: 'all' };
@@ -871,7 +885,7 @@ const payPill = o => o.payment_method === 'card'
 function orderHTML(o) {
   const created = new Date(o.created.replace(' ', 'T'));
   return `<article class="order${o.status === 'new' ? ' is-new' : ''}" data-id="${o.id}">
-    <div class="order-h"><b>№${o.number}</b><span class="pill st-${o.status}">${STATUS[o.status]}</span>${payPill(o)}
+    <div class="order-h"><b>№${o.number}</b>${brandPill(o.brand)}<span class="pill st-${o.status}">${STATUS[o.status]}</span>${payPill(o)}
       <span class="hint" style="margin:0">создан ${created.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
       <span class="sum num">${rub(o.total)}</span></div>
     <ul>${(o.items || []).map((it, n) => `<li data-i="${n}">${esc(it.name)}${it.label_text ? ' · ' + esc(it.label_text) : ''} × ${it.qty} — <span class="num">${rub(it.sum)}</span> <button class="lnk" data-swap title="Собрали из другого сорта">заменить сорт</button></li>`).join('')}</ul>
@@ -1055,6 +1069,7 @@ function openEditor(p) {
   $('#eTint').value = p && /^#[0-9a-f]{6}$/i.test(p.tint || '') ? p.tint : '#E0178A';
   $('#eDesc').value = p ? p.description || '' : '';
   sw($('#eActive'), p ? p.active : true); sw($('#eOnly'), p && p.site_only);
+  renderBrandBoxes(p);
   sw($('#eExpress'), !!(p && p.is_express));
   $('#eExpPrice').value = p && p.is_express ? (p.price || '') : '';
   $('#eReady').value = p && p.ready_qty != null ? p.ready_qty : '';
@@ -1295,6 +1310,19 @@ $('#eDel').onclick = safe(async () => {
   await api(`/api/collections/products/records/${E.rec.id}`, { method: 'DELETE' });
   $('#ed').close(); toast('Товар удалён'); loadProducts();
 });
+// Витрины товара. Пусто — продаётся везде, поэтому у нового товара отмечены все.
+function renderBrandBoxes(p) {
+  const box = $('#eBrands');
+  if (!box) return;
+  if (BRANDS.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
+  const own = (p && p.brands) || [];
+  const all = !own.length;
+  box.hidden = false;
+  box.innerHTML = '<span class="hint" style="margin:0">Витрины:</span>' + BRANDS.map(b =>
+    `<label class="swl" style="gap:6px"><input type="checkbox" data-brand="${b.id}"${(all || own.indexOf(b.id) >= 0) ? ' checked' : ''}>${esc(b.name)}</label>`).join('');
+}
+const pickedBrands = () => $$('#eBrands [data-brand]').filter(i => i.checked).map(i => i.dataset.brand);
+
 $('#eSave').onclick = safe(async () => {
   readVars(); readCounts();
   const name = $('#eName').value.trim();
@@ -1359,6 +1387,11 @@ $('#eSave').onclick = safe(async () => {
   const r = E.rec
     ? await api(`/api/collections/products/records/${E.rec.id}`, { method: 'PATCH', body: fd })
     : await api(`/api/collections/products/records`, { method: 'POST', body: fd });
+  // витрины пишем отдельным запросом: связь «много» через multipart передаётся капризно
+  if (r && BRANDS.length > 1) {
+    try { await api(`/api/collections/products/records/${r.id}`, { method: 'PATCH', body: { brands: pickedBrands() } }); }
+    catch (e) { toast('Товар сохранён, но витрины не записались: ' + e.message, true); }
+  }
   // новые фото получили имена только сейчас — дописываем их числа вторым запросом
   const fresh = E.photos.filter(p => p.file);
   if (r && fresh.some(p => +p.cnt > 0)) {

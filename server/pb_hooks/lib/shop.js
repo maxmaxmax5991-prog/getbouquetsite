@@ -130,14 +130,14 @@ function variantsOf(p, s) {
 
 function catalog(app, brand) {
   const s = settings(app);
-  // Витрина: товар показываем, если у него отмечена эта витрина. Галочки не проставлены —
-  // считаем товар принадлежащим основной витрине, иначе он молча пропал бы с сайта.
+  // Витрина: товар показываем, если у него отмечена эта витрина.
+  // Ни одной галочки — товар продаётся везде: так новая карточка не пропадёт молча,
+  // и правило читается просто — «сняли галочку, чтобы убрать с витрины».
   const brandId = brand ? brand.id : "";
-  const isMain = !brand || +brand.get("sort") <= 1;
   const mine = (p) => {
     if (!brandId) return true;
     const own = p.get("brands") || [];
-    return own.length ? own.indexOf(brandId) >= 0 : isMain;
+    return own.length ? own.indexOf(brandId) >= 0 : true;
   };
   const cats = app.findRecordsByFilter("categories", "active = true", "sort", 100, 0);
   const catById = {};
