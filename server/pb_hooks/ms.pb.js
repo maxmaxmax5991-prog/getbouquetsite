@@ -37,10 +37,14 @@ routerAdd("POST", "/api/shop/ms-states", (e) => {
   const s = shop.settings($app);
   const r = msl.ms(s, "GET", "/entity/customerorder/metadata");
   if (!r.ok) return e.json(400, { message: r.error });
+  // заодно запоминаем номера этапов: чтобы первый же заказ не зависел от связи
+  const paid = msl.stateId($app, s, true);
+  const unpaid = msl.stateId($app, s, false);
   return e.json(200, {
     этапы: (r.data.states || []).map((x) => x.name),
     выберем_оплачен: msl.stateName(s, true),
     выберем_не_оплачен: msl.stateName(s, false),
+    запомнили: !!(paid && unpaid),
   });
 }, $apis.requireAuth("managers"));
 

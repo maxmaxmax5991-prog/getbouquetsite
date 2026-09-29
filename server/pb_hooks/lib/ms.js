@@ -183,21 +183,30 @@ function assortment(app, s, item) {
   return { ok: true, id: m.id };
 }
 
-// Статус заказа в МоёмСкладе: «Принят, Оплачен» или «Принят, Не оплачен»
-function stateId(s, paid) {
+// Этап заказа в МоёмСкладе: «Принят, Оплачен» или «Принят, Не оплачен».
+// Номер запоминаем в настройках: этапы меняются раз в год, а спрашивать их
+// каждый раз — значит зависеть от связи в самый неподходящий момент. Если
+// запрос не проходил, заказ уходил вообще без этапа и МойСклад ставил «Новый».
+function stateId(app, s, paid) {
+  const field = paid ? "ms_state_paid" : "ms_state_unpaid";
+  const saved = String(s.get(field) || "").trim();
+  if (saved) return saved;
   const md = ms(s, "GET", "/entity/customerorder/metadata");
   if (!md.ok) return null;
-  const want = paid ? "оплачен" : "не оплачен";
   const states = md.data.states || [];
   const found = states.find((x) => {
     const n = norm(x.name);
     return n.indexOf("принят") >= 0 && (paid ? n.indexOf("не оплачен") < 0 && n.indexOf("оплачен") >= 0 : n.indexOf("не оплачен") >= 0);
   });
-  return found ? found.id : null;
+  if (!found) return null;
+  // пишем запросом, мимо хуков на настройках: обычное сохранение будит обработчик ботов
+  try { app.db().newQuery(`UPDATE settings SET ${field} = {:v} WHERE id = {:id}`).bind({ v: found.id, id: s.id }).execute(); }
+  catch (err) { console.log("ms state cache", err); }
+  return found.id;
 }
 
 // то же самое, но возвращает название — для служебной проверки
-function stateName(s, paid) {
+function stateName(s, paid) {   // служебное: показывает название, кэш не трогает
   const md = ms(s, "GET", "/entity/customerorder/metadata");
   if (!md.ok) return "(нет связи)";
   const states = md.data.states || [];
@@ -403,8 +412,18 @@ const ch = channelId(s);
 if (ch) body.salesChannel = meta("saleschannel", ch);
 const addr = addressFull(o);
 if (addr) body.shipmentAddressFull = addr;
-const st = stateId(s, o.get("payment_status") === "paid");
+const paidNow = o.get("payment_status") === "paid";
+const st = stateId(app, s, paidNow);
 if (st) body.state = meta("state", st);
+else {
+  // без этапа МойСклад поставит свой первый — «Новый». Заказ всё равно отправляем
+  // (потерять его хуже), но говорим об этом вслух, а не молчим.
+  console.log("ms: этап не определён для заказа", o.get("number"));
+  try {
+    shop.adminIds(s).forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat,
+      text: `⚠️ Заказ №${o.get("number")} ушёл в МойСклад без этапа — там он будет «Новый».\nПоставьте «Принят, ${paidNow ? "Оплачен" : "Не оплачен"}» вручную.` }));
+  } catch (_) {}
+}
 
   // Берём замок перед самой отправкой: до этого заказ мог не пройти проверки
   if (!claim(app, o.id, "push")) return { ok: false, wait: true, error: "Заказ уже отправляется в МойСклад." };
@@ -450,9 +469,9 @@ function addPayment(app, o) {
 function markPaid(app, o) {
   const s = shop.settings(app);
   if (!o.get("ms_id") || !s.get("ms_token")) return { ok: false };
-  const st = stateId(s, true);
+  const st = stateId(app, s, true);
   if (!st) return { ok: false };
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { state: meta("state", st) });
 }
 
-module.exports = { stateName, ms, refs, pushOrder, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+module.exports = { stateName, stateId, ms, refs, pushOrder, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
