@@ -4,8 +4,9 @@
 // Весь каталог и настройки доставки одним запросом — для сайта
 routerAdd("GET", "/api/shop/catalog", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
+  const brand = require(`${__hooks}/lib/brand.js`).byHost($app, e);
   e.response.header().set("Cache-Control", "public, max-age=30");
-  return e.json(200, shop.catalog($app));
+  return e.json(200, shop.catalog($app, brand));
 });
 
 // Подсказки адреса при вводе. Ключ Яндекса остаётся на сервере — сайт спрашивает нас.
@@ -45,6 +46,11 @@ routerAdd("GET", "/api/shop/mkad", (e) => {
 
 onRecordCreateRequest((e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
+  // с какой витрины заказ — решает домен, а не то, что прислал браузер
+  try {
+    const b = require(`${__hooks}/lib/brand.js`).byHost($app, e);
+    e.record.set("brand", b ? b.id : "");
+  } catch (err) { console.log("brand on order", err); }
   shop.prepareOrder($app, e.record);
   e.next();
 }, "orders");

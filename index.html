@@ -477,7 +477,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <header class="top">
   <div class="wrap">
-    <a class="logo" href="#/" aria-label="venikoff.net — на главную">venikoff<span class="dot"></span><i>net</i></a>
+    <a class="logo" id="logoTop" href="#/" aria-label="На главную">venikoff<span class="dot"></span><i>net</i></a>
     <span class="city"><svg class="i"><use href="#i-pin"/></svg>Москва</span>
     <nav class="nav" aria-label="Разделы">
       <a href="#/catalog" data-nav="catalog">Каталог</a>
@@ -662,14 +662,14 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <footer class="foot">
   <div class="wrap">
-    <a class="logo" href="#/">venikoff<span class="dot"></span><i>net</i></a>
+    <a class="logo" id="logoFoot" href="#/">venikoff<span class="dot"></span><i>net</i></a>
     <nav aria-label="Ссылки"><a href="#/catalog">Каталог</a><a href="#/studio">Собрать букет</a><a href="#/delivery">Доставка</a></nav>
     <div class="contacts">
       <span class="lbl">Связаться с нами</span>
-      <a class="btn btn-ghost btn-sm" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
+      <a class="btn btn-ghost btn-sm" id="footTg" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
       <a class="btn btn-ghost btn-sm" href="https://max.ru/id3123484572_biz" target="_blank" rel="noopener">Написать в MAX</a>
     </div>
-    <span>Москва, Маленковская улица, 14к1<br>Оптовые цены в розницу<br>© venikoff.net, 2026</span>
+    <span id="footAbout">Москва, Маленковская улица, 14к1<br>Оптовые цены в розницу<br>© venikoff.net, 2026</span>
   </div>
 </footer>
 
@@ -689,14 +689,16 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 window.SHOP = (async () => {
   if (location.hostname.endsWith('github.io')) { window.SHOP_COPY = 1; return null; }
   for (let i = 0; i < 3; i++) {
-    try { const r = await fetch('/api/shop/catalog'); if (r.ok) return await r.json(); } catch (e) {}
+    // ?brand=<имя> пробрасываем на сервер — так витрину видно до подключения её домена
+    const bq = new URLSearchParams(location.search).get('brand');
+    try { const r = await fetch('/api/shop/catalog' + (bq ? '?brand=' + encodeURIComponent(bq) : '')); if (r.ok) return await r.json(); } catch (e) {}
     await new Promise(ok => setTimeout(ok, 700 * (i + 1)));
   }
   window.SHOP_FAILED = 1;
   return null;
 })();
 </script>
-<script src="data.js?v=1790671666"></script>
+<script src="data.js?v=1790676956"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -715,6 +717,47 @@ if (!API && window.SHOP_FAILED) {
 if (API && API.products && API.products.length) { window.PRODUCTS = API.products; window.ROSE_PRICES = API.rose_prices; }
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
+
+/* ---------- витрина ----------
+   Какой бренд показывать, решает сервер по домену. Отсюда берём имя и цвета:
+   код и база у витрин общие, различается только оформление и набор товаров.
+   Цвета подменяем через переменные — в вёрстке они уже везде, поэтому
+   перекрашивается весь сайт разом, включая тёмную тему. */
+const BRAND = (API && API.brand) || null;
+const SITE = (BRAND && BRAND.name) || 'venikoff.net';
+function applyBrand(b) {
+  document.title = SITE;
+  // фирменное написание «venikoff•net» оставляем только своему бренду
+  if (b.slug !== 'venikoff') ['#logoTop', '#logoFoot'].forEach(sel => { const el = document.querySelector(sel); if (el) el.textContent = b.name; });
+  const tg = document.querySelector('#footTg');
+  if (tg) { if (b.tg_link) tg.href = b.tg_link; else tg.hidden = true; }
+  const about = document.querySelector('#footAbout');
+  if (about) {
+    about.textContent = '';
+    [b.address, 'Оптовые цены в розницу', `© ${b.name}, ${new Date().getFullYear()}`]
+      .filter(Boolean).forEach((line, i) => {
+        if (i) about.appendChild(document.createElement('br'));
+        about.appendChild(document.createTextNode(line));
+      });
+  }
+  if (!b.accent) return;
+  const rgba = (hex, a) => {
+    const m = String(hex).replace('#', '');
+    const n = parseInt(m.length === 3 ? m.split('').map(c => c + c).join('') : m, 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+  const set = (c, t, s1, s2) => `--accent:${c};--accent-text:${t};--accent-soft:${rgba(c, s1)};--accent-soft-2:${rgba(c, s2)}`;
+  const light = set(b.accent, b.accent_text || b.accent, .08, .17);
+  const dk = b.accent_dark || b.accent;
+  const dark = set(dk, b.accent_text_dark || dk, .14, .26);
+  const st = document.createElement('style');
+  st.textContent = `:root{${light}}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${dark}}}
+:root[data-theme="dark"]{${dark}}`;
+  document.head.appendChild(st);
+}
+if (BRAND) applyBrand(BRAND);
+
 const P = window.PRODUCTS || [];
 /* одноголовые розы: цена по прайсу «длина × количество» */
 const RP = window.ROSE_PRICES || {}, COUNTS = [25, 51, 101];
@@ -1004,7 +1047,7 @@ function pdSync() {
 function showProduct(id) {
   const p = byId[id]; if (!p) return go404();
   pd = { id, qty: 1 };
-  document.title = `${p.name} — venikoff.net`;
+  document.title = `${p.name} — ${SITE}`;
   $('#pdCrumb').textContent = p.name;
   $('#pdImg').alt = p.name;
   $('#pdTag').hidden = !(p.sale || p.author); $('#pdTag').textContent = p.sale ? 'Акция' : 'Авторский'; $('#pdTag').className = 'tag' + (p.sale ? '' : ' author');
@@ -1046,16 +1089,16 @@ function router() {
   const [a, b] = h.split('/');
   const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery') };
   let name = 'home', scrollTo = null;
-  if (a === 'delivery') { name = 'delivery'; document.title = 'Доставка по Москве — venikoff.net'; renderDelivery(); }
-  else if (a === 'order' && b) { name = 'order'; document.title = 'Заказ — venikoff.net'; renderOrder(b); }
-  else if (a === 'me') { name = 'me'; document.title = 'Личный кабинет — venikoff.net'; renderMe(); }
+  if (a === 'delivery') { name = 'delivery'; document.title = `Доставка по Москве — ${SITE}`; renderDelivery(); }
+  else if (a === 'order' && b) { name = 'order'; document.title = `Заказ — ${SITE}`; renderOrder(b); }
+  else if (a === 'me') { name = 'me'; document.title = `Личный кабинет — ${SITE}`; renderMe(); }
   else if (a === 'catalog' || a === 'favorites') {
     name = 'catalog';
     state.favOnly = a === 'favorites'; state.cat = state.favOnly ? 'all' : (b && catName[b] ? b : 'all');
     renderChips(); renderGrid();
-    document.title = (state.favOnly ? 'Избранное' : state.cat === 'all' ? 'Каталог' : catName[state.cat]) + ' — venikoff.net';
+    document.title = (state.favOnly ? 'Избранное' : state.cat === 'all' ? 'Каталог' : catName[state.cat]) + ' — ' + SITE;
   } else if (a === 'p' && b) { name = 'product'; route = { name, id: b }; showProduct(b); }
-  else { scrollTo = a === 'studio' ? '#studio-sec' : null; document.title = 'venikoff.net'; }
+  else { scrollTo = a === 'studio' ? '#studio-sec' : null; document.title = SITE; }
   if (name !== 'product') route = { name };
   Object.entries(views).forEach(([k, v]) => v.hidden = k !== name);
   $$('.nav a').forEach(l => l.toggleAttribute('aria-current', l.dataset.nav === (name === 'catalog' ? 'catalog' : a)));
@@ -1711,7 +1754,7 @@ async function payWidget(order, name, phone) {
       }, 4000);
       new window.cp.CloudPayments().pay('charge', {
         publicId: PAY.public_id,
-        description: `Заказ №${order.number} — venikoff.net`,
+        description: `Заказ №${order.number} — ${SITE}`,
         amount: order.total,
         currency: 'RUB',
         invoiceId: String(order.number),

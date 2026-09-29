@@ -128,8 +128,17 @@ function variantsOf(p, s) {
   });
 }
 
-function catalog(app) {
+function catalog(app, brand) {
   const s = settings(app);
+  // Витрина: товар показываем, если у него отмечена эта витрина. Галочки не проставлены —
+  // считаем товар принадлежащим основной витрине, иначе он молча пропал бы с сайта.
+  const brandId = brand ? brand.id : "";
+  const isMain = !brand || +brand.get("sort") <= 1;
+  const mine = (p) => {
+    if (!brandId) return true;
+    const own = p.get("brands") || [];
+    return own.length ? own.indexOf(brandId) >= 0 : isMain;
+  };
   const cats = app.findRecordsByFilter("categories", "active = true", "sort", 100, 0);
   const catById = {};
   cats.forEach((c) => catById[c.id] = c);
@@ -202,7 +211,7 @@ function catalog(app) {
   };
 
   const products = app.findRecordsByFilter("products", "active = true", "sort,-created", 1000, 0)
-    .filter((p) => catById[p.get("category")])
+    .filter((p) => catById[p.get("category")] && mine(p))
     .map(card);
 
   // Выключенные розы тоже показываем в плитке — размытыми и без возможности купить:
@@ -210,7 +219,7 @@ function catalog(app) {
   // кустовые и только со снимком — карточка без фотографии выглядела бы сломанной.
   const OFF = ["single", "kustovye-rozy"];
   app.findRecordsByFilter("products", "active = false", "sort,-created", 300, 0)
-    .filter((p) => catById[p.get("category")] && OFF.indexOf(catById[p.get("category")].get("slug")) >= 0)
+    .filter((p) => catById[p.get("category")] && mine(p) && OFF.indexOf(catById[p.get("category")].get("slug")) >= 0)
     .filter((p) => (p.get("photo") || []).length)
     .forEach((p) => {
       const c = card(p);
@@ -247,7 +256,9 @@ function catalog(app) {
       public_id: s.get("pay_card") ? (s.get("cp_public_id") || "") : "",
     },
     suggest: !!(s.get("ymaps_suggest_key") || s.get("ymaps_key")),   // подсказывать ли улицы при вводе
-    bot: s.get("tg_client_bot") || s.get("tg_bot") || "",
+    // у каждой витрины свой бот для покупателей; не заведён — общий
+    bot: (brand && brand.get("tg_client_bot")) || s.get("tg_client_bot") || s.get("tg_bot") || "",
+    brand: require(`${__hooks}/lib/brand.js`).pub(brand),
     maxBot: s.get("max_token") ? (s.get("max_bot") || "") : "",
     phone: s.get("phone") || "",
     notice: s.get("notice") || "",
