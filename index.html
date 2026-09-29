@@ -689,7 +689,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790687714"></script>
+<script src="data.js?v=1790688371"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1667,7 +1667,7 @@ ${payChoice()}
     const needPay = !!(lastOrder.order && !lastOrder.paid && PAY && PAY.card && lastOrder.order.payment_method !== 'on_delivery');
     body.innerHTML = `<div class="done"><div class="seal">${icon("check")}</div><h3>Спасибо!</h3>
       <p>${lastOrder.number ? `Заказ №${lastOrder.number} на ${rub(lastOrder.sum)} принят` : `${esc(lastOrder.name)}, заказ на ${rub(lastOrder.sum)} оформлен`} — ${esc(lastOrder.when)}.</p>
-      <p>${!lastOrder.number ? "Это демо-версия: заказ не отправлен." : lastOrder.paid ? "Оплата прошла." : lastOrder.payError ? esc(lastOrder.payError) : needPay ? "Осталось оплатить." : "Мы свяжемся с вами для подтверждения."}</p>
+      <p>${!lastOrder.number ? "Это демо-версия: заказ не отправлен." : lastOrder.paid ? "Оплата прошла." : lastOrder.payError ? esc(lastOrder.payError) : needPay ? "Осталось оплатить." : (lastOrder.order && lastOrder.order.payment_method === 'on_delivery') ? "Оплата при получении — платить сейчас ничего не нужно." : "Мы свяжемся с вами для подтверждения."}</p>
       ${needPay ? `<div class="sub-box warn">
         <b>Заказ не оплачен</b>
         <span>Без оплаты мы не возьмём его в работу и цветы не закупим. Оплатите картой — это займёт минуту.</span>
@@ -2187,6 +2187,17 @@ async function resumeOrder() {
     }
     return;
   }
+  // Самовывоз с оплатой при получении платить заранее не нужно — и пугать человека
+  // «заказ ждёт оплаты» тем более. Раньше эта надпись показывалась любому
+  // неоплаченному заказу, способ оплаты не проверялся совсем.
+  if (lastOrder.order && lastOrder.order.payment_method === 'on_delivery') {
+    if (!saved.told) {
+      lastOrder.told = true; saveLastOrder();
+      $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice paid">✅ Заказ №${esc(String(lastOrder.number))} принят. Оплата при получении.</p></div>`);
+    }
+    return;
+  }
+
   if (back !== null) { view = 'done'; renderCart(); cartDlg.showModal(); }
 
   $('main').insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice resume">Заказ №${esc(String(lastOrder.number))} на ${rub(lastOrder.sum)} ждёт оплаты — без неё мы не возьмём его в работу.
