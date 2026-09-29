@@ -626,6 +626,12 @@ table.t td{padding:4px 6px;vertical-align:middle}
   <div class="bar"><button class="btn btn-p" id="cSaveBot">Сохранить</button><button class="btn btn-g" id="cTestBot">Проверить</button></div>
   <p class="hint">Рассылки — на отдельной вкладке «Рассылка»: там же можно подключить другие боты.</p>
 </div>
+<div class="card stack" id="brandsCard" hidden>
+  <h2>Витрины</h2>
+  <p class="hint">У каждого сайта свой бот для покупателей: покупатель «Гет Букет» общается со своим ботом, и чужое имя его не смущает. Служебный бот и МойСклад — общие на оба сайта.</p>
+  <div id="brandsBox"></div>
+</div>
+
 <div class="card stack">
   <h2>Мессенджер MAX</h2>
   <ol class="steps">
@@ -2663,6 +2669,7 @@ msFill(S.ms_org_id, S.ms_org_name, S.ms_store_id, S.ms_store_name);
 sw($('#msOn'), S.ms_enabled);
 $('#msPrefix').value = S.ms_prefix || '';
 $('#cTok').value = ''; $('#cTok').placeholder = S.tg_client_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ второго бота';
+renderBrandsCard();
 $('#mxTok').value = ''; $('#mxTok').placeholder = S.max_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ бота MAX';
 $('#mxName').value = S.max_bot || '';
 $('#msDeliv').value = S.ms_delivery_name || '';
@@ -2684,6 +2691,61 @@ $('#cTestBot').onclick = safe(async () => {
   const r = await api('/api/shop/client-bot-check', { method: 'POST' });
   toast(`Бот для покупателей: @${r.bot}`);
 });
+// Настройки витрин: название, домен, цвет и ключи ботов. Ключи не показываем —
+// только отметку «сохранён», чтобы случайно не засветить их на экране.
+function renderBrandsCard() {
+  const card = $('#brandsCard'), box = $('#brandsBox');
+  if (!card || !box) return;
+  if (BRANDS.length < 2) { card.hidden = true; return; }
+  card.hidden = false;
+  box.innerHTML = BRANDS.map(b => `
+    <div class="card stack" style="margin:0 0 12px;border-left:4px solid ${esc(b.tag_color || b.accent || '#888')}">
+      <h3 style="margin:0">${esc(b.name)} <span class="hint" style="margin:0">${esc(b.domain || 'домен не указан')}</span></h3>
+      <div class="row">
+        <label class="f">Название<input class="in" data-bf="name" data-bid="${b.id}" value="${esc(b.name)}"></label>
+        <label class="f">Домен<input class="in" data-bf="domain" data-bid="${b.id}" value="${esc(b.domain || '')}" placeholder="getbouquet.moscow"></label>
+        <label class="f">Основной цвет<input class="in" data-bf="accent" data-bid="${b.id}" value="${esc(b.accent || '')}" placeholder="#A020F0"></label>
+      </div>
+      <div class="row">
+        <label class="f">Ключ бота Телеграма<input class="in" type="password" autocomplete="off" data-btok="tg" data-bid="${b.id}"
+          placeholder="${b.tg_client_token ? 'Ключ сохранён' + (b.tg_client_bot ? ' — @' + b.tg_client_bot : '') + '. Вставьте новый, чтобы заменить' : 'Вставьте ключ из @BotFather'}"></label>
+        <label class="f">Ключ бота MAX<input class="in" type="password" autocomplete="off" data-btok="max" data-bid="${b.id}"
+          placeholder="${b.max_token ? 'Ключ сохранён' + (b.max_bot ? ' — ' + b.max_bot : '') + '. Вставьте новый, чтобы заменить' : 'Вставьте ключ из MAX для бизнеса'}"></label>
+      </div>
+      <div class="bar">
+        <button class="btn btn-p" data-bsave="${b.id}">Сохранить</button>
+        <button class="btn btn-g" data-bcheck="tg|${b.id}">Проверить Телеграм</button>
+        <button class="btn btn-g" data-bcheck="max|${b.id}">Проверить MAX</button>
+      </div>
+    </div>`).join('');
+}
+$('#brandsBox').addEventListener('click', safe(async e => {
+  const save = e.target.closest('[data-bsave]');
+  if (save) {
+    const id = save.dataset.bsave, body = {};
+    $$(`#brandsBox [data-bf][data-bid="${id}"]`).forEach(i => body[i.dataset.bf] = i.value.trim());
+    $$(`#brandsBox [data-btok][data-bid="${id}"]`).forEach(i => {
+      const v = i.value.trim();
+      if (v) body[i.dataset.btok === 'max' ? 'max_token' : 'tg_client_token'] = v;
+    });
+    await api(`/api/collections/brands/records/${id}`, { method: 'PATCH', body });
+    BRANDS = await list('brands', '&sort=sort');
+    renderBrandsCard(); toast('Витрина сохранена');
+    return;
+  }
+  const chk = e.target.closest('[data-bcheck]');
+  if (chk) {
+    const [kind, id] = chk.dataset.bcheck.split('|');
+    chk.disabled = true;
+    try {
+      const r = await api('/api/shop/brand-bot-check', { method: 'POST', body: { brand: id, kind } });
+      BRANDS = await list('brands', '&sort=sort');
+      renderBrandsCard();
+      toast(`Бот подключён: ${r.bot || 'без имени'}`);
+    } finally { chk.disabled = false; }
+  }
+}));
+
 $('#mxSave').onclick = safe(async () => {
   const body = { max_bot: $('#mxName').value.trim().replace(/^@/, '') };
   const tok = $('#mxTok').value.trim();

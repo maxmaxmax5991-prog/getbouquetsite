@@ -180,6 +180,36 @@ routerAdd("POST", "/api/shop/max-check", (e) => {
   return e.json(200, { name: d.name || d.first_name || "", username });
 }, $apis.requireAuth("managers"));
 
+// Проверка бота витрины: подошёл ли ключ, и заодно запоминаем имя бота для ссылок.
+routerAdd("POST", "/api/shop/brand-bot-check", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner"])) return e.json(403, { message: "Ботами управляет владелец." });
+  const b = e.requestInfo().body || {};
+  let br;
+  try { br = $app.findRecordById("brands", String(b.brand || "")); } catch (_) { return e.json(404, { message: "Витрина не найдена" }); }
+
+  if (String(b.kind) === "max") {
+    const mx = require(`${__hooks}/lib/max.js`);
+    const token = br.get("max_token");
+    if (!token) return e.json(400, { message: "Ключ бота MAX не указан" });
+    const r = mx.me(token);
+    if (!r.ok) return e.json(400, { message: r.error });
+    const name = (r.data && (r.data.username || r.data.name || r.data.first_name)) || "";
+    if (r.data && r.data.username) { br.set("max_bot", r.data.username); $app.save(br); }
+    return e.json(200, { bot: name });
+  }
+
+  const token = br.get("tg_client_token");
+  if (!token) return e.json(400, { message: "Ключ бота Телеграма не указан" });
+  const me = shop.tg(token, "getMe", {});
+  if (!me || !me.ok) return e.json(400, { message: "Ключ не подошёл. Скопируйте его из @BotFather ещё раз." });
+  // webhook убираем: сообщения мы забираем опросом, иначе Телеграм отвечает 409
+  shop.tg(token, "deleteWebhook", { drop_pending_updates: false });
+  br.set("tg_client_bot", me.result.username);
+  $app.save(br);
+  return e.json(200, { bot: me.result.username });
+}, $apis.requireAuth("managers"));
+
 // Кнопка «Проверить бота» в админке
 // Отправить клиенту сохранённое фото ещё раз: если первая попытка не дошла,
 // не нужно заново просить флориста фотографировать.

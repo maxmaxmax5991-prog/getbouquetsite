@@ -209,9 +209,11 @@ function onButton(app, s, token, cb) {
 }
 
 // Одно событие от MAX.
-function handle(app, u) {
+// brand — витрина, чьим ботом пришло событие: им же и отвечаем
+function handle(app, u, brand) {
   const s = shop.settings(app);
-  const token = s.get("max_token");
+  // отвечаем ключом ТОЙ витрины, чьим ботом пришло событие
+  const token = (brand && brand.get("max_token")) || s.get("max_token");
   if (!token) return;
   const site = String(s.get("site_url") || "").replace(/\/$/, "");
 
