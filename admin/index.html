@@ -123,8 +123,11 @@ label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 
 /* products */
 .plist{display:grid;gap:8px}
-.prow{display:grid;grid-template-columns:56px 1fr auto;gap:12px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px 12px 8px 8px;cursor:pointer}
+.prow{display:grid;grid-template-columns:56px 1fr auto auto;gap:12px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px 12px 8px 8px;cursor:pointer}
 .prow img{width:56px;height:56px;border-radius:10px;object-fit:cover;background:#fff}
+.bcells{display:flex;gap:14px}
+.bcell{display:grid;justify-items:center;gap:4px}
+.bcell span{font-size:10.5px;font-weight:700;color:var(--ink-3);white-space:nowrap;letter-spacing:.02em}
 .prow .n{font-weight:700;font-size:14.5px;line-height:1.3}
 .prow .s{font-size:12.5px;color:var(--ink-2)}
 .prow.off{opacity:.55}
@@ -134,7 +137,7 @@ label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .grip{display:flex;flex-direction:column;gap:2px;padding:4px;cursor:grab;color:var(--ink-3)}
 .grip button{width:26px;height:20px;border-radius:5px;line-height:1;font-size:11px;color:var(--ink-2)}
 .grip button:hover{background:var(--ground)}
-.prow{grid-template-columns:auto 56px 1fr auto}
+.prow{grid-template-columns:auto 56px 1fr auto auto}
 
 /* статистика */
 .tile i{display:block;margin-top:3px;font-style:normal;font-size:11.5px;font-weight:600}
@@ -335,7 +338,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <select class="in" id="pCat" style="width:auto"></select>
         <button class="btn btn-p" id="pNew">+ Новый товар</button>
       </div>
-      <p class="hint" style="margin:-4px 0 12px">Нажмите на товар, чтобы изменить. Переключатель справа — показать или скрыть на сайте. Товары можно добавлять и через Телеграм-бота.</p>
+      <p class="hint" style="margin:-4px 0 12px">Нажмите на товар, чтобы изменить. Зелёный переключатель справа — показать или скрыть товар вообще, цветные — на какой витрине он продаётся. Товары можно добавлять и через Телеграм-бота.</p>
       <div class="plist" id="plist"></div>
     </section>
 
@@ -973,6 +976,23 @@ function priceOf(p) {
   }
   return rub(p.price);
 }
+// Витрины товара прямо в списке: по кнопке на каждый сайт, чтобы не открывать карточку.
+// Пусто в базе значит «продаётся везде», поэтому обе кнопки показываем нажатыми.
+const brandArr = v => Array.isArray(v) ? v : (v ? [v] : []);
+const brandsOf = p => { const a = brandArr(p.brands); return a.length ? a : BRANDS.map(b => b.id); };
+const brandShort = n => String(n).split(/[\s.]/)[0].slice(0, 10);
+function brandCells(p) {
+  if (BRANDS.length < 2) return '<span></span>';
+  const own = brandsOf(p);
+  return `<div class="bcells">${BRANDS.map(b => {
+    const on = own.indexOf(b.id) >= 0, c = b.tag_color || b.accent || '#888';
+    return `<span class="bcell"><span>${esc(brandShort(b.name))}</span>
+      <button class="sw" data-pbrand="${p.id}|${b.id}" role="switch" aria-checked="${on}"
+        style="${on ? `background:${esc(c)}` : ''}"
+        aria-label="${esc(b.name)}"></button></span>`;
+  }).join('')}</div>`;
+}
+
 function renderProducts() {
   const q = $('#pSearch').value.trim().toLowerCase(), c = $('#pCat').value;
   const r = PRODS.filter(p => (!c || p.category === c) && (!q || p.name.toLowerCase().includes(q)));
@@ -981,6 +1001,7 @@ function renderProducts() {
     <div class="grip">${sortable ? `<button data-up="${p.id}" aria-label="Выше">▲</button><button data-down="${p.id}" aria-label="Ниже">▼</button>` : ''}</div>
     ${p.photo && p.photo[0] ? `<img src="${fileUrl(p, p.photo[0], '160x160')}" alt="" loading="lazy">` : '<div class="ph" style="width:56px;height:56px"></div>'}
     <div><div class="n">${esc(p.name)}</div><div class="s">${esc((CATS.find(x => x.id === p.category) || {}).name || '')} · ${priceOf(p)}</div></div>
+    ${brandCells(p)}
     <button class="sw" data-toggle="${p.id}" role="switch" aria-checked="${p.active}" aria-label="На сайте"></button>
   </div>`).join('') : `<div class="empty">Ничего не нашлось.</div>`;
 }
@@ -1029,6 +1050,20 @@ $('#plist').addEventListener('click', safe(async e => {
     const id = (up || dn).dataset[up ? 'up' : 'down'];
     const i = PRODS.findIndex(p => p.id === id);
     return moveTo(id, up ? Math.max(0, i - 1) : Math.min(PRODS.length - 1, i + 1));
+  }
+  const bc = e.target.closest('[data-pbrand]');
+  if (bc) {
+    const [pid, bid] = bc.dataset.pbrand.split('|');
+    const p = PRODS.find(x => x.id === pid);
+    const cur = brandsOf(p), on = cur.indexOf(bid) >= 0;
+    const next = on ? cur.filter(x => x !== bid) : cur.concat(bid);
+    // пусто означало бы «везде» — тогда кнопка сама вернулась бы в нажатое состояние
+    if (!next.length) return toast('Хотя бы одна витрина должна остаться', true);
+    const r = await api(`/api/collections/products/records/${pid}`, { method: 'PATCH', body: { brands: next } });
+    Object.assign(p, r); renderProducts();
+    const b = BRANDS.find(x => x.id === bid);
+    toast(`${p.name}: ${on ? 'убран с витрины' : 'показан на витрине'} «${b ? b.name : ''}»`);
+    return;
   }
   const t = e.target.closest('[data-toggle]');
   if (t) {
