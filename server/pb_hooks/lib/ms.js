@@ -325,14 +325,29 @@ function buildAttributes(app, s, o, missed) {
 }
 
 // Канал продаж
-function channelId(s) {
-  const name = (s.get("ms_channel") || "").trim();
+// Канал продаж. Номер запоминаем: раньше его искали по названию при каждой
+// отправке, и в вал заказов склад отвечал 429 — канал молча не проставлялся.
+// app может не передаваться (служебная проверка) — тогда просто не кэшируем.
+function channelId(app, s) {
+  if (s === undefined) { s = app; app = null; }        // старый вызов channelId(s)
+  const name = String(s.get("ms_channel") || "").trim();
   if (!name) return null;
-  const list = ms(s, "GET", `/entity/saleschannel?limit=100`);
-  if (!list.ok) return null;
+
+  const cached = String(s.get("ms_channel_id") || "").trim();
+  if (cached && app) return cached;
+
+  const list = ms(s, "GET", `/entity/saleschannel?limit=1000`);
+  if (!list.ok) return cached || null;                 // связи нет — берём вчерашний номер
   const want = norm(name);
-  const row = (list.data.rows || []).find((r) => norm(r.name) === want) || (list.data.rows || []).find((r) => norm(r.name).indexOf(want) >= 0);
-  return row ? row.id : null;
+  const row = (list.data.rows || []).find((r) => norm(r.name) === want) ||
+              (list.data.rows || []).find((r) => norm(r.name).indexOf(want) >= 0);
+  if (!row) return null;
+  if (app && row.id !== cached) {
+    // пишем запросом, мимо хуков на настройках
+    try { app.db().newQuery("UPDATE settings SET ms_channel_id = {:v} WHERE id = {:id}").bind({ v: row.id, id: s.id }).execute(); }
+    catch (err) { console.log("ms channel cache", err); }
+  }
+  return row.id;
 }
 
 // Адрес доставки как структурированное поле
@@ -486,8 +501,10 @@ function pushOrder(app, o) {
   vatEnabled: false,
 attributes: buildAttributes(app, s, o, missedAttrs),
 };
-const ch = channelId(s);
+const ch = channelId(app, s);
 if (ch) body.salesChannel = meta("saleschannel", ch);
+// канал задан в настройках, а найти его не удалось — это молчать нельзя
+else if (String(s.get("ms_channel") || "").trim()) missedAttrs.push(`Канал продаж = «${s.get("ms_channel")}»`);
 const addr = addressFull(o);
 if (addr) body.shipmentAddressFull = addr;
 const paidNow = o.get("payment_status") === "paid";

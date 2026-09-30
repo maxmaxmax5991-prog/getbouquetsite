@@ -366,7 +366,17 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <section id="tab-incoming" hidden>
       <div class="bar" style="justify-content:space-between">
         <h2>Цветы в пути</h2>
-        <div class="bar"><button class="btn btn-g" id="freshAll">🌿 Всё в наличии приехало сегодня</button><button class="btn btn-p" id="inAdd">Добавить строку</button></div>
+        <div class="bar"><button class="btn btn-p" id="inAdd">Добавить строку</button></div>
+      </div>
+      <div class="card stack" style="margin:0 0 12px">
+        <h3 style="margin:0">🌿 Что приехало сегодня</h3>
+        <p class="hint" style="margin:0">Отметьте разделы, которые завезли. На их карточках появится плашка «приехали сегодня» — завтра она пропадёт сама.</p>
+        <div class="bar" id="freshCats"></div>
+        <div class="bar">
+          <button class="btn btn-p" id="freshMark">Отметить выбранные</button>
+          <button class="btn btn-g" id="freshNone">Снять со всех</button>
+          <span class="hint" id="freshNote" style="margin:0;align-self:center"></span>
+        </div>
       </div>
       <p class="hint">Сорт уже продаётся, но приедет позже: в карточке появится «цветы ещё едут с теплицы», а доставку раньше приезда плюс сборку сайт не предложит. Количество — сколько стеблей забронировано под сайт; когда их не хватает на размер, размер скрывается сам.</p>
       <div id="inRows" class="stack"></div>
@@ -1849,6 +1859,7 @@ setInterval(() => { if (auth && tab === 'chat') loadChats(); }, 7000);
    Время приезда у сорта одно (доставка приходит целиком), остаток — по каждой длине. */
 let IN = [];
 const loadIncoming = safe(async () => {
+  renderFreshCats();
   const prods = await list('products', '&sort=name');
   IN = [];
   prods.forEach(p => {
@@ -1889,9 +1900,34 @@ function readIncoming() {
     r.time = el.querySelector('[data-t]').value;
   });
 }
-$('#freshAll').onclick = safe(async () => {
-  const r = await api('/api/shop/fresh-all', { method: 'POST', body: { on: true } });
+// «Приехало сегодня» по разделам: завоз каждый раз свой
+let FRESHSEL = [];
+function renderFreshCats() {
+  const cats = (CATS || []).filter(c => !c.addon && c.active);
+  $('#freshCats').innerHTML = cats.length
+    ? cats.map(c => `<button class="chip" data-fc="${c.id}" aria-pressed="${FRESHSEL.includes(c.id)}">${esc(c.name)}</button>`).join('')
+      + '<button class="chip" data-fc="*">Все</button>'
+    : '<span class="hint" style="margin:0">Разделы ещё не заведены</span>';
+}
+$('#freshCats').onclick = e => {
+  const b = e.target.closest('[data-fc]');
+  if (!b) return;
+  const cats = (CATS || []).filter(c => !c.addon && c.active).map(c => c.id);
+  if (b.dataset.fc === '*') FRESHSEL = FRESHSEL.length === cats.length ? [] : cats.slice();
+  else FRESHSEL = FRESHSEL.includes(b.dataset.fc) ? FRESHSEL.filter(x => x !== b.dataset.fc) : FRESHSEL.concat(b.dataset.fc);
+  renderFreshCats();
+};
+$('#freshMark').onclick = safe(async () => {
+  if (!FRESHSEL.length) return toast('Сначала отметьте разделы', true);
+  const r = await api('/api/shop/fresh-all', { method: 'POST', body: { on: true, cats: FRESHSEL } });
+  $('#freshNote').textContent = `Отмечено сортов: ${r.count}`;
   toast(`Отмечено сортов: ${r.count}. Плашка пропадёт сама завтра.`);
+});
+$('#freshNone').onclick = safe(async () => {
+  const r = await api('/api/shop/fresh-all', { method: 'POST', body: { on: false } });
+  FRESHSEL = []; renderFreshCats();
+  $('#freshNote').textContent = '';
+  toast(`Плашка снята: ${r.count}`);
 });
 $('#inAdd').onclick = safe(async () => {
   if (!IN_PRODS.length) IN_PRODS = await list('products', '&sort=name');

@@ -468,12 +468,18 @@ routerAdd("GET", "/api/shop/ms-search", (e) => {
 routerAdd("POST", "/api/shop/fresh-all", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
-  const on = !!(e.requestInfo().body || {}).on;
+  const b = e.requestInfo().body || {};
+  const on = !!b.on;
   const day = on ? shop.moscowToday() : "";
+  // Завоз каждый раз разный: отмечаем только выбранные разделы. Пустой список —
+  // как раньше, все сразу; так старая кнопка «всё приехало» продолжает работать.
+  const cats = Array.isArray(b.cats) ? b.cats.map((x) => String(x)).filter((x) => /^[a-z0-9]+$/i.test(x)) : [];
   let n = 0;
   try {
-    const r = $app.db().newQuery(`UPDATE products SET fresh_date = {:d}
-      WHERE active = true AND category IN (SELECT id FROM categories WHERE addon IS NOT TRUE)`)
+    const where = cats.length
+      ? `category IN (${cats.map((c) => `'${c}'`).join(",")})`
+      : `category IN (SELECT id FROM categories WHERE addon IS NOT TRUE)`;
+    const r = $app.db().newQuery(`UPDATE products SET fresh_date = {:d} WHERE active = true AND ${where}`)
       .bind({ d: day }).execute();
     n = r.rowsAffected ? r.rowsAffected() : 0;
   } catch (err) { return e.json(400, { message: String(err) }); }
