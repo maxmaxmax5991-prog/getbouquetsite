@@ -120,6 +120,13 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
     const v = list.map((r) => +r.get(f) || 0).filter((x) => x > 0);
     return v.length ? +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : null;
   };
+  // Индекс рекомендации: доля девяток-десяток минус доля шестёрок и ниже.
+  // Считаем только по тем, кто ответил: иначе молчуны утопят любую цифру.
+  const оценки = list.map((r) => +r.get("nps") || 0).filter((x) => x > 0);
+  const промоутеры = оценки.filter((x) => x >= 9).length;
+  const нейтральные = оценки.filter((x) => x === 7 || x === 8).length;
+  const критики = оценки.filter((x) => x <= 6).length;
+  const nps = оценки.length ? Math.round((промоутеры - критики) * 100 / оценки.length) : null;
   const need = [];
   all.filter((r) => r.get("needs_call") && !r.get("handled")).forEach((r) => {
     let o = null;
@@ -129,6 +136,7 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
       number: o ? o.get("number") : "",
       name: o ? o.get("name") : "",
       phone: o ? o.get("phone") : "",
+      nps: +r.get("nps") || 0,
       marks: [+r.get("q_order") || 0, +r.get("q_bouquet") || 0, +r.get("q_delivery") || 0],
       comment: r.get("comment") || "",
       at: r.getString("created"),
@@ -138,6 +146,7 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
     let o = null;
     try { o = $app.findRecordById("orders", r.get("order")); } catch (_) {}
     return { number: o ? o.get("number") : "", text: r.get("comment"), at: r.getString("created"),
+      nps: +r.get("nps") || 0,
       marks: [+r.get("q_order") || 0, +r.get("q_bouquet") || 0, +r.get("q_delivery") || 0] };
   });
   // Полный список — владелец хочет видеть каждую оценку, а не только средние
@@ -149,6 +158,7 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
       number: o ? o.get("number") : "",
       name: o ? o.get("name") : "",
       phone: o ? o.get("phone") : "",
+      nps: +r.get("nps") || 0,
       marks: [+r.get("q_order") || 0, +r.get("q_bouquet") || 0, +r.get("q_delivery") || 0],
       comment: r.get("comment") || "",
       step: r.get("step") || "",
@@ -160,7 +170,9 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
   return e.json(200, {
     rows,
     total: list.length,
-    answered: list.filter((r) => +r.get("q_delivery") > 0).length,
+    nps, промоутеры, нейтральные, критики,
+    nps_avg: оценки.length ? +(оценки.reduce((a, b) => a + b, 0) / оценки.length).toFixed(1) : null,
+    answered: оценки.length,
     avg: { order: avg("q_order"), bouquet: avg("q_bouquet"), delivery: avg("q_delivery") },
     fives: list.filter((r) => +r.get("q_order") === 5 && +r.get("q_bouquet") === 5 && +r.get("q_delivery") === 5).length,
     need, comments,

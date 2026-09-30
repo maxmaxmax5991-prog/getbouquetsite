@@ -412,7 +412,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       </div>
       <div class="card" style="margin-top:12px">
         <h2>Оценки после вручения</h2>
-        <p class="hint">Три вопроса приходят клиенту, когда заказ стал «Доставлен». Кто поставил тройку и ниже — попадает в «Ждут звонка», кто все пятёрки — получает приглашение на Яндекс.Карты.</p>
+        <p class="hint">Когда заказ стал «Доставлен», клиенту приходит один вопрос: насколько он готов нас порекомендовать, от 1 до 10. Отвечает цифрой в ответном сообщении.<br><b>9–10</b> — зовём оставить отзыв на Яндекс.Картах. <b>7–8</b> — спрашиваем, чего не хватило до десятки. <b>6 и ниже</b> — попадает в «Ждут звонка», вам сразу приходит уведомление.<br>«Индекс» — доля девяток и десяток минус доля шестёрок и ниже, считается только среди ответивших. Выше нуля уже неплохо, выше 50 — отлично.</p>
         <div class="tiles4" id="revTiles"></div>
         <div class="scroll" style="margin-top:10px"><table class="t" id="revNeed"></table></div>
         <div class="scroll" style="margin-top:10px"><table class="t" id="revComments"></table></div>
@@ -2206,27 +2206,30 @@ const loadStats = safe(async () => {
   // Оценки после вручения
   try {
     const rv = await api(`/api/shop/reviews?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`);
-    const a = rv.avg || {};
-    const m = x => x === null || x === undefined ? '—' : x.toFixed(2);
+    const nn = x => x === null || x === undefined ? '—' : x;
+    const доля = n => rv.answered ? `<i class="same">${Math.round(n * 100 / rv.answered)}% ответивших</i>` : '';
     $('#revTiles').innerHTML = [
-      ['Опросов отправлено', rv.total], ['Ответили полностью', rv.answered],
-      ['Оформление', m(a.order)], ['Букет', m(a.bouquet)], ['Доставка', m(a.delivery)],
-      ['Все пятёрки', rv.fives],
-    ].map(([t, v]) => `<div class="tile"><span>${t}</span><b class="num">${v}</b></div>`).join('');
+      ['Опросов отправлено', rv.total, rv.total ? `<i class="same">ответили ${Math.round((rv.answered || 0) * 100 / rv.total)}%</i>` : ''],
+      ['Ответили', nn(rv.answered), ''],
+      ['Индекс рекомендации', nn(rv.nps), ''],
+      ['Средняя оценка', nn(rv.nps_avg), rv.nps_avg ? '<i class="same">из 10</i>' : ''],
+      ['Готовы рекомендовать', nn(rv.промоутеры), доля(rv.промоутеры || 0)],
+      ['Недовольных', nn(rv.критики), доля(rv.критики || 0)],
+    ].map(([t, v, extra]) => `<div class="tile"><span>${t}</span><b class="num">${v}</b>${extra || ''}</div>`).join('');
     $('#revNeed').innerHTML = (rv.need || []).length
-      ? `<tr><th>Ждут звонка</th><th>Оценки</th><th>Телефон</th><th></th></tr>`
+      ? `<tr><th>Ждут звонка</th><th>Оценка</th><th>Телефон</th><th></th></tr>`
         + rv.need.map(n => `<tr><td>№${n.number} — ${esc(n.name || '')}</td>
-            <td class="num">${n.marks.join(' / ')}</td>
+            <td class="num">${n.nps ? n.nps + ' из 10' : n.marks.join(' / ')}</td>
             <td><a href="tel:${esc(String(n.phone).replace(/[^\d+]/g, ''))}">${esc(n.phone || '')}</a></td>
             <td><button class="btn btn-p btn-s" data-revok="${n.id}">Взял в работу</button></td></tr>`).join('')
-      : '<tr><td>Недовольных нет — все оценки выше тройки.</td></tr>';
-    const STEP_RU = { order: 'ждём ответа', bouquet: 'ответил 1 из 3', delivery: 'ответил 2 из 3', comment: 'ответил, ждём отзыв', done: 'готово' };
-    const star = n => n ? '⭐'.repeat(n) : '—';
+      : '<tr><td>Недовольных нет.</td></tr>';
+    const STEP_RU = { nps: 'ждём ответа', order: 'ждём ответа', bouquet: 'ответил 1 из 3', delivery: 'ответил 2 из 3', comment: 'оценил, ждём пояснение', done: 'готово' };
+    const балл = r => r.nps ? `<b>${r.nps}</b> из 10` : (r.marks.some(x => x) ? r.marks.join(' / ') : '—');
     $('#revAll').innerHTML = (rv.rows || []).length
-      ? `<tr><th>Заказ</th><th>Оформление</th><th>Букет</th><th>Доставка</th><th>Отзыв</th><th>Состояние</th><th>Когда</th></tr>`
+      ? `<tr><th>Заказ</th><th>Оценка</th><th>Отзыв</th><th>Состояние</th><th>Когда</th></tr>`
         + rv.rows.map(r => `<tr${r.needs_call && !r.handled ? ' style="background:color-mix(in srgb,var(--sale) 8%,transparent)"' : ''}>
             <td>№${r.number}${r.name ? '<br><span class="hint">' + esc(r.name) + '</span>' : ''}</td>
-            <td>${star(r.marks[0])}</td><td>${star(r.marks[1])}</td><td>${star(r.marks[2])}</td>
+            <td class="num">${балл(r)}</td>
             <td>${esc(r.comment || '')}</td>
             <td>${r.needs_call ? (r.handled ? 'взяли в работу' : '<b style="color:var(--sale)">нужен звонок</b>') : (STEP_RU[r.step] || '')}</td>
             <td>${chatAt(r.at)}</td></tr>`).join('')

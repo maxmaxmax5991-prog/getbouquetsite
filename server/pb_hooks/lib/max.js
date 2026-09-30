@@ -247,7 +247,8 @@ function handle(app, u, brand) {
     try {
       const rv = require(`${__hooks}/lib/review.js`);
       const w = rv.waiting(app, "max_chat", String(userId));
-      if (w) { rv.comment(app, w, text); return say("Спасибо, передали. Нам это правда важно."); }
+      // цифра — оценка, остальное — свободный отзыв; отвечает review.js сам
+      if (w) { rv.reply(app, w, text); return; }
     } catch (_) {}
   }
 

@@ -416,8 +416,10 @@ function handleClient(app, upd, brand) {
       const rv = require(`${__hooks}/lib/review.js`);
       const w = rv.waiting(app, "tg_chat", String(chat));
       if (w) {
-        rv.comment(app, w, text);
-        return shop.tg(token, "sendMessage", { chat_id: chat, text: "Спасибо, передали. Нам это правда важно." });
+        // цифра — оценка, остальное — свободный отзыв; ответить покупателю
+        // review.js умеет сам, в том числе ссылкой на Яндекс.Карты
+        rv.reply(app, w, text);
+        return;
       }
     } catch (err) { console.log("отзыв", err); }
   }
