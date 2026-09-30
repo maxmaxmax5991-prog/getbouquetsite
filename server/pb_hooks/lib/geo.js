@@ -301,10 +301,15 @@ function priceFor(app, s, km, sum, pos) {
   if (insideMkad(pos.lat, pos.lon)) {
     return { ok: true, price: inside, zone: "", zoneName: `дальше ${max} км, внутри МКАД` };
   }
-  const out = kmFromMkad(pos.lat, pos.lon);
-  const maxOut = +s.get("mkad_max_km") || 0;
-  if (maxOut > 0 && out > maxOut) return { ok: false, error: `Пока не возим дальше ${maxOut} км от МКАД. Позвоните нам — договоримся.` };
-  return { ok: true, price: outBase + Math.ceil(out) * perKm, zone: "", zoneName: `${out} км за МКАД`, out_km: out };
+  // За городом считаем ОТ МАГАЗИНА. Расстояние до кольца о работе курьера не
+  // говорит: магазин на северо-востоке, и до западного Одинцова ехать через всю
+  // Москву, хотя от МКАД там всего семь километров.
+  const maxKm = +s.get("max_km") || 0;
+  if (maxKm > 0 && km > maxKm) return { ok: false, error: `Пока не возим дальше ${maxKm} км от магазина. Позвоните нам — договоримся.` };
+  const from = +s.get("mkad_km_from") || 0;
+  const paid = Math.max(0, Math.ceil(km - from));          // километры сверх включённых, вверх
+  const out = kmFromMkad(pos.lat, pos.lon);                 // только чтобы курьер видел, насколько за кольцом
+  return { ok: true, price: outBase + paid * perKm, zone: "", zoneName: `за МКАД, ${km} км от магазина`, out_km: out };
 }
 
 // Полная проверка адреса: координаты, расстояние, цена. Одно место и для сайта, и для заказа.

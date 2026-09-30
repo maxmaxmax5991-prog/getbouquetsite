@@ -500,13 +500,15 @@ table.t td{padding:4px 6px;vertical-align:middle}
             <label class="f" for="dKmFactor">Поправка к прямой<input class="in num" id="dKmFactor" type="number" min="1" step="0.05"></label>
           </div>
           <h3 style="margin:14px 0 0">Дальше самого большого круга</h3>
-          <p class="hint">За кругами цена зависит уже не от расстояния, а от того, где адрес. Внутри МКАД — одна цена на весь остаток города. За МКАД — база плюс за каждый километр, считая <b>от МКАД</b>, а не от магазина. Оставьте «внутри МКАД» пустым — и дальше кругов заказ просто не оформится, как было раньше.</p>
+          <p class="hint">За кругами цена зависит уже не от расстояния, а от того, где адрес. Внутри МКАД — одна цена на весь остаток города. За МКАД — база плюс за каждый километр <b>от магазина</b> сверх включённых. Оставьте «внутри МКАД» пустым — и дальше кругов заказ просто не оформится, как было раньше.</p>
           <div class="row">
             <label class="f" for="dMkadIn">Внутри МКАД, ₽<input class="in num" id="dMkadIn" type="number" min="0" step="10"></label>
             <label class="f" for="dMkadBase">За МКАД: база, ₽<input class="in num" id="dMkadBase" type="number" min="0" step="10"></label>
-            <label class="f" for="dMkadPerKm">За МКАД: ₽ за километр<input class="in num" id="dMkadPerKm" type="number" min="0" step="5"></label>
-            <label class="f" for="dMkadLimit">Дальше не возим, км от МКАД<input class="in num" id="dMkadLimit" type="number" min="0" step="5"></label>
+            <label class="f" for="dMkadFrom">В базу входит, км от магазина<input class="in num" id="dMkadFrom" type="number" min="0" step="1"></label>
+            <label class="f" for="dMkadPerKm">Дальше — ₽ за километр<input class="in num" id="dMkadPerKm" type="number" min="0" step="5"></label>
+            <label class="f" for="dMkadLimit">Дальше не возим, км от магазина<input class="in num" id="dMkadLimit" type="number" min="0" step="5"></label>
           </div>
+          <p class="hint">Километры за городом считаются <b>от магазина</b>, а не от кольца, и округляются вверх. При базе 850 ₽, 15 включённых километрах и 55 ₽/км: Мытищи (12,8 км) — 850 ₽, Химки (17,6 км) — 1015 ₽, Одинцово (26,9 км) — 1510 ₽.<br>Так было не всегда: пока считали от МКАД, Королёв в 18 км стоил 1390 ₽, а Видное в 27 км — 1030 ₽, потому что до кольца там ближе. Цена шла наоборот пробегу курьера.</p>
           <p class="hint">Расстояние считается по прямой между точками и умножается на поправку — улицы не прямые, 1,3 близко к настоящему пробегу. Дальше самого большого круга доставка не оформляется. Ключи хранятся на сервере и в браузер покупателя не попадают.<br><b>Достаточно одного ключа — «Геосаджест»:</b> он и подсказывает улицы при вводе, и сообщает, насколько дом далеко от магазина. «Геокодер» нужен только для более точной проверки адреса, без него всё работает. Координаты магазина — широта и долгота через запятую, их можно взять в Яндекс.Картах: правая кнопка по своей точке → «Что здесь?».</p>
           <div class="bar"><button class="btn btn-p" id="dKmSave">Сохранить</button><button class="btn btn-g" id="dKmTest">Проверить адрес</button></div>
           <p class="hint" id="dKmResult" hidden></p>
@@ -2263,7 +2265,8 @@ const loadDelivery = safe(async () => {
   $('#dYsug').value = S.ymaps_suggest_key || '';
   $('#dKmFactor').value = S.km_factor || 1.3;
   $('#dMkadIn').value = S.mkad_price || 0; $('#dMkadBase').value = S.mkad_out_base || 0;
-  $('#dMkadPerKm').value = S.mkad_km_price || 0; $('#dMkadLimit').value = S.mkad_max_km || 0;
+  $('#dMkadPerKm').value = S.mkad_km_price || 0; $('#dMkadLimit').value = S.max_km || 0;
+  $('#dMkadFrom').value = S.mkad_km_from || 0;
   renderUpload();
   $('#dOriginLL').value = (S.origin_lat && S.origin_lon) ? `${S.origin_lat}, ${S.origin_lon}` : '';
   sw($('#dMkad'), S.mkad_mode);
@@ -2435,7 +2438,8 @@ $('#dKmSave').onclick = safe(async () => {
     origin_lat: m ? +m[1].replace(',', '.') : 0, origin_lon: m ? +m[2].replace(',', '.') : 0,
     // за пределами кругов: внутри МКАД одна цена, за МКАД база плюс за километр от МКАД
     mkad_price: +$('#dMkadIn').value || 0, mkad_out_base: +$('#dMkadBase').value || 0,
-    mkad_km_price: +$('#dMkadPerKm').value || 0, mkad_max_km: +$('#dMkadLimit').value || 0 };
+    mkad_km_price: +$('#dMkadPerKm').value || 0, mkad_km_from: +$('#dMkadFrom').value || 0,
+    max_km: +$('#dMkadLimit').value || 0 };
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
   renderMap();
   toast('Сохранено');
