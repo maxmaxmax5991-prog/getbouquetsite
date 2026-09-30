@@ -689,7 +689,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790707612"></script>
+<script src="data.js?v=1790761475"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1907,7 +1907,9 @@ function fillIntervals() {
     note.hidden = !list.length || (!today && !rd);
     note.textContent = !list.length ? ''
       : rd ? `Цветы в заказе едут с теплицы — будут у нас к ${rd.text}, поэтому везём с ${list[0].slice(0, 5)}.`
-      : today ? `Букет собираем ${prepMin(sum)} минут, поэтому сегодня везём с ${list[0].slice(0, 5)}.`
+      : today ? (SLOTS.load_extra > 0
+          ? `Сегодня много заказов, собираем дольше обычного — поэтому везём с ${list[0].slice(0, 5)}.`
+          : `Букет собираем ${prepMin(sum)} минут, поэтому сегодня везём с ${list[0].slice(0, 5)}.`)
       : '';
   }
 }

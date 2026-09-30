@@ -298,14 +298,29 @@ function readyOf(app, items) {
   return best;
 }
 
+// Режим «высокая нагрузка»: лишние минуты на сборку, пока не отпустит.
+// Возвращаем 0, когда срок вышел — чтобы забытый на ночь режим не портил утро.
+function loadExtra(s) {
+  const extra = +s.get("load_extra") || 0;
+  if (extra <= 0) return 0;
+  const until = String(s.get("load_until") || "").trim();
+  if (until && Date.parse(until) && Date.parse(until) < Date.now()) return 0;
+  return Math.min(600, extra);
+}
+
 function slotRules(s) {
+  // Прибавка идёт ко всем видам сборки разом: и к обычной, и к большому букету,
+  // и к экспрессу. Считается в одном месте — и сайт, и проверка заказа берут
+  // время отсюда, разъехаться они не могут.
+  const extra = loadExtra(s);
   return {
     from: String(s.get("work_from") || "09:00"),
     to: String(s.get("work_to") || "21:00"),
     till: String(s.get("delivery_to") || s.get("work_to") || "23:00"),
-    prep: +s.get("prep_min") || 45,
-    prep_big: +s.get("prep_min_big") || 75,
-    prep_express: +s.get("prep_express") || 20,   // готовый букет: только упаковать и отдать
+    prep: (+s.get("prep_min") || 45) + extra,
+    prep_big: (+s.get("prep_min_big") || 75) + extra,
+    prep_express: (+s.get("prep_express") || 20) + extra,   // готовый букет: только упаковать и отдать
+    load_extra: extra,
     big_from: +s.get("prep_big_from") || 0,
     hours: +s.get("slot_hours") || 3,
     step: +s.get("slot_step") || 30,
@@ -679,13 +694,23 @@ function brandOfOrder(app, o) {
   try { return app.findRecordById("brands", String(id)); } catch (_) { return null; }
 }
 
+// Три уровня доступа в служебный бот:
+//   bossIds    — полное управление: товары, цены, «Стоп заказов», ответы покупателям;
+//   watcherIds — только уведомления: видит всё, менять не может ничего;
+//   floristIds — только фото букетов, без телефонов и адресов покупателей.
+// adminIds — это «кому шлём уведомления», то есть первые два вместе.
+// Права проверяются по bossIds, а не по adminIds: иначе наблюдатель стал бы хозяином.
+function idList(s, field) {
+  return String(s.get(field) || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+}
+function bossIds(s) { return idList(s, "tg_admins"); }
+function watcherIds(s) { return idList(s, "tg_watchers"); }
 function adminIds(s) {
-  return String(s.get("tg_admins") || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+  const boss = bossIds(s);
+  return boss.concat(watcherIds(s).filter((x) => boss.indexOf(x) < 0));
 }
 // Флористы: в служебном боте им можно только отправлять фото готовых букетов
-function floristIds(s) {
-  return String(s.get("tg_florists") || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
-}
+function floristIds(s) { return idList(s, "tg_florists"); }
 
 function orderText(o) {
   const items = (jget(o, "items") || []).map((it) => `• ${it.name}${it.label_text ? " · " + it.label_text : ""} × ${it.qty} — ${rub(it.sum)}`).join("\n");
@@ -794,6 +819,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, invoicePrefix, invoiceOf, notifyCustomer, readyOf, stockOf, stockOk,
-  tg, tgPhoto, clientToken, brandOfOrder, adminIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, stockOf, stockOk,
+  tg, tgPhoto, clientToken, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

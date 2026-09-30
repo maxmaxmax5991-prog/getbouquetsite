@@ -440,6 +440,17 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <section id="tab-delivery" hidden>
       <div class="stack">
         <div class="card">
+          <h2>Нагрузка</h2>
+          <p class="hint">В запару флористы не успевают к обычному времени сборки, а сайт продолжает обещать ближайший интервал. Нажмите — и ко всем заказам прибавится время на сборку: ближайшие окна доставки сдвинутся вперёд сами, и на сайте, и при проверке заказа.</p>
+          <div class="bar" id="loadBar">
+            <button class="btn btn-g" data-load="30">+30 минут</button>
+            <button class="btn btn-g" data-load="60">+1 час</button>
+            <button class="btn btn-g" data-load="120">+2 часа</button>
+            <button class="btn btn-p" data-load="0">Обычный режим</button>
+          </div>
+          <p class="hint" id="loadNow"></p>
+        </div>
+        <div class="card">
           <h2>Приём заказов</h2>
           <div class="stack">
             <div class="swl"><button class="sw" id="dAccepting" role="switch" aria-checked="true" aria-label="Принимать заказы"></button>Принимаем заказы на сайте</div>
@@ -660,8 +671,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
           </ol>
           <label class="f" for="sTok">Ключ бота<input class="in" id="sTok" type="password" autocomplete="off" placeholder="Вставьте ключ от @BotFather"></label>
           <label class="f" for="sAdm">Кто может управлять ботом (номера через запятую)<input class="in num" id="sAdm" placeholder="512345678"></label>
+          <label class="f" for="sWat">Кто только получает уведомления<input class="in num" id="sWat" placeholder="512345678"></label>
           <label class="f" for="sFlo">Кто только отправляет фото букетов<input class="in num" id="sFlo" placeholder="512345678"></label>
-          <p class="hint"><b>Номера сюда вписывать не нужно.</b> Пусть человек откроет бота и нажмёт «Старт» — вам придёт заявка с кнопками «📷 Только фото букетов» и «🛠 Полное управление». Нажали — доступ выдан, номер подставится сам.<br>Флорист получает короткую карточку: что собрать и к какому времени, без телефона и адреса покупателя. Фото отправляет ответом на карточку или с подписью-номером заказа («3026»). Цены, товары и «Стоп заказов» ему недоступны.</p>
+          <p class="hint"><b>Номера сюда вписывать не нужно.</b> Пусть человек откроет бота и нажмёт «Старт» — вам придёт заявка с кнопками «🔔 Только уведомления», «📷 Только фото букетов» и «🛠 Полное управление». Нажали — доступ выдан, номер подставится сам.<br><b>Только уведомления</b> — человек видит всё, что происходит (заказы, оплаты, сообщения покупателей, сбои), но изменить не может ничего: ни цены и товары, ни «Стоп заказов», ни ответы покупателям.<br>Флорист получает короткую карточку: что собрать и к какому времени, без телефона и адреса покупателя. Фото отправляет ответом на карточку или с подписью-номером заказа («3026»). Цены, товары и «Стоп заказов» ему недоступны.</p>
           <p class="hint"><b>Что за номер:</b> личный номер аккаунта в Телеграме (не телефон). Узнать свой — откройте бота <b>@userinfobot</b> и нажмите Start, он пришлёт строку «Id: 512345678». Или после сохранения ключа напишите своему боту — он ответит вашим номером.<br>Этим людям приходят уведомления о заказах, и только они могут менять товары через бота.</p>
           <div class="bar"><button class="btn btn-p" id="tSave">Сохранить</button><button class="btn btn-g" id="tTest">Проверить бота</button></div>
           <div class="scroll" id="tWhoBox" hidden><table class="t" id="tWho"></table></div>
@@ -2236,6 +2248,7 @@ let ZONES = [], CLOSED = [];
 const loadDelivery = safe(async () => {
   await loadSettings0();
   sw($('#dAccepting'), S.accepting);
+  loadShow();
   $('#dMin').value = S.min_order || 0; $('#dDays').value = S.days_ahead || 14; $('#dNotice').value = S.notice || '';
   sw($('#dPickup'), S.pickup);
   $('#dPickAddr').value = S.pickup_address || ''; $('#dPickHours').value = S.pickup_hours || '';
@@ -2315,6 +2328,29 @@ $('#dUpNew').onclick = safe(async () => {
   toast('Ключ сменён, ссылка обновилась');
 });
 
+// «Высокая нагрузка». Показываем состояние словами: сколько прибавлено и до когда.
+function loadShow() {
+  const mins = +S.load_extra || 0;
+  const until = String(S.load_until || '');
+  const live = mins > 0 && (!until || Date.parse(until) > Date.now());
+  const hhmm = until && Date.parse(until) ? new Date(Date.parse(until) + 3 * 3600e3).toISOString().slice(11, 16) : '';
+  $('#loadNow').innerHTML = live
+    ? `🔥 <b>Сейчас высокая нагрузка: +${mins} мин к сборке.</b> Само выключится в ${hhmm} по Москве — или нажмите «Обычный режим».`
+    : 'Сейчас обычный режим.';
+  $$('#loadBar [data-load]').forEach(b => b.setAttribute('aria-pressed', live ? (+b.dataset.load === mins) : (b.dataset.load === '0')));
+}
+$('#loadBar').onclick = safe(async e => {
+  const b = e.target.closest('[data-load]');
+  if (!b) return;
+  const mins = +b.dataset.load;
+  $$('#loadBar [data-load]').forEach(x => x.disabled = true);
+  try {
+    const r = await api('/api/shop/load', { method: 'POST', body: { minutes: mins, by: ME.name || '' } });
+    S.load_extra = r.minutes; S.load_until = r.until;
+    loadShow();
+    toast(mins ? `Высокая нагрузка: +${mins} мин к сборке` : 'Вернули обычный режим');
+  } finally { $$('#loadBar [data-load]').forEach(x => x.disabled = false); }
+});
 $('#dSlotSave').onclick = safe(async () => {
   const from = $('#dWorkFrom').value, to = $('#dWorkTo').value, till = $('#dDelTo').value || to;
   if (!from || !to || toMin(to) <= toMin(from)) return toast('«Отправляем до» должно быть позже, чем «начинаем с»', true);
@@ -2727,6 +2763,7 @@ const loadSettings = safe(async () => {
   $('#sTok').value = ''; $('#sTok').placeholder = S.tg_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ от @BotFather';
 $('#sAdm').value = S.tg_admins || '';
 $('#sFlo').value = S.tg_florists || '';
+$('#sWat').value = S.tg_watchers || '';
 $('#msTok').value = ''; $('#msTok').placeholder = S.ms_token ? 'Токен сохранён. Вставьте новый, чтобы заменить' : 'Вставьте токен из МоегоСклада';
 msFill(S.ms_org_id, S.ms_org_name, S.ms_store_id, S.ms_store_name);
 sw($('#msOn'), S.ms_enabled);
@@ -2839,7 +2876,9 @@ $('#tSave').onclick = safe(async () => {
   if ($('#sAdm').value.trim() && !admins) return toast('Номер — это только цифры, например 512345678. Узнать свой: бот @userinfobot', true);
   const florists = $('#sFlo').value.split(/[^\d]+/).filter(Boolean).join(', ');
   if ($('#sFlo').value.trim() && !florists) return toast('Номер флориста — это только цифры, например 512345678', true);
-  const body = { tg_admins: admins, tg_florists: florists, site_url: S.site_url || location.origin };
+  const watchers = $('#sWat').value.split(/[^\d]+/).filter(Boolean).join(', ');
+  if ($('#sWat').value.trim() && !watchers) return toast('Номер — это только цифры, например 512345678', true);
+  const body = { tg_admins: admins, tg_florists: florists, tg_watchers: watchers, site_url: S.site_url || location.origin };
   const raw = $('#sTok').value.trim();
   if (raw) {
     const found = raw.match(/\d{5,}:[A-Za-z0-9_-]{20,}/);   // ключ могли вставить вместе с текстом сообщения

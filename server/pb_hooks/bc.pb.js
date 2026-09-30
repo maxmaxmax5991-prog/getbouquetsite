@@ -162,7 +162,7 @@ routerAdd("POST", "/api/bc/send", (e) => {
   // Проверка: шлём себе — тем, кто записан в «Кому писать в Телеграм» (Настройки).
   // Через чужого бота дойдёт, только если вы хоть раз нажали у него «Старт».
   const s = shop.settings($app);
-  const admins = shop.adminIds(s);
+  const admins = shop.bossIds(s);   // проверку шлём хозяину, а не всем наблюдателям
   const m = bc.message($app, rec);
   const cache = {};
   const out = [];

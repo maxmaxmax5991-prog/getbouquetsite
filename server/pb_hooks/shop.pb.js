@@ -302,9 +302,39 @@ routerAdd("POST", "/api/shop/tg-test", (e) => {
     const r = shop.tg(token, "sendMessage", { chat_id: chat, text });
     return { id: chat, role, name: who(chat), ok: !!(r && r.ok), error: (r && r.ok) ? "" : human(r && r.description) };
   };
-  const rows = shop.adminIds(s).map((c) => check(c, "Полное управление", "Бот подключён к сайту venikoff.net ✅ Напишите «Меню»."))
+  const rows = shop.bossIds(s).map((c) => check(c, "Полное управление", "Бот подключён к сайту venikoff.net ✅ Напишите «Меню»."))
+    .concat(shop.watcherIds(s).map((c) => check(c, "Только уведомления", "Проверка связи ✅ Сюда будут приходить заказы, оплаты и сообщения покупателей.")))
     .concat(shop.floristIds(s).map((c) => check(c, "Только фото букетов", "Проверка связи ✅ Сюда будут приходить карточки заказов — присылайте фото готовых букетов ответом на них.")));
   return e.json(200, { bot: me.result.username, webhook: !!(hook && hook.ok), admins: shop.adminIds(s).length, rows });
+}, $apis.requireAuth("managers"));
+
+// «Высокая нагрузка»: прибавить минут на сборку всем заказам разом.
+// Отдельный маршрут, а не правка настроек целиком: настройки может менять только
+// владелец, а в запару режим включает тот, кто стоит за столом.
+routerAdd("POST", "/api/shop/load", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Это может владелец или управляющий." });
+  const b = e.requestInfo().body || {};
+  const mins = Math.max(0, Math.min(600, Math.round(+b.minutes || 0)));
+  const s = shop.settings($app);
+  s.set("load_extra", mins);
+  // До конца рабочего дня по Москве: забытый на ночь режим не должен портить утро.
+  // Рабочий день уже кончился — держим три часа, чтобы дозакрыть вечер.
+  let until = "";
+  if (mins > 0) {
+    const now = new Date(Date.now() + 3 * 3600e3);                       // «сейчас» по Москве
+    const [hh, mm] = String(s.get("delivery_to") || s.get("work_to") || "23:00").split(":");
+    const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), +hh || 23, +mm || 0) - 3 * 3600e3;
+    until = new Date(end > Date.now() ? end : Date.now() + 3 * 3600e3).toISOString();
+  }
+  s.set("load_until", until);
+  $app.save(s);
+  const who = String(b.by || "").slice(0, 60);
+  shop.adminIds(s).forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat,
+    text: mins > 0
+      ? `🔥 Высокая нагрузка: +${mins} мин к сборке${who ? " — включил(а) " + who : ""}.\nСайт сдвинул ближайшие интервалы. Само выключится в ${new Date(Date.parse(until) + 3 * 3600e3).toISOString().slice(11, 16)} по Москве.`
+      : `✅ Обычный режим доставки${who ? " — вернул(а) " + who : ""}.` }));
+  return e.json(200, { minutes: mins, until });
 }, $apis.requireAuth("managers"));
 
 // Остатки и «цветы в пути». Отдельный маршрут, а не правка товара напрямую:

@@ -1,7 +1,22 @@
 // Телеграм-бот магазина: добавление товаров фотографией, включение/выключение, заказы.
 const shop = require(`${__hooks}/lib/shop.js`);
 
-const menu = (accepting) => ({ keyboard: [[{ text: "Товары" }, { text: "Заказы" }], [{ text: "Добавить товар" }, { text: "Помощь" }], [{ text: accepting ? "Стоп заказов" : "Включить заказы" }]], resize_keyboard: true });
+const menu = (accepting) => ({ keyboard: [[{ text: "Товары" }, { text: "Заказы" }], [{ text: "Добавить товар" }, { text: "Помощь" }], [{ text: accepting ? "Стоп заказов" : "Включить заказы" }, { text: "Нагрузка" }]], resize_keyboard: true });
+
+// Сколько сейчас прибавлено к сборке — словами, для бота
+function loadLine(s) {
+  const shop2 = require(`${__hooks}/lib/shop.js`);
+  const mins = shop2.loadExtra(s);
+  if (!mins) return "Сейчас обычный режим: собираем как всегда.";
+  const until = String(s.get("load_until") || "");
+  const hhmm = Date.parse(until) ? new Date(Date.parse(until) + 3 * 3600e3).toISOString().slice(11, 16) : "";
+  return `🔥 Сейчас высокая нагрузка: +${mins} мин к сборке.${hhmm ? ` Само выключится в ${hhmm} по Москве.` : ""}`;
+}
+const loadKeys = { inline_keyboard: [
+  [{ text: "+30 минут", callback_data: "ld:30" }, { text: "+1 час", callback_data: "ld:60" }],
+  [{ text: "+2 часа", callback_data: "ld:120" }],
+  [{ text: "✅ Обычный режим", callback_data: "ld:0" }],
+] };
 const PAGE = 8;
 // метка товара в подсказке к ответу — по ней узнаём, к чему относится ответ
 const TAG = (id) => `[id:${id}]`;
@@ -36,6 +51,7 @@ const HELP = [
   "",
   "«Заказы» — активные заказы. Статус меняется в МоёмСкладе и подтягивается сюда сам.",
   "«Стоп заказов» — сайт перестаёт принимать заказы (товары остаются видны). Включить обратно — той же кнопкой.",
+  "«Нагрузка» — в запару прибавляет время на сборку всем заказам: сайт сам сдвигает ближайшие интервалы доставки вперёд. Вечером выключается само.",
 ].join("\n");
 
 function listKeyboard(app, s, filter, params, page, query) {
@@ -448,7 +464,9 @@ function handle(app, secret, upd) {
   const s = shop.settings(app);
   if (!s.get("tg_secret") || secret !== s.get("tg_secret")) return;
   const token = s.get("tg_token");
-  const admins = shop.adminIds(s);
+  // Права — по bossIds: adminIds это «кому идут уведомления», туда входят и
+  // наблюдатели, которым менять ничего нельзя.
+  const admins = shop.bossIds(s);
 
   if (upd.callback_query) {
     const cb = upd.callback_query, chat = cb.message.chat.id;
@@ -526,6 +544,7 @@ function handle(app, secret, upd) {
           text: `${cb.message.text}\n\n⚠️ Полное управление откроет этому человеку все заказы, телефоны и адреса покупателей, переписку и цены. Точно выдаём?`,
           reply_markup: { inline_keyboard: [
             [{ text: "Да, полное управление", callback_data: `gr:${uid}:a` }],
+            [{ text: "🔔 Лучше только уведомления", callback_data: `gr:${uid}:w` }],
             [{ text: "📷 Лучше только фото", callback_data: `gr:${uid}:f` }],
             [{ text: "Отмена", callback_data: `gr:${uid}:n` }],
           ] } });
@@ -540,17 +559,43 @@ function handle(app, secret, upd) {
         set.set(field, String(set.get(field) || "").split(/[\s,;]+/).map((x) => x.trim()).filter((x) => x && x !== id).join(", "));
       };
       let said = "Отказано";
-      if (what === "a") { drop("tg_florists", uid); add("tg_admins", uid); said = "Выдано полное управление"; }
-      else if (what === "f") { drop("tg_admins", uid); add("tg_florists", uid); said = "Выдан доступ: только фото"; }
-      else { drop("tg_admins", uid); drop("tg_florists", uid); }
+      if (what === "a") { drop("tg_florists", uid); drop("tg_watchers", uid); add("tg_admins", uid); said = "Выдано полное управление"; }
+      else if (what === "f") { drop("tg_admins", uid); drop("tg_watchers", uid); add("tg_florists", uid); said = "Выдан доступ: только фото"; }
+      else if (what === "w") { drop("tg_admins", uid); drop("tg_florists", uid); add("tg_watchers", uid); said = "Выдан доступ: только уведомления"; }
+      else { drop("tg_admins", uid); drop("tg_florists", uid); drop("tg_watchers", uid); }
       app.save(set);
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: said });
       shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id, text: `${cb.message.text}\n\n✅ ${said}` });
       if (what !== "n") {
-        shop.tg(token, "sendMessage", { chat_id: uid, text: what === "f"
-          ? "Доступ открыт. Присылайте сюда фото готовых букетов: ответом на карточку заказа или с подписью-номером, например 3026."
+        shop.tg(token, "sendMessage", { chat_id: uid, text:
+          what === "f" ? "Доступ открыт. Присылайте сюда фото готовых букетов: ответом на карточку заказа или с подписью-номером, например 3026."
+          : what === "w" ? "Доступ открыт. Сюда будут приходить новые заказы, оплаты, сообщения покупателей и сбои сайта.\n\nЭто только просмотр: менять цены и товары, останавливать приём заказов и отвечать покупателям отсюда нельзя."
           : "Доступ открыт. Напишите «Помощь», чтобы увидеть, что умеет бот." });
       }
+    } else if (kind === "ld") {
+      if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
+      const mins = Math.max(0, Math.min(600, +a || 0));
+      const set = shop.settings(app);
+      set.set("load_extra", mins);
+      // до конца рабочего дня по Москве, иначе забытый режим испортит утро
+      let until = "";
+      if (mins > 0) {
+        const now = new Date(Date.now() + 3 * 3600e3);
+        const [hh, mm] = String(set.get("delivery_to") || set.get("work_to") || "23:00").split(":");
+        const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), +hh || 23, +mm || 0) - 3 * 3600e3;
+        until = new Date(end > Date.now() ? end : Date.now() + 3 * 3600e3).toISOString();
+      }
+      set.set("load_until", until);
+      app.save(set);
+      const said = mins ? `Высокая нагрузка: +${mins} мин` : "Обычный режим";
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: said });
+      shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id,
+        text: `${loadLine(shop.settings(app))}\n\nПрибавка идёт ко всем заказам: сайт сам сдвинет ближайшие интервалы доставки вперёд.`,
+        reply_markup: loadKeys });
+      // остальным — чтобы все на смене знали, в каком режиме работаем
+      const who = [cb.from.first_name, cb.from.last_name].filter(Boolean).join(" ");
+      shop.adminIds(set).filter((x) => x !== String(cb.from.id)).forEach((adm) => shop.tg(token, "sendMessage", {
+        chat_id: adm, text: mins ? `🔥 ${who || "Кто-то"} включил(а) высокую нагрузку: +${mins} мин к сборке.` : `✅ ${who || "Кто-то"} вернул(а) обычный режим доставки.` }));
     } else if (kind === "fo") {
       const ord = app.findRecordById("orders", a);
       shop.tg(token, "sendMessage", { chat_id: chat,
@@ -642,6 +687,13 @@ function handle(app, secret, upd) {
     return;
   }
 
+  // Наблюдатель: уведомления получает все, но ничего не меняет. Заявку владельцу
+  // за него не шлём — доступ у него уже есть, просто такой.
+  if (admins.indexOf(String(msg.from.id)) < 0 && shop.watcherIds(s).indexOf(String(msg.from.id)) >= 0) {
+    return shop.tg(token, "sendMessage", { chat_id: chat,
+      text: "Сюда приходят новые заказы, оплаты, сообщения покупателей и сбои сайта.\n\nМенять отсюда ничего нельзя: ни цены и товары, ни «Стоп заказов», ни ответы покупателям. Если нужны такие права — скажите владельцу, он откроет." });
+  }
+
   // Флорист: ему можно только прислать фото готового букета — ответом на карточку
   // или фото с подписью-номером заказа. Ни цен, ни чужих адресов он не видит.
   const florists = shop.floristIds(s);
@@ -727,6 +779,7 @@ function handle(app, secret, upd) {
       admins.forEach((adm) => shop.tg(token, "sendMessage", { chat_id: adm,
         text: `👤 ${who || "Кто-то"} пишет в бот, но доступа у него нет.${msg.photo ? "\n\n⚠️ Он прислал фото — оно не ушло клиенту." : ""}\nНомер: ${uid}\n\nДоступ не выдаётся сам: пока вы не нажмёте кнопку, человек не видит ничего. Если не узнаёте его — «Отказать».`,
         reply_markup: { inline_keyboard: [
+          [{ text: "🔔 Только уведомления", callback_data: `gr:${uid}:w` }],
           [{ text: "📷 Только фото букетов", callback_data: `gr:${uid}:f` }],
           [{ text: "🛠 Полное управление", callback_data: `gr:${uid}:a?` }],
           [{ text: "Отказать", callback_data: `gr:${uid}:n` }],
@@ -804,6 +857,11 @@ function handle(app, secret, upd) {
   }
   if (text === "/start" || text === "Меню") return shop.tg(token, "sendMessage", { chat_id: chat, text: "Готово! Меню внизу. Чтобы добавить товар, пришлите фото с подписью.", reply_markup: menu(s.get("accepting")) });
   if (text === "Помощь" || text === "/help" || text === "Добавить товар") return shop.tg(token, "sendMessage", { chat_id: chat, text: HELP, reply_markup: menu(s.get("accepting")) });
+  if (text === "Нагрузка" || text === "/load") {
+    return shop.tg(token, "sendMessage", { chat_id: chat,
+      text: `${loadLine(s)}\n\nПрибавка идёт ко всем заказам: сайт сам сдвинет ближайшие интервалы доставки вперёд.`,
+      reply_markup: loadKeys });
+  }
   if (text === "Стоп заказов" || text === "Включить заказы" || text === "/stop" || text === "/go") {
     const on = text === "Включить заказы" || text === "/go";
     s.set("accepting", on);
