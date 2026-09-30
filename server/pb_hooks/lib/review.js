@@ -120,16 +120,19 @@ function comment(app, rec, text) {
   } catch (_) {}
 }
 
-// Ждём ли от этого покупателя ответ: цифру или свободный отзыв
+// Ждём ли от этого покупателя ответ: цифру или свободный отзыв.
+// Идём ОТ ЗАКАЗОВ этого собеседника, а не от последних тридцати опросов:
+// после разовой рассылки открытых опросов сразу сотня, и человек, чей опрос
+// не попал в эту тридцатку, отвечал бы в пустоту — ровно та беда, которую
+// мы только что чинили.
 function waiting(app, field, value) {
   try {
-    const list = app.findRecordsByFilter("reviews", "step = 'nps' || step = 'comment'", "-created", 30, 0);
-    for (const r of list) {
-      const o = app.findRecordById("orders", r.get("order"));
-      if (String(o.get(field) || "") === String(value)) return r;
-    }
-  } catch (_) {}
-  return null;
+    const orders = app.findRecordsByFilter("orders", `${field} = {:v}`, "-created", 20, 0, { v: String(value) });
+    if (!orders.length) return null;
+    const ids = orders.map((o) => `order = "${o.id}"`).join(" || ");
+    const list = app.findRecordsByFilter("reviews", `(step = 'nps' || step = 'comment') && (${ids})`, "-created", 3, 0);
+    return list.length ? list[0] : null;
+  } catch (_) { return null; }
 }
 
 // Старые опросы с кнопками ещё висят у людей в переписке. Нажатие на такую
@@ -142,4 +145,54 @@ function answer(app, id, step, value) {
   return rec;
 }
 
-module.exports = { start, ask, reply, answer, comment, waiting };
+// Разовая рассылка тем, кто заказывал раньше: опросы им уходили, но ответить
+// было нельзя — нажатия глотал обработчик. Заказ мог быть давно, поэтому текст
+// без «доставлен сегодня». По одному сообщению на собеседника, а не на заказ.
+function blast(app, limit, dry) {
+  const s = shop.settings(app);
+  const out = { кому: 0, ушло: 0, ошибок: 0, пропущено: 0, примеры: [] };
+  let orders = [];
+  try {
+    orders = app.findRecordsByFilter("orders",
+      `status = "done" && (tg_chat != "" || max_chat != "")`, "-created", 500, 0);
+  } catch (err) { out.ошибка = String(err); return out; }
+
+  const виделиЧат = {};
+  for (const o of orders) {
+    const chat = String(o.get("tg_chat") || o.get("max_chat") || "");
+    if (!chat || виделиЧат[chat]) { out.пропущено++; continue; }   // один человек — одно сообщение
+    виделиЧат[chat] = true;
+
+    let rec = null;
+    try { rec = app.findFirstRecordByFilter("reviews", "order = {:o}", { o: o.id }); } catch (_) {}
+    // уже ответил — не трогаем
+    if (rec && (+rec.get("nps") > 0 || rec.get("comment"))) { out.пропущено++; continue; }
+    if (out.кому >= (limit || 1000)) break;
+    out.кому++;
+    if (out.примеры.length < 5) out.примеры.push(o.get("number"));
+    if (dry) continue;
+
+    if (!rec) {
+      rec = new Record(app.findCollectionByNameOrId("reviews"));
+      rec.set("order", o.id);
+      if (o.get("customer")) rec.set("customer", o.get("customer"));
+      rec.set("via", o.get("tg_chat") ? "tg" : "max");
+    }
+    rec.set("step", "nps");
+    app.save(rec);
+
+    const text = `Здравствуйте! Вы заказывали у нас цветы — спасибо, что выбрали нас 🌸\n\n${ВОПРОС}`;
+    try {
+      if (rec.get("via") === "max") {
+        require(`${__hooks}/lib/max.js`).send(s.get("max_token"), o.get("max_chat"), text);
+        out.ушло++;
+      } else {
+        const r = shop.tg(shop.clientToken(s, shop.brandOfOrder(app, o)), "sendMessage", { chat_id: o.get("tg_chat"), text });
+        if (r && r.ok) out.ушло++; else out.ошибок++;
+      }
+    } catch (_) { out.ошибок++; }
+  }
+  return out;
+}
+
+module.exports = { start, ask, reply, answer, comment, waiting, blast };

@@ -317,6 +317,8 @@ function buildAttributes(app, s, o, missed) {
   add("Время доставки", o.get("interval") || "");
   add("Получатель", o.get("recipient") || "");
   add("Текст открытки", o.get("note") || "");
+  // просьба покупателя курьеру — отдельным полем, чтобы не смешивать с открыткой
+  add("Комментарий по доставке", o.get("delivery_note") || "");
   add("Имя покупателя", o.get("name") || "");
   add("Телефон покупателя", o.get("phone") || "");
   const delivery = o.get("delivery_price") || 0;
@@ -368,6 +370,7 @@ function orderDescription(o) {
     `Заказчик: ${o.get("name")}, ${o.get("phone")}`,
     o.get("recipient") ? `Получатель: ${o.get("recipient")}` : "",
     o.get("note") ? `Открытка: ${o.get("note")}` : "",
+    o.get("delivery_note") ? `Курьеру: ${o.get("delivery_note")}` : "",
     o.get("payment_method") === "card"
       ? (o.get("payment_status") === "paid" ? "Оплачено картой на сайте" : "Ожидает оплаты картой")
       : "Оплата при получении",

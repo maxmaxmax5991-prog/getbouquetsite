@@ -594,6 +594,8 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   rec.set("total", sum + delivery);
   rec.set("bonus", bonus);
   rec.set("comment", "");
+  // просьба курьеру — только при доставке; длину режем на сервере, клиенту не верим
+  rec.set("delivery_note", pickup ? "" : String(rec.get("delivery_note") || "").slice(0, 500));
   rec.set("tg_code", $security.randomString(10));   // по нему покупатель подпишется на статусы в боте
   // откуда пришёл человек — чтобы считать не только посетителей по источникам, но и деньги
   rec.set("source", String(rec.get("source") || "").slice(0, 60));
@@ -730,6 +732,7 @@ o.get("payment_method") === "card" ? (o.get("payment_status") === "paid" ? "💳
     `👤 ${o.get("name")}, ${o.get("phone")}`,
     o.get("recipient") ? `🎁 Получатель: ${o.get("recipient")}` : "",
     o.get("note") ? `💌 Открытка: ${o.get("note")}` : "",
+    o.get("delivery_note") ? `🚚 Курьеру: ${o.get("delivery_note")}` : "",
     o.get("tg_chat") ? "📱 Клиент подписан на статусы в Телеграме" : o.get("max_chat") ? "📱 Клиент подписан на статусы в MAX" : "",
     o.get("photo_status") === "approved" ? "👍 Клиент одобрил фото" : o.get("photo_status") === "rework" ? `👎 Клиент просит поправить: ${o.get("photo_comment") || "без комментария"}` : o.get("photo_status") === "waiting" ? "⏳ Ждём ответ клиента по фото" : "",
   ].filter((x) => x !== "").join("\n");

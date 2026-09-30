@@ -689,7 +689,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790768871"></script>
+<script src="data.js?v=1790769368"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1623,6 +1623,7 @@ ${payChoice()}
           <p class="addr-hint" id="idWait" hidden></p>
         </div>` : ""}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
+        ${getType === 'pickup' ? '' : `<label for="fDnote">Комментарий курьеру<textarea id="fDnote" name="dnote" placeholder="Например: позвонить за час, оставить на охране, не звонить в дверь" maxlength="500"></textarea></label>`}
         <p class="demo-note" id="fErr" style="color:var(--sale);font-size:13.5px;text-align:left" hidden></p>
       </form>`;
     foot.hidden = false;
@@ -2109,6 +2110,8 @@ cartDlg.addEventListener('submit', async e => {
         ...(getType === 'pickup' ? {} : { street: v('street').trim(), house: v('house').trim(), block: v('block').trim(),
           entrance: v('entrance').trim(), floor: v('floor').trim(), flat: v('flat').trim(), intercom: v('intercom').trim() }),
         zone: getType === 'pickup' || !$('#fZone') ? '' : v('zone'), date: v('date'), interval: v('time'), note: v('note').trim(),
+        // просьба курьеру: отдельно от открытки, уходит в МойСклад в комментарий по доставке
+        delivery_note: getType === 'pickup' ? '' : (($('#fDnote') || {}).value || '').trim(),
         delivery_type: getType, payment_method: payMethod,
         // откуда пришёл и кто это по счётчику — чтобы считать выручку по источникам
         source: store.get('src', ''), vid: store.get('vid', ''),

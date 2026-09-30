@@ -179,6 +179,16 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
   });
 }, $apis.requireAuth("managers"));
 
+// Разовая рассылка опроса тем, кто заказывал раньше.
+// dry: true — только посчитать, никому ничего не отправляя.
+routerAdd("POST", "/api/shop/review-blast", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  const b = e.requestInfo().body || {};
+  const r = require(`${__hooks}/lib/review.js`).blast($app, Math.max(1, Math.min(1000, +b.limit || 1000)), !!b.dry);
+  return e.json(200, r);
+}, $apis.requireAuth("managers"));
+
 // Менеджер отметил, что взял недовольного в работу
 routerAdd("POST", "/api/shop/reviews", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
