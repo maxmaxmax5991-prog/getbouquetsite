@@ -92,6 +92,13 @@ routerAdd("POST", "/api/shop/ms-push", (e) => {
   const body = e.requestInfo().body || {};
   let o;
   try { o = $app.findRecordById("orders", String(body.order || "")); } catch (_) { return e.json(404, { message: "Заказ не найден" }); }
+  // Заказ уже там — не создаём второй, а дозаполняем доп. поля: время доставки,
+  // способ доставки, тип оплаты. Ими в МоёмСкладе и рулятся статусы.
+  if (o.get("ms_id")) {
+    const u = msl.updateAttrs($app, o);
+    if (!u.ok) return e.json(400, { message: u.error });
+    return e.json(200, { ok: true, updated: true, filled: u.filled, missed: u.missed || [] });
+  }
   const r = msl.pushOrder($app, o);
   if (!r.ok) { o.set("ms_error", r.error); $app.save(o); return e.json(400, { message: r.error }); }
   if (o.get("payment_status") === "paid") { msl.markPaid($app, o); msl.addPayment($app, o); }   // статус и входящий платёж

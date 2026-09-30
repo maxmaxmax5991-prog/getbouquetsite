@@ -244,7 +244,7 @@ function customValue(app, s, attr, valueName) {
   try { cache = shop.jget(s, "ms_dict_cache") || {}; } catch (_) { cache = {}; }
   if (cache[key]) return { meta: { href: `${BASE}/entity/customentity/${dict}/${cache[key]}`, type: "customentity", mediaType: "application/json" } };
 
-  const list = ms(s, "GET", `/entity/customentity/${dict}?limit=100`);
+  const list = ms(s, "GET", `/entity/customentity/${dict}?limit=1000`);
   if (!list.ok) return null;
   const want = norm(valueName);
   const row = (list.data.rows || []).find((r) => norm(r.name) === want) ||
@@ -265,10 +265,17 @@ function buildAttributes(app, s, o, missed) {
   const pickup = o.get("delivery_type") === "pickup";
   const paidCard = o.get("payment_method") === "card";
   const out = [];
+  // Поле в МоёмСкладе может быть не текстом, а справочником — тогда значение
+  // приходится искать по названию, и если его там нет, поле молча оставалось
+  // пустым. Так у №3128 не ушло «Время доставки», и заказ не поехал по статусам.
+  // Теперь о каждой такой пропаже говорим вслух.
   const add = (name, value) => {
     const a = byName(name);
     if (!a || value === null || value === undefined || value === "") return;
-    out.push(Object.assign(attrMeta(a.id), { value: a.type === "customentity" ? customValue(app, s, a, value) : value }));
+    if (a.type !== "customentity") { out.push(Object.assign(attrMeta(a.id), { value })); return; }
+    const v = customValue(app, s, a, value);
+    if (!v) { if (missed) missed.push(`${name} = «${value}» (нет такого значения в справочнике)`); return; }
+    out.push(Object.assign(attrMeta(a.id), { value: v }));
   };
   const addEntity = (name, valueName) => {
     const a = byName(name);
@@ -494,6 +501,23 @@ else {
 }
 
 // Входящий платёж в МоёмСкладе, привязанный к заказу покупателя
+// Дозаполнить доп. поля у заказа, который уже лежит в МоёмСкладе.
+// Нужно, когда поле не ушло при отправке: у №3128 так пропало «Время доставки»,
+// и заказ не поехал по статусам. Заново создавать заказ нельзя — правим этот.
+function updateAttrs(app, o) {
+  if (!o.get("ms_id")) return { ok: false, error: "Заказ ещё не в МоёмСкладе." };
+  const s = shop.settings(app);
+  const missed = [];
+  const attributes = buildAttributes(app, s, o, missed);
+  const body = {
+    attributes,
+    deliveryPlannedMoment: `${o.get("date")} ${(o.get("interval") || "12:00").slice(0, 5)}:00`,
+  };
+  const r = ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, body);
+  if (!r.ok) return r;
+  return { ok: true, filled: attributes.length, missed };
+}
+
 function addPayment(app, o) {
   const s = shop.settings(app);
   if (!o.get("ms_id") || !s.get("ms_token") || o.get("ms_payment_id")) return { ok: false };
@@ -527,4 +551,4 @@ function markPaid(app, o) {
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { state: meta("state", st) });
 }
 
-module.exports = { stateName, stateId, ms, refs, pushOrder, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+module.exports = { stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
