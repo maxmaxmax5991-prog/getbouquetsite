@@ -315,13 +315,17 @@ routerAdd("POST", "/api/shop/load", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Это может владелец или управляющий." });
   const b = e.requestInfo().body || {};
-  const mins = Math.max(0, Math.min(600, Math.round(+b.minutes || 0)));
+  const clamp = (v) => Math.max(0, Math.min(600, Math.round(+v || 0)));
+  const mins = clamp(b.minutes);
+  // у самовывоза прибавка своя; не прислали — ставим ту же
+  const pick = b.pickup === undefined || b.pickup === null ? mins : clamp(b.pickup);
   const s = shop.settings($app);
   s.set("load_extra", mins);
+  s.set("load_extra_pickup", pick);
   // До конца рабочего дня по Москве: забытый на ночь режим не должен портить утро.
   // Рабочий день уже кончился — держим три часа, чтобы дозакрыть вечер.
   let until = "";
-  if (mins > 0) {
+  if (mins > 0 || pick > 0) {
     const now = new Date(Date.now() + 3 * 3600e3);                       // «сейчас» по Москве
     const [hh, mm] = String(s.get("delivery_to") || s.get("work_to") || "23:00").split(":");
     const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), +hh || 23, +mm || 0) - 3 * 3600e3;
@@ -331,10 +335,10 @@ routerAdd("POST", "/api/shop/load", (e) => {
   $app.save(s);
   const who = String(b.by || "").slice(0, 60);
   shop.adminIds(s).forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat,
-    text: mins > 0
-      ? `🔥 Высокая нагрузка: +${mins} мин к сборке${who ? " — включил(а) " + who : ""}.\nСайт сдвинул ближайшие интервалы. Само выключится в ${new Date(Date.parse(until) + 3 * 3600e3).toISOString().slice(11, 16)} по Москве.`
-      : `✅ Обычный режим доставки${who ? " — вернул(а) " + who : ""}.` }));
-  return e.json(200, { minutes: mins, until });
+    text: (mins > 0 || pick > 0)
+      ? `🔥 Высокая нагрузка${who ? " — включил(а) " + who : ""}:\nдоставка +${mins} мин, самовывоз +${pick} мин.\nСайт сдвинул ближайшие интервалы. Само выключится в ${new Date(Date.parse(until) + 3 * 3600e3).toISOString().slice(11, 16)} по Москве.`
+      : `✅ Обычный режим${who ? " — вернул(а) " + who : ""}.` }));
+  return e.json(200, { minutes: mins, pickup: pick, until });
 }, $apis.requireAuth("managers"));
 
 // Остатки и «цветы в пути». Отдельный маршрут, а не правка товара напрямую:

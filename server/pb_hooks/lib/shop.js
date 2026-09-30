@@ -300,27 +300,28 @@ function readyOf(app, items) {
 
 // Режим «высокая нагрузка»: лишние минуты на сборку, пока не отпустит.
 // Возвращаем 0, когда срок вышел — чтобы забытый на ночь режим не портил утро.
-function loadExtra(s) {
-  const extra = +s.get("load_extra") || 0;
-  if (extra <= 0) return 0;
+// Самовывозу можно задать свою прибавку: курьера там ждать не надо.
+function loadExtra(s, pickup) {
   const until = String(s.get("load_until") || "").trim();
   if (until && Date.parse(until) && Date.parse(until) < Date.now()) return 0;
-  return Math.min(600, extra);
+  const key = pickup ? "load_extra_pickup" : "load_extra";
+  const extra = +s.get(key) || 0;
+  return extra > 0 ? Math.min(600, extra) : 0;
 }
 
 function slotRules(s) {
-  // Прибавка идёт ко всем видам сборки разом: и к обычной, и к большому букету,
-  // и к экспрессу. Считается в одном месте — и сайт, и проверка заказа берут
-  // время отсюда, разъехаться они не могут.
-  const extra = loadExtra(s);
+  // Время сборки отдаём БЕЗ прибавки, а прибавку — отдельными числами: у доставки
+  // и самовывоза она своя. Складывает их prepFor (на сервере) и prepMin (на сайте),
+  // оба смотрят в одни и те же числа, разъехаться не могут.
   return {
     from: String(s.get("work_from") || "09:00"),
     to: String(s.get("work_to") || "21:00"),
     till: String(s.get("delivery_to") || s.get("work_to") || "23:00"),
-    prep: (+s.get("prep_min") || 45) + extra,
-    prep_big: (+s.get("prep_min_big") || 75) + extra,
-    prep_express: (+s.get("prep_express") || 20) + extra,   // готовый букет: только упаковать и отдать
-    load_extra: extra,
+    prep: +s.get("prep_min") || 45,
+    prep_big: +s.get("prep_min_big") || 75,
+    prep_express: +s.get("prep_express") || 20,   // готовый букет: только упаковать и отдать
+    load_extra: loadExtra(s, false),
+    load_extra_pickup: loadExtra(s, true),
     big_from: +s.get("prep_big_from") || 0,
     hours: +s.get("slot_hours") || 3,
     step: +s.get("slot_step") || 30,
@@ -333,9 +334,10 @@ const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m %
 // Сколько минут собираем букет на такую сумму.
 // Экспресс считаем отдельно и только когда в заказе одни готовые букеты:
 // если рядом лежит обычный, собирать всё равно придётся.
-function prepFor(r, sum, express) {
-  if (express) return r.prep_express;
-  return (r.big_from > 0 && sum > r.big_from) ? r.prep_big : r.prep;
+function prepFor(r, sum, express, pickup) {
+  const extra = (pickup ? r.load_extra_pickup : r.load_extra) || 0;
+  if (express) return r.prep_express + extra;
+  return ((r.big_from > 0 && sum > r.big_from) ? r.prep_big : r.prep) + extra;
 }
 
 // Все интервалы, которые ещё можно выбрать на эту дату.
@@ -348,12 +350,12 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express) {
   const till = pickup ? send : Math.max(toMin(r.till), send);
   const now = moscowNow();
   let first = open;
-  if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum, express) - (graceMin || 0));
+  if (dateIso === now.date) first = Math.max(open, now.minutes + prepFor(r, sum, express, pickup) - (graceMin || 0));
   else if (dateIso < now.date) return [];
   // цветы ещё едут: собирать начнём не раньше, чем они приедут
   if (ready) {
     if (dateIso < ready.date) return [];
-    if (dateIso === ready.date) first = Math.max(first, ready.minutes + prepFor(r, sum, express) - (graceMin || 0));
+    if (dateIso === ready.date) first = Math.max(first, ready.minutes + prepFor(r, sum, express, pickup) - (graceMin || 0));
   }
   const start0 = Math.ceil(first / r.step) * r.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
@@ -390,10 +392,10 @@ function slotProblem(s, dateIso, sum, label, pickup, ready, express) {
   if (ready) {
     const wait = "Эти цветы ещё едут к нам — выберите время позже.";
     if (dateIso < ready.date) return wait;
-    if (dateIso === ready.date && st < ready.minutes + prepFor(r, sum, express) - 20) return wait;
+    if (dateIso === ready.date && st < ready.minutes + prepFor(r, sum, express, pickup) - 20) return wait;
   }
   if (dateIso === now.date) {
-    const ready = now.minutes + prepFor(r, sum, express) - 20;   // 20 минут поблажки: пока заполняли форму, время ушло
+    const ready = now.minutes + prepFor(r, sum, express, pickup) - 20;   // 20 минут поблажки: пока заполняли форму, время ушло
     if (st < ready) return late;
     if (Math.ceil(Math.max(open, ready) / r.step) * r.step > send) {
       return pickup ? "На сегодня забрать уже не получится. Выберите другую дату." : "На сегодня доставка уже не успеет. Выберите другую дату.";

@@ -6,16 +6,19 @@ const menu = (accepting) => ({ keyboard: [[{ text: "Товары" }, { text: "З
 // Сколько сейчас прибавлено к сборке — словами, для бота
 function loadLine(s) {
   const shop2 = require(`${__hooks}/lib/shop.js`);
-  const mins = shop2.loadExtra(s);
-  if (!mins) return "Сейчас обычный режим: собираем как всегда.";
+  const mins = shop2.loadExtra(s, false), pick = shop2.loadExtra(s, true);
+  if (!mins && !pick) return "Сейчас обычный режим: собираем как всегда.";
   const until = String(s.get("load_until") || "");
   const hhmm = Date.parse(until) ? new Date(Date.parse(until) + 3 * 3600e3).toISOString().slice(11, 16) : "";
-  return `🔥 Сейчас высокая нагрузка: +${mins} мин к сборке.${hhmm ? ` Само выключится в ${hhmm} по Москве.` : ""}`;
+  return `🔥 Высокая нагрузка: доставка +${mins} мин, самовывоз +${pick} мин.${hhmm ? ` Само выключится в ${hhmm} по Москве.` : ""}`;
 }
+// ld:<минуты доставки>:<минуты самовывоза>; «-» значит «не трогать»
 const loadKeys = { inline_keyboard: [
-  [{ text: "+30 минут", callback_data: "ld:30" }, { text: "+1 час", callback_data: "ld:60" }],
-  [{ text: "+2 часа", callback_data: "ld:120" }],
-  [{ text: "✅ Обычный режим", callback_data: "ld:0" }],
+  [{ text: "Доставка +30", callback_data: "ld:30:-" }, { text: "+1 ч", callback_data: "ld:60:-" },
+   { text: "+2 ч", callback_data: "ld:120:-" }, { text: "+3 ч", callback_data: "ld:180:-" }],
+  [{ text: "Самовывоз +30", callback_data: "ld:-:30" }, { text: "+1 ч", callback_data: "ld:-:60" },
+   { text: "+2 ч", callback_data: "ld:-:120" }, { text: "+3 ч", callback_data: "ld:-:180" }],
+  [{ text: "✅ Обычный режим", callback_data: "ld:0:0" }],
 ] };
 const PAGE = 8;
 // метка товара в подсказке к ответу — по ней узнаём, к чему относится ответ
@@ -579,12 +582,17 @@ function handle(app, secret, upd) {
       }
     } else if (kind === "ld") {
       if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
-      const mins = Math.max(0, Math.min(600, +a || 0));
       const set = shop.settings(app);
+      const cur = (f) => Math.max(0, Math.min(600, +set.get(f) || 0));
+      // «-» значит «оставить как было»: кнопки правят доставку и самовывоз по отдельности
+      const num = (v, was) => (String(v) === "-" ? was : Math.max(0, Math.min(600, +v || 0)));
+      const mins = num(a, cur("load_extra"));
+      const pick = num(b, cur("load_extra_pickup"));
       set.set("load_extra", mins);
+      set.set("load_extra_pickup", pick);
       // до конца рабочего дня по Москве, иначе забытый режим испортит утро
       let until = "";
-      if (mins > 0) {
+      if (mins > 0 || pick > 0) {
         const now = new Date(Date.now() + 3 * 3600e3);
         const [hh, mm] = String(set.get("delivery_to") || set.get("work_to") || "23:00").split(":");
         const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), +hh || 23, +mm || 0) - 3 * 3600e3;
@@ -592,7 +600,7 @@ function handle(app, secret, upd) {
       }
       set.set("load_until", until);
       app.save(set);
-      const said = mins ? `Высокая нагрузка: +${mins} мин` : "Обычный режим";
+      const said = (mins || pick) ? `Доставка +${mins}, самовывоз +${pick}` : "Обычный режим";
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: said });
       shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id,
         text: `${loadLine(shop.settings(app))}\n\nПрибавка идёт ко всем заказам: сайт сам сдвинет ближайшие интервалы доставки вперёд.`,
@@ -600,7 +608,7 @@ function handle(app, secret, upd) {
       // остальным — чтобы все на смене знали, в каком режиме работаем
       const who = [cb.from.first_name, cb.from.last_name].filter(Boolean).join(" ");
       shop.adminIds(set).filter((x) => x !== String(cb.from.id)).forEach((adm) => shop.tg(token, "sendMessage", {
-        chat_id: adm, text: mins ? `🔥 ${who || "Кто-то"} включил(а) высокую нагрузку: +${mins} мин к сборке.` : `✅ ${who || "Кто-то"} вернул(а) обычный режим доставки.` }));
+        chat_id: adm, text: (mins || pick) ? `🔥 ${who || "Кто-то"} включил(а) высокую нагрузку: доставка +${mins} мин, самовывоз +${pick} мин.` : `✅ ${who || "Кто-то"} вернул(а) обычный режим.` }));
     } else if (kind === "fo") {
       const ord = app.findRecordById("orders", a);
       shop.tg(token, "sendMessage", { chat_id: chat,

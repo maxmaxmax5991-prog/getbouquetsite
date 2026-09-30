@@ -457,12 +457,21 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div class="card">
           <h2>Нагрузка</h2>
           <p class="hint">В запару флористы не успевают к обычному времени сборки, а сайт продолжает обещать ближайший интервал. Нажмите — и ко всем заказам прибавится время на сборку: ближайшие окна доставки сдвинутся вперёд сами, и на сайте, и при проверке заказа.</p>
-          <div class="bar" id="loadBar">
-            <button class="btn btn-g" data-load="30">+30 минут</button>
+          <div class="bar" id="loadBar" style="align-items:center">
+            <span class="hint" style="margin:0;min-width:86px">Доставка</span>
+            <button class="btn btn-g" data-load="30">+30 мин</button>
             <button class="btn btn-g" data-load="60">+1 час</button>
             <button class="btn btn-g" data-load="120">+2 часа</button>
-            <button class="btn btn-p" data-load="0">Обычный режим</button>
+            <button class="btn btn-g" data-load="180">+3 часа</button>
           </div>
+          <div class="bar" id="loadBarPick" style="align-items:center">
+            <span class="hint" style="margin:0;min-width:86px">Самовывоз</span>
+            <button class="btn btn-g" data-loadp="30">+30 мин</button>
+            <button class="btn btn-g" data-loadp="60">+1 час</button>
+            <button class="btn btn-g" data-loadp="120">+2 часа</button>
+            <button class="btn btn-g" data-loadp="180">+3 часа</button>
+          </div>
+          <div class="bar"><button class="btn btn-p" id="loadOff">Вернуть обычный режим</button></div>
           <p class="hint" id="loadNow"></p>
         </div>
         <div class="card">
@@ -2410,29 +2419,41 @@ $('#dUpNew').onclick = safe(async () => {
   toast('Ключ сменён, ссылка обновилась');
 });
 
-// «Высокая нагрузка». Показываем состояние словами: сколько прибавлено и до когда.
+// «Высокая нагрузка». У доставки и самовывоза прибавка своя: курьера при
+// самовывозе ждать не надо, поэтому его часто достаточно сдвинуть меньше.
 function loadShow() {
-  const mins = +S.load_extra || 0;
+  const mins = +S.load_extra || 0, pick = +S.load_extra_pickup || 0;
   const until = String(S.load_until || '');
-  const live = mins > 0 && (!until || Date.parse(until) > Date.now());
+  const live = (mins > 0 || pick > 0) && (!until || Date.parse(until) > Date.now());
   const hhmm = until && Date.parse(until) ? new Date(Date.parse(until) + 3 * 3600e3).toISOString().slice(11, 16) : '';
   $('#loadNow').innerHTML = live
-    ? `🔥 <b>Сейчас высокая нагрузка: +${mins} мин к сборке.</b> Само выключится в ${hhmm} по Москве — или нажмите «Обычный режим».`
+    ? `🔥 <b>Сейчас высокая нагрузка: доставка +${mins} мин, самовывоз +${pick} мин.</b> Само выключится в ${hhmm} по Москве — или нажмите «Вернуть обычный режим».`
     : 'Сейчас обычный режим.';
-  $$('#loadBar [data-load]').forEach(b => b.setAttribute('aria-pressed', live ? (+b.dataset.load === mins) : (b.dataset.load === '0')));
+  $$('#loadBar [data-load]').forEach(b => b.setAttribute('aria-pressed', live && +b.dataset.load === mins));
+  $$('#loadBarPick [data-loadp]').forEach(b => b.setAttribute('aria-pressed', live && +b.dataset.loadp === pick));
 }
-$('#loadBar').onclick = safe(async e => {
-  const b = e.target.closest('[data-load]');
-  if (!b) return;
-  const mins = +b.dataset.load;
-  $$('#loadBar [data-load]').forEach(x => x.disabled = true);
+async function loadSet(mins, pick) {
+  const all = $$('#loadBar [data-load], #loadBarPick [data-loadp], #loadOff');
+  all.forEach(x => x.disabled = true);
   try {
-    const r = await api('/api/shop/load', { method: 'POST', body: { minutes: mins, by: ME.name || '' } });
-    S.load_extra = r.minutes; S.load_until = r.until;
+    const r = await api('/api/shop/load', { method: 'POST', body: { minutes: mins, pickup: pick, by: ME.name || '' } });
+    S.load_extra = r.minutes; S.load_extra_pickup = r.pickup; S.load_until = r.until;
     loadShow();
-    toast(mins ? `Высокая нагрузка: +${mins} мин к сборке` : 'Вернули обычный режим');
-  } finally { $$('#loadBar [data-load]').forEach(x => x.disabled = false); }
+    toast(r.minutes || r.pickup ? `Нагрузка: доставка +${r.minutes}, самовывоз +${r.pickup} мин` : 'Вернули обычный режим');
+  } finally { all.forEach(x => x.disabled = false); }
+}
+// Нажали у доставки — самовывоз подтягиваем к тому же, если он ещё не задан:
+// обычно двигают оба, а разводить их вручную нужно редко.
+$('#loadBar').onclick = safe(async e => {
+  const b = e.target.closest('[data-load]'); if (!b) return;
+  const mins = +b.dataset.load;
+  await loadSet(mins, +S.load_extra_pickup > 0 ? +S.load_extra_pickup : mins);
 });
+$('#loadBarPick').onclick = safe(async e => {
+  const b = e.target.closest('[data-loadp]'); if (!b) return;
+  await loadSet(+S.load_extra || 0, +b.dataset.loadp);
+});
+$('#loadOff').onclick = safe(() => loadSet(0, 0));
 $('#dSlotSave').onclick = safe(async () => {
   const from = $('#dWorkFrom').value, to = $('#dWorkTo').value, till = $('#dDelTo').value || to;
   if (!from || !to || toMin(to) <= toMin(from)) return toast('«Отправляем до» должно быть позже, чем «начинаем с»', true);
