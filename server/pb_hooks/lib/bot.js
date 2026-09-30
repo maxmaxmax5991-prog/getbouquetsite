@@ -280,15 +280,20 @@ function handleClient(app, upd, brand) {
   if (upd.callback_query) {
     const cb = upd.callback_query, cbChat = cb.message.chat.id;
     const parts = String(cb.data || "").split(":");
-    let ord = null;
-    try { ord = app.findRecordById("orders", parts[1]); } catch (_) {}
-    if (!ord) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+
+    // Оценка после вручения: rv:<id ОПРОСА>:<шаг>:<оценка>. Разбираем её ДО поиска
+    // заказа: у остальных кнопок во второй части id заказа, а тут — id опроса,
+    // и общая проверка «нашёлся ли заказ» глотала каждое нажатие. Из 120 опросов
+    // не дошло ни одного ответа: человек жал звезду, и ничего не происходило.
     if (parts[0] === "rv") {
-      // оценка после вручения: rv:<id опроса>:<шаг>:<оценка>
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Спасибо!" });
       try { require(`${__hooks}/lib/review.js`).answer(app, parts[1], parts[2], parts[3]); } catch (err) { console.log("оценка", err); }
       return;
     }
+
+    let ord = null;
+    try { ord = app.findRecordById("orders", parts[1]); } catch (_) {}
+    if (!ord) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
     if (parts[0] === "ap") {
       // то же нажатие может прийти дважды (перезапуск сервера, двойной тап) —
       // второй раз молчим, иначе владельцу дублируется «клиент одобрил фото»

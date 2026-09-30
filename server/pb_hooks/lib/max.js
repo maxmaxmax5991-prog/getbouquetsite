@@ -161,15 +161,17 @@ function onButton(app, s, token, cb) {
   const userId = String((cb.user && cb.user.user_id) || "");
   const parts = String(cb.payload || "").split(":");
   const say = (t, rows) => send(token, userId, t, rows);
-  let ord = null;
-  try { ord = app.findRecordById("orders", parts[1] || ""); } catch (_) {}
-  if (!ord) { answer(token, cb.callback_id, "Заказ не найден"); return; }
-
+  // Оценка после вручения: во второй части id ОПРОСА, а не заказа. Проверка
+  // «нашёлся ли заказ» ниже глотала каждое нажатие и отвечала «Заказ не найден».
   if (parts[0] === "rv") {
     answer(token, cb.callback_id, "Спасибо!");
     try { require(`${__hooks}/lib/review.js`).answer(app, parts[1], parts[2], parts[3]); } catch (err) { console.log("оценка MAX", err); }
     return;
   }
+
+  let ord = null;
+  try { ord = app.findRecordById("orders", parts[1] || ""); } catch (_) {}
+  if (!ord) { answer(token, cb.callback_id, "Заказ не найден"); return; }
   if (parts[0] === "ap") {
     if (ord.get("photo_status") === "approved") { answer(token, cb.callback_id, "Уже передали, спасибо!"); return; }
     ord.set("photo_status", "approved");
