@@ -689,7 +689,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790769368"></script>
+<script src="data.js?v=1790770170"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -792,7 +792,11 @@ const cartAllExpress = () => {
 };
 // Прибавка «высокой нагрузки» у доставки и самовывоза своя: курьера при
 // самовывозе ждать не надо. Считаем так же, как сервер в prepFor.
-const loadExtra = () => (getType === 'pickup' ? SLOTS.load_extra_pickup : SLOTS.load_extra) || 0;
+// getType объявлен ниже по файлу, а карточки каталога считают время сборки
+// раньше — до объявления к нему не подступиться (временная мёртвая зона),
+// и обращение напрямую роняло отрисовку всего каталога. Читаем осторожно.
+const deliveryType = () => { try { return getType; } catch (_) { return 'delivery'; } };
+const loadExtra = () => (deliveryType() === 'pickup' ? SLOTS.load_extra_pickup : SLOTS.load_extra) || 0;
 const prepMin = sum => loadExtra() + (cartAllExpress() ? (SLOTS.prep_express || 20)
   : (SLOTS.big_from > 0 && sum > SLOTS.big_from) ? SLOTS.prep_big : SLOTS.prep);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
