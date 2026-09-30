@@ -325,6 +325,11 @@ table.t td{padding:4px 6px;vertical-align:middle}
 
     <!-- Заказы -->
     <section id="tab-orders">
+      <div class="bar" style="margin:0 0 6px">
+        <input class="in" id="oSearch" type="search" inputmode="numeric" placeholder="Номер заказа или телефон" style="max-width:260px" aria-label="Поиск заказа">
+        <button class="btn btn-g btn-s" id="oSearchClear" hidden>Сбросить</button>
+        <span class="hint" id="oSearchNote" style="margin:0;align-self:center"></span>
+      </div>
       <div class="bar" id="orderFilters"></div>
       <div class="bar" id="orderDays"></div>
       <div class="bar" id="orderKind"></div>
@@ -894,8 +899,37 @@ function renderOF() {
 $('#orderFilters').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { oFilter = b.dataset.f; loadOrders(); } };
 $('#orderDays').onclick = e => { const b = e.target.closest('[data-day]'); if (b) { oDay = b.dataset.day; loadOrders(); } };
 $('#orderKind').onclick = e => { const b = e.target.closest('[data-kind]'); if (b) { oKind = b.dataset.kind; loadOrders(); } };
+let oSearchTimer = 0;
+$('#oSearch').addEventListener('input', () => { clearTimeout(oSearchTimer); oSearchTimer = setTimeout(loadOrders, 350); });
+$('#oSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(oSearchTimer); loadOrders(); } });
+$('#oSearchClear').onclick = () => { $('#oSearch').value = ''; loadOrders(); };
 const loadOrders = safe(async () => {
   renderOF();
+
+  // Поиск сильнее фильтров: искомый заказ почти всегда не сегодняшний и не
+  // активный, иначе его нашли бы глазами. Поэтому день, статус и тип не мешают.
+  const raw = ($('#oSearch').value || '').trim();
+  $('#oSearchClear').hidden = !raw;
+  $('#orderFilters').style.opacity = raw ? 0.4 : '';
+  $('#orderDays').style.opacity = raw ? 0.4 : '';
+  $('#orderKind').style.opacity = raw ? 0.4 : '';
+  if (raw) {
+    const digits = raw.replace(/\D/g, '');
+    const conds = [];
+    if (/^\d{3,7}$/.test(digits)) conds.push(`number=${+digits}`);
+    if (digits.length >= 4) conds.push(`phone~'${digits.slice(-10)}'`);
+    if (raw.length >= 3) conds.push(`name~'${raw.replace(/'/g, "")}'`);
+    if (!conds.length) { $('#oSearchNote').textContent = 'Введите номер заказа, телефон или имя'; return; }
+    const found = await list('orders', `&sort=-number&filter=${encodeURIComponent(conds.join('||'))}`);
+    $('#oSearchNote').textContent = found.length ? `Нашёл ${found.length}` : '';
+    $('#orders').innerHTML = found.length
+      ? found.map(orderHTML).join('')
+      : `<div class="empty">Заказ «${esc(raw)}» не нашёлся. Проверьте номер.</div>`;
+    countNew();
+    return;
+  }
+  $('#oSearchNote').textContent = '';
+
   const parts = [];
   const f = { active: "status!='done'&&status!='cancelled'", new: "status='new'", unpaid: "payment_method='card'&&payment_status='unpaid'", done: "status='done'", cancelled: "status='cancelled'", all: '' }[oFilter];
   if (f) parts.push(`(${f})`);
