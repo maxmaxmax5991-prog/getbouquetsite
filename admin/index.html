@@ -2620,6 +2620,14 @@ function drawRings(L) {
   }
 }
 
+// Цена за МКАД — по расстоянию ОТ МАГАЗИНА, как считает сервер
+function outPrice(latlng) {
+  const km = kmBetween([+S.origin_lat, +S.origin_lon], [latlng.lat, latlng.lng]) * mapFactor();
+  const from = +$('#dMkadFrom').value || 0;
+  const paid = Math.max(0, Math.ceil(km - from));
+  return (+$('#dMkadBase').value || 0) + paid * (+$('#dMkadPerKm').value || 0);
+}
+
 function pointText(latlng) {
   if (mkadOn()) {
     for (const b of BANDS) {
@@ -2627,18 +2635,19 @@ function pointText(latlng) {
       if (insideRing(key, latlng.lat, latlng.lng)) return `${b.name || 'пояс'} — ${b.price} ₽`;
       if (+b.km > 0 && kmFromRing(key, latlng.lat, latlng.lng) <= +b.km) return `${b.name || 'пояс'} — ${b.price} ₽`;
     }
-    const base = +$('#dMkadPrice').value || 0;
-    if (insideMkad(latlng.lat, latlng.lng)) return `внутри МКАД — ${base} ₽`;
+    const inside = +$('#dMkadIn').value || 0;
+    if (insideMkad(latlng.lat, latlng.lng)) return `внутри МКАД — ${inside} ₽`;
     const out = kmFromMkad(latlng.lat, latlng.lng);
-    const max = +$('#dMkadMax').value || 0;
-    if (max > 0 && out > max) return `${out} км за МКАД — дальше сюда не возим`;
-    return `${out} км за МКАД → ${base + Math.ceil(out) * (+$('#dMkadKm').value || 0)} ₽`;
+    return `${out} км за МКАД → ${outPrice(latlng)} ₽`;
   }
   const km = Math.round(kmBetween([+S.origin_lat, +S.origin_lon], [latlng.lat, latlng.lng]) * mapFactor() * 10) / 10;
   const z = mapRings().find(x => km <= +x.radius_km);
-  return z
-    ? `${km} км → ${z.name || 'зона'}, ${z.price ? z.price + ' ₽' : 'бесплатно'}`
-    : `${km} км — дальше сюда не возим`;
+  if (z) return `${km} км → ${z.name || 'зона'}, ${z.price ? z.price + ' ₽' : 'бесплатно'}`;
+  // дальше кругов: внутри МКАД одна цена, за городом — база плюс за километры от магазина
+  const limit = +$('#dMkadLimit').value || 0;
+  if (limit > 0 && km > limit) return `${km} км — дальше сюда не возим`;
+  if (insideMkad(latlng.lat, latlng.lng)) return `${km} км, внутри МКАД → ${+$('#dMkadIn').value || 0} ₽`;
+  return `${km} км, за МКАД → ${outPrice(latlng)} ₽`;
 }
 
 async function renderMap() {
@@ -2665,7 +2674,7 @@ async function renderMap() {
 }
 
 // правим цены или переключаем режим — карта обновляется
-['#dMkadPrice', '#dMkadKm', '#dMkadMax'].forEach(sel => $(sel).addEventListener('input', () => {
+['#dMkadIn', '#dMkadBase', '#dMkadFrom', '#dMkadPerKm', '#dMkadLimit'].forEach(sel => $(sel) && $(sel).addEventListener('input', () => {
   if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {});
 }));
 $('#dMkad').addEventListener('click', () => { toggleZoneCards(); if (MAP) loadLeaflet().then(L => drawRings(L)).catch(() => {}); });
