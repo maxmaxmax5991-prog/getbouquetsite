@@ -22,7 +22,9 @@ function ms(s, method, path, body) {
     if (res.statusCode === 401) return { ok: false, error: "Токен МоегоСклада не подошёл." };
     if (res.statusCode >= 400) {
       const msg = res.json && res.json.errors && res.json.errors[0] ? res.json.errors[0].error : `ошибка ${res.statusCode}`;
-      return { ok: false, error: `МойСклад: ${msg}` };
+      // 429 — не ошибка данных, а «слишком часто спрашиваете». Такое лечится
+      // повтором через минуту, а не руками, поэтому помечаем отдельно.
+      return { ok: false, rate: res.statusCode === 429, error: `МойСклад: ${msg}` };
     }
     if (!res.json) return { ok: false, error: "МойСклад ответил непонятно. Попробуйте ещё раз." };
     return { ok: true, data: res.json };
@@ -257,10 +259,35 @@ function customValue(app, s, attr, valueName) {
   catch (err) { console.log("ms dict cache", err); }
   return { meta: { href: `${BASE}/entity/customentity/${dict}/${row.id}`, type: "customentity", mediaType: "application/json" } };
 }
-function buildAttributes(app, s, o, missed) {
+// Список доп. полей заказа. Меняется раз в год, а спрашивался при каждой
+// отправке — и в утренний вал склад отвечал 429, список не приходил, и заказ
+// уезжал вообще без полей (так вышло у №3128 и №3195). Помним его час.
+function attrRows(app, s) {
+  let cache = null;
+  try { cache = shop.jget(s, "ms_attrs_cache"); } catch (_) { cache = null; }
+  const fresh = cache && cache.at && Array.isArray(cache.rows) &&
+    Date.now() - Date.parse(cache.at) < 3600 * 1000;
+  if (fresh) return { ok: true, rows: cache.rows };
+
   const md = ms(s, "GET", "/entity/customerorder/metadata/attributes");
+  if (md.ok) {
+    const rows = md.data.rows || [];
+    // пишем запросом, мимо хуков на настройках
+    try {
+      app.db().newQuery("UPDATE settings SET ms_attrs_cache = {:v} WHERE id = {:id}")
+        .bind({ v: JSON.stringify({ at: new Date().toISOString(), rows }), id: s.id }).execute();
+    } catch (err) { console.log("ms attrs cache", err); }
+    return { ok: true, rows };
+  }
+  // склад не ответил — работаем по вчерашнему списку, он не устаревает
+  if (cache && Array.isArray(cache.rows) && cache.rows.length) return { ok: true, rows: cache.rows, stale: true };
+  return { ok: false, error: md.error, rate: !!md.rate };
+}
+
+function buildAttributes(app, s, o, missed) {
+  const md = attrRows(app, s);
   if (!md.ok) { if (missed) missed.push("все доп. поля (склад не ответил)"); return []; }
-  const rows = md.data.rows || [];
+  const rows = md.rows || [];
   const byName = (name) => rows.find((r) => norm(r.name) === norm(name));
   const pickup = o.get("delivery_type") === "pickup";
   const paidCard = o.get("payment_method") === "card";
@@ -475,6 +502,14 @@ else {
       text: `⚠️ Заказ №${o.get("number")} ушёл в МойСклад без этапа — там он будет «Новый».\nПоставьте «Принят, ${paidNow ? "Оплачен" : "Не оплачен"}» вручную.` }));
   } catch (_) {}
 }
+
+  // Без доп. полей заказ в МоёмСкладе бесполезен: по ним там ведутся статусы.
+  // Раньше он всё равно уезжал — пустым, и человек этого не видел. Теперь лучше
+  // подождать: очередь повторит через минуту, когда склад отдышится.
+  if (missedAttrs.indexOf("все доп. поля (склад не ответил)") >= 0) {
+    console.log("ms: откладываю заказ", o.get("number"), "— склад не отдал список доп. полей");
+    return { ok: false, wait: true, error: "МойСклад не отвечает — отправим через минуту." };
+  }
 
   // Берём замок перед самой отправкой: до этого заказ мог не пройти проверки
   if (!claim(app, o.id, "push")) return { ok: false, wait: true, error: "Заказ уже отправляется в МойСклад." };
