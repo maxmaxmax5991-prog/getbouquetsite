@@ -265,27 +265,46 @@ function priceFromMkad(s, pos) {
     }
   }
 
-  const base = +s.get("mkad_price") || 0;
-  if (insideMkad(pos.lat, pos.lon)) return { ok: true, price: base, zone: "", zoneName: "внутри МКАД", out_km: 0 };
+  const inside = +s.get("mkad_price") || 0;
+  if (insideMkad(pos.lat, pos.lon)) return { ok: true, price: inside, zone: "", zoneName: "внутри МКАД", out_km: 0 };
   const out = kmFromMkad(pos.lat, pos.lon);
   const max = +s.get("mkad_max_km") || 0;
   if (max > 0 && out > max) return { ok: false, error: `Пока не возим дальше ${max} км от МКАД. Позвоните нам — договоримся.` };
   const perKm = +s.get("mkad_km_price") || 0;
+  const base = +s.get("mkad_out_base") || inside;   // за МКАД база своя, а не цена города
   return { ok: true, price: base + Math.ceil(out) * perKm, zone: "", zoneName: `${out} км за МКАД`, out_km: out };
 }
 
-// Стоимость доставки по расстоянию: цена зоны, в чей круг попал адрес.
-function priceFor(app, s, km, sum) {
+// Стоимость доставки по расстоянию от магазина: цена круга, в который попал адрес.
+// Дальше самого большого круга цена зависит уже не от расстояния, а от того, где
+// адрес: внутри МКАД цена одна на весь остаток города, за МКАД — база плюс за
+// километр ОТ МКАД (так считают все в Москве, и так же считался прежний режим).
+function priceFor(app, s, km, sum, pos) {
   const zones = zonesByRadius(app);
   if (!zones.length) return { ok: false, error: "Зоны доставки не настроены. Позвоните нам — оформим вручную." };
   const z = zones.find((x) => km <= +x.get("radius_km"));
-  if (!z) {
-    const max = +zones[zones.length - 1].get("radius_km");
-    return { ok: false, error: `Пока не возим дальше ${max} км от магазина. Позвоните нам — договоримся.` };
+  if (z) {
+    const free = +z.get("free_from") || 0;
+    const price = (free > 0 && sum >= free) ? 0 : (+z.get("price") || 0);
+    return { ok: true, price, zone: z.id, zoneName: z.get("name") || "" };
   }
-  const free = +z.get("free_from") || 0;
-  const price = (free > 0 && sum >= free) ? 0 : (+z.get("price") || 0);
-  return { ok: true, price, zone: z.id, zoneName: z.get("name") || "" };
+
+  const inside = +s.get("mkad_price") || 0;
+  const outBase = +s.get("mkad_out_base") || inside;
+  const perKm = +s.get("mkad_km_price") || 0;
+  const max = +zones[zones.length - 1].get("radius_km");
+  // Без координат отличить «дальний район Москвы» от Подмосковья нельзя, а цена
+  // у них разная. Лучше честно попросить позвонить, чем взять не те деньги.
+  if (!inside || !pos || !pos.lat || !pos.lon) {
+    return { ok: false, error: `Не смогли точно определить этот адрес — дальше ${max} км от магазина считаем вручную. Позвоните нам, пожалуйста.` };
+  }
+  if (insideMkad(pos.lat, pos.lon)) {
+    return { ok: true, price: inside, zone: "", zoneName: `дальше ${max} км, внутри МКАД` };
+  }
+  const out = kmFromMkad(pos.lat, pos.lon);
+  const maxOut = +s.get("mkad_max_km") || 0;
+  if (maxOut > 0 && out > maxOut) return { ok: false, error: `Пока не возим дальше ${maxOut} км от МКАД. Позвоните нам — договоримся.` };
+  return { ok: true, price: outBase + Math.ceil(out) * perKm, zone: "", zoneName: `${out} км за МКАД`, out_km: out };
 }
 
 // Полная проверка адреса: координаты, расстояние, цена. Одно место и для сайта, и для заказа.
@@ -296,25 +315,32 @@ function check(app, s, o, sum) {
   // Сначала геокодер: он точнее и даёт координаты для курьера. Нет ключа или он не
   // подошёл — работаем по подсказкам. Для расчёта от МКАД нужны координаты (три замера),
   // для кругов от магазина хватает одного замера расстояния.
+  // Координаты нужны всегда, а не только в режиме поясов: за пределами кругов цена
+  // зависит от того, внутри МКАД адрес или снаружи. Поэтому если геокодер не дал
+  // точного попадания, пробуем найти точку по подсказке, и только потом — расстояние
+  // без координат (тогда дальние адреса уйдут на звонок).
   let lat = 0, lon = 0, km = 0, locality = "", street = "";
   const g = s.get("ymaps_key") ? geocode(s, geoQuery(o)) : { ok: false, error: "" };
   if (g.ok && g.exact) {
     const d = distance(app, s, g.lat, g.lon);
     if (!d.ok) return d;
     lat = g.lat; lon = g.lon; km = d.km;
-  } else if (s.get("mkad_mode")) {
-    const loc = locate(s, o);
-    if (!loc.ok) return loc;
-    lat = loc.lat; lon = loc.lon; locality = loc.locality; street = loc.street;
-    const d = distance(app, s, lat, lon);
-    km = d.ok ? d.km : 0;
   } else {
-    const sg = distanceBySuggest(app, s, o);
-    if (!sg.ok) return sg;
-    km = sg.km; locality = sg.locality; street = sg.street;
+    const loc = locate(s, o);
+    if (loc.ok) {
+      lat = loc.lat; lon = loc.lon; locality = loc.locality; street = loc.street;
+      const d = distance(app, s, lat, lon);
+      km = d.ok ? d.km : 0;
+    } else if (s.get("mkad_mode")) {
+      return loc;
+    } else {
+      const sg = distanceBySuggest(app, s, o);
+      if (!sg.ok) return sg;
+      km = sg.km; locality = sg.locality; street = sg.street;
+    }
   }
 
-  const p = s.get("mkad_mode") ? priceFromMkad(s, { lat, lon }) : priceFor(app, s, km, +sum || 0);
+  const p = s.get("mkad_mode") ? priceFromMkad(s, { lat, lon }) : priceFor(app, s, km, +sum || 0, { lat, lon });
   if (!p.ok) return p;
   // Город и улицу берём у карт (они знают правильное написание), а дом — тот, что вписал
   // покупатель: карты на «12» иногда отвечают «12с17», и курьер уехал бы не в то строение.
