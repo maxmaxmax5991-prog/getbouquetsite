@@ -763,6 +763,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <div class="row">
       <label class="f" for="eName">Название<input class="in" id="eName" required></label>
       <label class="f" for="eCat">Раздел<select class="in" id="eCat"></select></label>
+      <label class="f" for="eMsName">Название на складе<input class="in" id="eMsName" placeholder="оставьте пустым — соберём само"></label>
+      <p class="hint" style="grid-column:1/-1;margin:0">«Название на складе» — точное имя номенклатуры в МоёмСкладе, слово в слово. Пусто — соберём сами из приставки и названия товара и будем искать подбором, а он иногда промахивается.</p>
     </div>
     <div>
       <label class="f">Фото <span class="hint" style="margin:0;font-weight:500">— первое показывается в каталоге</span></label>
@@ -1231,6 +1233,7 @@ function openEditor(p) {
   sw($('#eExpress'), !!(p && p.is_express));
   $('#eExpPrice').value = p && p.is_express ? (p.price || '') : '';
   $('#eReady').value = p && p.ready_qty != null ? p.ready_qty : '';
+  $('#eMsName').value = (p && p.ms_name) || '';
   sw($('#eFresh'), !!(p && p.fresh_date && p.fresh_date === new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10))); sw($('#eFeatured'), p && p.featured);
   // «цветы ещё едут»: в базе одной строкой «ГГГГ-ММ-ДД ЧЧ:ММ» по Москве
   const rd = String((p && p.ready_at) || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
@@ -1518,6 +1521,7 @@ $('#eSave').onclick = safe(async () => {
     fd.append('lengths', JSON.stringify(E.lengths)); fd.append('variants', 'null'); fd.append('price', 0); fd.append('price_table', E.table);
     fd.append('stock', JSON.stringify(E.stock));
     fd.append('ms_pick', JSON.stringify(E.pick));
+    fd.append('ms_name', $('#eMsName').value.trim());
   } else if (E.mode === 'variants') {
     const vs = E.variants.filter(v => v.label && v.price > 0)
       .map(v => Object.assign({}, v, { parts: (v.parts || []).length ? v.parts.filter(x => x.id && x.qty > 0) : undefined }));

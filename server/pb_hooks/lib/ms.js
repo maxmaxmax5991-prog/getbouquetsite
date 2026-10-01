@@ -74,6 +74,9 @@ function sizeText(label) {
 
 // Ожидаемое название в МоёмСкладе: «ЛФ-Пич Аваланж 60см» (количество — это количество позиций)
 function msName(s, item) {
+  // У товара может быть прописано точное название на складе — тогда ничего не
+  // достраиваем: ни приставку, ни длину. Так надёжнее любого подбора по словам.
+  if (item && item.ms_name) return String(item.ms_name).trim();
   const prefix = (s.get("ms_prefix") || "").trim();
   const head = prefix ? (/[-_]$/.test(prefix) ? prefix + item.name : prefix + " " + item.name) : item.name;
   const len = (String(item.label || "").match(/^(\d+)-\d+$/) || [])[1];
@@ -104,8 +107,15 @@ function matchProduct(s, item) {
   const terms = [];
   const addTerm = (t) => {
     t = String(t || "").trim();
-    if (t.length > 2 && terms.indexOf(t) < 0 && terms.length < 4) terms.push(t);
+    if (t.length > 2 && terms.indexOf(t) < 0 && terms.length < 3) terms.push(t);
   };
+  // Если прописано точное название склада, искать надо по НЕМУ, а не по имени
+  // с сайта: «Розовые французские розы» в складе не найдутся никогда, там сорт
+  // называется «ЛФ- Французская Роза Пинк Мондиаль 60 см».
+  if (item.ms_name) {
+    addTerm(item.ms_name);
+    String(item.ms_name).replace(/^\s*ЛФ[-\s]*/i, "").split(/\s+/).filter((w) => w.length > 3).forEach(addTerm);
+  }
   addTerm(item.name);
   String(item.name || "").split(/[\/,()]+/).forEach(addTerm);
   String(item.name || "").split(/\s+/).filter((w) => w.length > 3).forEach(addTerm);
@@ -122,6 +132,14 @@ function matchProduct(s, item) {
     });
   }
   if (!rows.length) return { ok: false, error: `Не нашёл в МоёмСкладе номенклатуру «${wanted}». Добавьте её или переименуйте товар на сайте.` };
+
+  // Точное название сходится по буквам, но не по пробелам: «ЛФ- Французская»
+  // и «ЛФ-Французская» — одно и то же. norm убирает знаки и регистр.
+  if (item.ms_name) {
+    const цель = norm(item.ms_name);
+    const точно = rows.find((r) => norm(r.name) === цель);
+    if (точно) return { ok: true, id: точно.id, name: точно.name };
+  }
 
   const words = norm(item.name).split(" ").filter((w) => w.length > 2);
   const size = sizeText(item.label);
@@ -143,7 +161,11 @@ function matchProduct(s, item) {
     return { id: r.id, name: r.name, score };
   }).sort((a, b) => b.score - a.score);
 
-  if (!scored.length || scored[0].score < 3) return { ok: false, error: `Не нашёл подходящую номенклатуру для «${wanted}».` };
+  if (!scored.length || scored[0].score < 3) {
+    // Перечисляем, что нашлось рядом: без этого непонятно, как сорт назван на складе
+    const рядом = rows.slice(0, 3).map((r) => `«${r.name}»`).join(", ");
+    return { ok: false, error: `Не нашёл подходящую номенклатуру для «${wanted}».${рядом ? ` Рядом нашлись: ${рядом}` : ""}` };
+  }
   // Двое с одинаковым счётом — молча выбирать нельзя: отгрузят не тот сорт.
   const rivals = scored.filter((x) => x.score === scored[0].score);
   if (rivals.length > 1) {
@@ -178,7 +200,8 @@ function assortment(app, s, item) {
   if (p) { try { ids = JSON.parse(p.getString("ms_ids") || "{}") || {}; } catch (_) { ids = {}; } }
   if (ids[key]) return { ok: true, id: ids[key] };
 
-  let m = matchProduct(s, item);
+  const точное = p ? String(p.get("ms_name") || "").trim() : "";
+  let m = matchProduct(s, точное ? Object.assign({}, item, { ms_name: точное }) : item);
   const first = m;   // ошибку показываем про сам товар: запасной вариант ищет по разделу
   // запасной вариант для открыток и игрушек: ищем по разделу и цене, например «ЛФ-Открытка 200»
   if (!m.ok && p) {
@@ -568,7 +591,18 @@ else {
 
   // Берём замок перед самой отправкой: до этого заказ мог не пройти проверки
   if (!claim(app, o.id, "push")) return { ok: false, wait: true, error: "Заказ уже отправляется в МойСклад." };
-  const created = ms(s, "POST", "/entity/customerorder", body);
+  let created = ms(s, "POST", "/entity/customerorder", body);
+  // «Нарушено ограничение уникальности name» значит, что заказ там уже есть:
+  // прошлая отправка прошла, а номер к нам не вернулся. Второй такой же создавать
+  // нельзя — находим существующий и запоминаем его.
+  if (!created.ok && /уникальност/i.test(String(created.error || ""))) {
+    const был = ms(s, "GET", `/entity/customerorder?filter=name=${encodeURIComponent(String(o.get("number")))}&limit=1`);
+    const row = был.ok && был.data.rows && был.data.rows[0];
+    if (row) {
+      console.log("ms: заказ", o.get("number"), "уже был в складе — подхватили", row.id);
+      created = { ok: true, data: { id: row.id } };
+    }
+  }
   if (!created.ok) { unclaim(app, o.id, "push"); return created; }
   // Заказ ушёл, но часть полей не заполнилась — чаще всего склад не ответил.
   // Раньше это проходило незаметно: у №3143 так пропал способ доставки.

@@ -7,10 +7,25 @@ cronAdd("ms-push", "* * * * *", () => {
   const s = shop.settings($app);
   if (!s.get("ms_enabled") || !s.get("ms_token")) return;
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().replace("T", " ").slice(0, 19);
-  const list = $app.findRecordsByFilter("orders", `ms_id = "" && status != "cancelled" && created > {:since}`, "created", 20, 0, { since });
+  // Берём только то, что вообще можно отправить. Доставку отправляем после оплаты,
+  // и раньше неоплаченные занимали всю очередь: двадцать старых «ждём оплату»
+  // выбирались первыми, а оплаченный самовывоз №3264 стоял за ними и не уходил
+  // вовсе. Условие здесь то же, что внутри pushOrder.
+  const list = $app.findRecordsByFilter("orders",
+    `ms_id = "" && status != "cancelled" && created > {:since} && (delivery_type = "pickup" || payment_status = "paid")`,
+    "created", 5, 0, { since });
+  // Склад ограничивает частоту запросов, а одна отправка — это несколько
+  // обращений. Пять заказов за раз он ещё терпит, двадцать — уже нет; упёрлись
+  // в ограничение — прекращаем до следующей минуты, иначе лупим в стену.
+  let стоп = false;
   list.forEach((o) => {
+    if (стоп) return;
     try {
       const r = msl.pushOrder($app, o);
+      if (!r.ok && /Превышено ограничение/.test(String(r.error || ""))) стоп = true;
+      // Неудачу видно только в карточке заказа, да и то если текст изменился.
+      // В логе её не было вовсе — искать причину было нечем.
+      if (!r.ok) console.log("ms-push:", o.get("number"), r.wait ? "ждём —" : "ошибка —", r.error);
       if (!r.ok && !r.wait && o.get("ms_error") !== r.error) { o.set("ms_error", r.error); $app.save(o); }
     } catch (err) { console.log("ms-push", err); require(`${__hooks}/lib/err.js`).note($app, "МойСклад", String(err), "очередь отправки"); }
   });
