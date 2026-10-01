@@ -179,6 +179,38 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
   });
 }, $apis.requireAuth("managers"));
 
+// Отдел заботы: кому звонить и что уже сделали. Отдаём всё, что нужно для
+// разговора, одним куском — чтобы менеджер не искал заказ по вкладкам.
+routerAdd("GET", "/api/shop/care", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head", "manager"])) return e.json(403, { message: "Недостаточно прав." });
+  let list = [];
+  try { list = $app.findRecordsByFilter("reviews", "needs_call = true", "-created", 200, 0); } catch (_) {}
+  const rows = list.map((r) => {
+    let o = null;
+    try { o = $app.findRecordById("orders", r.get("order")); } catch (_) {}
+    return {
+      id: r.id,
+      оценка: +r.get("nps") || 0,
+      отзыв: r.get("comment") || "",
+      когда: r.getString("created"),
+      взят: !!r.get("handled"),
+      кто: r.get("handled_by") || "",
+      итог: r.get("handled_note") || "",
+      закрыт: r.get("handled_at") || "",
+      заказ: o ? {
+        number: o.get("number"), total: o.get("total"), date: o.get("date"), interval: o.get("interval"),
+        name: o.get("name"), phone: o.get("phone"), recipient: o.get("recipient"),
+        address: o.get("address"), delivery_type: o.get("delivery_type"),
+        delivery_price: o.get("delivery_price"), note: o.get("note"), delivery_note: o.get("delivery_note"),
+        payment_method: o.get("payment_method"), payment_status: o.get("payment_status"),
+        status: o.get("status"), items: shop.jget(o, "items") || [],
+      } : null,
+    };
+  });
+  return e.json(200, { rows, ждут: rows.filter((x) => !x.взят).length });
+}, $apis.requireAuth("managers"));
+
 // Разовая рассылка опроса тем, кто заказывал раньше.
 // dry: true — только посчитать, никому ничего не отправляя.
 routerAdd("POST", "/api/shop/review-blast", (e) => {
@@ -198,6 +230,18 @@ routerAdd("POST", "/api/shop/reviews", (e) => {
   try { r = $app.findRecordById("reviews", String(b.id || "")); } catch (_) { return e.json(404, { message: "Не найдено" }); }
   r.set("handled", true);
   r.set("handled_by", String(b.by || "").slice(0, 120));
+  if (b.note !== undefined) r.set("handled_note", String(b.note || "").slice(0, 2000));
+  if (!r.get("handled_at")) r.set("handled_at", new Date().toISOString());
   $app.save(r);
+  // владельцу — чем закончился разговор: иначе «взял в работу» ничего не говорит
+  try {
+    const shop2 = require(`${__hooks}/lib/shop.js`);
+    const s2 = shop2.settings($app);
+    let o = null;
+    try { o = $app.findRecordById("orders", r.get("order")); } catch (_) {}
+    const n = +r.get("nps") || 0;
+    shop2.adminIds(s2).forEach((chat) => shop2.tg(s2.get("tg_token"), "sendMessage", { chat_id: chat,
+      text: `✅ Заказ №${o ? o.get("number") : "?"}${n ? ` (оценка ${n} из 10)` : ""} — ${String(b.by || "менеджер")} закрыл(а).${b.note ? `\n«${String(b.note).slice(0, 400)}»` : ""}` }));
+  } catch (_) {}
   return e.json(200, { ok: true });
 }, $apis.requireAuth("managers"));

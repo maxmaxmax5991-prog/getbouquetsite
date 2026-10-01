@@ -97,6 +97,9 @@ label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .order ul{margin:0;padding-left:18px;font-size:14px}
 .order .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 18px;font-size:14px}
 .order .meta span{color:var(--ink-3);font-size:12px;display:block}
+.care .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 18px;font-size:14px}
+.care .meta span{color:var(--ink-3);font-size:12px;display:block}
+.care blockquote{font-size:15px;line-height:1.5}
 .chat2{display:grid;grid-template-columns:300px 1fr;gap:14px;height:calc(100vh - 210px);min-height:420px}
 .chat2-list{overflow:auto;display:flex;flex-direction:column;gap:8px}
 .chat2-item{text-align:left;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--paper);display:block;width:100%}
@@ -257,6 +260,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="delivery">Доставка</button>
       <button role="tab" data-tab="prices">Прайс роз</button>
       <button role="tab" data-tab="bc">Рассылка</button>
+      <button role="tab" data-tab="care">Забота <span class="dot" id="careCount" hidden>0</span></button>
       <button role="tab" data-tab="stats">Статистика</button>
       <button role="tab" data-tab="errors">Ошибки <span class="dot" id="errCount" hidden>0</span></button>
       <button role="tab" data-tab="settings">Настройки</button>
@@ -389,6 +393,13 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div class="scroll"><table class="t" id="cats"></table></div>
         <div class="bar" style="margin-top:10px"><button class="btn btn-g btn-s" id="cAdd">+ Раздел</button><button class="btn btn-p btn-s" id="cSave">Сохранить разделы</button></div>
       </div>
+    </section>
+
+    <!-- Отдел заботы -->
+    <section id="tab-care" hidden>
+      <div class="bar" id="careFilter"></div>
+      <p class="hint" style="margin:0 0 12px">Сюда попадает каждый, кто поставил <b>6 и ниже</b> из 10. Позвоните, договоритесь — и запишите, чем закончилось: это видит владелец и следующий менеджер.</p>
+      <div id="careList" class="stack"></div>
     </section>
 
     <!-- Статистика -->
@@ -879,7 +890,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, stats: loadStats, settings: loadSettings })[t]();
+  ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1 } };
@@ -899,7 +910,7 @@ function brandPill(id) {
 }
 
 // Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
-const TAB_NEED = { bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', stats: 'all', settings: 'all' };
+const TAB_NEED = { bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'orders', stats: 'all', settings: 'all' };
 async function loadRole() {
   try { ME = await api('/api/shop/me-role'); } catch (_) {}
   // витрины нужны всем вкладкам, а не только настройкам: без них заказы
@@ -2024,6 +2035,90 @@ $('#cSave').onclick = safe(async () => {
   }
   renderCats(); toast('Разделы сохранены');
 });
+
+/* ---------- отдел заботы ---------- */
+// Недовольные (6 и ниже из 10). Всё для разговора в одной карточке: что заказывали,
+// куда везли, что написали. Менеджер звонит и пишет, чем закончилось.
+let CARE = [], careShow = 'wait';
+const CAREF = [['wait', 'Ждут звонка'], ['done', 'Закрытые'], ['all', 'Все']];
+
+const careCard = (r) => {
+  const o = r.заказ || {};
+  const tel = String(o.phone || '').replace(/[^\d+]/g, '');
+  const товары = (o.items || []).map(i => `• ${esc(i.name)}${i.label_text ? ' · ' + esc(i.label_text) : ''} × ${i.qty} — ${rub(i.sum || 0)}`).join('<br>');
+  const дата = (v, опции) => {
+    if (!v) return '';
+    const t = Date.parse(String(v).replace(' ', 'T').replace(/Z?$/, 'Z'));
+    return t ? new Date(t).toLocaleString('ru-RU', опции) : '';
+  };
+  const когда = дата(r.когда, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const везли = o.date ? new Date(o.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' }) : '';
+  return `<article class="card stack care" data-care="${r.id}" style="border-left:4px solid ${r.взят ? 'var(--line)' : 'var(--sale)'}">
+    <div class="bar" style="justify-content:space-between;align-items:baseline">
+      <h3 style="margin:0">№${o.number || '—'} · <span style="color:var(--sale)">${r.оценка || '?'} из 10</span></h3>
+      <span class="hint" style="margin:0">${esc(когда)}</span>
+    </div>
+    ${r.отзыв ? `<blockquote style="margin:0;padding:10px 14px;background:var(--bg-1,#faf7f9);border-radius:10px">«${esc(r.отзыв)}»</blockquote>`
+              : '<p class="hint" style="margin:0">Словами ничего не написал — только оценка.</p>'}
+    <div class="meta">
+      <div><span>Заказчик</span>${esc(o.name || '')}${tel ? ` · <a href="tel:${tel}">${esc(o.phone)}</a>` : ''}</div>
+      ${o.recipient ? `<div><span>Получатель</span>${esc(o.recipient)}</div>` : ''}
+      <div><span>Заказ</span>${товары || '—'}</div>
+      <div><span>Итого</span>${rub(o.total || 0)}${o.delivery_price ? ` (доставка ${rub(o.delivery_price)})` : ''} · ${o.payment_method === 'card' ? (o.payment_status === 'paid' ? 'оплачено картой' : 'картой, не оплачен') : 'при получении'}</div>
+      <div><span>${o.delivery_type === 'pickup' ? 'Самовывоз' : 'Куда'}</span>${esc(o.address || '')}</div>
+      <div><span>Когда везли</span>${esc(везли)}${o.interval ? ', ' + esc(o.interval) : ''}</div>
+      ${o.note ? `<div><span>Открытка</span>${esc(o.note)}</div>` : ''}
+      ${o.delivery_note ? `<div><span>Курьеру</span>${esc(o.delivery_note)}</div>` : ''}
+    </div>
+    ${r.взят
+      ? `<div class="hint" style="margin:0">✅ Закрыл(а) ${esc(r.кто || 'менеджер')}${r.закрыт ? ', ' + дата(r.закрыт, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : ''}</div>
+         ${r.итог ? `<div style="padding:10px 14px;background:var(--bg-1,#f4f7f4);border-radius:10px">${esc(r.итог)}</div>` : ''}
+         <div class="bar"><button class="btn btn-g btn-s" data-careedit="${r.id}">Дополнить запись</button></div>`
+      : `<label class="f" for="care-${r.id}">Как решили с клиентом<textarea class="in" id="care-${r.id}" rows="2" placeholder="Например: извинились, везём новый букет завтра к 12:00, скидка 20% на следующий"></textarea></label>
+         <div class="bar"><button class="btn btn-p" data-caredone="${r.id}">📞 Прозвонил, записать</button></div>`}
+  </article>`;
+};
+
+function renderCare() {
+  $('#careFilter').innerHTML = CAREF.map(([k, t]) => {
+    const n = k === 'wait' ? CARE.filter(x => !x.взят).length : k === 'done' ? CARE.filter(x => x.взят).length : CARE.length;
+    return `<button class="chip" data-cf="${k}" aria-pressed="${careShow === k}">${t} ${n}</button>`;
+  }).join('');
+  const список = careShow === 'wait' ? CARE.filter(x => !x.взят) : careShow === 'done' ? CARE.filter(x => x.взят) : CARE;
+  $('#careList').innerHTML = список.length ? список.map(careCard).join('')
+    : `<div class="empty">${careShow === 'wait' ? 'Никому звонить не надо — недовольных нет.' : 'Пусто.'}</div>`;
+  const ждут = CARE.filter(x => !x.взят).length;
+  const dot = $('#careCount');
+  if (dot) { dot.textContent = ждут; dot.hidden = !ждут; }
+}
+
+const loadCare = safe(async () => {
+  const d = await api('/api/shop/care');
+  CARE = d.rows || [];
+  renderCare();
+});
+
+$('#careFilter').onclick = e => { const b = e.target.closest('[data-cf]'); if (b) { careShow = b.dataset.cf; renderCare(); } };
+$('#careList').addEventListener('click', safe(async e => {
+  const done = e.target.closest('[data-caredone]');
+  if (done) {
+    const id = done.dataset.caredone;
+    const note = ($(`#care-${id}`) || {}).value || '';
+    if (!note.trim() && !confirm('Записать без комментария? Лучше коротко написать, чем закончился разговор.')) return;
+    done.disabled = true;
+    await api('/api/shop/reviews', { method: 'POST', body: { id, by: ME.name || '', note: note.trim() } });
+    toast('Записано'); return loadCare();
+  }
+  const ed = e.target.closest('[data-careedit]');
+  if (ed) {
+    const id = ed.dataset.careedit;
+    const был = (CARE.find(x => x.id === id) || {}).итог || '';
+    const note = prompt('Чем закончилось?', был);
+    if (note === null) return;
+    await api('/api/shop/reviews', { method: 'POST', body: { id, by: ME.name || '', note } });
+    toast('Записано'); return loadCare();
+  }
+}));
 
 /* ---------- статистика ---------- */
 let statDays = 14;
