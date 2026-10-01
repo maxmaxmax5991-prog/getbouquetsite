@@ -1044,7 +1044,8 @@ $('#orders').addEventListener('click', safe(async e => {
     const r = await api('/api/shop/ms-push', { method: 'POST', body: { order: el.dataset.id } });
     // при обновлении сразу говорим, какие поля не нашлись в справочниках склада
     toast(!r.updated ? 'Заказ отправлен в МойСклад'
-      : (r.missed || []).length ? `Поля обновлены, но не нашлись: ${r.missed.join('; ')}` : 'Поля в МоёмСкладе обновлены',
+      : (r.missed || []).length ? `Обновили, но не нашлись: ${r.missed.join('; ')}`
+      : `В МоёмСкладе обновлены поля и состав (${r.positions || 0} строк)`,
       !!(r.missed || []).length);
     return loadOrders();
   }

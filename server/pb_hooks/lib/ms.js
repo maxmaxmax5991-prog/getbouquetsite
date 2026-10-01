@@ -220,15 +220,34 @@ function stateName(s, paid) {   // служебное: показывает на
 }
 
 // Услуга доставки: «ЛФ-Доставка Москва»
-function deliveryService(s) {
-  const name = (s.get("ms_delivery_name") || "").trim();
-  if (!name) return null;
+// Номенклатура доставки. Номер запоминаем: раньше её искали по названию при
+// каждой отправке, и под ограничением запросов строка доставки молча пропадала
+// из заказа (№3195 — 2990 вместо 3789). Возвращаем {id} или {error, rate}.
+function deliveryService(app, s) {
+  if (s === undefined) { s = app; app = null; }          // старый вызов deliveryService(s)
+  const name = String(s.get("ms_delivery_name") || "").trim();
+  if (!name) return { id: null };                        // доставка в складе не ведётся — так и задумано
+
+  const cached = String(s.get("ms_delivery_id") || "").trim();
+  if (cached && app) return { id: cached };
+
+  const save = (id) => {
+    if (!app || id === cached) return;
+    // пишем запросом, мимо хуков на настройках
+    try { app.db().newQuery("UPDATE settings SET ms_delivery_id = {:v} WHERE id = {:id}").bind({ v: id, id: s.id }).execute(); }
+    catch (err) { console.log("ms delivery cache", err); }
+  };
+
   const exact = ms(s, "GET", `/entity/service?filter=name=${encodeURIComponent(name)}&limit=1`);
-  if (exact.ok && exact.data.rows && exact.data.rows.length) return exact.data.rows[0].id;
+  if (exact.ok && exact.data.rows && exact.data.rows.length) { save(exact.data.rows[0].id); return { id: exact.data.rows[0].id }; }
   const found = ms(s, "GET", `/entity/service?search=${encodeURIComponent(name)}&limit=20`);
-  if (!found.ok) return null;
+  if (!found.ok) {
+    if (cached) return { id: cached };                   // связи нет — берём вчерашний номер
+    return { id: null, error: found.error, rate: !!found.rate };
+  }
   const rows = (found.data.rows || []).filter((r) => norm(r.name).indexOf(norm(name)) >= 0);
-  return rows.length ? rows[0].id : null;
+  if (rows.length) { save(rows[0].id); return { id: rows[0].id }; }
+  return { id: null, error: `в МоёмСкладе нет услуги «${name}»` };
 }
 
 // Доп. поля заказа: ищем по названию, значения справочников — по названию значения
@@ -455,10 +474,16 @@ function positionsFor(app, s, o) {
   }
   const delivery = o.get("delivery_price") || 0;
   if (delivery > 0) {
-    const svc = deliveryService(s);
+    const svc = deliveryService(app, s);
+    // Молчать тут нельзя: без этой строки заказ в складе дешевле, чем заплатил
+    // покупатель, и расхождение всплывает только при сверке кассы.
+    if (!svc.id) {
+      return { ok: false, wait: !!svc.rate,
+        error: `Доставка ${delivery} ₽ не добавлена: ${svc.error || "не нашли услугу доставки в МоёмСкладе"}` };
+    }
     // копейки, потерянные при делении цены букета на стебли, добавляем к доставке — итог сходится с сайтом
     const kop = Math.round(delivery * 100) + (itemsKop - posKop);
-    if (svc) positions.push({ quantity: 1, price: kop, assortment: meta("service", svc) });
+    positions.push({ quantity: 1, price: kop, assortment: meta("service", svc.id) });
   }
   return { ok: true, positions };
 }
@@ -568,9 +593,15 @@ function updateAttrs(app, o) {
     attributes,
     deliveryPlannedMoment: `${o.get("date")} ${(o.get("interval") || "12:00").slice(0, 5)}:00`,
   };
+  // Заодно пересобираем состав: у №3195 из-за того же сбоя потерялась строка
+  // доставки, и в складе заказ оказался дешевле оплаченного.
+  const pos = positionsFor(app, s, o);
+  if (pos.ok) body.positions = pos.positions;
+  else missed.push(pos.error || "состав заказа");
+
   const r = ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, body);
   if (!r.ok) return r;
-  return { ok: true, filled: attributes.length, missed };
+  return { ok: true, filled: attributes.length, positions: pos.ok ? pos.positions.length : 0, missed };
 }
 
 function addPayment(app, o) {
