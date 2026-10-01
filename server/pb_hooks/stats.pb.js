@@ -228,6 +228,16 @@ routerAdd("POST", "/api/shop/reviews", (e) => {
   const b = e.requestInfo().body || {};
   let r;
   try { r = $app.findRecordById("reviews", String(b.id || "")); } catch (_) { return e.json(404, { message: "Не найдено" }); }
+  // Исправление оценки: клиент промахнулся по цифре, менеджер поправляет.
+  // Отдельная ветка — отметку «прозвонили» при этом не ставим.
+  if (b.nps !== undefined) {
+    const n = Math.max(1, Math.min(10, Math.round(+b.nps || 0)));
+    r.set("nps", n);
+    r.set("needs_call", n <= 6);
+    if (n > 6) r.set("handled", false);
+    $app.save(r);
+    return e.json(200, { ok: true, nps: n });
+  }
   r.set("handled", true);
   r.set("handled_by", String(b.by || "").slice(0, 120));
   if (b.note !== undefined) r.set("handled_note", String(b.note || "").slice(0, 2000));

@@ -63,12 +63,38 @@ function числоИз(text) {
   return внутри ? +внутри[1] : null;
 }
 
+// Поправка оценки. Человек промахивается по цифре и тут же пишет «Ой 10)» —
+// по заказу №3062 так и вышло, и мы записали пятёрку вместо десятки.
+// Берём только короткий ответ ровно с одним числом и парой знаков вокруг:
+// «ждал 2 часа» — это жалоба, а не двойка, и оценкой стать не должно.
+function поправка(text) {
+  const t = String(text || "").trim();
+  if (t.length > 14) return null;
+  const m = t.match(/^[^\d]{0,4}(10|[1-9])[^\d]{0,4}$/);
+  return m ? +m[1] : null;
+}
+
 // Ответ покупателя: цифра — это оценка, остальное — свободный отзыв.
 // Отвечаем покупателю здесь же: боту остаётся только позвать эту функцию.
 function reply(app, rec, text) {
   if (String(rec.get("step") || "") === "nps") {
     const n = числоИз(text);
     if (n !== null) return оценка(app, rec, n);
+  }
+  // оценка уже стоит, а человек прислал одну цифру — значит промахнулся и поправляет
+  const было = +rec.get("nps") || 0;
+  const стало = было ? поправка(text) : null;
+  if (стало && стало !== было) {
+    const o = orderOf(app, rec);
+    rec.set("comment", String(text).slice(0, 1000));
+    app.save(rec);
+    оценка(app, rec, стало);
+    try {
+      const s = shop.settings(app);
+      shop.adminIds(s).forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat,
+        text: `✏️ Заказ №${o ? o.get("number") : "?"}: покупатель поправил оценку с ${было} на ${стало} («${String(text).slice(0, 60)}»).` }));
+    } catch (_) {}
+    return;
   }
   comment(app, rec, text);
   const o = orderOf(app, rec);
@@ -79,7 +105,8 @@ function оценка(app, rec, n) {
   const o = orderOf(app, rec);
   rec.set("nps", n);
   rec.set("step", n >= ПРОМОУТЕР ? "done" : "comment");   // у остальных ещё спросим, что поправить
-  if (n <= КРИТИК) rec.set("needs_call", true);
+  // оценку могли поправить вверх — тогда человек больше не в списке на обзвон
+  rec.set("needs_call", n <= КРИТИК ? true : false);
   app.save(rec);
   if (!o) return "Спасибо!";
 

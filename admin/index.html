@@ -2055,7 +2055,8 @@ const careCard = (r) => {
   const везли = o.date ? new Date(o.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' }) : '';
   return `<article class="card stack care" data-care="${r.id}" style="border-left:4px solid ${r.взят ? 'var(--line)' : 'var(--sale)'}">
     <div class="bar" style="justify-content:space-between;align-items:baseline">
-      <h3 style="margin:0">№${o.number || '—'} · <span style="color:var(--sale)">${r.оценка || '?'} из 10</span></h3>
+      <h3 style="margin:0">№${o.number || '—'} · <span style="color:var(--sale)">${r.оценка || '?'} из 10</span>
+        <button class="lnk" data-carenps="${r.id}" title="Клиент промахнулся по цифре">исправить</button></h3>
       <span class="hint" style="margin:0">${esc(когда)}</span>
     </div>
     ${r.отзыв ? `<blockquote style="margin:0;padding:10px 14px;background:var(--bg-1,#faf7f9);border-radius:10px">«${esc(r.отзыв)}»</blockquote>`
@@ -2108,6 +2109,18 @@ $('#careList').addEventListener('click', safe(async e => {
     done.disabled = true;
     await api('/api/shop/reviews', { method: 'POST', body: { id, by: ME.name || '', note: note.trim() } });
     toast('Записано'); return loadCare();
+  }
+  const np = e.target.closest('[data-carenps]');
+  if (np) {
+    const id = np.dataset.carenps;
+    const был = (CARE.find(x => x.id === id) || {}).оценка || '';
+    const v = prompt('Какую оценку поставил клиент на самом деле? От 1 до 10.', был);
+    if (v === null) return;
+    const n = Math.round(+v);
+    if (!(n >= 1 && n <= 10)) return toast('Оценка — число от 1 до 10', true);
+    await api('/api/shop/reviews', { method: 'POST', body: { id, nps: n } });
+    toast(n > 6 ? `Поправили на ${n} — из списка на обзвон убрали` : `Поправили на ${n}`);
+    return loadCare();
   }
   const ed = e.target.closest('[data-careedit]');
   if (ed) {
