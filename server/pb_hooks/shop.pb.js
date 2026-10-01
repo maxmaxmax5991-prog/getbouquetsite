@@ -377,6 +377,9 @@ routerAdd("GET", "/api/shop/me-role", (e) => {
       orders: true, chat: true, swap: true,          // это может каждый
       stock: r === "owner" || r === "head",
       all: r === "owner",
+      // оценку правит только владелец: это не исправление опечатки,
+      // а изменение того, что сказал покупатель
+      fixnps: r === "owner",
     },
   });
 }, $apis.requireAuth("managers"));

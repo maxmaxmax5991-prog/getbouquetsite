@@ -183,7 +183,7 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
 // разговора, одним куском — чтобы менеджер не искал заказ по вкладкам.
 routerAdd("GET", "/api/shop/care", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (!shop.can(e, ["owner", "head", "manager"])) return e.json(403, { message: "Недостаточно прав." });
+  if (!shop.can(e, ["owner", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
   let list = [];
   try { list = $app.findRecordsByFilter("reviews", "needs_call = true", "-created", 200, 0); } catch (_) {}
   const rows = list.map((r) => {
@@ -224,13 +224,16 @@ routerAdd("POST", "/api/shop/review-blast", (e) => {
 // Менеджер отметил, что взял недовольного в работу
 routerAdd("POST", "/api/shop/reviews", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (!shop.can(e, ["owner", "head", "manager"])) return e.json(403, { message: "Недостаточно прав." });
+  if (!shop.can(e, ["owner", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
   const b = e.requestInfo().body || {};
   let r;
   try { r = $app.findRecordById("reviews", String(b.id || "")); } catch (_) { return e.json(404, { message: "Не найдено" }); }
   // Исправление оценки: клиент промахнулся по цифре, менеджер поправляет.
   // Отдельная ветка — отметку «прозвонили» при этом не ставим.
   if (b.nps !== undefined) {
+    // Оценку правит только владелец: это не опечатка в комментарии, а подмена
+    // того, что ответил покупатель.
+    if (!shop.can(e, ["owner"])) return e.json(403, { message: "Оценку может исправить только владелец." });
     const n = Math.max(1, Math.min(10, Math.round(+b.nps || 0)));
     r.set("nps", n);
     r.set("needs_call", n <= 6);

@@ -627,11 +627,12 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div class="row" style="align-items:flex-end">
             <label class="f" for="stNick" style="max-width:190px">Логин<input class="in" id="stNick" autocomplete="off" placeholder="florist"></label>
             <label class="f" for="stName" style="max-width:190px">Имя<input class="in" id="stName" placeholder="Как зовут"></label>
-            <label class="f" for="stRole" style="max-width:170px">Роль<select class="in" id="stRole"><option value="manager">Менеджер</option><option value="head">Управляющий</option><option value="owner">Владелец</option></select></label>
+            <label class="f" for="stRole" style="max-width:170px">Роль<select class="in" id="stRole"><option value="manager">Менеджер</option><option value="care">Отдел заботы</option><option value="head">Управляющий</option><option value="owner">Владелец</option></select></label>
             <label class="f" for="stPass" style="max-width:190px">Пароль<input class="in" id="stPass" type="password" autocomplete="new-password" placeholder="не короче 8 знаков"></label>
             <button class="btn btn-p" id="stAdd">Добавить</button>
           </div>
-          <p class="hint">Логин и пароль придумываете вы и передаёте сотруднику сами. Почта не нужна. Пароль мы не показываем и восстановить не сможем — только заменить.</p>
+          <p class="hint">Логин и пароль придумываете вы и передаёте сотруднику сами. Почта не нужна. Пароль мы не показываем и восстановить не сможем — только заменить.<br>
+          <b>Менеджер</b> — заказы и чат. <b>Отдел заботы</b> — заказы, чат и «Забота»: звонит недовольным и записывает, чем закончилось. <b>Управляющий</b> — плюс остатки и «Цветы в пути». <b>Владелец</b> — всё, включая товары, цены, настройки и исправление оценок.</p>
         </div>
         <div class="card stack">
           <h2>Магазин</h2>
@@ -893,7 +894,7 @@ function show(t) {
   ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings })[t]();
 }
 
-let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1 } };
+let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
 async function loadSettings0() {
   S = (await list('settings'))[0];
   CATS = await list('categories', '&sort=sort');
@@ -1780,7 +1781,7 @@ $('#errTable').addEventListener('click', safe(async e => {
 }));
 
 /* ---------- сотрудники ---------- */
-const ROLE_RU = { owner: 'Владелец', head: 'Управляющий', manager: 'Менеджер' };
+const ROLE_RU = { owner: 'Владелец', head: 'Управляющий', manager: 'Менеджер', care: 'Отдел заботы' };
 const VIA_RU = { site: 'сайт', tg: 'Телеграм', max: 'MAX' };
 const loadStaff = safe(async () => {
   if (!ME.can.all) return;
@@ -2056,7 +2057,7 @@ const careCard = (r) => {
   return `<article class="card stack care" data-care="${r.id}" style="border-left:4px solid ${r.взят ? 'var(--line)' : 'var(--sale)'}">
     <div class="bar" style="justify-content:space-between;align-items:baseline">
       <h3 style="margin:0">№${o.number || '—'} · <span style="color:var(--sale)">${r.оценка || '?'} из 10</span>
-        <button class="lnk" data-carenps="${r.id}" title="Клиент промахнулся по цифре">исправить</button></h3>
+${ME.can.fixnps ? `<button class="lnk" data-carenps="${r.id}" title="Клиент промахнулся по цифре">исправить</button>` : ''}</h3>
       <span class="hint" style="margin:0">${esc(когда)}</span>
     </div>
     ${r.отзыв ? `<blockquote style="margin:0;padding:10px 14px;background:var(--bg-1,#faf7f9);border-radius:10px">«${esc(r.отзыв)}»</blockquote>`
