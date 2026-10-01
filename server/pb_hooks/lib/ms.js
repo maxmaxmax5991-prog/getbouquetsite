@@ -97,8 +97,15 @@ const norm = (x) => String(x || "").toLowerCase().replace(/ё/g, "е").replace(/
 function matchProduct(s, item) {
   const prefix = (s.get("ms_prefix") || "").trim();
   const wanted = msName(s, item);
-  const exact = ms(s, "GET", `/entity/product?filter=name=${encodeURIComponent(wanted)}&limit=1`);
-  if (exact.ok && exact.data.rows && exact.data.rows.length) return { ok: true, id: exact.data.rows[0].id, name: exact.data.rows[0].name };
+  // Ищем по всему ассортименту. Сорт может быть заведён не товаром, а комплектом
+  // (так у французских роз), услугой или модификацией — поиск только по
+  // /entity/product их не видел, и выглядело это как «в складе такого нет».
+  const тип = (r) => (r && r.meta && r.meta.type) || "product";
+  const exact = ms(s, "GET", `/entity/assortment?filter=${encodeURIComponent("name=" + wanted)}&limit=1`);
+  if (exact.ok && exact.data.rows && exact.data.rows.length) {
+    const r0 = exact.data.rows[0];
+    return { ok: true, id: r0.id, name: r0.name, type: тип(r0) };
+  }
 
   // Ищем несколькими запросами: целиком и по частям. На сайте сорт бывает записан
   // через дробь — «Черри/Чири», а МойСклад по строке со слэшем не находит ничего.
@@ -107,14 +114,21 @@ function matchProduct(s, item) {
   const terms = [];
   const addTerm = (t) => {
     t = String(t || "").trim();
-    if (t.length > 2 && terms.indexOf(t) < 0 && terms.length < 3) terms.push(t);
+    if (t.length > 2 && terms.indexOf(t) < 0 && terms.length < 4) terms.push(t);
   };
   // Если прописано точное название склада, искать надо по НЕМУ, а не по имени
   // с сайта: «Розовые французские розы» в складе не найдутся никогда, там сорт
   // называется «ЛФ- Французская Роза Пинк Мондиаль 60 см».
   if (item.ms_name) {
     addTerm(item.ms_name);
-    String(item.ms_name).replace(/^\s*ЛФ[-\s]*/i, "").split(/\s+/).filter((w) => w.length > 3).forEach(addTerm);
+    // Длинные слова вперёд: «мондиаль» и «эксплорер» находят сорт, а «роза»
+    // возвращает весь склад и занимает место в коротком списке запросов.
+    // Приставку отрезаем — в складе она слитная («ЛФ-Французская»), и поиск
+    // по слову «Французская» не находит ничего.
+    String(item.ms_name).replace(/^\s*ЛФ[-\s]*/i, "").split(/[\s-]+/)
+      .filter((w) => w.length > 3 && !/^\d/.test(w))
+      .sort((a, b) => b.length - a.length)
+      .forEach(addTerm);
   }
   addTerm(item.name);
   String(item.name || "").split(/[\/,()]+/).forEach(addTerm);
@@ -122,12 +136,13 @@ function matchProduct(s, item) {
 
   const rows = [], seenId = {};
   for (const term of terms) {
-    const found = ms(s, "GET", `/entity/product?search=${encodeURIComponent(term)}&limit=100`);
+    const found = ms(s, "GET", `/entity/assortment?filter=${encodeURIComponent("name~" + term)}&limit=100`);
     if (!found.ok) return found;
     (found.data.rows || []).forEach((r) => {
       if (seenId[r.id]) return;
       if (prefix && norm(r.name).indexOf(norm(prefix)) !== 0) return;
       seenId[r.id] = 1;
+      r.__type = тип(r);
       rows.push(r);
     });
   }
@@ -135,10 +150,13 @@ function matchProduct(s, item) {
 
   // Точное название сходится по буквам, но не по пробелам: «ЛФ- Французская»
   // и «ЛФ-Французская» — одно и то же. norm убирает знаки и регистр.
+  // Сверяем вообще без пробелов: «60 см» и «60см», «ЛФ- Французская» и
+  // «ЛФ-Французская» — это одно и то же название, записанное по-разному.
   if (item.ms_name) {
-    const цель = norm(item.ms_name);
-    const точно = rows.find((r) => norm(r.name) === цель);
-    if (точно) return { ok: true, id: точно.id, name: точно.name };
+    const сжать = (x) => norm(x).replace(/\s+/g, "");
+    const цель = сжать(item.ms_name);
+    const точно = rows.find((r) => сжать(r.name) === цель);
+    if (точно) return { ok: true, id: точно.id, name: точно.name, type: точно.__type };
   }
 
   const words = norm(item.name).split(" ").filter((w) => w.length > 2);
@@ -158,7 +176,7 @@ function matchProduct(s, item) {
     }
     if (!len && size && n.indexOf(norm(size)) >= 0) score += 6;
     if (item.wantPrice && n.indexOf(String(item.wantPrice)) >= 0) score += 8;
-    return { id: r.id, name: r.name, score };
+    return { id: r.id, name: r.name, type: r.__type, score };
   }).sort((a, b) => b.score - a.score);
 
   if (!scored.length || scored[0].score < 3) {
@@ -171,7 +189,7 @@ function matchProduct(s, item) {
   if (rivals.length > 1) {
     return { ok: false, error: `Для «${item.name}» подходят сразу несколько: ${rivals.slice(0, 3).map((r) => `«${r.name}»`).join(" и ")}. Переименуйте товар на сайте точнее — иначе отгрузят не тот сорт.` };
   }
-  return { ok: true, id: scored[0].id, name: scored[0].name };
+  return { ok: true, id: scored[0].id, name: scored[0].name, type: scored[0].type };
 }
 
 // Код товара запоминаем отдельно для каждого размера
@@ -194,11 +212,16 @@ function assortment(app, s, item) {
       const один = Object.keys(pick).filter((k) => pick[k] && pick[k].id);
       if (!(Array.isArray(lengths) && lengths.length) && один.length === 1) hit = pick[один[0]];
     }
-    if (hit && hit.id) return { ok: true, id: hit.id };
+    if (hit && hit.id) return { ok: true, id: hit.id, type: hit.type || "product" };
   }
   let ids = {};
   if (p) { try { ids = JSON.parse(p.getString("ms_ids") || "{}") || {}; } catch (_) { ids = {}; } }
-  if (ids[key]) return { ok: true, id: ids[key] };
+  // В кэше может лежать «bundle:xxxx» — тип рядом с номером. Старые записи это
+  // просто номер, и они товары: раньше другого и быть не могло.
+  if (ids[key]) {
+    const [a, b] = String(ids[key]).split(":");
+    return b ? { ok: true, id: b, type: a } : { ok: true, id: a, type: "product" };
+  }
 
   const точное = p ? String(p.get("ms_name") || "").trim() : "";
   let m = matchProduct(s, точное ? Object.assign({}, item, { ms_name: точное }) : item);
@@ -214,8 +237,9 @@ function assortment(app, s, item) {
     }
   }
   if (!m.ok) return first;
-  if (p) { ids[key] = m.id; p.set("ms_ids", ids); app.save(p); }
-  return { ok: true, id: m.id };
+  const тип = m.type || "product";
+  if (p) { ids[key] = тип === "product" ? m.id : `${тип}:${m.id}`; p.set("ms_ids", ids); app.save(p); }
+  return { ok: true, id: m.id, type: тип };
 }
 
 // Этап заказа в МоёмСкладе: «Принят, Оплачен» или «Принят, Не оплачен».
@@ -502,7 +526,7 @@ function positionsFor(app, s, o) {
     const st = stemsOf(it);   // в МоёмСкладе номенклатура — стебель: количество стеблей и цена за стебель
     const qty = st.cnt * it.qty;
     const priceKop = Math.round(st.price * 100);
-    positions.push({ quantity: qty, price: priceKop, assortment: meta("product", as.id) });
+    positions.push({ quantity: qty, price: priceKop, assortment: meta(as.type || "product", as.id) });
     posKop += priceKop * qty;
   }
   const delivery = o.get("delivery_price") || 0;

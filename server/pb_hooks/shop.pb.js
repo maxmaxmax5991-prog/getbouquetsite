@@ -465,9 +465,18 @@ routerAdd("GET", "/api/shop/ms-search", (e) => {
   const s = shop.settings($app);
   const q = String(e.request.url.query().get("q") || "").trim();
   if (q.length < 2) return e.json(200, { items: [] });
-  const r = msl.ms(s, "GET", `/entity/product?limit=30&search=${encodeURIComponent(q)}`);
+  // Ищем по всему ассортименту, а не только по товарам: сорт может быть заведён
+  // услугой, модификацией или комплектом, и тогда поиск по /entity/product
+  // не находил его вовсе — выглядело как «в складе нет такой номенклатуры».
+  // У ассортимента search не работает так, как у товаров: он возвращает всё
+  // подряд. Отбираем по вхождению в название.
+  const r = msl.ms(s, "GET", `/entity/assortment?limit=50&filter=${encodeURIComponent("name~" + q)}`);
   if (!r.ok) return e.json(400, { message: r.error || "МойСклад не ответил" });
-  return e.json(200, { items: (r.data.rows || []).map((x) => ({ id: x.id, name: x.name })) });
+  return e.json(200, { items: (r.data.rows || []).map((x) => ({
+    id: x.id, name: x.name,
+    тип: (x.meta && x.meta.type) || "product",
+    архив: !!x.archived,
+  })) });
 }, $apis.requireAuth("managers"));
 
 
