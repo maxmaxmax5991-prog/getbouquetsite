@@ -417,6 +417,15 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div id="statChart"></div>
       </div>
       <div class="card" style="margin-top:12px">
+        <h2>Сверка кассы</h2>
+        <p class="hint">Сравнивает, что сайт посчитал оплаченным, с тем, что реально пришло в банк за этот день. Ловит и обратное: деньги пришли, а заказ висит неоплаченным. Каждое утро в 9:10 приходит в служебный бот, здесь — за любой день.</p>
+        <div class="bar">
+          <input class="in" id="cashDay" type="date" style="width:auto">
+          <button class="btn btn-p" id="cashRun">Сверить</button>
+        </div>
+        <pre id="cashOut" class="hint" style="white-space:pre-wrap;margin:10px 0 0" hidden></pre>
+      </div>
+      <div class="card" style="margin-top:12px">
         <h2>Воронка</h2>
         <p class="hint">Сколько людей дошло до каждого шага. Считаются люди, а не клики.</p>
         <div class="scroll"><table class="t" id="statFunnel"></table></div>
@@ -2183,6 +2192,7 @@ const loadStats = safe(async () => {
 
   // Витрины: смотрим сайты по отдельности или вместе. Заказ помнит свою витрину,
   // счётчик посещений и шаги воронки — тоже (колонка brand).
+  if (!$('#cashDay').value) $('#cashDay').value = mskDate(-1);
   $('#statBrands').innerHTML = (BRANDS || []).length < 2 ? '' :
     [['', 'Вместе']].concat(BRANDS.map(b => [b.id, b.name]))
       .map(([k, t]) => `<button class="chip" data-sb="${k}" aria-pressed="${statBrand === k}">${esc(t)}</button>`).join('');
@@ -2452,6 +2462,15 @@ $('#revBlast').onclick = safe(async () => {
     toast(`Опрос отправлен: ${r.ушло} чел.`);
     loadStats();
   } finally { $('#revBlast').disabled = false; }
+});
+$('#cashRun').onclick = safe(async () => {
+  const d = $('#cashDay').value || mskDate(-1);
+  $('#cashRun').disabled = true;
+  $('#cashOut').hidden = false; $('#cashOut').textContent = 'Спрашиваем банк…';
+  try {
+    const r = await api('/api/shop/cash-check', { method: 'POST', body: { date: d } });
+    $('#cashOut').textContent = r.text || 'Пусто';
+  } finally { $('#cashRun').disabled = false; }
 });
 $('#statBrands').onclick = e => { const b = e.target.closest('[data-sb]'); if (b) { statBrand = b.dataset.sb; loadStats(); } };
 function chartHTML(byDay, byHour) {

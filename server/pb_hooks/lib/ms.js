@@ -161,7 +161,17 @@ function assortment(app, s, item) {
   if (p) {
     const pick = shop.jget(p, "ms_pick") || {};
     const len = (key.match(/^(\d+)-/) || [])[1] || "0";
-    const hit = pick[len] || pick[key];
+    let hit = pick[len] || pick[key];
+    // У товара без ростовок ключ привязки — это количество, и владелец заводит
+    // её обычно для одного размера. Сорт при этом один и тот же на все размеры,
+    // поэтому единственную привязку распространяем на любое количество.
+    // Иначе заказ падал: у «Розовых французских роз» привязка стояла на 5 шт,
+    // заказали 13 — и №3264 не ушёл в МойСклад.
+    if (!hit) {
+      const lengths = shop.jget(p, "lengths");
+      const один = Object.keys(pick).filter((k) => pick[k] && pick[k].id);
+      if (!(Array.isArray(lengths) && lengths.length) && один.length === 1) hit = pick[один[0]];
+    }
     if (hit && hit.id) return { ok: true, id: hit.id };
   }
   let ids = {};

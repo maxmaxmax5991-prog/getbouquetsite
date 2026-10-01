@@ -163,6 +163,33 @@ cronAdd("pay-poll", "* * * * *", () => {
   list.forEach((o) => { try { pay.checkOrder($app, o); } catch (err) { console.log("pay-poll", err); require(`${__hooks}/lib/err.js`).note($app, "Оплата", String(err), "проверка платежей"); } });
 });
 
+// Медленный обход старых неоплаченных. Частая проверка смотрит только три
+// последних часа, а человек нередко платит позже: вернулся вечером, оплатил по
+// ссылке из бота. Такой платёж раньше замечала только утренняя сверка кассы, да
+// и то лишь за вчера. Раз в пятнадцать минут проверяем по двадцать штук за неделю.
+cronAdd("pay-sweep", "*/15 * * * *", () => {
+  const pay = require(`${__hooks}/lib/pay.js`);
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const s = shop.settings($app);
+  let anyKeys = !!(s.get("cp_public_id") && s.get("cp_secret"));
+  if (!anyKeys) {
+    try { anyKeys = $app.findRecordsByFilter("brands", "cp_public_id != '' && cp_secret != ''", "", 1, 0).length > 0; } catch (_) {}
+  }
+  if (!anyKeys) return;
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().replace("T", " ").slice(0, 19);
+  let list = [];
+  try {
+    list = $app.findRecordsByFilter("orders",
+      `payment_method = "card" && payment_status = "unpaid" && status != "cancelled" && created > {:since}`,
+      "created", 20, 0, { since });
+  } catch (err) { console.log("pay-sweep", err); return; }
+  let нашли = 0;
+  list.forEach((o) => {
+    try { if (pay.checkOrder($app, o)) нашли++; } catch (err) { console.log("pay-sweep", o.get("number"), err); }
+  });
+  if (нашли) console.log("pay-sweep: нашлось оплаченных —", нашли);
+});
+
 // Служебная проверка: что банк отвечает по номеру счёта. Только смотрим, ничего не меняем.
 routerAdd("POST", "/api/shop/cp-find", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
