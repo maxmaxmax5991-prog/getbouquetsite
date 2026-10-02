@@ -717,7 +717,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790923664"></script>
+<script src="data.js?v=1790923890"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -859,10 +859,21 @@ const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
 
 /* ---------- sizes: every bouquet has variants [{label, price, photo?}] ---------- */
 const sel = {};   // product id -> chosen label
-// какой размер открыт сразу: сначала заданный в прайсе, иначе 51 штука, иначе первый
-const defLabel = p => p.def_label ? p.def_label : p.lengths
-  ? ((p.variants.find(v => v.len === p.lengths[0] && v.cnt === 51) || p.variants.find(v => v.len === p.lengths[0]) || p.variants[0]).label)
-  : (p.variants.find(v => !v.est) || p.variants[0]).label;
+// Какой размер открыт сразу: сначала заданный в прайсе, иначе 51 штука, иначе первый.
+// Но если он кончился или ещё едет, а в холодильнике есть другая ростовка — открываем
+// её: покупателю надо показать то, что можно забрать сегодня, а не ожидание.
+const свободен = v => v && !v.out && !v.wait_at;
+const defLabel = p => {
+  const было = p.def_label ? p.def_label : p.lengths
+    ? ((p.variants.find(v => v.len === p.lengths[0] && v.cnt === 51) || p.variants.find(v => v.len === p.lengths[0]) || p.variants[0]).label)
+    : (p.variants.find(v => !v.est) || p.variants[0]).label;
+  if (свободен(variant(p, было))) return было;
+  const есть = p.variants.filter(свободен);
+  if (!есть.length) return было;
+  // среди доступных держимся той же длины и количества, что задумано прайсом
+  const v0 = variant(p, было) || {};
+  return (есть.find(v => v.cnt === v0.cnt) || есть[0]).label;
+};
 const curLabel = p => p.variants ? (sel[p.id] || defLabel(p)) : '';
 const variant = (p, label) => p.variants && p.variants.find(v => v.label === label);
 const FLOWER = [[/роз/i, ['роза', 'розы', 'роз']], [/гортенз/i, ['гортензия', 'гортензии', 'гортензий']],
@@ -1945,9 +1956,12 @@ function readyNote(p) {
     new Date(r.date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
   return `Цветы ещё едут с теплицы — будут у нас ${day} к ${r.text}. Доставим с ${from}.`;
 }
-// короткая версия для плашки на фото: длинная ломала бы высоту карточек
+// Короткая версия для плашки на фото: длинная ломала бы высоту карточек.
+// Смотрим на ВЫБРАННЫЙ размер: 60 см в холодильнике — молчим, переключились
+// на 40 см, которые едут, — говорим. Иначе покупатель кладёт в корзину то,
+// чего сегодня нет, и узнаёт об этом только на оформлении.
 function readyShort(p) {
-  const r = readyAny(p);
+  const r = readyPick(p);
   return r ? `В пути с теплицы — доставим с ${hhmm(readyStart(r, p.price || 0))}` : '';
 }
 // когда по такому товару возможна ближайшая доставка: приедет + сборка, кратно шагу
