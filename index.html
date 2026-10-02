@@ -717,7 +717,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790866652"></script>
+<script src="data.js?v=1790922455"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1889,24 +1889,42 @@ function slotList(date, sum) {
 }
 // «Цветы ещё едут с теплицы»: у товара есть время, когда он будет у нас.
 // Раньше этого времени плюс сборка ни доставить, ни отдать нельзя.
-function readyOf(p) {
-  const m = String((p && p.ready_at) || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})$/);
+// Время привоза. У размера оно своё (wait_at), у сорта целиком — старое ready_at.
+// Разница важная: 60 см может лежать в холодильнике, а 50 см ехать — и тогда
+// ждать должен только тот, кто берёт пятидесятку.
+function когдаПривоз(v) {
+  const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
   return m ? { date: m[1], min: +m[2] * 60 + +m[3], text: `${m[2]}:${m[3]}` } : null;
+}
+function readyOf(p) { return когдаПривоз(p && p.ready_at); }
+// Самый поздний привоз среди размеров сорта — для подписи на карточке
+function readyAny(p) {
+  let best = readyOf(p);
+  ((p && p.variants) || []).forEach(v => {
+    const r = когдаПривоз(v.wait_at);
+    if (r && (!best || r.date > best.date || (r.date === best.date && r.min > best.min))) best = r;
+  });
+  return best;
 }
 // самый поздний срок среди того, что лежит в корзине
 function cartReady() {
   let best = null;
+  const позже = r => { if (r && (!best || r.date > best.date || (r.date === best.date && r.min > best.min))) best = r; };
   Object.keys(cart).forEach(k => {
-    const r = readyOf(byId[parseKey(k).id]);
-    if (!r) return;
-    if (!best || r.date > best.date || (r.date === best.date && r.min > best.min)) best = r;
+    const { id, label } = parseKey(k);
+    const p = byId[id];
+    if (!p) return;
+    // ждём только тот размер, который действительно лежит в корзине
+    const v = ((p.variants || []).find(x => x.label === label)) || null;
+    позже(когдаПривоз(v && v.wait_at));
+    позже(readyOf(p));
   });
   return best;
 }
 // Текст для покупателя. И время приезда, и «доставим с» — из одного поля,
 // чтобы на карточке, на странице товара и в оформлении не разъезжались.
 function readyNote(p) {
-  const r = readyOf(p);
+  const r = readyAny(p);
   if (!r) return '';
   const from = hhmm(readyStart(r, p.price || 0));
   const day = r.date === mskNow().date ? 'сегодня' :
@@ -1915,7 +1933,7 @@ function readyNote(p) {
 }
 // короткая версия для плашки на фото: длинная ломала бы высоту карточек
 function readyShort(p) {
-  const r = readyOf(p);
+  const r = readyAny(p);
   return r ? `В пути с теплицы — доставим с ${hhmm(readyStart(r, p.price || 0))}` : '';
 }
 // когда по такому товару возможна ближайшая доставка: приедет + сборка, кратно шагу

@@ -360,6 +360,32 @@ routerAdd("POST", "/api/shop/stock-set", (e) => {
     Object.keys(b.stock).forEach((k) => { if (/^\d+$/.test(k)) out[k] = Math.max(0, Math.round(+b.stock[k] || 0)); });
     p.set("stock", out);
   }
+  // Привоз: по каждой длине сколько едет и когда будет.
+  if (b.incoming !== undefined && b.incoming && typeof b.incoming === "object") {
+    const out = {};
+    Object.keys(b.incoming).forEach((k) => {
+      if (!/^\d+$/.test(k)) return;
+      const row = b.incoming[k] || {};
+      const qty = Math.max(0, Math.round(+row.qty || 0));
+      const at = String(row.at || "").trim();
+      if (!qty) return;                       // ноль — значит строки нет
+      if (at && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(at)) return;
+      out[k] = { qty, at };
+    });
+    p.set("incoming", out);
+  }
+  // «Привезли»: всё, что ехало, прибавляем к остатку и очищаем привоз.
+  if (b.arrived) {
+    const st = shop.stockOf(p), inc = shop.incomingOf(p);
+    Object.keys(inc).forEach((k) => {
+      const q = +((inc[k] || {}).qty) || 0;
+      if (q > 0) st[k] = Math.max(0, (+st[k] || 0) + q);
+    });
+    p.set("stock", st);
+    p.set("incoming", {});
+    p.set("ready_at", "");
+    p.set("fresh_date", shop.moscowToday());   // приехало сегодня — так и помечаем
+  }
   if (b.site_only !== undefined) p.set("site_only", !!b.site_only);
   if (b.fresh !== undefined) p.set("fresh_date", b.fresh ? shop.moscowToday() : "");
   $app.save(p);

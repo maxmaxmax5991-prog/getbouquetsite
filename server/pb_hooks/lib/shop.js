@@ -94,11 +94,37 @@ function stockOf(p) {
   const v = jget(p, "stock");
   return (v && typeof v === "object") ? v : {};
 }
-// Хватает ли стеблей на такой размер (длина-количество)
+// Что едет и когда: {"60": {"qty": 600, "at": "2026-10-02 16:00"}}
+function incomingOf(p) {
+  const v = jget(p, "incoming");
+  return (v && typeof v === "object") ? v : {};
+}
+const разобратьВремя = (v) => {
+  const m = String(v || "").trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})/);
+  return m ? { date: m[1], minutes: +m[2] * 60 + +m[3] } : null;
+};
+const ужеПрошло = (t) => {
+  const now = moscowNow();
+  return t.date < now.date || (t.date === now.date && t.minutes <= now.minutes);
+};
+
+// Когда размер можно отдать покупателю:
+//   null  — уже сейчас (хватает остатка или учёта нет)
+//   {date, minutes} — только с этого времени, ждём привоз
+//   false — не хватит даже с привозом
+function availAt(p, len, cnt) {
+  const have = stockOf(p)[String(len)];
+  if (have === undefined || have === null) return null;      // учёта по этой длине нет
+  if (+have >= +cnt) return null;
+  const inc = incomingOf(p)[String(len)];
+  if (!inc || !(+inc.qty > 0) || +have + +inc.qty < +cnt) return false;
+  const t = разобратьВремя(inc.at);
+  return (!t || ужеПрошло(t)) ? null : t;                    // время прошло — считаем, что привезли
+}
+
+// Хватает ли стеблей на такой размер (длина-количество), с учётом привоза
 function stockOk(p, len, cnt) {
-  const st = stockOf(p);
-  const have = st[String(len)];
-  return have === undefined || have === null || +have >= +cnt;
+  return availAt(p, len, cnt) !== false;
 }
 
 function variantsOf(p, s) {
@@ -113,7 +139,12 @@ function variantsOf(p, s) {
     // с подписью «закончились». Так видно, что сорт есть, просто кончился.
     lengths.forEach((L) => counts.forEach((C) => {
       const price = prices[L] && prices[L][C];
-      if (price) out.push({ label: `${L}-${C}`, price: +price, len: +L, cnt: C, out: stockOk(p, L, C) ? undefined : true });
+      if (!price) return;
+      // ждём привоз — размер продаётся, но доставка не раньше его приезда
+      const когда = availAt(p, L, C);
+      out.push({ label: `${L}-${C}`, price: +price, len: +L, cnt: C,
+        out: когда === false ? true : undefined,
+        wait_at: (когда && когда !== true) ? `${когда.date} ${String(Math.floor(когда.minutes / 60)).padStart(2, "0")}:${String(когда.minutes % 60).padStart(2, "0")}` : undefined });
     }));
     return out;
   }
@@ -281,19 +312,25 @@ function catalog(app, brand) {
 // потом трёхчасовое окно. Начало всегда кратно получасу — так понятнее покупателю.
 // Самый поздний «цветы будут у нас» среди товаров заказа. Пустое — всё на месте.
 // Прошедшее время не считаем: роза уже приехала.
+// Самый поздний привоз среди того, что в корзине. Считаем по КАЖДОЙ длине и
+// только когда без привоза не обойтись: если нужных стеблей хватает в холодильнике,
+// ждать нечего. Раньше время стояло на всём сорте сразу, и наличие в одной длине
+// всё равно блокировало раннюю доставку.
 function readyOf(app, items) {
-  const now = moscowNow();
   let best = null;
+  const позже = (cur) => { if (!best || cur.date > best.date || (cur.date === best.date && cur.minutes > best.minutes)) best = cur; };
   (items || []).forEach((it) => {
     let p = null;
     try { p = app.findRecordById("products", String(it.id || "")); } catch (_) {}
-    const v = p && String(p.get("ready_at") || "").trim();
-    if (!v) return;
-    const m = v.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})/);
-    if (!m) return;
-    const cur = { date: m[1], minutes: +m[2] * 60 + +m[3] };
-    if (cur.date < now.date || (cur.date === now.date && cur.minutes <= now.minutes)) return;
-    if (!best || cur.date > best.date || (cur.date === best.date && cur.minutes > best.minutes)) best = cur;
+    if (!p) return;
+    const m = String(it.label || "").match(/^(\d+)-(\d+)$/);
+    if (m) {
+      const когда = availAt(p, m[1], +m[2] * (+it.qty || 1));
+      if (когда && когда !== true && когда !== false) позже(когда);
+    }
+    // старое поле на весь сорт ещё работает: его проставляли руками
+    const t = разобратьВремя(p.get("ready_at"));
+    if (t && !ужеПрошло(t)) позже(t);
   });
   return best;
 }
@@ -470,8 +507,9 @@ function prepareOrder(app, rec) {
     if (label) {
       const m = String(label).match(/^(\d+)-(\d+)$/);
       if (m && !stockOk(p, m[1], +m[2] * qty)) {
-        const have = stockOf(p)[m[1]];
-        fail(`«${p.get("name")}» ${m[1]} см: осталось ${have} ${have === 1 ? "цветок" : "штук"}. Уменьшите количество.`);
+        const have = +stockOf(p)[m[1]] || 0;
+        const едет = +((incomingOf(p)[m[1]] || {}).qty) || 0;
+        fail(`«${p.get("name")}» ${m[1]} см: осталось ${have} ${have === 1 ? "цветок" : "штук"}${едет ? ` (и ${едет} в пути)` : ""}. Уменьшите количество.`);
       }
       take.push({ p, len: m ? m[1] : "", stems: m ? +m[2] * qty : 0 });
     }
@@ -624,10 +662,18 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
     if (!t.len || !t.stems) return;
     const st = stockOf(t.p);
     if (st[t.len] === undefined || st[t.len] === null) return;   // по этой длине учёта нет
-    st[t.len] = Math.max(0, +st[t.len] - t.stems);
+    // Сначала списываем то, что есть, остаток — из привоза: иначе машина приедет,
+    // а забронированные под этот заказ стебли опять окажутся свободными.
+    const было = +st[t.len] || 0;
+    st[t.len] = Math.max(0, было - t.stems);
+    const нехватка = Math.max(0, t.stems - было);
+    const inc = incomingOf(t.p);
+    if (нехватка && inc[t.len] && +inc[t.len].qty > 0) {
+      inc[t.len] = Object.assign({}, inc[t.len], { qty: Math.max(0, +inc[t.len].qty - нехватка) });
+    }
     try {
-      app.db().newQuery("UPDATE products SET stock = {:v} WHERE id = {:id}")
-        .bind({ v: JSON.stringify(st), id: t.p.id }).execute();
+      app.db().newQuery("UPDATE products SET stock = {:v}, incoming = {:i} WHERE id = {:id}")
+        .bind({ v: JSON.stringify(st), i: JSON.stringify(inc), id: t.p.id }).execute();
     } catch (err) { console.log("остаток", t.p.id, err); }
   });
 }
@@ -824,6 +870,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, stockOf, stockOk,
+  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, stockOf, stockOk, incomingOf, availAt,
   tg, tgPhoto, clientToken, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };
