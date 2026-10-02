@@ -185,7 +185,16 @@ function matchProduct(s, item) {
     return { ok: false, error: `Не нашёл подходящую номенклатуру для «${wanted}».${рядом ? ` Рядом нашлись: ${рядом}` : ""}` };
   }
   // Двое с одинаковым счётом — молча выбирать нельзя: отгрузят не тот сорт.
-  const rivals = scored.filter((x) => x.score === scored[0].score);
+  // Но обычный товар всегда вернее комплекта: «ЛФ-Роза Свит Аваланж 60см» — это
+  // сам сорт, а «ЛФ-Букет из 25 роз Свит Аваланж 60 см» — готовый букет, и
+  // списывать по нему стебли неправильно. Поиск по всему ассортименту добавил
+  // такие пары, которых раньше не было, и №3300 встал на ровном месте.
+  let rivals = scored.filter((x) => x.score === scored[0].score);
+  if (rivals.length > 1) {
+    const товары = rivals.filter((x) => (x.type || "product") === "product");
+    if (товары.length === 1) return { ok: true, id: товары[0].id, name: товары[0].name, type: "product" };
+    if (товары.length) rivals = товары;
+  }
   if (rivals.length > 1) {
     return { ok: false, error: `Для «${item.name}» подходят сразу несколько: ${rivals.slice(0, 3).map((r) => `«${r.name}»`).join(" и ")}. Переименуйте товар на сайте точнее — иначе отгрузят не тот сорт.` };
   }

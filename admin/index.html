@@ -370,7 +370,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <section id="tab-incoming" hidden>
       <div class="bar" style="justify-content:space-between">
         <h2>Цветы в пути</h2>
-        <div class="bar"><button class="btn btn-p" id="inAdd">Добавить строку</button></div>
+        <div class="bar"><button class="btn btn-p" id="dlvNew">+ Новая накладная</button></div>
       </div>
       <div class="card stack" style="margin:0 0 12px">
         <h3 style="margin:0">🌿 Что приехало сегодня</h3>
@@ -382,9 +382,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <span class="hint" id="freshNote" style="margin:0;align-self:center"></span>
         </div>
       </div>
-      <p class="hint">Что едет с поставки и когда будет — <b>по каждой длине отдельно</b>. Это не остаток: что лежит в холодильнике, продаётся как обычно. Ограничение по времени включается только тогда, когда на размер не хватает без привоза — тогда покупателю скажут «доставим с 16:40» и раньше не предложат.<br>Машина пришла — нажмите <b>«Привезли»</b> у строки: количество прибавится к остатку, отметка «в пути» снимется, сорт пометится «сегодня с теплицы».</p>
-      <div id="inRows" class="stack"></div>
-      <div class="bar"><button class="btn btn-p" id="inSave">Сохранить</button></div>
+      <p class="hint">Накладная целиком: поставщик, во сколько придёт машина и что в ней. Пока накладная открыта, её содержимое числится «в пути» — что лежит в холодильнике, продаётся как обычно, а размер, которого без привоза не хватает, покупателю обещают «с 16:40». Пришла машина — одна кнопка <b>«Приехало»</b> на всю накладную: всё прибавится к остаткам.</p>
+      <div id="dlvList" class="stack"></div>
     </section>
     <section id="tab-cats" hidden>
       <div class="card">
@@ -1899,53 +1898,137 @@ $('#chatReply').addEventListener('submit', safe(async e => {
 setInterval(() => { if (auth && tab === 'chat') loadChats(); }, 7000);
 
 /* ---------- в пути ---------- */
-/* Одна строка = сорт + длина: когда приедет и сколько стеблей забронировано.
-   Время приезда у сорта одно (доставка приходит целиком), остаток — по каждой длине. */
-let IN = [];
+/* Накладная = поставщик, время привоза и строки «сорт, длина, сколько».
+   Пока она открыта, её содержимое числится в пути; «Приехало» переносит всё
+   в остатки одним нажатием. Остаток и привоз живут раздельно, см. lib/shop.js. */
+let IN_PRODS = [];
 const loadIncoming = safe(async () => {
   renderFreshCats();
-  const prods = await list('products', '&sort=name');
-  IN = [];
-  prods.forEach(p => {
-    const inc = (p.incoming && typeof p.incoming === 'object') ? p.incoming : {};
-    Object.keys(inc).sort((a, b) => +a - +b).forEach(L => {
-      const row = inc[L] || {};
-      const m = String(row.at || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
-      IN.push({ id: p.id, len: L, qty: row.qty ?? '', date: m ? m[1] : '', time: m ? m[2] : '' });
-    });
-  });
-  renderIncoming(prods);
+  if (!IN_PRODS.length) IN_PRODS = await list('products', '&sort=name');
+  const d = await api('/api/shop/deliveries');
+  DLV = d.rows || [];
+  renderDeliveries();
 });
-let IN_PRODS = [];
-function renderIncoming(prods) {
-  if (prods) IN_PRODS = prods;
-  const opts = (sel) => IN_PRODS.map(p => `<option value="${p.id}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}${p.active ? '' : ' (скрыт)'}</option>`).join('');
-  const lensOf = (id) => {
-    const p = IN_PRODS.find(x => x.id === id);
-    return Array.isArray(p && p.lengths) ? p.lengths : [];
+
+/* ---------- накладные ---------- */
+let DLV = [];
+const мск = (plus = 0) => new Date(Date.now() + 3 * 3600e3 + plus * 864e5).toISOString().slice(0, 10);
+
+function строкаНакладной(d, l, i) {
+  const p = IN_PRODS.find(x => x.id === l.product) || {};
+  const lens = Array.isArray(p.lengths) ? p.lengths : [];
+  const есть = ((p.stock && typeof p.stock === 'object') ? p.stock : {})[l.len];
+  return `<div class="row" data-dl="${i}" style="align-items:flex-end;gap:8px">
+    <label class="f" style="flex:1;min-width:180px">Сорт<select class="in sm" data-dp>${
+      IN_PRODS.map(x => `<option value="${x.id}"${x.id === l.product ? ' selected' : ''}>${esc(x.name)}${x.active ? '' : ' (скрыт)'}</option>`).join('')
+    }</select></label>
+    <label class="f" style="max-width:110px">Длина<select class="in sm" data-dlen>${
+      (lens.length ? lens : ['']).map(L => `<option value="${L}"${String(L) === String(l.len) ? ' selected' : ''}>${L ? L + ' см' : '—'}</option>`).join('')
+    }</select></label>
+    <label class="f" style="max-width:110px">Стеблей<input class="in sm num" data-dq type="number" min="0" value="${l.qty ?? ''}"></label>
+    <label class="f" style="max-width:100px">Сейчас есть<input class="in sm num" value="${есть ?? '—'}" disabled></label>
+    ${d.done ? '' : `<button class="btn btn-g btn-s" data-dlrm="${i}" aria-label="Убрать строку">✕</button>`}
+  </div>`;
+}
+
+function renderDeliveries() {
+  const карточка = (d) => {
+    const m = String(d.at || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
+    const стеблей = (d.lines || []).reduce((n, l) => n + (+l.qty || 0), 0);
+    return `<div class="card stack" data-dlv="${d.id}" style="border-left:4px solid ${d.done ? 'var(--line)' : 'var(--accent)'}">
+      <div class="row" style="align-items:flex-end;gap:10px">
+        <label class="f" style="flex:1;min-width:200px">Поставщик<input class="in" data-dsup value="${esc(d.supplier || '')}"${d.done ? ' disabled' : ''}></label>
+        <label class="f" style="max-width:160px">Привезут<input class="in" data-ddate type="date" value="${m ? m[1] : мск()}"${d.done ? ' disabled' : ''}></label>
+        <label class="f" style="max-width:120px">во сколько<input class="in" data-dtime type="time" step="300" value="${m ? m[2] : '14:00'}"${d.done ? ' disabled' : ''}></label>
+        <span class="hint" style="margin:0;align-self:center">${(d.lines || []).length} строк, ${стеблей} стеблей</span>
+      </div>
+      ${d.done
+        ? `<div class="hint" style="margin:0">✅ Привезли${d.done_at ? ', ' + new Date(d.done_at).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : ''} — остатки уже прибавлены</div>`
+        : ''}
+      <div class="stack" data-dlines>${(d.lines || []).map((l, i) => строкаНакладной(d, l, i)).join('')}</div>
+      <div class="bar">
+        ${d.done ? '' : `<button class="btn btn-g btn-s" data-dladd>+ Строка</button>
+        <button class="btn btn-g" data-dlsave>Сохранить</button>
+        <button class="btn btn-p" data-dlcame>🚚 Приехало</button>`}
+        <button class="btn btn-g btn-s" data-dldel>Удалить</button>
+      </div>
+    </div>`;
   };
-  $('#inRows').innerHTML = IN.length ? IN.map((r, i) => `
-    <div class="card row" data-in="${i}" style="align-items:flex-end;gap:10px">
-      <label class="f" style="flex:1;min-width:180px">Сорт<select class="in" data-p>${opts(r.id)}</select></label>
-      <label class="f" style="max-width:120px">Длина<select class="in" data-l>${lensOf(r.id).map(L => `<option value="${L}"${String(L) === String(r.len) ? ' selected' : ''}>${L ? L + ' см' : 'без длины'}</option>`).join('') || '<option value="">—</option>'}</select></label>
-      <label class="f" style="max-width:130px">Стеблей<input class="in num" data-q type="number" min="0" placeholder="без учёта" value="${r.qty}"></label>
-      <label class="f" style="max-width:160px">Приедет<input class="in" data-d type="date" value="${r.date}"></label>
-      <label class="f" style="max-width:120px">во сколько<input class="in" data-t type="time" step="300" value="${r.time}"></label>
-      <label class="f" style="max-width:110px">Сейчас есть<input class="in num" value="${(((IN_PRODS.find(x => x.id === r.id) || {}).stock || {})[r.len] ?? '—')}" disabled></label>
-      <button class="btn btn-p btn-s" data-incame="${i}" title="Машина пришла: прибавить к остатку">Привезли</button>
-      <button class="btn btn-g btn-s" data-inrm="${i}">Убрать</button>
-    </div>`).join('') : '<div class="empty">Ничего не едет. Нажмите «Добавить строку».</div>';
+  const едут = DLV.filter(d => !d.done), были = DLV.filter(d => d.done);
+  $('#dlvList').innerHTML = (едут.length ? едут.map(карточка).join('') : '<div class="empty">Ничего не едет. Нажмите «Новая накладная».</div>')
+    + (были.length ? `<h3 style="margin:18px 0 6px">Привезённые</h3>` + были.slice(0, 10).map(карточка).join('') : '');
 }
-function readIncoming() {
-  $$('#inRows [data-in]').forEach(el => {
-    const r = IN[+el.dataset.in];
-    r.id = el.querySelector('[data-p]').value;
-    r.len = el.querySelector('[data-l]').value;
-    r.qty = el.querySelector('[data-q]').value === '' ? '' : Math.max(0, +el.querySelector('[data-q]').value || 0);
-    r.date = el.querySelector('[data-d]').value;
-    r.time = el.querySelector('[data-t]').value;
-  });
+
+// собрать накладную из полей карточки
+function читатьНакладную(box) {
+  const d = DLV.find(x => x.id === box.dataset.dlv) || {};
+  return {
+    id: d.id,
+    supplier: box.querySelector('[data-dsup]').value.trim(),
+    at: `${box.querySelector('[data-ddate]').value} ${box.querySelector('[data-dtime]').value}`,
+    lines: [...box.querySelectorAll('[data-dl]')].map(r => ({
+      product: r.querySelector('[data-dp]').value,
+      len: r.querySelector('[data-dlen]').value,
+      qty: Math.max(0, +r.querySelector('[data-dq]').value || 0),
+    })).filter(l => l.product && l.qty),
+  };
 }
+
+$('#dlvNew').onclick = safe(async () => {
+  if (!IN_PRODS.length) IN_PRODS = await list('products', '&sort=name');
+  await api('/api/shop/delivery', { method: 'POST', body: { supplier: 'Новый поставщик', at: `${мск()} 14:00`, lines: [] } });
+  loadIncoming();
+});
+
+$('#dlvList').addEventListener('change', safe(async e => {
+  if (!e.target.matches('[data-dp]')) return;        // у другого сорта свои длины
+  const box = e.target.closest('[data-dlv]');
+  const d = DLV.find(x => x.id === box.dataset.dlv);
+  Object.assign(d, читатьНакладную(box));
+  renderDeliveries();
+}));
+
+$('#dlvList').addEventListener('click', safe(async e => {
+  const box = e.target.closest('[data-dlv]');
+  if (!box) return;
+  const d = DLV.find(x => x.id === box.dataset.dlv);
+
+  if (e.target.closest('[data-dladd]')) {
+    Object.assign(d, читатьНакладную(box));
+    const p = IN_PRODS[0] || {};
+    d.lines.push({ product: p.id, len: (Array.isArray(p.lengths) && p.lengths[0]) || '', qty: '' });
+    return renderDeliveries();
+  }
+  const rm = e.target.closest('[data-dlrm]');
+  if (rm) {
+    Object.assign(d, читатьНакладную(box));
+    d.lines.splice(+rm.dataset.dlrm, 1);
+    return renderDeliveries();
+  }
+  if (e.target.closest('[data-dlsave]')) {
+    const body = читатьНакладную(box);
+    if (!body.supplier) return toast('Укажите поставщика', true);
+    await api('/api/shop/delivery', { method: 'POST', body });
+    toast('Накладная сохранена');
+    return loadIncoming();
+  }
+  if (e.target.closest('[data-dlcame]')) {
+    const body = читатьНакладную(box);
+    if (!body.lines.length) return toast('В накладной нет строк', true);
+    if (!confirm(`Привезли «${body.supplier}»? ${body.lines.length} строк прибавится к остаткам. Отменить будет нельзя.`)) return;
+    await api('/api/shop/delivery', { method: 'POST', body });          // сначала сохраняем правки
+    const r = await api('/api/shop/delivery-arrive', { method: 'POST', body: { id: d.id } });
+    toast(`Прибавлено: ${r.стеблей} стеблей по ${r.товаров} сортам`);
+    return loadIncoming();
+  }
+  if (e.target.closest('[data-dldel]')) {
+    if (!confirm('Удалить накладную? Остатки не изменятся.')) return;
+    await api('/api/shop/delivery-del', { method: 'POST', body: { id: d.id } });
+    toast('Удалено');
+    return loadIncoming();
+  }
+}));
+
 // «Приехало сегодня» по разделам: завоз каждый раз свой
 let FRESHSEL = [];
 function renderFreshCats() {
@@ -1974,58 +2057,6 @@ $('#freshNone').onclick = safe(async () => {
   FRESHSEL = []; renderFreshCats();
   $('#freshNote').textContent = '';
   toast(`Плашка снята: ${r.count}`);
-});
-$('#inAdd').onclick = safe(async () => {
-  if (!IN_PRODS.length) IN_PRODS = await list('products', '&sort=name');
-  readIncoming();
-  const p = IN_PRODS[0] || {};
-  const lens = Array.isArray(p.lengths) ? p.lengths : [];
-  const d = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
-  IN.push({ id: p.id, len: lens[0] ?? '', qty: '', date: d, time: '15:00' });
-  renderIncoming();
-});
-$('#inRows').addEventListener('change', safe(async e => {
-  readIncoming();
-  if (e.target.matches('[data-p]')) renderIncoming();   // у другого сорта свои длины
-}));
-$('#inRows').addEventListener('click', safe(async e => {
-  const came = e.target.closest('[data-incame]');
-  if (came) {
-    readIncoming();
-    const r = IN[+came.dataset.incame];
-    const p = IN_PRODS.find(x => x.id === r.id) || {};
-    if (!confirm(`Привезли «${p.name || ''}»? Всё, что по нему ехало, прибавится к остатку.`)) return;
-    await api('/api/shop/stock-set', { method: 'POST', body: { product: r.id, arrived: true } });
-    toast('Прибавили к остатку');
-    return loadIncoming();
-  }
-  const b = e.target.closest('[data-inrm]');
-  if (!b) return;
-  readIncoming();
-  const r = IN[+b.dataset.inrm];
-  // «Убрать» = строка заведена по ошибке: ничего к остатку не прибавляем
-  IN = IN.filter((x, i) => i !== +b.dataset.inrm);
-  const left = {};
-  IN.filter(x => x.id === r.id).forEach(x => { if (x.len !== '' && x.qty !== '') left[x.len] = { qty: +x.qty, at: `${x.date} ${x.time}` }; });
-  await api('/api/shop/stock-set', { method: 'POST', body: { product: r.id, incoming: left } });
-  renderIncoming();
-  toast('Строка убрана');
-}));
-$('#inSave').onclick = safe(async () => {
-  readIncoming();
-  const bad = IN.find(r => !r.id || !r.date || !r.time || r.len === '' || r.qty === '');
-  if (bad) return toast('В каждой строке нужны сорт, длина, количество, дата и время', true);
-  // собираем привоз по товару: у каждой длины своё количество и своё время
-  const byProd = {};
-  IN.forEach(r => {
-    byProd[r.id] = byProd[r.id] || {};
-    byProd[r.id][r.len] = { qty: +r.qty, at: `${r.date} ${r.time}` };
-  });
-  for (const id of Object.keys(byProd)) {
-    await api('/api/shop/stock-set', { method: 'POST', body: { product: id, incoming: byProd[id] } });
-  }
-  toast('Привоз сохранён');
-  loadIncoming();
 });
 
 const loadCats = safe(async () => { await loadSettings0(); CATUSE = await list("products", "&fields=id,category"); renderCats(); });

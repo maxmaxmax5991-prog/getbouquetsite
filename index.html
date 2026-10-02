@@ -717,7 +717,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1790922657"></script>
+<script src="data.js?v=1790923664"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1897,14 +1897,25 @@ function когдаПривоз(v) {
   return m ? { date: m[1], min: +m[2] * 60 + +m[3], text: `${m[2]}:${m[3]}` } : null;
 }
 function readyOf(p) { return когдаПривоз(p && p.ready_at); }
-// Самый поздний привоз среди размеров сорта — для подписи на карточке
+// Плашка «в пути» на карточке — только когда СЕЙЧАС купить нечего.
+// Если 40 см лежит в холодильнике, а 50 см едет, карточка не должна кричать
+// «в пути»: сорт в наличии, просто не во всех ростовках. Про ожидание скажет
+// сам размер, когда покупатель его выберет.
 function readyAny(p) {
+  const вар = (p && p.variants) || [];
+  const естьСейчас = вар.some(v => !v.out && !v.wait_at);
+  if (естьСейчас) return null;
   let best = readyOf(p);
-  ((p && p.variants) || []).forEach(v => {
+  вар.forEach(v => {
     const r = когдаПривоз(v.wait_at);
     if (r && (!best || r.date > best.date || (r.date === best.date && r.min > best.min))) best = r;
   });
   return best;
+}
+// Привоз у ВЫБРАННОГО размера — для подписи рядом с кнопкой и на странице товара
+function readyPick(p, label) {
+  const v = ((p && p.variants) || []).find(x => x.label === (label || curLabel(p)));
+  return когдаПривоз(v && v.wait_at) || readyOf(p);
 }
 // самый поздний срок среди того, что лежит в корзине
 function cartReady() {
@@ -1923,8 +1934,11 @@ function cartReady() {
 }
 // Текст для покупателя. И время приезда, и «доставим с» — из одного поля,
 // чтобы на карточке, на странице товара и в оформлении не разъезжались.
+// На странице товара размер уже выбран — говорим про него, а не про сорт целиком.
+// Выбрал 40 см, которые есть, — ни слова про ожидание; переключился на 50 см,
+// которые едут, — тут же появится «доставим с 16:40».
 function readyNote(p) {
-  const r = readyAny(p);
+  const r = readyPick(p);
   if (!r) return '';
   const from = hhmm(readyStart(r, p.price || 0));
   const day = r.date === mskNow().date ? 'сегодня' :

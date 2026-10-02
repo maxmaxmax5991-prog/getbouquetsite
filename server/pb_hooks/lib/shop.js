@@ -115,6 +115,7 @@ const ужеПрошло = (t) => {
 function availAt(p, len, cnt) {
   const have = stockOf(p)[String(len)];
   if (have === undefined || have === null) return null;      // учёта по этой длине нет
+  // Остаток бывает отрицательным: столько стеблей уже обещано из привоза.
   if (+have >= +cnt) return null;
   const inc = incomingOf(p)[String(len)];
   if (!inc || !(+inc.qty > 0) || +have + +inc.qty < +cnt) return false;
@@ -662,18 +663,15 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
     if (!t.len || !t.stems) return;
     const st = stockOf(t.p);
     if (st[t.len] === undefined || st[t.len] === null) return;   // по этой длине учёта нет
-    // Сначала списываем то, что есть, остаток — из привоза: иначе машина приедет,
-    // а забронированные под этот заказ стебли опять окажутся свободными.
-    const было = +st[t.len] || 0;
-    st[t.len] = Math.max(0, было - t.stems);
-    const нехватка = Math.max(0, t.stems - было);
-    const inc = incomingOf(t.p);
-    if (нехватка && inc[t.len] && +inc[t.len].qty > 0) {
-      inc[t.len] = Object.assign({}, inc[t.len], { qty: Math.max(0, +inc[t.len].qty - нехватка) });
-    }
+    // Списываем из остатка и даём ему уйти в минус. Минус — это стебли, уже
+    // обещанные покупателям из машины, которая ещё едет: когда она придёт и
+    // привоз прибавится, всё сойдётся само.
+    // Трогать сам привоз нельзя: он пересчитывается из накладных, и списание
+    // оттуда затёрлось бы при первой же правке накладной.
+    st[t.len] = (+st[t.len] || 0) - t.stems;
     try {
-      app.db().newQuery("UPDATE products SET stock = {:v}, incoming = {:i} WHERE id = {:id}")
-        .bind({ v: JSON.stringify(st), i: JSON.stringify(inc), id: t.p.id }).execute();
+      app.db().newQuery("UPDATE products SET stock = {:v} WHERE id = {:id}")
+        .bind({ v: JSON.stringify(st), id: t.p.id }).execute();
     } catch (err) { console.log("остаток", t.p.id, err); }
   });
 }
