@@ -1903,6 +1903,9 @@ setInterval(() => { if (auth && tab === 'chat') loadChats(); }, 7000);
    в остатки одним нажатием. Остаток и привоз живут раздельно, см. lib/shop.js. */
 let IN_PRODS = [];
 const loadIncoming = safe(async () => {
+  // разделы грузятся на вкладке настроек; если туда не заходили, список пуст
+  // и блок «что приехало сегодня» писал «разделы ещё не заведены»
+  if (!CATS.length) { try { CATS = await list('categories', '&sort=sort'); } catch (_) {} }
   renderFreshCats();
   if (!IN_PRODS.length) IN_PRODS = await list('products', '&sort=name');
   const d = await api('/api/shop/deliveries');
