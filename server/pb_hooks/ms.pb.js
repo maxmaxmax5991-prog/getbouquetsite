@@ -130,6 +130,33 @@ routerAdd("POST", "/api/shop/ms-push", (e) => {
   return e.json(200, { ok: true, ms_id: r.id });
 }, $apis.requireAuth("managers"));
 
+// Проверка привязок к складу: какие сорта склад не опознает или опознаёт двояко.
+// Запускается кнопкой и раз в сутки сторожем — чтобы узнавать до продажи, а не после.
+routerAdd("POST", "/api/shop/ms-check", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const b = e.requestInfo().body || {};
+  const r = require(`${__hooks}/lib/ms.js`).проверитьПривязки($app, +b.limit || 40);
+  if (!r.ok) return e.json(400, { message: r.error });
+  return e.json(200, r);
+}, $apis.requireAuth("managers"));
+
+// Раз в сутки, 07:10 по Москве: если какой-то сорт склад не опознаёт —
+// говорим утром, пока никто его не купил.
+cronAdd("ms-check", "10 4 * * *", () => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  try {
+    const s = shop.settings($app);
+    if (!s.get("ms_enabled") || !s.get("ms_token")) return;
+    const r = require(`${__hooks}/lib/ms.js`).проверитьПривязки($app, 40);
+    if (!r.ok || !r.беда.length) return;
+    const текст = "⚠️ Склад не опознаёт эти сорта — заказ с ними встанет:\n\n"
+      + r.беда.slice(0, 12).map((x) => `• ${x.товар} ${x.размер}\n  ${x.причина}`).join("\n")
+      + "\n\nПочинить: Товары → сорт → «Номенклатура в МоёмСкладе» у нужной длины.";
+    shop.adminIds(s).forEach((chat) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: chat, text: текст }));
+  } catch (err) { console.log("ms-check", err); }
+});
+
 // Заменить сорт в позиции заказа. Флорист собрал букет из другого сорта —
 // деньги и количество те же, но в МоёмСкладе должна списаться правильная номенклатура.
 routerAdd("POST", "/api/shop/order-swap", (e) => {

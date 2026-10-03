@@ -714,4 +714,61 @@ function markPaid(app, o) {
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { state: meta("state", st) });
 }
 
-module.exports = { stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+// Проверка привязок заранее. Про неоднозначный сорт («Космик» — Росс или Ред?)
+// раньше узнавали только когда покупатель уже заплатил: заказ вставал, и его
+// приходилось разбирать вручную. Теперь то же самое можно спросить у склада
+// в спокойное время — и починить до того, как кто-то купит.
+// Смотрим только непривязанные и незапомненные пары: остальные и так рабочие,
+// а лишние запросы упираются в ограничение склада.
+function проверитьПривязки(app, предел) {
+  const s = shop.settings(app);
+  if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция с МоимСкладом выключена." };
+  let товары = [];
+  try { товары = app.findRecordsByFilter("products", "active = true", "name", 300, 0); } catch (err) { return { ok: false, error: String(err) }; }
+
+  const беда = [], проверено = [];
+  let запросов = 0;
+  const лимит = Math.max(1, Math.min(60, +предел || 40));
+
+  for (const p of товары) {
+    // Микс и готовые букеты с расписанным составом в подборе не участвуют:
+    // их позиции собираются из ms_mix / ms_parts, а не ищутся по названию.
+    const микс = shop.jget(p, "ms_mix");
+    const части = shop.jget(p, "ms_parts");
+    if ((Array.isArray(микс) && микс.length) || (Array.isArray(части) && части.length)) continue;
+    const lengths = shop.jget(p, "lengths") || [];
+    const pick = shop.jget(p, "ms_pick") || {};
+    let ids = {};
+    try { ids = JSON.parse(p.getString("ms_ids") || "{}") || {}; } catch (_) { ids = {}; }
+
+    // размеры товара: по ростовкам или по количеству
+    const размеры = (Array.isArray(lengths) && lengths.length)
+      ? lengths.map((L) => ({ label: `${L}-0`, len: String(L) }))
+      : (shop.jget(p, "variants") || []).filter((v) => v && v.label).map((v) => ({ label: String(v.label), len: "0" }));
+
+    const виделиДлину = {};
+    for (const r of размеры) {
+      if (виделиДлину[r.len + "|" + (r.len === "0" ? r.label : "")]) continue;
+      виделиДлину[r.len + "|" + (r.len === "0" ? r.label : "")] = 1;
+      if (pick[r.len] || pick[r.label] || ids[r.label]) continue;      // уже привязано или запомнено
+      if (запросов >= лимит) return { ok: true, беда, проверено, ещё: true };
+      запросов++;
+      const m = matchProduct(s, Object.assign(
+        { id: p.id, name: p.get("name"), label: r.label, price: p.get("price") || 0 },
+        p.get("ms_name") ? { ms_name: String(p.get("ms_name")).trim() } : {}));
+      const где = r.len !== "0" ? `${r.len} см` : r.label;
+      if (m.ok) { проверено.push(`${p.get("name")} ${где} → ${m.name}`); continue; }
+      // «Склад не ответил» — это не беда с сортом, а наша же спешка: сорок
+      // запросов подряд упираются в ограничение. Прерываемся и доскажем позже,
+      // иначе в отчёт попадут два десятка выдуманных проблем.
+      const текст = String(m.error || "");
+      if (/Превышено ограничение|Нет связи|не ответил/i.test(текст)) {
+        return { ok: true, беда, проверено, ещё: true, пауза: true };
+      }
+      беда.push({ товар: p.get("name"), размер: где, причина: текст || "не нашли" });
+    }
+  }
+  return { ok: true, беда, проверено, ещё: false };
+}
+
+module.exports = { проверитьПривязки, stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };

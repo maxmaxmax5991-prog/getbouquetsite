@@ -688,7 +688,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
   </div>
   <div class="swl"><button class="sw" id="msOn" role="switch" aria-checked="false" aria-label="Отправлять заказы"></button>Отправлять заказы в МойСклад</div>
   <p class="hint">Каждый заказ уходит в «Заказы покупателей» в течение минуты: позиции и цены, покупатель (контрагент создаётся автоматически), адрес или самовывоз, дата и интервал, текст открытки и способ оплаты.</p>
-  <div class="bar"><button class="btn btn-p" id="msSave">Сохранить</button><button class="btn btn-g" id="msTest">Проверить и получить списки</button></div>
+  <div class="bar"><button class="btn btn-p" id="msSave">Сохранить</button><button class="btn btn-g" id="msTest">Проверить и получить списки</button><button class="btn btn-g" id="msCheck">Проверить привязки сортов</button></div>
+  <pre id="msCheckOut" class="hint" style="white-space:pre-wrap;margin:10px 0 0" hidden></pre>
+  <p class="hint">«Проверить привязки сортов» спрашивает у склада про каждый сорт, который открыт на сайте: опознаёт ли он его и однозначно ли. Если нет — заказ с этим сортом встанет уже после оплаты, как было с «Космиком» (склад видел и Росс, и Ред, и отказывался выбирать). Та же проверка идёт сама каждое утро в 7:10, о находках сообщаем в бот.</p>
 </div>
 <div class="card stack">
   <h2>Бот для покупателей и рассылка</h2>
@@ -3348,6 +3350,21 @@ function msFill(orgId, orgName, storeId, storeName) {
   $('#msOrg').innerHTML = opts(MSREFS && MSREFS.organizations, orgId, orgName);
   $('#msStore').innerHTML = opts(MSREFS && MSREFS.stores, storeId, storeName);
 }
+$('#msCheck').onclick = safe(async () => {
+  const out = $('#msCheckOut');
+  out.hidden = false; out.textContent = 'Спрашиваем склад…';
+  $('#msCheck').disabled = true;
+  try {
+    const r = await api('/api/shop/ms-check', { method: 'POST', body: {} });
+    const беда = r.беда || [];
+    out.textContent = (беда.length
+      ? '⚠️ Склад не опознаёт:\n' + беда.map(x => `• ${x.товар} ${x.размер}\n   ${x.причина}`).join('\n')
+      : '✅ Все сорта опознаются однозначно.')
+      + (r.проверено && r.проверено.length ? `\n\nПроверено впервые: ${r.проверено.length}\n` + r.проверено.join('\n') : '')
+      + (r.пауза ? '\n\nСклад попросил сбавить темп — проверено не всё. Нажмите ещё раз через минуту.'
+         : r.ещё ? '\n\nПроверено не всё — нажмите ещё раз, продолжим.' : '');
+  } finally { $('#msCheck').disabled = false; }
+});
 $('#msTest').onclick = safe(async () => {
   const tok = $('#msTok').value.trim();
   if (tok) { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { ms_token: tok } }); $('#msTok').value = ''; $('#msTok').placeholder = 'Токен сохранён. Вставьте новый, чтобы заменить'; }
