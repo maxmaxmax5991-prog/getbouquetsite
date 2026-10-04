@@ -449,6 +449,9 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .notice.paid{border-color:var(--leaf);color:var(--ink)}
 .notice.resume{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-color:var(--sale);color:var(--ink)}
 .sub-box.warn{border-color:var(--sale);background:rgba(224,23,138,.07)}
+/* вход — первый шаг оформления: на всю ширину формы, без центровки */
+#orderForm #idBox{max-width:none;margin:0}
+#stepTwo{margin-top:2px}
 .sub-box.warn b{color:var(--sale)}
 .pd-shots{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:2px}
 .pd-shots button{flex:none;width:64px;height:64px;padding:0;border-radius:12px;overflow:hidden;border:2px solid transparent;background:var(--soft);cursor:pointer}
@@ -717,7 +720,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791043557"></script>
+<script src="data.js?v=1791122150"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -837,6 +840,38 @@ const store = {
   get(k, d) { try { const v = JSON.parse(localStorage.getItem('vk.' + k)); return v ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem('vk.' + k, JSON.stringify(v)); } catch {} }
 };
+
+/* Черновик формы заказа.
+   Вход через Телеграм открывается в другом приложении, и браузер на телефоне
+   нередко выгружает нашу страницу. Человек возвращался к пустой форме и
+   заполнял всё заново. Теперь поля запоминаются на ходу и возвращаются сами —
+   это же спасает при случайном обновлении и при «назад». */
+const ПОЛЯ = ['fName','fPhone','fTo','fStreet','fHouse','fBlock','fEntrance','fFloor','fFlat','fIntercom','fNote','fDnote','fDate','fTime','fZone'];
+function сохранитьЧерновик() {
+  const d = { тип: getType, поля: {} };
+  ПОЛЯ.forEach(id => { const el = $('#' + id); if (el && el.value) d.поля[id] = el.value; });
+  d.at = Date.now();
+  store.set('draft', d);
+}
+function черновик() {
+  const d = store.get('draft', null);
+  // сутки — разумный срок: вчерашняя дата доставки всё равно не подойдёт
+  if (!d || !d.at || Date.now() - d.at > 24 * 3600e3) return null;
+  return d;
+}
+// Дату и интервал возвращаем отдельно: список интервалов строится позже
+function вернутьЧерновик(сДатой) {
+  const d = черновик(); if (!d) return;
+  Object.keys(d.поля || {}).forEach(id => {
+    if (!сДатой && (id === 'fDate' || id === 'fTime')) return;
+    if (сДатой && id !== 'fDate' && id !== 'fTime') return;
+    const el = $('#' + id);
+    if (!el || el.value) return;
+    if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === d.поля[id])) return;
+    el.value = d.поля[id];
+  });
+}
+const забытьЧерновик = () => { try { store.set('draft', null); } catch (_) {} };
 
 const CATS = [
   ['single', 'Одноголовые розы'], ['kenya', 'Кенийские розы'], ['french', 'Французские розы'], ['hydrangea', 'Гортензии'],
@@ -1627,6 +1662,16 @@ function renderCart() {
     const closedNote = DEL && !DEL.accepting ? `<p class="demo-note" style="color:var(--sale);font-size:13.5px">Сейчас мы не принимаем заказы через сайт${API && API.phone ? ` — позвоните: ${esc(API.phone)}` : ''}.</p>` : '';
     body.innerHTML = `<button class="back" id="toList">${icon('left')}К корзине</button>${closedNote}
       <form class="form" id="orderForm" novalidate>
+        ${API && !ME ? `<div class="sub-box" id="idBox">
+          <b>Шаг 1. Подтвердите, что это вы</b>
+          <span>Одно нажатие: откроется бот, подтвердите вход — и возвращайтесь сюда. Заказ попадёт в ваш кабинет, туда же придут статус и фото букета.</span>
+          <div class="bar" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            ${API.bot ? `<a class="btn btn-ghost btn-sm" id="idTg" target="_blank" rel="noopener" hidden>Войти через Телеграм</a>` : ""}
+            ${API.maxBot ? `<a class="btn btn-ghost btn-sm" id="idMax" target="_blank" rel="noopener" hidden>Войти через MAX</a>` : ""}
+          </div>
+          <p class="addr-hint" id="idWait" hidden></p>
+        </div>
+        <span class="lbl" id="stepTwo">Шаг 2. Куда и когда везти</span>` : ""}
         ${PICKUP ? `<div><span class="lbl">Как получить</span><div class="pay-seg" id="getSeg">
           <button type="button" data-get="delivery" aria-pressed="true">Доставка</button>
           <button type="button" data-get="pickup" aria-pressed="false">Самовывоз</button>
@@ -1656,15 +1701,6 @@ function renderCart() {
         </div>
         <p class="addr-hint" id="timeNote" hidden></p>
 ${payChoice()}
-        ${API && !ME ? `<div class="sub-box" id="idBox">
-          <b>Подтвердите, что это вы</b>
-          <span>Заказ сразу попадёт в ваш кабинет: после оплаты вы увидите его статус, фото букета и сможете доплатить, если что-то пойдёт не так.</span>
-          <div class="bar" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-            ${API.bot ? `<a class="btn btn-ghost btn-sm" id="idTg" target="_blank" rel="noopener" hidden>Войти через Телеграм</a>` : ""}
-            ${API.maxBot ? `<a class="btn btn-ghost btn-sm" id="idMax" target="_blank" rel="noopener" hidden>Войти через MAX</a>` : ""}
-          </div>
-          <p class="addr-hint" id="idWait" hidden></p>
-        </div>` : ""}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
         ${getType === 'pickup' ? '' : `<label for="fDnote">Комментарий курьеру<textarea id="fDnote" name="dnote" placeholder="Например: позвонить за час, оставить на охране, не звонить в дверь" maxlength="500"></textarea></label>`}
         <p class="demo-note" id="fErr" style="color:var(--sale);font-size:13.5px;text-align:left" hidden></p>
@@ -1692,17 +1728,32 @@ ${payChoice()}
       try { window.ev && window.ev('checkout', ''); } catch (_) {}
     };
     const afterLogin = () => {
-      const box = $('#idBox'); if (box) box.hidden = true;
+      // шаг пройден — не прячем молча, а показываем, что он закрыт
+      const box = $('#idBox');
+      if (box) box.innerHTML = `<b>Шаг 1 пройден ✓</b><span>Вы вошли${ME && ME.name ? `, ${esc(ME.name)}` : ''}. Заказ появится в вашем кабинете.</span>`;
+      const two = $('#stepTwo'); if (two) two.hidden = true;
       if (ME) {
         if (ME.name && !$('#fName').value) $('#fName').value = ME.name;
         if (ME.phone && !$('#fPhone').value) $('#fPhone').value = ME.phone;
       }
       const e = $('#fErr'); if (e) { e.textContent = ''; e.hidden = true; }
+      сохранитьЧерновик();
     };
     prepLogin('#idTg', '#idMax', '#idWait', afterLogin);
     if (PAY && PAY.card) loadWidget();      // пока заполняют форму, окно оплаты уже готово
     bindAddress();
+    вернутьЧерновик(false);                 // имя, телефон, адрес — до построения интервалов
+    fillIntervals();
+    вернутьЧерновик(true);                  // дата и время — когда список интервалов готов
     fillIntervals(); recalc();
+    // запоминаем на ходу: вход в Телеграм уводит со страницы, и браузер её выгружает
+    const форма = $('#orderForm');
+    if (форма) {
+      let ждём = 0;
+      const запомнить = () => { clearTimeout(ждём); ждём = setTimeout(сохранитьЧерновик, 400); };
+      форма.addEventListener('input', запомнить);
+      форма.addEventListener('change', запомнить);
+    }
 
     $('#fDate').onchange = () => { fillIntervals(); recalc(); };
     if ($('#fZone')) $('#fZone').onchange = recalc;
@@ -2169,7 +2220,7 @@ cartDlg.addEventListener('submit', async e => {
   if (API && !ME) {
     const box = $('#idBox');
     if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    return err('Сначала подтвердите, что это вы — войдите через мессенджер.');
+    return err('Начните с шага 1 — подтвердите, что это вы. Заполненное не потеряется.');
   }
 
   // при расчёте по километрам заказ уходит только с найденным на карте адресом
@@ -2198,6 +2249,7 @@ cartDlg.addEventListener('submit', async e => {
       if (!res.ok) { btn.disabled = false; return err(res.status === 429 ? 'Слишком много попыток. Подождите минуту.' : (data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.')); }
       lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code, order: data, name: v('name').trim(), phone: v('phone').trim() };
       saveLastOrder();
+      забытьЧерновик();   // заказ принят — хранить введённое больше незачем
       if (payMethod === 'card') {
         cartDlg.close();   // корзина открыта поверх всего, окно оплаты было бы под ней
         const res = await payCard(data, v('name').trim(), v('phone').trim());
