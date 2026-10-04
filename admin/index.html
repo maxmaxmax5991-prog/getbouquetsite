@@ -425,6 +425,31 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <pre id="cashOut" class="hint" style="white-space:pre-wrap;margin:10px 0 0" hidden></pre>
       </div>
       <div class="card" style="margin-top:12px">
+        <h2>Брошенная оплата</h2>
+        <p class="hint">Заказ создан картой и не оплачен. Бьёт дважды: мимо кассы идут деньги и <b>запираются цветы</b> — остаток списывается при оформлении, а назад не возвращался. За неделю так пропало из продажи больше трёх тысяч стеблей, и сайт отказывал другим покупателям «осталось 0».</p>
+        <div class="bar" style="margin-bottom:10px">
+          <span class="hint" style="margin:0;align-self:center">Держим букет</span>
+          <input class="in" id="payTtl" type="number" min="10" max="1440" step="10" style="width:90px">
+          <span class="hint" style="margin:0;align-self:center">минут, потом гасим и возвращаем цветы</span>
+          <button class="btn btn-g" id="payTtlSave">Сохранить</button>
+        </div>
+        <h2 style="margin-top:14px;font-size:15px">Напоминания покупателю</h2>
+        <p class="hint">Внутри этого срока уходят два дружелюбных сообщения в бот: «придержали ваш букет» и «если карта не прошла — напишите». Если банк отклонил карту, текст другой — мы спрашиваем у CloudPayments, что произошло. По истечении срока заказ гаснет, цветы возвращаются в продажу, человеку уходит спокойное «сняли, оформите заново, если нужно».<br>Тем, кто уже переоформил и оплатил, не пишем.</p>
+        <div class="bar">
+          <button class="btn btn-p" id="unpaidStart">Включить напоминания</button>
+          <button class="btn btn-g" id="unpaidStop" hidden>Выключить</button>
+          <span class="hint" id="unpaidState" style="margin:0;align-self:center"></span>
+        </div>
+        <h2 style="margin-top:14px;font-size:15px">Разобрать старое</h2>
+        <p class="hint">Заказы, брошенные до включения напоминаний. Их гасим молча — повод давно прошёл, писать этим людям незачем. Цветы вернутся на витрину.</p>
+        <div class="bar">
+          <button class="btn btn-g" id="unpaidCount">Сколько там цветов?</button>
+          <button class="btn btn-p" id="unpaidRelease" hidden>Вернуть в продажу</button>
+          <span class="hint" id="unpaidNote" style="margin:0;align-self:center"></span>
+        </div>
+        <div class="scroll" style="margin-top:10px"><table class="t" id="unpaidList"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
         <h2>Воронка</h2>
         <p class="hint">Сколько людей дошло до каждого шага. Считаются люди, а не клики.</p>
         <div class="scroll"><table class="t" id="statFunnel"></table></div>
@@ -2236,6 +2261,8 @@ async function ordersBetween(fromUtc, toUtc) {
 }
 
 const loadStats = safe(async () => {
+  await loadSettings0();          // блоку «Брошенная оплата» нужны настройки
+  loadUnpaid();
   const p = PERIODS.find(x => x[0] === statPeriod) || PERIODS[0];
   const [, , dFrom, dTo] = p;
   const span = dTo - dFrom + 1;                       // сколько суток в периоде
@@ -2498,6 +2525,59 @@ document.addEventListener('click', safe(async e => {
   toast('Отмечено'); loadStats();
 }));
 $('#statRange').onclick = e => { const b = e.target.closest('[data-p]'); if (b) { statPeriod = b.dataset.p; loadStats(); } };
+/* ---------- Брошенная оплата ---------- */
+// Загружается вместе со статистикой: состояние машинки и список висящих заказов.
+async function loadUnpaid() {
+  try {
+    if (S && $('#payTtl')) $('#payTtl').value = S.pay_ttl_min || 60;
+    const вкл = !!(S && S.unpaid_from);
+    $('#unpaidStart').hidden = вкл;
+    $('#unpaidStop').hidden = !вкл;
+    $('#unpaidState').textContent = вкл
+      ? `Работают с ${new Date(S.unpaid_from).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`
+      : 'Выключены — покупателям ничего не уходит.';
+    const d = await api('/api/shop/unpaid');
+    const r = d.items || [];
+    $('#unpaidList').innerHTML = r.length
+      ? `<tr><th>Заказ</th><th>Кто</th><th class="num">Сумма</th><th>Оформлен</th><th>Напоминаний</th><th>Банк</th></tr>`
+        + r.map(o => `<tr><td>№${o.number}</td><td>${esc(o.name || '')}<br><span class="hint">${esc(o.phone || '')}</span></td>`
+          + `<td class="num">${rub(o.total)}</td>`
+          + `<td>${new Date(o.created).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</td>`
+          + `<td class="num">${o.reminds || '—'}</td><td>${o.error ? esc(o.error) : '—'}</td></tr>`).join('')
+      : `<tr><td class="hint">Сейчас неоплаченных нет.</td></tr>`;
+  } catch (_) {}
+}
+$('#payTtlSave').onclick = safe(async () => {
+  const n = Math.max(10, Math.min(1440, +$('#payTtl').value || 60));
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { pay_ttl_min: n } });
+  toast(`Держим букет ${n} минут`); loadUnpaid();
+});
+$('#unpaidStart').onclick = safe(async () => {
+  if (!confirm('Включить напоминания? Покупателям, которые с этого момента не оплатят заказ, начнут уходить сообщения в бот. Старых заказов это не коснётся.')) return;
+  await api('/api/shop/unpaid-start', { method: 'POST', body: {} });
+  S = await api(`/api/collections/settings/records/${S.id}`);
+  toast('Напоминания включены'); loadUnpaid();
+});
+$('#unpaidStop').onclick = safe(async () => {
+  await api('/api/shop/unpaid-start', { method: 'POST', body: { off: true } });
+  S = await api(`/api/collections/settings/records/${S.id}`);
+  toast('Выключено'); loadUnpaid();
+});
+$('#unpaidCount').onclick = safe(async () => {
+  const r = await api('/api/shop/unpaid-release', { method: 'POST', body: { minutes: 180 } });
+  $('#unpaidNote').textContent = r.заказов
+    ? `${r.заказов} брошенных заказов держат ${r.стеблей} стеблей.`
+    : 'Старых брошенных заказов нет.';
+  $('#unpaidRelease').hidden = !r.заказов;
+});
+$('#unpaidRelease').onclick = safe(async () => {
+  if (!confirm('Погасить старые брошенные заказы и вернуть цветы в продажу? Покупателям ничего не отправится.')) return;
+  const r = await api('/api/shop/unpaid-release', { method: 'POST', body: { minutes: 180, go: true } });
+  $('#unpaidNote').textContent = `Погашено ${r.погашено}, вернули ${r.стеблей} стеблей.`;
+  $('#unpaidRelease').hidden = true;
+  toast('Цветы вернулись на витрину'); loadUnpaid();
+});
+
 $('#revBlastDry').onclick = safe(async () => {
   const r = await api('/api/shop/review-blast', { method: 'POST', body: { dry: true } });
   $('#revBlastNote').textContent = `Вопрос уйдёт ${r.кому} чел. Уже ответили или без бота: ${r.пропущено}.`;
