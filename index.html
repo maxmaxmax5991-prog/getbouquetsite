@@ -724,7 +724,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791143268"></script>
+<script src="data.js?v=1791144068"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1750,6 +1750,10 @@ ${payChoice()}
       ['#fStreet', '#fHouse'].forEach(sel => { const el = $(sel); if (el) el.required = !pickup; });
       if ($('#zoneBox')) $('#zoneBox').hidden = pickup;
       if ($('#pickupNote')) $('#pickupNote').hidden = !pickup;
+      // «При получении» бывает только у самовывоза. Выбор оплаты при возврате к
+      // доставке исчезает с экрана, а payMethod оставался прежним — и сервер
+      // отбивал заказ: «Доставку нужно оплатить картой». За неделю 9 таких отказов.
+      if (!pickup && payMethod === 'on_delivery') payMethod = 'card';
       if (PAY && PAY.card && $('#payBox')) { $('#payBox').outerHTML = payChoice(); bindPaySeg(); }
       fillIntervals(); recalc();
       try { window.ev && window.ev('checkout', ''); } catch (_) {}
@@ -2293,6 +2297,14 @@ cartDlg.addEventListener('submit', async e => {
           await проверитьКорзину();
           view = 'list'; renderCart();
           return;
+        }
+        // Пока заполняли форму, время ушло, и выбранный интервал протух. Раньше
+        // человек читал «выберите более поздний» и искал его сам. Пересобираем
+        // список и подставляем ближайший — ему остаётся только согласиться.
+        if (/не успеем|ещё едут/i.test(текст)) {
+          fillIntervals(); recalc();
+          const сейчас = $('#fTime') && $('#fTime').value;
+          return err(сейчас ? `${текст} Поставили ближайшее: ${сейчас}. Нажмите «Подтвердить заказ» ещё раз.` : текст);
         }
         return err(текст);
       }
