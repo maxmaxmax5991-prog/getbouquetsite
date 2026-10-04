@@ -527,3 +527,33 @@ routerAdd("POST", "/api/shop/fresh-all", (e) => {
   } catch (err) { return e.json(400, { message: String(err) }); }
   return e.json(200, { ok: true, count: n });
 }, $apis.requireAuth("managers"));
+
+// Проверка корзины до оформления. Покупатель набирает букеты, уходит пить чай,
+// а за это время остаток кончился — и он узнавал об этом только по кнопке
+// «Подтвердить заказ», после того как заполнил имя, адрес и время. Четыре таких
+// отказа подряд 04.10 съели лимит запросов, и пятая попытка получила 429.
+// Теперь корзина спрашивает остатки сразу при открытии: правим до формы.
+routerAdd("POST", "/api/shop/cart-check", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const b = e.requestInfo().body || {};
+  const items = Array.isArray(b.items) ? b.items.slice(0, 50) : [];
+  const out = [];
+  items.forEach((it) => {
+    const key = String(it.key || "");
+    let p;
+    try { p = $app.findRecordById("products", String(it.id || "")); } catch (_) { out.push({ key, gone: true, text: "Этого букета больше нет." }); return; }
+    if (!p.get("active")) { out.push({ key, gone: true, text: "Сейчас недоступен." }); return; }
+    const qty = Math.max(1, Math.floor(+it.qty || 1));
+    const label = String(it.label || "");
+    const m = label.match(/^(\d+)-(\d+)$/);
+    if (!m) { out.push({ key, ok: true }); return; }
+    const нужно = +m[2] * qty;
+    if (shop.stockOk(p, m[1], нужно)) { out.push({ key, ok: true }); return; }
+    const есть = Math.max(0, +shop.stockOf(p)[m[1]] || 0);
+    // сколько таких букетов ещё можно собрать из того, что лежит
+    const влезет = Math.floor(есть / +m[2]);
+    out.push({ key, ok: false, have: есть, fit: влезет,
+      text: влезет ? `Осталось ${есть} шт — хватит на ${влезет} ${влезет === 1 ? "букет" : "букета"}.` : `Закончились: осталось ${есть} шт.` });
+  });
+  return e.json(200, { items: out });
+});

@@ -449,6 +449,10 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .notice.paid{border-color:var(--leaf);color:var(--ink)}
 .notice.resume{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-color:var(--sale);color:var(--ink)}
 .sub-box.warn{border-color:var(--sale);background:rgba(224,23,138,.07)}
+/* в корзине кончились цветы: строку видно сразу, рядом — как поправить */
+.line-short{background:rgba(224,23,138,.06);border-radius:12px}
+.line-warn{font-size:12.5px;color:var(--sale);margin-top:4px;line-height:1.35}
+.link-btn{background:0;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;cursor:pointer;min-height:24px}
 /* вход — первый шаг оформления: на всю ширину формы, без центровки */
 #orderForm #idBox{max-width:none;margin:0}
 #stepTwo{margin-top:2px}
@@ -1636,7 +1640,25 @@ $('#toastBtn').onclick = () => { $('#toast').classList.remove('show'); openCart(
 /* ---------- cart sheet & checkout ---------- */
 let view = 'list', lastOrder = null;
 const cartDlg = $('#cart');
-function openCart() { view = 'list'; renderCart(); cartDlg.showModal(); }
+/* Нехватка остатков. Покупатель набирает букеты, уходит пить чай, за это время
+   стебли кончаются — и раньше он узнавал об этом только по кнопке «Подтвердить
+   заказ», заполнив всю форму. Теперь спрашиваем сервер при открытии корзины. */
+let нехватка = {};                        // key → {text, fit}
+async function проверитьКорзину() {
+  if (!API || !Object.keys(cart).length) { нехватка = {}; return нехватка; }
+  try {
+    const r = await fetch('/api/shop/cart-check', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { key: k, id, label, qty }; }) }) });
+    const d = await r.json();
+    нехватка = {};
+    (d.items || []).forEach(x => { if (x && !x.ok) нехватка[x.key] = x; });
+  } catch (_) { /* связь пропала — не мешаем оформлять, сервер всё равно проверит */ }
+  return нехватка;
+}
+function openCart() {
+  view = 'list'; renderCart(); cartDlg.showModal();
+  проверитьКорзину().then(() => { if (cartDlg.open && view === 'list') renderCart(); });
+}
 $('#cartBtn').onclick = openCart;
 function totals() { return Object.entries(cart).reduce((t, [k, n]) => (t.sum += keyPrice(k) * n, t.bonus += keyBonus(k) * n, t.n += n, t), { sum: 0, bonus: 0, n: 0 }); }
 function renderCart() {
@@ -1647,14 +1669,19 @@ function renderCart() {
       body.innerHTML = `<div class="cart-empty"><h3>Здесь пока пусто.</h3><p>Найдите букет, который скажет всё за вас.</p><button class="btn btn-primary" data-close data-go="#/catalog">Перейти в каталог</button></div>`;
       foot.hidden = true; return;
     }
-    body.innerHTML = Object.entries(cart).map(([k, n]) => `
-      <div class="line"><img src="${keyImg(k)}" alt="">
-        <div><div class="line-name">${esc(keyName(k))}</div><div class="line-price num">${rub(keyPrice(k))}${n > 1 ? ` × ${n}` : ''}</div></div>
+    body.innerHTML = Object.entries(cart).map(([k, n]) => {
+      const мало = нехватка[k];
+      return `
+      <div class="line${мало ? ' line-short' : ''}"><img src="${keyImg(k)}" alt="">
+        <div><div class="line-name">${esc(keyName(k))}</div><div class="line-price num">${rub(keyPrice(k))}${n > 1 ? ` × ${n}` : ''}</div>
+        ${мало ? `<div class="line-warn">${esc(мало.text)} ${мало.fit ? `<button type="button" class="link-btn" data-fit="${k}">Оставить ${мало.fit}</button>` : `<button type="button" class="link-btn" data-drop="${k}">Убрать</button>`}</div>` : ''}</div>
         <div class="mini"><button data-dec="${k}" aria-label="Меньше">${icon('minus')}</button><span class="num">${n}</span><button data-inc="${k}" aria-label="Больше">${icon('plus')}</button></div>
-      </div>`).join('');
+      </div>`; }).join('');
+    const нехваток = Object.keys(нехватка).filter(k => cart[k]).length;
     foot.hidden = false;
     foot.innerHTML = `<div class="total"><span>Итого</span><b class="num">${rub(t.sum)}</b></div>
-      <button class="btn btn-primary btn-wide" id="toCheckout"><span>Оформить заказ</span>${icon('arrow')}</button>`;
+      ${нехваток ? `<p class="demo-note" style="color:var(--sale);font-size:13.5px;margin-bottom:8px">Поправьте количество — столько цветов у нас сейчас нет.</p>` : ''}
+      <button class="btn btn-primary btn-wide" id="toCheckout"${нехваток ? ' disabled' : ''}><span>Оформить заказ</span>${icon('arrow')}</button>`;
   } else if (view === 'form') {
     $('#cartTitle').textContent = 'Доставка';
     const today = mskToday();
@@ -1782,6 +1809,12 @@ ${payChoice()}
       <button class="btn ${botLink ? "btn-ghost" : "btn-primary"} btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon("arrow")}</button>`;
   }
 }
+// количество поменяли — остатки проверяем заново, но не на каждое нажатие
+let ждёмПроверку = 0;
+function перепроверить() {
+  clearTimeout(ждёмПроверку);
+  ждёмПроверку = setTimeout(() => проверитьКорзину().then(() => { if (cartDlg.open && view === 'list') renderCart(); }), 350);
+}
 cartDlg.addEventListener('click', async e => {
   const repay = e.target.closest('#doneRepay');
   if (repay) {
@@ -1799,8 +1832,10 @@ cartDlg.addEventListener('click', async e => {
   if (e.target === cartDlg) return cartDlg.close();
 
   const t = e.target.closest('button'); if (!t) return;
-  if (t.dataset.inc) setQty(t.dataset.inc, (cart[t.dataset.inc] || 0) + 1);
-  else if (t.dataset.dec) setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1);
+  if (t.dataset.fit) { setQty(t.dataset.fit, +нехватка[t.dataset.fit].fit || 1); перепроверить(); }
+  else if (t.dataset.drop) { setQty(t.dataset.drop, 0); перепроверить(); }
+  else if (t.dataset.inc) { setQty(t.dataset.inc, (cart[t.dataset.inc] || 0) + 1); перепроверить(); }
+  else if (t.dataset.dec) { setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1); перепроверить(); }
   else if (t.id === 'toCheckout') { view = 'form'; renderCart(); }
   else if (t.id === 'toList') { view = 'list'; renderCart(); }
   else if ('close' in t.dataset) { cartDlg.close(); if (t.dataset.go) location.hash = t.dataset.go; }
@@ -2246,7 +2281,21 @@ cartDlg.addEventListener('submit', async e => {
         source: store.get('src', ''), vid: store.get('vid', ''),
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { btn.disabled = false; return err(res.status === 429 ? 'Слишком много попыток. Подождите минуту.' : (data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.')); }
+      if (!res.ok) {
+        // Отказ не должен превращаться в долбёжку кнопкой: каждое нажатие тратит
+        // лимит запросов, и шестое 04.10 упёрлось в «слишком много попыток».
+        setTimeout(() => { const b = $('#fSubmit'); if (b) b.disabled = false; }, 2500);
+        if (res.status === 429) return err('Слишком часто — подождите минуту и нажмите ещё раз. Всё заполненное сохранится.');
+        const текст = data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.';
+        // кончились цветы — чинить это надо в корзине, а не в форме доставки
+        if (/осталось|разобрали|закончил/i.test(текст)) {
+          err(текст);
+          await проверитьКорзину();
+          view = 'list'; renderCart();
+          return;
+        }
+        return err(текст);
+      }
       lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code, order: data, name: v('name').trim(), phone: v('phone').trim() };
       saveLastOrder();
       забытьЧерновик();   // заказ принят — хранить введённое больше незачем

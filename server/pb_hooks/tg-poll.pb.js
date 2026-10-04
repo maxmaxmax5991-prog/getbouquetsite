@@ -36,6 +36,15 @@ cronAdd("tg-poll-client", "* * * * *", () => {
     } catch (_) {}
   };
   const beat = () => { try { $app.db().newQuery("UPDATE settings SET tg_beat_client = {:v} WHERE id = {:id}").bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {} };
+  // Цикл закончился — замок снимаем, иначе следующая минута пропускается целиком:
+  // каждый удачный опрос обновляет замок, и через минуту он ещё «свежий».
+  // От подвисшего запроса это не ослабляет: туда исполнение просто не доходит.
+  const release = (key) => {
+    try {
+      $app.db().newQuery("UPDATE watchdog_state SET value = {:v} WHERE key = {:k}")
+        .bind({ k: key, v: new Date(0).toISOString() }).execute();
+    } catch (_) {}
+  };
 
   // один бот: опрашиваем, пока не кончится его доля времени
   const pump = (name, token, brand, getOffset, saveOffset, budget) => {
@@ -45,6 +54,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
     let offset = getOffset();
     const until = Date.now() + budget;
     let conflicts = 0;
+    try {
     while (Date.now() < until) {
       const wait = Math.max(1, Math.min(20, Math.round((until - Date.now()) / 1000) - 5));
       let res;
@@ -68,6 +78,7 @@ cronAdd("tg-poll-client", "* * * * *", () => {
         catch (err) { console.log("client bot", name, err); require(`${__hooks}/lib/err.js`).note($app, "Клиентский бот " + name, String(err), ""); }
       }
     }
+    } finally { release(key); }
   };
 
   if (legacy) {
@@ -124,11 +135,24 @@ cronAdd("tg-poll", "* * * * *", () => {
 
   const beat = (f) => { try { $app.db().newQuery(`UPDATE settings SET ${f} = {:v} WHERE id = {:id}`).bind({ v: Date.now(), id: s.id }).execute(); } catch (_) {} };
 
+  // Замок снимаем, когда цикл честно закончился. Иначе он оставался свежим
+  // (его трогает каждый удачный опрос), следующий тик видел «ещё занято» и
+  // пропускал минуту: бот читал входящие только половину времени, а при заминке
+  // у Телеграма отметка старела сразу на несколько минут. Подвисший запрос сюда
+  // не доходит — от него замок и защищает.
+  const release = () => {
+    try {
+      $app.db().newQuery("UPDATE watchdog_state SET value = {:v} WHERE key = {:k}")
+        .bind({ k: lockKey, v: new Date(0).toISOString() }).execute();
+    } catch (_) {}
+  };
+
   const secret = s.get("tg_secret");
   let offset = s.get("tg_offset") || 0;
   const until = Date.now() + 45000;   // короче минуты: следующий тик не должен налезть
   let conflicts = 0;
 
+  try {
   while (Date.now() < until) {
     let res;
     try {
@@ -153,4 +177,5 @@ cronAdd("tg-poll", "* * * * *", () => {
       try { bot.handle($app, secret, upd); } catch (err) { console.log("bot error", err); require(`${__hooks}/lib/err.js`).note($app, "Служебный бот", String(err), ""); }
     }
   }
+  } finally { release(); }
 });
