@@ -154,12 +154,18 @@ cronAdd("tg-poll", "* * * * *", () => {
 
   try {
   while (Date.now() < until) {
+    // Сколько ещё можно ждать ответа. Раньше тут стояло глухое timeout=20:
+    // последний запрос начинался за пять секунд до конца цикла и висел до
+    // следующей минуты. Тик в это время видел незанятый ещё замок и пропускал
+    // минуту целиком — замер 04.10 в 19:46 показал ровно это. Клиентский опрос
+    // так считал с самого начала, главный — нет.
+    const wait = Math.max(1, Math.min(20, Math.round((until - Date.now()) / 1000) - 5));
     let res;
     try {
       res = $http.send({
-        url: `https://api.telegram.org/bot${token}/getUpdates?timeout=20&offset=${offset}&allowed_updates=["message","callback_query"]`,
+        url: `https://api.telegram.org/bot${token}/getUpdates?timeout=${wait}&offset=${offset}&allowed_updates=["message","callback_query"]`,
         method: "GET",
-        timeout: 30,
+        timeout: wait + 10,
       });
     } catch (err) { return; }                 // нет связи — попробуем через минуту
     if (res.statusCode === 409) {             // остался старый webhook или опрос не завершился
