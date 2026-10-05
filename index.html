@@ -449,6 +449,15 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .notice.paid{border-color:var(--leaf);color:var(--ink)}
 .notice.resume{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-color:var(--sale);color:var(--ink)}
 .sub-box.warn{border-color:var(--sale);background:rgba(224,23,138,.07)}
+/* вторая строка кнопок — размер. Тише разделов: они главнее */
+/* Вторая строка кнопок — размер. Не липкая и переносится: разделы остаются
+   главными, а ростовок с количествами бывает полтора десятка. */
+/* Каждый ряд — одна строка с прокруткой, как разделы выше. Переносом по словам
+   на телефоне выходило 214px до первой карточки — четверть экрана на фильтр. */
+.sizes-row{position:static;overflow:visible;flex-direction:column;align-items:stretch;gap:6px;margin:-12px 0 16px;padding:0}
+.sizes-group{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.sizes-group::-webkit-scrollbar{display:none}
+.sizes-row .chip{font-size:13px;padding:7px 12px;min-height:36px;flex:0 0 auto}
 /* в корзине кончились цветы: строку видно сразу, рядом — как поправить */
 .line-short{background:rgba(224,23,138,.06);border-radius:12px}
 .line-warn{font-size:12.5px;color:var(--sale);margin-top:4px;line-height:1.35}
@@ -618,6 +627,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       </div>
     </div>
     <div class="chips" id="chips" role="group" aria-label="Разделы каталога"></div>
+    <div class="chips sizes-row" id="sizeChips" role="group" aria-label="Длина и количество"></div>
     <div class="grid" id="grid"></div>
   </div>
 </div>
@@ -724,7 +734,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791145615"></script>
+<script src="data.js?v=1791199738"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1084,13 +1094,77 @@ $('#tiles').innerHTML = CATS.map(([k, label]) => {
 }).join('');
 
 /* ---------- catalog ---------- */
-const state = { cat: 'all', q: '', sort: 'pop', favOnly: false };
+const state = { cat: 'all', q: '', sort: 'pop', favOnly: false, len: 0, cnt: 0 };
 function renderChips() {
   let html = `<button class="chip" data-cat="all" aria-pressed="${!state.favOnly && state.cat === 'all'}">Все <small class="num">${P.length - ADDONS.length}</small></button>`;
   html += CATS.map(([k, label]) => `<button class="chip" data-cat="${k}" aria-pressed="${!state.favOnly && state.cat === k}">${label} <small class="num">${count[k] || 0}</small></button>`).join('');
   if (favs.size) html += `<button class="chip" data-favonly aria-pressed="${state.favOnly}">${icon('heart')}Избранное <small class="num">${favs.size}</small></button>`;
   $('#chips').innerHTML = html;
+  renderSizeChips();
 }
+
+/* ---------- фильтр по размеру ----------
+   «Покажи, что есть в 40 см по 51 штуке» — раньше для этого надо было открыть
+   каждую карточку и перещёлкать кнопки. Считаем только то, что реально можно
+   заказать: закончившиеся ростовки в кнопки не попадают. */
+// товары текущего раздела, без допов и выключенных
+const вРазделе = () => P.filter(p => !p.off && !isAddon(p) &&
+  (state.favOnly ? favs.has(p.id) : state.cat === 'all' || p.cat === state.cat));
+// доступен ли вариант: не кончился. То, что едет, тоже считаем — его можно заказать
+const живой = v => v && !v.out;
+
+function renderSizeChips() {
+  const товары = вРазделе();
+  const длины = new Set(), штуки = new Set();
+  // Ряды сужают друг друга: выбрали 40 см — в количествах остаются только те,
+  // что бывают в сорока сантиметрах. Иначе человек жмёт «7 шт» и получает пусто.
+  товары.forEach(p => (p.variants || []).forEach(v => {
+    if (!живой(v)) return;
+    if (+v.len > 0 && (!state.cnt || +v.cnt === state.cnt)) длины.add(+v.len);
+    if (+v.cnt > 0 && (!state.len || +v.len === state.len)) штуки.add(+v.cnt);
+  }));
+  // выбранное оставляем в списке, даже если оно опустело, — иначе кнопка исчезнет
+  // вместе с возможностью её отжать, и человек застрянет в пустом каталоге
+  if (state.len) длины.add(state.len);
+  if (state.cnt) штуки.add(state.cnt);
+  const ряд = (имена, поле, ед, всё) => {
+    const v = [...имена].sort((a, b) => a - b);
+    if (v.length < 2) return '';
+    return `<span class="sizes-group">`
+      + `<button class="chip" data-${поле}="0" aria-pressed="${!state[поле]}">${всё}</button>`
+      + v.map(n => `<button class="chip" data-${поле}="${n}" aria-pressed="${state[поле] === n}">${n} ${ед}</button>`).join('')
+      + `</span>`;
+  };
+  const html = ряд(длины, 'len', 'см', 'Любая длина') + ряд(штуки, 'cnt', 'шт', 'Любое количество');
+  const box = $('#sizeChips');
+  box.innerHTML = html;
+  box.hidden = !html;
+  // Ряд прокручивается вбок, и выбранная кнопка могла оказаться за краем —
+  // человек не видел, что именно отобрано. Подтягиваем её в видимую часть.
+  box.querySelectorAll('.chip[aria-pressed="true"]').forEach(b => {
+    const r = b.parentElement;
+    if (!r || r.scrollWidth <= r.clientWidth) return;
+    r.scrollLeft = Math.max(0, b.offsetLeft - r.clientWidth / 2 + b.offsetWidth / 2);
+  });
+}
+
+// Какой вариант товара отвечает выбранному размеру. null — фильтр выключен,
+// false — у товара такого размера нет или он кончился.
+function подРазмер(p) {
+  if (!state.len && !state.cnt) return null;
+  if (!p.variants) return false;
+  return p.variants.find(v => живой(v)
+    && (!state.len || +v.len === state.len)
+    && (!state.cnt || +v.cnt === state.cnt)) || false;
+}
+$('#sizeChips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  // повторное нажатие на выбранную кнопку снимает отбор — так не надо искать «любая»
+  if (b.dataset.len !== undefined) { const n = +b.dataset.len; state.len = (n && state.len === n) ? 0 : n; }
+  if (b.dataset.cnt !== undefined) { const n = +b.dataset.cnt; state.cnt = (n && state.cnt === n) ? 0 : n; }
+  try { window.ev && window.ev('size-filter', `${state.len || 'любая'}см × ${state.cnt || 'любое'}шт`); } catch (_) {}
+  renderSizeChips(); renderGrid();
+});
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
   if ('favonly' in b.dataset) location.hash = state.favOnly ? '#/catalog' : '#/favorites';
@@ -1102,6 +1176,16 @@ function list() {
     (state.favOnly ? favs.has(p.id) : state.cat === 'all' ? !isAddon(p) : p.cat === state.cat) &&
     (!q || p.name.toLowerCase().replace(/ё/g, 'е').includes(q)));
   if (q && !state.favOnly && state.cat === 'all') r = P.filter(p => p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
+  // выбран размер — оставляем только тех, у кого он есть, и сразу открываем именно его:
+  // иначе карточка показывала бы цену другой ростовки
+  if (state.len || state.cnt) {
+    r = r.filter(p => {
+      const v = подРазмер(p);
+      if (!v) return false;
+      sel[p.id] = v.label;
+      return true;
+    });
+  }
   if (state.sort === 'asc') r = [...r].sort((a, b) => a.price - b.price);
   if (state.sort === 'desc') r = [...r].sort((a, b) => b.price - a.price);
   // выключенные сорта всегда внизу: они для настроения, а не для покупки
@@ -1110,9 +1194,22 @@ function list() {
 function renderGrid() {
   const r = list();
   $('#catTitle').textContent = state.favOnly ? 'Избранное' : state.cat === 'all' ? 'Каталог' : catName[state.cat];
-  $('#count').textContent = `${r.length} ${plural(r.length, 'позиция', 'позиции', 'позиций')}`;
+  let подпись = `${r.length} ${plural(r.length, 'позиция', 'позиции', 'позиций')}`;
+  // при выбранном размере важнее другое: сколько можно забрать сегодня, а сколько — после привоза
+  if (state.len || state.cnt) {
+    const сейчас = r.filter(p => { const v = подРазмер(p); return v && !v.wait_at; }).length;
+    const едет = r.length - сейчас;
+    подпись = сейчас
+      ? `${сейчас} ${plural(сейчас, 'сорт', 'сорта', 'сортов')} можно заказать сейчас` + (едет ? `, ещё ${едет} после привоза` : '')
+      : едет ? `Сейчас нет, но ${едет} ${plural(едет, 'сорт приедет', 'сорта приедут', 'сортов приедут')} сегодня` : 'Ничего нет';
+  }
+  $('#count').textContent = подпись;
+  const размерВыбран = !!(state.len || state.cnt);
   $('#grid').innerHTML = r.length ? r.map(card).join('') :
-    `<div class="empty"><b>${state.favOnly ? 'В избранном пока пусто' : 'Ничего не нашлось'}</b>${state.favOnly ? 'Отмечайте букеты сердечком — они соберутся здесь.' : 'Попробуйте другое название или раздел.'}</div>`;
+    `<div class="empty"><b>${state.favOnly ? 'В избранном пока пусто' : размерВыбран ? 'В этом размере сейчас ничего нет' : 'Ничего не нашлось'}</b>${
+      state.favOnly ? 'Отмечайте букеты сердечком — они соберутся здесь.'
+      : размерВыбран ? 'Попробуйте другую длину или количество — или позвоните нам, подберём замену.'
+      : 'Попробуйте другое название или раздел.'}</div>`;
 }
 $('#q').addEventListener('input', e => { state.q = e.target.value; renderGrid(); });
 $('#sort').addEventListener('change', e => { state.sort = e.target.value; renderGrid(); });
