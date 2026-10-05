@@ -3427,11 +3427,11 @@ function renderBrandsCard() {
       </div>
       <p class="hint">Свой терминал у каждого сайта: деньги приходят на свой счёт и не путаются в выписке. Не заполнено — работает общий терминал из блока «Оплата картой».</p>
       <div class="row" style="align-items:center">
-        ${['logo', 'logo_dark'].map(f => `<label class="f">${f === 'logo' ? 'Логотип (светлая тема)' : 'Логотип (тёмная тема)'}
+        ${['logo', 'logo_dark', 'favicon', 'touch_icon'].map(f => `<label class="f">${{ logo: 'Логотип (светлая тема)', logo_dark: 'Логотип (тёмная тема)', favicon: 'Иконка во вкладке браузера', touch_icon: 'Иконка на экране «Домой» (PNG 180×180)' }[f]}
           ${b[f] ? `<img src="/api/files/brands/${b.id}/${esc(b[f])}" alt="" style="height:32px;width:auto;margin:4px 0;align-self:flex-start;background:${f === 'logo' ? '#fff' : '#111'};padding:4px 8px;border-radius:8px">` : ''}
-          <input class="in" type="file" accept="image/svg+xml,image/png,image/webp" data-blogo="${f}" data-bid="${b.id}"></label>`).join('')}
+          <input class="in" type="file" accept="${f === 'touch_icon' ? 'image/png' : f === 'favicon' ? 'image/svg+xml,image/png,image/x-icon' : 'image/svg+xml,image/png,image/webp'}" data-blogo="${f}" data-bid="${b.id}"></label>`).join('')}
       </div>
-      <p class="hint">SVG или PNG на прозрачном фоне. Нет логотипа — в шапке сайта будет название текстом.</p>
+      <p class="hint">Логотип — SVG или PNG на прозрачном фоне; нет логотипа — в шапке будет название текстом. Иконки: пусто — останется иконка venikoff.</p>
       ${brandTextsHTML(b)}
       <div class="bar">
         <button class="btn btn-p" data-bsave="${b.id}">Сохранить</button>

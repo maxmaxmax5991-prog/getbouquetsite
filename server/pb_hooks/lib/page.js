@@ -196,6 +196,11 @@ function dress(html, brand) {
     html = html.replace("</head>", `<style>:root{${light}}@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${dark}}}:root[data-theme="dark"]{${dark}}</style>\n</head>`)
       .replace(/<meta name="theme-color" content="[^"]*">/, `<meta name="theme-color" content="${esc(b.accent)}">`);
   }
+  if (b.favicon) {
+    const type = /\.svg$/i.test(b.favicon) ? "image/svg+xml" : "image/png";
+    html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" type="${type}" href="${esc(b.favicon)}">`);
+  }
+  if (b.touch_icon) html = html.replace(/<link rel="apple-touch-icon"[^>]*>/, `<link rel="apple-touch-icon" href="${esc(b.touch_icon)}">`);
   if (b.slug !== "venikoff") {
     const logo = b.logo
       ? `<img src="${esc(b.logo)}" alt="${esc(b.name)}" class="logo-img"><img src="${esc(b.logo_dark || b.logo)}" alt="${esc(b.name)}" class="logo-img logo-dark">`

@@ -66,6 +66,9 @@ function pub(b) {
     // логотип картинкой; нет — сайт напишет название текстом
     logo: b.get("logo") ? `/api/files/brands/${b.id}/${b.get("logo")}` : "",
     logo_dark: b.get("logo_dark") ? `/api/files/brands/${b.id}/${b.get("logo_dark")}` : "",
+    // иконка во вкладке и на экране «Домой»; пусто — иконка venikoff
+    favicon: b.get("favicon") ? `/api/files/brands/${b.id}/${b.get("favicon")}` : "",
+    touch_icon: b.get("touch_icon") ? `/api/files/brands/${b.id}/${b.get("touch_icon")}` : "",
   };
 }
 
