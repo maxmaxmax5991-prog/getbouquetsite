@@ -284,6 +284,22 @@ function catalog(app, brand) {
     categories: cats.map((c) => ({ slug: c.get("slug"), name: c.get("name"), addon: c.get("addon") })),
     products,
     price_tables: priceTables(s),
+    // Сведения о продавце и данные для политики. Отдаём всем: закон требует
+    // свободного доступа, прятать тут нечего. Банковский счёт не отдаём —
+    // в требованиях его нет, а лишнее на витрине ни к чему.
+    legal: {
+      name: s.get("org_name") || "",
+      short: s.get("org_short") || "",
+      inn: s.get("org_inn") || "",
+      kpp: s.get("org_kpp") || "",
+      ogrn: s.get("org_ogrn") || "",
+      addr_legal: s.get("org_addr_legal") || "",
+      addr_fact: s.get("org_addr_fact") || "",
+      email: s.get("org_email") || "",
+      person: s.get("pd_person") || "",
+      date: s.get("policy_date") || "",
+      extra: s.get("policy_extra") || "",
+    },
     delivery: {
       // когда доставку считает карта (круги или МКАД), покупатель зону не выбирает
       zones: autoDelivery(s) ? [] : zones,

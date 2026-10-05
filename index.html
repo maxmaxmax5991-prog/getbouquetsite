@@ -467,6 +467,14 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .sizes-row{position:static;overflow:visible;flex-direction:column;align-items:stretch;gap:6px;margin:-12px 0 16px;padding:0}
 .sizes-group{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .sizes-group::-webkit-scrollbar{display:none}
+/* юридический документ: узкая колонка и воздух, иначе такое не читают */
+.doc{max-width:74ch;font-size:15px;line-height:1.65;color:var(--ink-2);padding-bottom:40px}
+.doc h2{font:700 18px var(--display);letter-spacing:-.03em;color:var(--ink);margin:28px 0 10px}
+.doc p{margin:0 0 12px}
+.doc ul{margin:0 0 12px;padding-left:20px}
+.doc li{margin-bottom:6px}
+.doc b{color:var(--ink)}
+.doc .rq{background:var(--soft);border-radius:14px;padding:16px 18px;margin:18px 0;font-size:14px}
 .share-pick{margin:-8px 0 16px;align-self:flex-start}
 .sizes-row .chip{font-size:13px;padding:7px 12px;min-height:36px;flex:0 0 auto}
 /* в корзине кончились цветы: строку видно сразу, рядом — как поправить */
@@ -697,6 +705,15 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
   </div>
 </div>
 
+<!-- Политика обработки персональных данных: 152-ФЗ требует свободного доступа -->
+<div id="viewPolicy" hidden>
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Персональные данные</span></nav>
+    <div class="cat-head"><div><h1>Политика обработки персональных данных</h1><p id="polDate" class="num"></p></div></div>
+    <div class="doc" id="polBody"></div>
+  </div>
+</div>
+
 <div id="viewMe" hidden>
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Личный кабинет</span></nav>
@@ -755,7 +772,7 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 <footer class="foot">
   <div class="wrap">
     <a class="logo" id="logoFoot" href="/">venikoff<span class="dot"></span><i>net</i></a>
-    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/studio/">Собрать букет</a><a href="/delivery/">Доставка</a></nav>
+    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/studio/">Собрать букет</a><a href="/delivery/">Доставка</a><a href="/policy/">Персональные данные</a></nav>
     <div class="contacts">
       <span class="lbl">Связаться с нами</span>
       <a class="btn btn-ghost btn-sm" id="footTg" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
@@ -847,7 +864,15 @@ function applyBrand(b) {
   const about = document.querySelector('#footAbout');
   if (about) {
     about.textContent = '';
-    [b.address, (b.texts && b.texts.foot_slogan) || 'Оптовые цены в розницу', `© ${b.name}, ${new Date().getFullYear()}`]
+    // Сведения о продавце обязаны быть на сайте: наименование, ИНН, ОГРН, адрес.
+    // Берём из настроек — продавец один на обе витрины.
+    const L = (API && API.legal) || {};
+    const юр = [
+      L.short || L.name || '',
+      [L.inn ? 'ИНН ' + L.inn : '', L.ogrn ? 'ОГРН ' + L.ogrn : ''].filter(Boolean).join(' · '),
+      L.addr_legal || '',
+    ].filter(Boolean);
+    [b.address, (b.texts && b.texts.foot_slogan) || 'Оптовые цены в розницу', ...юр, `© ${b.name}, ${new Date().getFullYear()}`]
       .filter(Boolean).forEach((line, i) => {
         if (i) about.appendChild(document.createElement('br'));
         about.appendChild(document.createTextNode(line));
@@ -1476,9 +1501,10 @@ function router() {
   const иск = пар.get('q') || '';
   if (иск !== state.q) { state.q = иск; const поле = $('#q'); if (поле) поле.value = иск; }
   const [a, b, c] = decodeURIComponent(location.pathname).split('/').filter(Boolean);
-  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery') };
+  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery'), policy: $('#viewPolicy') };
   let name = 'home', scrollTo = null;
-  if (a === 'delivery') { name = 'delivery'; document.title = `Доставка по Москве — ${SITE}`; renderDelivery(); }
+  if (a === 'policy') { name = 'policy'; document.title = `Персональные данные — ${SITE}`; renderPolicy(); }
+  else if (a === 'delivery') { name = 'delivery'; document.title = `Доставка по Москве — ${SITE}`; renderDelivery(); }
   else if (a === 'order' && b) { name = 'order'; document.title = `Заказ — ${SITE}`; renderOrder(b); }
   else if (a === 'me') { name = 'me'; document.title = `Личный кабинет — ${SITE}`; renderMe(); }
   else if ((a === 'catalog' && c) || (a === 'p' && b)) {
@@ -1517,6 +1543,95 @@ document.addEventListener('click', e => {
 });
 $('#favBtn').onclick = () => { nav('/favorites/'); if (!favs.size) toast('Отмечайте букеты сердечком', false); };
 $('#meBtn').onclick = () => { nav('/me/'); };
+
+/* ---------- Политика обработки персональных данных ----------
+   Текст собирается из реквизитов в настройках, чтобы не разъезжаться с ними.
+   Перечисляем РЕАЛЬНУЮ схему: что собираем, зачем, кому передаём и насколько.
+   Поле policy_extra — место для правок юриста: оно дописывается в конец. */
+function renderPolicy() {
+  const L = (API && API.legal) || {};
+  const есть = v => String(v || '').trim();
+  const имя = есть(L.name) || есть(L.short) || 'Продавец';
+  const нет = '<i style="color:var(--sale)">не указано</i>';
+  const дата = есть(L.date)
+    ? new Date(L.date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  $('#polDate').textContent = дата ? `Редакция от ${дата}` : '';
+
+  const строка = (к, v) => `<div>${к}: <b>${esc(есть(v)) || нет}</b></div>`;
+  $('#polBody').innerHTML = `
+    <p>Настоящая политика объясняет, какие сведения о вас собирает интернет-магазин ${esc(SITE)}, зачем они нужны и что мы с ними делаем. Политика составлена по требованиям Федерального закона № 152-ФЗ «О персональных данных».</p>
+
+    <div class="rq">
+      ${строка('Оператор', L.name || L.short)}
+      ${строка('ИНН', L.inn)}
+      ${L.kpp ? строка('КПП', L.kpp) : ''}
+      ${строка('ОГРН', L.ogrn)}
+      ${строка('Юридический адрес', L.addr_legal)}
+      ${строка('Фактический адрес', L.addr_fact)}
+      ${строка('Ответственный за обработку', L.person)}
+      ${строка('Почта для обращений', L.email)}
+    </div>
+
+    <h2>Какие данные мы собираем</h2>
+    <p>Только те, без которых букет не доедет:</p>
+    <ul>
+      <li><b>Имя и телефон</b> — чтобы подтвердить заказ и связаться, если курьер не дозвонится.</li>
+      <li><b>Адрес доставки</b> — улица, дом, корпус, подъезд, этаж, квартира, домофон.</li>
+      <li><b>Имя и телефон получателя</b>, если букет едет не вам.</li>
+      <li><b>Текст открытки и просьба курьеру</b> — вы пишете их сами при оформлении.</li>
+      <li><b>Переписка</b> в чате на сайте и в наших ботах.</li>
+      <li><b>Сведения о заказах</b> — что, когда и на какую сумму.</li>
+      <li><b>Обезличенные данные о посещении</b> — страницы, с какого сайта пришли, случайный номер посетителя в памяти браузера. По ним нельзя узнать человека.</li>
+    </ul>
+    <p><b>Данные банковской карты мы не получаем и не храним.</b> Оплата проходит на стороне платёжного сервиса, нам возвращается только отметка «оплачено» и номер платежа.</p>
+
+    <h2>Зачем</h2>
+    <ul>
+      <li>Принять заказ, собрать букет и доставить его.</li>
+      <li>Связаться с вами по заказу, прислать фото букета до отправки.</li>
+      <li>Выполнить требования закона — бухгалтерский и налоговый учёт.</li>
+      <li>Спросить, понравилось ли, и улучшить работу магазина.</li>
+      <li>Присылать новости и предложения — <b>только если вы отдельно на это согласились</b>. Отказаться можно в любой момент, написав нам или в боте.</li>
+    </ul>
+
+    <h2>На каком основании</h2>
+    <p>Для исполнения договора с вами, по вашему согласию и для соблюдения закона. Согласие вы даёте, оформляя заказ; отозвать его можно письмом на почту, указанную выше.</p>
+
+    <h2>Кому передаём</h2>
+    <p>Никому, кроме тех, без кого заказ не выполнить:</p>
+    <ul>
+      <li><b>Службе складского учёта</b> — состав заказа, адрес и время доставки.</li>
+      <li><b>Платёжному сервису</b> — сумма и номер заказа.</li>
+      <li><b>Мессенджерам</b> (Телеграм, MAX), если вы общаетесь с нами там: сообщения идут через них.</li>
+      <li><b>Курьеру</b> — адрес, имя и телефон получателя.</li>
+    </ul>
+    <p>Мы не продаём и не передаём ваши данные для чужой рекламы.</p>
+
+    <h2>Где хранятся</h2>
+    <p>На сервере в России. За границу данные не передаются.</p>
+
+    <h2>Сколько храним</h2>
+    <p>Пока вы покупаете у нас и пока этого требует закон для документов по сделке. Если данные больше не нужны или вы отозвали согласие — удаляем.</p>
+
+    <h2>Как мы их бережём</h2>
+    <ul>
+      <li>Сайт работает по защищённому соединению.</li>
+      <li>Доступ к заказам — только у сотрудников, которым он нужен, и по именным учётным записям.</li>
+      <li>Заказы в личном кабинете показываются только по номеру, подтверждённому самим мессенджером, а не по вписанному вручную.</li>
+      <li>Резервные копии делаются ежедневно и хранятся там же, в России.</li>
+    </ul>
+
+    <h2>Ваши права</h2>
+    <p>Вы можете узнать, какие ваши данные у нас есть, потребовать их исправить или удалить, отозвать согласие и пожаловаться в Роскомнадзор. Напишите на почту выше — ответим в срок, установленный законом.</p>
+
+    <h2>Файлы в памяти браузера</h2>
+    <p>Сайт хранит в вашем браузере корзину, избранное и случайный номер посетителя — без них магазин не работает. Эти сведения остаются у вас и никого не опознают.</p>
+
+    ${есть(L.extra) ? `<h2>Дополнительно</h2><p>${esc(L.extra).replace(/\n/g, '<br>')}</p>` : ''}
+
+    <p style="margin-top:28px;font-size:13.5px;color:var(--ink-3)">Мы можем обновлять политику. Действующая редакция всегда на этой странице.</p>`;
+}
 
 /* ---------- «Рассчитать доставку» ----------
    Отдельная страница /delivery/: покупатель вводит адрес и сразу видит цену,
@@ -2024,7 +2139,7 @@ function renderCart() {
           <button type="button" data-get="pickup" aria-pressed="false">Самовывоз</button>
         </div></div>` : ''}
         <label for="fName">Ваше имя<input id="fName" name="name" required autocomplete="name" placeholder="Анна" maxlength="120"></label>
-        <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[-+0-9 ()]{10,}" maxlength="40"></label>
+        <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[\\-+0-9 \\(\\)]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
         <div id="addrBox">
           <label for="fStreet" class="sugg-wrap">Улица<input id="fStreet" name="street" required autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="streetSugg" placeholder="Начните вводить улицу" maxlength="200"><ul class="sugg" id="streetSugg" role="listbox" hidden></ul></label>
@@ -2055,7 +2170,7 @@ ${payChoice()}
     foot.hidden = false;
     foot.innerHTML = `<div class="total"><span>К оплате<small class="num" id="fDelivery"></small></span><b class="num" id="fTotal">${rub(t.sum)}</b></div>
       <button class="btn btn-primary btn-wide" type="submit" form="orderForm" id="fSubmit"${DEL && !DEL.accepting ? ' disabled' : ''}><span>Подтвердить заказ</span>${icon('arrow')}</button>
-      ${API ? '<p class="demo-note">Нажимая кнопку, вы соглашаетесь на обработку данных для доставки заказа.</p>' : '<p class="demo-note">Демо-версия: заказ пока не отправляется.</p>'}`;
+      ${API ? '<p class="demo-note">Нажимая кнопку, вы соглашаетесь на <a href="/policy/">обработку персональных данных</a> для выполнения заказа.</p>' : '<p class="demo-note">Демо-версия: заказ пока не отправляется.</p>'}`;
     if (ME) { if (ME.name) $('#fName').value = ME.name; if (ME.phone) $('#fPhone').value = ME.phone; }
     payMethod = PAY && PAY.card ? 'card' : 'on_delivery';
     bindPaySeg();
