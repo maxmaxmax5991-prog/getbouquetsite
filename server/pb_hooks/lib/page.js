@@ -177,7 +177,50 @@ function head(meta, origin, brand) {
   ].filter(Boolean).join("\n");
 }
 
+// Оформление витрины прямо в отданной странице: цвета, логотип, свои тексты.
+// Иначе до загрузки каталога человек видел бы розовый venikoff — на lasflore.ru
+// это выглядело бы как чужой сайт. Скрипт потом ставит то же самое ещё раз.
+function dress(html, brand) {
+  if (!brand) return html;
+  const b = brandLib.pub(brand);
+  const rgba = (hex, a) => {
+    const m = String(hex).replace("#", "");
+    const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+  html = html.replace('<html lang="ru">', `<html lang="ru" data-brand="${esc(b.slug)}">`);
+  if (b.accent) {
+    const set = (c, t, s1, s2) => `--accent:${c};--accent-text:${t};--accent-soft:${rgba(c, s1)};--accent-soft-2:${rgba(c, s2)}`;
+    const dk = b.accent_dark || b.accent;
+    const light = set(b.accent, b.accent_text || b.accent, .08, .17), dark = set(dk, b.accent_text_dark || dk, .14, .26);
+    html = html.replace("</head>", `<style>:root{${light}}@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${dark}}}:root[data-theme="dark"]{${dark}}</style>\n</head>`)
+      .replace(/<meta name="theme-color" content="[^"]*">/, `<meta name="theme-color" content="${esc(b.accent)}">`);
+  }
+  if (b.slug !== "venikoff") {
+    const logo = b.logo
+      ? `<img src="${esc(b.logo)}" alt="${esc(b.name)}" class="logo-img"><img src="${esc(b.logo_dark || b.logo)}" alt="${esc(b.name)}" class="logo-img logo-dark">`
+      : esc(b.name);
+    html = html.replace(/(<a class="logo" id="logo(?:Top|Foot)"[^>]*>)[\s\S]*?(<\/a>)/g, `$1${logo}$2`);
+  }
+  const put = (id, text) => { if (text) html = html.replace(new RegExp(`(<[a-z0-9]+[^>]*id="${id}"[^>]*>)[\\s\\S]*?(</)`), `$1${esc(text)}$2`); };
+  put("heroEyebrow", b.hero_eyebrow);
+  put("heroText", b.hero_text);
+  if (b.hero_title || b.hero_em) {
+    html = html.replace(/(<h1 id="heroTitle">)[\s\S]*?(<\/h1>)/, `$1${esc(b.hero_title || "")}${b.hero_em ? ` <em>${esc(b.hero_em)}</em>` : ""}$2`);
+  }
+  const T = b.texts || {};
+  html = html.replace(/(<([a-z0-9]+)[^>]*\sdata-t="([a-z0-9_]+)"[^>]*>)([\s\S]*?)(<\/\2>)/g, (all, open, tag, key, inner, close) =>
+    T[key] ? open + esc(T[key]).replace(/\*([^*]+)\*/g, "<b>$1</b>") + close : all);
+  if (b.address || T.foot_slogan) {
+    const lines = [b.address, T.foot_slogan || "Оптовые цены в розницу", `© ${b.name}, ${new Date().getFullYear()}`].filter(Boolean).map(esc).join("<br>");
+    html = html.replace(/(<span id="footAbout">)[\s\S]*?(<\/span>)/, `$1${lines}$2`);
+  }
+  if (b.tg_link) html = html.replace(/(<a [^>]*id="footTg" href=")[^"]*/, `$1${esc(b.tg_link)}`);
+  return html;
+}
+
 function render(html, meta, body, origin, brand) {
+  html = dress(html, brand);
   const crumbs = meta.crumbs && meta.crumbs.length
     ? `<nav class="ssr-crumbs"><a href="/">Главная</a>${meta.crumbs.map((c) => ` / <a href="${esc(c[1])}">${esc(c[0])}</a>`).join("")}</nav>` : "";
   return html
@@ -201,9 +244,12 @@ function robots(origin) {
 }
 
 function serve(app, e) {
-  const brand = brandLib.byHost(app, e);
-  const origin = originOf(e, brand);
   const { path, query } = requested(e);
+  let brand = brandLib.byHost(app, e);
+  // ?brand=<имя> — предпросмотр витрины до подключения её домена (как у каталога)
+  const want = (query.match(/(?:^|&)brand=([a-z0-9_-]+)/i) || [])[1];
+  if (want) brand = brandLib.list(app).find((b) => String(b.get("slug")).toLowerCase() === want.toLowerCase()) || brand;
+  const origin = originOf(e, brand);
   const keepQ = query ? "?" + query : "";
 
   if (path === "/robots.txt") { e.response.header().set("Content-Type", "text/plain; charset=utf-8"); return e.string(200, robots(origin)); }

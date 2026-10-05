@@ -61,6 +61,11 @@ function pub(b) {
     max_link: b.get("max_link") || (b.get("max_bot") ? `https://max.ru/${b.get("max_bot")}` : ""),
     phone: b.get("phone") || "",
     address: b.get("address") || "",
+    // свои тексты витрины: ключ — метка data-t на странице
+    texts: (function () { try { const t = JSON.parse(b.getString("texts") || "{}"); return t && typeof t === "object" ? t : {}; } catch (_) { return {}; } })(),
+    // логотип картинкой; нет — сайт напишет название текстом
+    logo: b.get("logo") ? `/api/files/brands/${b.id}/${b.get("logo")}` : "",
+    logo_dark: b.get("logo_dark") ? `/api/files/brands/${b.id}/${b.get("logo_dark")}` : "",
   };
 }
 

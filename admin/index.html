@@ -3356,6 +3356,45 @@ $('#cTestBot').onclick = safe(async () => {
   const r = await api('/api/shop/client-bot-check', { method: 'POST' });
   toast(`Бот для покупателей: @${r.bot}`);
 });
+// Тексты витрины на сайте. Подсказка в поле — текст venikoff: его и увидят,
+// если оставить пусто. Ключи совпадают с метками data-t в index.html.
+const BRAND_TEXTS = [
+  ['Шапка главной', [
+    ['hero_eyebrow', 'Строка над заголовком', 'Оптовые цены в розницу · Москва 🌷', 1],
+    ['hero_title', 'Заголовок', 'Букет,', 1],
+    ['hero_em', 'Заголовок, цветная часть', 'а не веник.', 1],
+    ['hero_text', 'Текст под заголовком', 'Тот самый цветочный: оптовые цены, невероятный ассортимент…', 1],
+  ]],
+  ['Три пункта под кнопкой', [
+    ['perk1_t', 'Пункт 1', '💰 Оптовые цены'], ['perk1_d', 'Пункт 1, пояснение', 'цветы напрямую от производителей'],
+    ['perk2_t', 'Пункт 2', '🌸 Невероятный ассортимент'], ['perk2_d', 'Пункт 2, пояснение', 'розы, гортензии, французские — и всё свежее'],
+    ['perk3_t', 'Пункт 3', '📸 Фото перед доставкой'], ['perk3_d', 'Пункт 3, пояснение', 'увидите букет до того, как он поедет'],
+  ]],
+  ['Карусель букетов', [
+    ['studio_bar', 'Надпись сверху (*так* — жирным)', 'Не магазин, а *цветочный завод*'],
+    ['studio_title', 'Вопрос', 'Что скажут ваши цветы?'],
+    ['ready_note', 'После «сборки»', 'Тот самый букет. Для того самого человека.'],
+  ]],
+  ['Три плитки', [
+    ['perkA_t', 'Плитка 1', 'Фото перед доставкой'], ['perkA_d', 'Плитка 1, пояснение', 'Вы видите букет до того, как его увидят'],
+    ['perkB_t', 'Плитка 2', 'Доставка по Москве'], ['perkB_d', 'Плитка 2, пояснение', 'В удобный вам интервал'],
+    ['perkC_t', 'Плитка 3', 'Открытка с вашим текстом'], ['perkC_d', 'Плитка 3, пояснение', 'Напишем от руки и вложим в букет'],
+  ]],
+  ['Каталог, товар, подвал', [
+    ['popular_title', 'Заголовок популярных', 'Популярные букеты'],
+    ['cat_note', 'Подпись в каталоге', 'Оптовые цены в розницу — цветы напрямую от производителей'],
+    ['price_note', 'Подпись у цены товара', 'Оптовая цена: цветы приходят напрямую от производителей, без посредников'],
+    ['foot_slogan', 'Строка в подвале', 'Оптовые цены в розницу'],
+  ]],
+];
+function brandTextsHTML(b) {
+  const T = (b.texts && typeof b.texts === 'object') ? b.texts : {};
+  return `<details class="stack"><summary style="cursor:pointer;font-weight:700">Тексты на сайте</summary>
+    <p class="hint">Пустое поле — на сайте останется текст venikoff (он виден серым в поле).</p>
+    ${BRAND_TEXTS.map(([group, rows]) => `<h4 style="margin:10px 0 0">${group}</h4>` + rows.map(([k, label, ph, own]) =>
+      `<label class="f">${label}<input class="in" ${own ? `data-bf="${k}"` : `data-bt="${k}"`} data-bid="${b.id}" value="${esc(own ? (b[k] || '') : (T[k] || ''))}" placeholder="${esc(ph)}"></label>`).join('')).join('')}
+  </details>`;
+}
 // Настройки витрин: название, домен, цвет и ключи ботов. Ключи не показываем —
 // только отметку «сохранён», чтобы случайно не засветить их на экране.
 function renderBrandsCard() {
@@ -3387,6 +3426,7 @@ function renderBrandsCard() {
         <p class="hint" style="flex:1;align-self:center">С этой буквой номер уходит в банк: заказ №3171 → счёт «${esc(b.pay_prefix || 'v')}3171». Так наш счёт не совпадёт со старым чужим из того же кабинета. Номер заказа на сайте и в МоёмСкладе не меняется.</p>
       </div>
       <p class="hint">Свой терминал у каждого сайта: деньги приходят на свой счёт и не путаются в выписке. Не заполнено — работает общий терминал из блока «Оплата картой».</p>
+      ${brandTextsHTML(b)}
       <div class="bar">
         <button class="btn btn-p" data-bsave="${b.id}">Сохранить</button>
         <button class="btn btn-g" data-bcheck="tg|${b.id}">Проверить Телеграм</button>
@@ -3400,6 +3440,9 @@ $('#brandsBox').addEventListener('click', safe(async e => {
   if (save) {
     const id = save.dataset.bsave, body = {};
     $$(`#brandsBox [data-bf][data-bid="${id}"]`).forEach(i => body[i.dataset.bf] = i.value.trim());
+    const texts = {};
+    $$(`#brandsBox [data-bt][data-bid="${id}"]`).forEach(i => { if (i.value.trim()) texts[i.dataset.bt] = i.value.trim(); });
+    if ($(`#brandsBox [data-bt][data-bid="${id}"]`)) body.texts = texts;
     $$(`#brandsBox [data-btok][data-bid="${id}"]`).forEach(i => {
       const v = i.value.trim();
       if (v) body[{ max: 'max_token', cp: 'cp_secret', tg: 'tg_client_token' }[i.dataset.btok]] = v;

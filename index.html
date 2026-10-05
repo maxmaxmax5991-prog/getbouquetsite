@@ -78,6 +78,9 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .logo{display:inline-flex;align-items:flex-end;gap:2px;text-decoration:none;color:var(--ink);font:700 21px var(--display);letter-spacing:-.055em;flex:none}
 .logo .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);margin:0 1px 5px}
 .logo i{font-style:normal;color:var(--accent-text)}
+.logo-img{height:30px;width:auto;display:block}.logo-dark{display:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .logo-img{display:none}:root:not([data-theme="light"]) .logo-dark{display:block}}
+:root[data-theme="dark"] .logo-img{display:none}:root[data-theme="dark"] .logo-dark{display:block}
 .city{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);padding-left:18px;border-left:1px solid var(--line-2)}
 .city .i{width:15px;height:15px}
 .nav{display:flex;gap:24px;margin-left:auto;font-size:14px;font-weight:600}
@@ -120,6 +123,9 @@ html{overflow-x:clip}
 /* hero */
 .hero{padding-block:clamp(24px,4vw,56px) clamp(8px,2vw,20px)}
 .hero .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);gap:clamp(24px,5vw,72px);align-items:center}
+/* вторая полоса шапки — три плитки во всю ширину: два класса .perks (список и плитки) раньше
+   смешивались, и плитки сжимались в левую колонку шириной 520px */
+.hero .wrap + .wrap{display:block}
 .hero h1{font:700 clamp(44px,7vw,92px)/.95 var(--display);letter-spacing:-.06em;margin:18px 0 0}
 .hero h1 em{font-style:normal;color:var(--accent);display:block}
 .hero .lede{font-size:clamp(16px,1.5vw,18px);color:var(--ink-2);max-width:38ch;margin:22px 0 0;line-height:1.6}
@@ -434,10 +440,10 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .form input,.form select,.form textarea{height:48px;border-radius:12px;border:1px solid var(--line-2);background:var(--ground);padding:0 14px;color:var(--ink);font-weight:500;font-size:16px;outline:0;width:100%}
 .form textarea{height:88px;padding:12px 14px;resize:vertical}
 .form input:focus,.form select:focus,.form textarea:focus{border-color:var(--accent)}
-.perks{list-style:none;margin:22px auto 0;padding:0;display:grid;gap:10px;max-width:520px;text-align:left}
-.perks li{display:grid;gap:2px;font-size:14px;color:var(--ink-2);padding-left:18px;position:relative;line-height:1.35}
-.perks li::before{content:"";position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
-.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
+ul.perks{list-style:none;margin:22px auto 0;padding:0;display:grid;gap:10px;max-width:520px;text-align:left}
+ul.perks li{display:grid;gap:2px;font-size:14px;color:var(--ink-2);padding-left:18px;position:relative;line-height:1.35}
+ul.perks li::before{content:"";position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .cat-note{margin:6px 0 0;font-size:13.5px;color:var(--accent-text);font-weight:600}
 .price-note{margin:6px 0 0;font-size:13px;color:var(--ink-2);line-height:1.35}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -501,6 +507,50 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .toast button{color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
 
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ===== Витрина LasFlore: цветочная мастерская =====
+   Каркас общий с venikoff, характер свой: заголовки Manrope вместо Unbounded,
+   мягкие формы, зелёный второй цвет и листья из логотипа на фоне главной.
+   Правила срабатывают по <html data-brand="lasflore">. */
+[data-brand="lasflore"]{
+  --display:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --ground:#F4F7EF; --soft:#E7EFDF;
+  --line:rgba(30,90,45,.10); --line-2:rgba(30,90,45,.18);
+  --leaf:#1E8C4E; --leaf-soft:rgba(30,140,78,.10);
+  --shadow:0 1px 2px rgba(30,70,40,.06),0 22px 44px -26px rgba(30,90,45,.38);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"])[data-brand="lasflore"]{
+  --ground:#0E1410; --paper:#161E18; --soft:#1F2A22;
+  --line:rgba(180,230,190,.09); --line-2:rgba(180,230,190,.17);
+  --leaf:#8FD15A; --leaf-soft:rgba(124,194,66,.14);
+}}
+:root[data-theme="dark"][data-brand="lasflore"]{
+  --ground:#0E1410; --paper:#161E18; --soft:#1F2A22;
+  --line:rgba(180,230,190,.09); --line-2:rgba(180,230,190,.17);
+  --leaf:#8FD15A; --leaf-soft:rgba(124,194,66,.14);
+}
+/* Manrope шире Unbounded по рисунку — тесная разрядка venikoff ему не идёт */
+[data-brand="lasflore"] :is(.hero h1,.cat-head h1,.pd-info h1){font-weight:800;letter-spacing:-.035em}
+[data-brand="lasflore"] .hero h1{line-height:1.02}
+[data-brand="lasflore"] :is(.h2,.chooser h2,.scene-head h3,.tiles b,.me-card h3,.sheet-head h2,.cart-empty h3,.done h3,.empty b){font-weight:800;letter-spacing:-.02em}
+[data-brand="lasflore"] :is(.pd-price b,.total b){font-weight:800;letter-spacing:-.02em}
+/* второй голос — зелёный: надзаголовки, метки, точки в списках */
+[data-brand="lasflore"] .eyebrow{color:var(--leaf);letter-spacing:.16em}
+[data-brand="lasflore"] .perks li::before{background:var(--leaf);border-radius:2px 8px;transform:rotate(-20deg)}
+[data-brand="lasflore"] .perk .ic{background:var(--leaf-soft);color:var(--leaf);border-radius:50%}
+[data-brand="lasflore"] .perk{border-radius:24px}
+/* мягкие формы: кнопки-капсулы, круглее карточки */
+[data-brand="lasflore"] .btn{border-radius:999px}
+[data-brand="lasflore"] .card-img{border-radius:24px}
+[data-brand="lasflore"] .studio{border-radius:36px;border:1px solid var(--line)}
+[data-brand="lasflore"] .studio-bar{color:var(--leaf)}
+[data-brand="lasflore"] .chip[aria-pressed="true"],[data-brand="lasflore"] .chip.on{background:var(--leaf);border-color:var(--leaf);color:var(--paper)}
+/* листья из логотипа за текстом главной */
+[data-brand="lasflore"] .hero{position:relative;overflow:hidden}
+[data-brand="lasflore"] .hero::before{content:"";position:absolute;z-index:0;pointer-events:none;
+  width:min(46vw,560px);aspect-ratio:1;left:-8vw;top:-60px;opacity:.07;transform:rotate(-18deg);
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 62C12 52 6 24 20 2C38 16 45 44 32 62Z' fill='%231E8C4E'/%3E%3Cpath d='M32 62C33 44 42 30 61 24C63 42 52 58 32 62Z' fill='%237CC242'/%3E%3C/svg%3E") center/contain no-repeat}
+[data-brand="lasflore"] .hero > .wrap{position:relative;z-index:1}
 </style>
 </head>
 <body>
@@ -559,16 +609,16 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
           <a class="btn btn-primary" href="/catalog/">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
         </div>
         <ul class="perks">
-          <li><b>💰 Оптовые цены</b>цветы напрямую от производителей</li>
-          <li><b>🌸 Невероятный ассортимент</b>розы, гортензии, французские — и всё свежее</li>
-          <li><b>📸 Фото перед доставкой</b>увидите букет до того, как он поедет</li>
+          <li><b data-t="perk1_t">💰 Оптовые цены</b><span data-t="perk1_d">цветы напрямую от производителей</span></li>
+          <li><b data-t="perk2_t">🌸 Невероятный ассортимент</b><span data-t="perk2_d">розы, гортензии, французские — и всё свежее</span></li>
+          <li><b data-t="perk3_t">📸 Фото перед доставкой</b><span data-t="perk3_d">увидите букет до того, как он поедет</span></li>
         </ul>
       </div>
 
       <div class="studio" id="studio" data-phase="choosing">
-        <div class="studio-bar"><span>Не магазин, а <b>цветочный завод</b></span><span class="num" id="studioIdx">1 / 5</span></div>
+        <div class="studio-bar"><span data-t="studio_bar">Не магазин, а <b>цветочный завод</b></span><span class="num" id="studioIdx">1 / 5</span></div>
         <div class="chooser">
-          <h2>Что скажут ваши цветы?</h2>
+          <h2 data-t="studio_title">Что скажут ваши цветы?</h2>
           <div class="carousel" id="carousel" tabindex="0" role="listbox" aria-label="Выбор букета. Стрелки влево и вправо листают"></div>
           <div class="c-meta" aria-live="polite"><div class="c-name" id="cName"></div><div class="c-price num" id="cPrice"></div></div>
           <div class="dots" id="dots"></div>
@@ -584,7 +634,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
           <button class="heart-round" id="sFav" aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
           <div class="steps"><div class="steps-bar"><span></span><span></span><span></span></div><div class="steps-text" id="stepText">Выбираем самые красивые</div></div>
           <div class="ready">
-            <div class="ready-note"><svg class="i"><use href="#i-check"/></svg>Тот самый букет. Для того самого человека.</div>
+            <div class="ready-note"><svg class="i"><use href="#i-check"/></svg><span data-t="ready_note">Тот самый букет. Для того самого человека.</span></div>
             <button class="btn btn-primary btn-wide" id="choose"><span>Выбрать букет</span><svg class="i"><use href="#i-arrow"/></svg></button>
             <div class="ready-row">
               <button class="btn btn-ghost btn-sm" id="other"><svg class="i"><use href="#i-left"/></svg>Другой букет</button>
@@ -596,16 +646,16 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
     </div>
     <div class="wrap">
       <div class="perks">
-        <div class="perk"><span class="ic"><svg class="i"><use href="#i-camera"/></svg></span><div><b>Фото перед доставкой</b><span>Вы видите букет до того, как его увидят</span></div></div>
-        <div class="perk"><span class="ic"><svg class="i"><use href="#i-truck"/></svg></span><div><b>Доставка по Москве</b><span>В удобный вам интервал</span></div></div>
-        <div class="perk"><span class="ic"><svg class="i"><use href="#i-gift"/></svg></span><div><b>Открытка с вашим текстом</b><span>Напишем от руки и вложим в букет</span></div></div>
+        <div class="perk"><span class="ic"><svg class="i"><use href="#i-camera"/></svg></span><div><b data-t="perkA_t">Фото перед доставкой</b><span data-t="perkA_d">Вы видите букет до того, как его увидят</span></div></div>
+        <div class="perk"><span class="ic"><svg class="i"><use href="#i-truck"/></svg></span><div><b data-t="perkB_t">Доставка по Москве</b><span data-t="perkB_d">В удобный вам интервал</span></div></div>
+        <div class="perk"><span class="ic"><svg class="i"><use href="#i-gift"/></svg></span><div><b data-t="perkC_t">Открытка с вашим текстом</b><span data-t="perkC_d">Напишем от руки и вложим в букет</span></div></div>
       </div>
     </div>
   </section>
 
   <section class="sec">
     <div class="wrap">
-      <div class="sec-head"><h2 class="h2">Популярные букеты</h2><a class="more" href="/catalog/">Смотреть все <svg class="i"><use href="#i-arrow"/></svg></a></div>
+      <div class="sec-head"><h2 class="h2" data-t="popular_title">Популярные букеты</h2><a class="more" href="/catalog/">Смотреть все <svg class="i"><use href="#i-arrow"/></svg></a></div>
       <div class="grid" id="popular"></div>
     </div>
   </section>
@@ -623,7 +673,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Каталог</span></nav>
     <div class="cat-head">
-      <div><h1 id="catTitle">Каталог</h1><p id="count" class="num"></p><p class="cat-note">Оптовые цены в розницу — цветы напрямую от производителей</p></div>
+      <div><h1 id="catTitle">Каталог</h1><p id="count" class="num"></p><p class="cat-note" data-t="cat_note">Оптовые цены в розницу — цветы напрямую от производителей</p></div>
       <div class="tools">
         <label class="field"><span class="sr">Поиск по каталогу</span><svg class="i"><use href="#i-search"/></svg><input class="search" id="q" type="search" placeholder="Розы, тюльпаны, мишка…" autocomplete="off"></label>
         <label><span class="sr">Сортировка</span>
@@ -676,7 +726,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       <div class="pd-info">
         <div><p class="eyebrow" id="pdCat"></p><h1 id="pdName"></h1></div>
         <div class="pd-price num"><b id="pdPrice"></b><span class="bonus" id="pdBonus"></span></div>
-        <p class="price-note">Оптовая цена: цветы приходят напрямую от производителей, без посредников</p>
+        <p class="price-note" data-t="price_note">Оптовая цена: цветы приходят напрямую от производителей, без посредников</p>
         <p class="price-note" id="pdExpress" hidden style="color:#92400E"></p>
         <p class="price-note" id="pdFresh" hidden style="color:var(--leaf)"><b>🌿 Этот сорт сегодня приехал к нам напрямую с теплицы</b></p>
         <p class="price-note" id="pdOnly" hidden><b>Только на сайте</b> — этих роз нет в рознице, мы держим их под интернет-заказы</p>
@@ -772,8 +822,24 @@ const BRAND = (API && API.brand) || null;
 const SITE = (BRAND && BRAND.name) || 'venikoff.net';
 function applyBrand(b) {
   document.title = SITE;
+  // свой стиль витрины: правила [data-brand="…"] в стилях выше
+  document.documentElement.dataset.brand = b.slug;
+  // свои тексты: *так* — жирным; пусто — остаётся текст venikoff
+  const T = b.texts || {};
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const v = T[el.dataset.t];
+    if (v) el.innerHTML = String(v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])).replace(/\*([^*]+)\*/g, '<b>$1</b>');
+  });
   // фирменное написание «venikoff•net» оставляем только своему бренду
-  if (b.slug !== 'venikoff') ['#logoTop', '#logoFoot'].forEach(sel => { const el = document.querySelector(sel); if (el) el.textContent = b.name; });
+  if (b.slug !== 'venikoff') ['#logoTop', '#logoFoot'].forEach(sel => {
+    const el = document.querySelector(sel); if (!el) return;
+    if (!b.logo) { el.textContent = b.name; return; }
+    // своя картинка у витрины: светлая и тёмная, переключает CSS по теме
+    el.textContent = '';
+    [[b.logo, 'logo-img'], [b.logo_dark || b.logo, 'logo-img logo-dark']].forEach(([src, cls]) => {
+      const im = document.createElement('img'); im.src = src; im.alt = b.name; im.className = cls; el.appendChild(im);
+    });
+  });
   const tg = document.querySelector('#footTg');
   if (tg) { if (b.tg_link) tg.href = b.tg_link; else tg.hidden = true; }
   const mx = document.querySelector('#footMax');
@@ -781,7 +847,7 @@ function applyBrand(b) {
   const about = document.querySelector('#footAbout');
   if (about) {
     about.textContent = '';
-    [b.address, 'Оптовые цены в розницу', `© ${b.name}, ${new Date().getFullYear()}`]
+    [b.address, (b.texts && b.texts.foot_slogan) || 'Оптовые цены в розницу', `© ${b.name}, ${new Date().getFullYear()}`]
       .filter(Boolean).forEach((line, i) => {
         if (i) about.appendChild(document.createElement('br'));
         about.appendChild(document.createTextNode(line));
