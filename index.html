@@ -736,7 +736,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791202554"></script>
+<script src="data.js?v=1791204916"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1106,13 +1106,24 @@ document.addEventListener('click', e => {
   else if (t.dataset.dec && !t.closest('dialog')) setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1);
 });
 
+// Отбор в каталоге. Объявлен здесь, а не в разделе каталога ниже: «Популярные»
+// на главной сортируются по наличию и читают его при загрузке страницы.
+// Объявление ниже по файлу роняло главную — const до инициализации не прочитать.
+const state = { cat: 'all', q: '', sort: 'pop', favOnly: false, len: 0, cnt: 0 };
+
 /* ---------- home ---------- */
 // В «Популярные» попадают все букеты, кроме открыток и игрушек, — галочку
 // у нового товара ставить не нужно, он появляется здесь сам.
 // на главной только то, что можно купить: погасшие сорта живут в каталоге
 const POPULAR = API ? P.filter(p => !isAddon(p) && !p.off)
-  // экспресс — первыми: букет уже собран и ждёт, его надо показать сразу
-  .slice().sort((a, b) => ((b.express && b.ready) ? 1 : 0) - ((a.express && a.ready) ? 1 : 0))
+  .slice().sort((a, b) => {
+    // Сначала наличие: кончившиеся сорта уходят вниз. На главной они стояли
+    // вперемешку, и третьей карточкой на сайте была та, которой нет.
+    const d = доступность(a) - доступность(b);
+    if (d) return d;
+    // внутри — экспресс первым: букет уже собран и ждёт, его надо показать сразу
+    return ((b.express && b.ready) ? 1 : 0) - ((a.express && a.ready) ? 1 : 0);
+  })
   .map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = POPULAR.map(id => card(byId[id])).join('');
 const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
@@ -1125,7 +1136,6 @@ $('#tiles').innerHTML = CATS.map(([k, label]) => {
 }).join('');
 
 /* ---------- catalog ---------- */
-const state = { cat: 'all', q: '', sort: 'pop', favOnly: false, len: 0, cnt: 0 };
 function renderChips() {
   let html = `<button class="chip" data-cat="all" aria-pressed="${!state.favOnly && state.cat === 'all'}">Все <small class="num">${P.length - ADDONS.length}</small></button>`;
   html += CATS.map(([k, label]) => `<button class="chip" data-cat="${k}" aria-pressed="${!state.favOnly && state.cat === k}">${label} <small class="num">${count[k] || 0}</small></button>`).join('');
