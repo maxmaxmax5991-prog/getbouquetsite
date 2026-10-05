@@ -736,7 +736,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791200269"></script>
+<script src="data.js?v=1791200614"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1121,7 +1121,6 @@ function renderSizeChips() {
   // Ряды сужают друг друга: выбрали 40 см — в количествах остаются только те,
   // что бывают в сорока сантиметрах. Иначе человек жмёт «7 шт» и получает пусто.
   товары.forEach(p => (p.variants || []).forEach(v => {
-    if (!живой(v)) return;
     if (+v.len > 0 && (!state.cnt || +v.cnt === state.cnt)) длины.add(+v.len);
     if (+v.cnt > 0 && (!state.len || +v.len === state.len)) штуки.add(+v.cnt);
   }));
@@ -1164,9 +1163,20 @@ function renderSizeChips() {
 function подРазмер(p) {
   if (!state.len && !state.cnt) return null;
   if (!p.variants) return false;
-  return p.variants.find(v => живой(v)
-    && (!state.len || +v.len === state.len)
-    && (!state.cnt || +v.cnt === state.cnt)) || false;
+  const подходит = v => (!state.len || +v.len === state.len) && (!state.cnt || +v.cnt === state.cnt);
+  // кончившийся размер не прячем — он уходит вниз списка (см. доступность)
+  return p.variants.find(v => подходит(v) && живой(v)) || p.variants.find(подходит) || false;
+}
+
+// Чем выше, тем ближе к началу каталога:
+//   0 — можно забрать сегодня, 1 — едет с теплицы, 2 — кончилось, 3 — сорт выключен.
+// Покупатель должен сначала увидеть то, что реально купит, а уже потом остальное.
+function доступность(p) {
+  if (p.off) return 3;
+  const v = (state.len || state.cnt) ? подРазмер(p) : (p.variants ? variant(p, curLabel(p)) : null);
+  if (!p.variants) return 0;
+  if (!v || v.out) return 2;
+  return v.wait_at ? 1 : 0;
 }
 // Адрес каталога из текущего отбора. Им же делимся с покупателем.
 function адресКаталога() {
@@ -1218,15 +1228,17 @@ function list() {
   if (state.len || state.cnt) {
     r = r.filter(p => {
       const v = подРазмер(p);
-      if (!v) return false;
+      if (!v) return false;          // такого размера у сорта нет вовсе
       sel[p.id] = v.label;
       return true;
     });
   }
   if (state.sort === 'asc') r = [...r].sort((a, b) => a.price - b.price);
   if (state.sort === 'desc') r = [...r].sort((a, b) => b.price - a.price);
-  // выключенные сорта всегда внизу: они для настроения, а не для покупки
-  return [...r].sort((a, b) => (a.off ? 1 : 0) - (b.off ? 1 : 0));
+  // Наличие важнее всего остального: сначала то, что можно забрать сегодня,
+  // потом то, что едет, потом кончившееся, и в самом низу выключенные сорта.
+  // Сортировка устойчивая, поэтому выбранный порядок внутри групп сохраняется.
+  return [...r].sort((a, b) => доступность(a) - доступность(b));
 }
 function renderGrid() {
   const r = list();
@@ -1234,11 +1246,13 @@ function renderGrid() {
   let подпись = `${r.length} ${plural(r.length, 'позиция', 'позиции', 'позиций')}`;
   // при выбранном размере важнее другое: сколько можно забрать сегодня, а сколько — после привоза
   if (state.len || state.cnt) {
-    const сейчас = r.filter(p => { const v = подРазмер(p); return v && !v.wait_at; }).length;
-    const едет = r.length - сейчас;
-    подпись = сейчас
-      ? `${сейчас} ${plural(сейчас, 'сорт', 'сорта', 'сортов')} можно заказать сейчас` + (едет ? `, ещё ${едет} после привоза` : '')
-      : едет ? `Сейчас нет, но ${едет} ${plural(едет, 'сорт приедет', 'сорта приедут', 'сортов приедут')} сегодня` : 'Ничего нет';
+    const по = n => r.filter(p => доступность(p) === n).length;
+    const сейчас = по(0), едет = по(1), нет = r.length - сейчас - едет;
+    const части = [];
+    if (сейчас) части.push(`${сейчас} ${plural(сейчас, 'сорт', 'сорта', 'сортов')} можно заказать сейчас`);
+    if (едет) части.push(`${едет} ${plural(едет, 'приедет', 'приедут', 'приедут')} сегодня`);
+    if (нет) части.push(`${нет} ${plural(нет, 'закончился', 'закончились', 'закончились')}`);
+    подпись = части.length ? части.join(', ') : 'Ничего нет';
   }
   $('#count').textContent = подпись;
   const размерВыбран = !!(state.len || state.cnt);
