@@ -88,7 +88,10 @@ $SITES {
 		# шрифты и картинки не меняются — пусть браузер держит их у себя год
 		@static path /fonts/* /img/*
 		header @static Cache-Control \"public, max-age=31536000, immutable\"
-		try_files {path} {path}/index.html
+		# Сайт на настоящих адресах (/catalog/, /policy/, /order/…), страницы рисует
+		# браузер. Без возврата на index.html любой прямой заход и перезагрузка
+		# отдавали 404: работали только переходы внутри сайта.
+		try_files {path} {path}/index.html /index.html
 		file_server
 	}
 }
