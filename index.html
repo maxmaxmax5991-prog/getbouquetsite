@@ -411,6 +411,11 @@ html{overflow-x:clip}
 .foot nav{display:flex;gap:20px;flex-wrap:wrap}
 .foot nav a{text-decoration:none}
 .foot nav a:hover{color:var(--accent-text)}
+.foot-legal{font-size:12.5px;color:var(--ink-3)}
+.foot-legal summary{cursor:pointer;list-style:none;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-2)}
+.foot-legal summary::-webkit-details-marker{display:none}
+.foot-legal summary:hover{color:var(--accent-text)}
+.foot-legal p{margin:8px 0 0;line-height:1.5}
 
 /* sheets */
 dialog{border:0;padding:0;color:var(--ink);background:var(--paper);max-width:100%;max-height:100%}
@@ -815,7 +820,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1791213280"></script>
+<script src="/data.js?v=1791218881"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -880,11 +885,22 @@ function applyBrand(b) {
       [L.inn ? 'ИНН ' + L.inn : '', L.ogrn ? 'ОГРН ' + L.ogrn : ''].filter(Boolean).join(' · '),
       L.addr_legal || '',
     ].filter(Boolean);
-    [b.address, (b.texts && b.texts.foot_slogan) || 'Оптовые цены в розницу', ...юр, `© ${b.name}, ${new Date().getFullYear()}`]
+    [b.address, (b.texts && b.texts.foot_slogan) || 'Оптовые цены в розницу', `© ${b.name}, ${new Date().getFullYear()}`]
       .filter(Boolean).forEach((line, i) => {
         if (i) about.appendChild(document.createElement('br'));
         about.appendChild(document.createTextNode(line));
       });
+    // Реквизиты — под свёрнутой вкладкой: на сайте они быть обязаны, но в подвале
+    // занимали четыре строки и выглядели как канцелярия (просьба владельца 05.10).
+    if (юр.length && !document.querySelector('#footLegal')) {
+      const d = document.createElement('details');
+      d.id = 'footLegal'; d.className = 'foot-legal';
+      const sm = document.createElement('summary'); sm.textContent = 'О компании';
+      const body = document.createElement('p');
+      юр.forEach((line, i) => { if (i) body.appendChild(document.createElement('br')); body.appendChild(document.createTextNode(line)); });
+      d.append(sm, body);
+      about.after(d);
+    }
   }
   // тексты шапки: у каждой витрины свои
   const put = (sel, text) => { if (!text) return; const el = document.querySelector(sel); if (el) el.textContent = text; };
