@@ -453,6 +453,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <h2>Воронка</h2>
         <p class="hint">Сколько людей дошло до каждого шага. Считаются люди, а не клики.</p>
         <div class="scroll"><table class="t" id="statFunnel"></table></div>
+        <h2 style="margin-top:14px;font-size:15px">Почему не оформили</h2>
+        <p class="hint">Каждая строка — отказ, который человек увидел вместо заказа. Это не «передумал», это мы ему помешали.</p>
+        <div class="scroll"><table class="t" id="statRefuse"></table></div>
       </div>
       <div class="card" style="margin-top:12px">
         <h2>Оценки после вручения</h2>
@@ -2397,17 +2400,44 @@ const loadStats = safe(async () => {
   // Воронка: посетители → карточка → корзина → оформление → заказ → оплата
   try {
     const fn = await api(`/api/shop/funnel?from=${mskDate(dFrom)}&to=${mskDate(dTo)}${bq}`);
+    // Полный путь, шаг за шагом. Считаются люди, а не клики.
     const steps = [
-      ['Зашли на сайт', fn.visits], ['Открыли карточку', fn.view], ['Положили в корзину', fn.cart],
-      ['Начали оформлять', fn.checkout], ['Оформили заказ', live.length], ['Оплатили', paid.length],
+      ['Зашли на сайт', fn.visits],
+      ['Открыли карточку товара', fn.view],
+      ['Положили в корзину', fn.cart],
+      ['Открыли корзину', fn.cart_open],
+      ['Открыли оформление', fn.checkout],
+      ['Начали заполнять', fn.form],
+      ['Нажали «войти»', fn.login_go],
+      ['Вошли', fn.login_ok],
+      ['Адрес найден', fn.addr_ok],
+      ['Выбрали интервал', fn.slot],
+      ['Нажали «подтвердить»', fn.submit],
+      ['Заказ создан', fn.order || live.length],
+      ['Оплатили', fn.paid || paid.length],
     ];
     const top0 = steps[0][1] || 1;
-    $('#statFunnel').innerHTML = `<tr><th>Шаг</th><th class="num">Человек</th><th class="num">От зашедших</th><th class="num">Дошли с прошлого шага</th></tr>`
+    // где теряем больше всего — подсвечиваем, чтобы не считать глазами
+    let худший = -1, худшая = 101;
+    steps.forEach(([, n], i) => {
+      if (!i) return;
+      const prev = steps[i - 1][1] || 0;
+      if (prev >= 20 && n < prev) { const d = n * 100 / prev; if (d < худшая) { худшая = d; худший = i; } }
+    });
+    $('#statFunnel').innerHTML = `<tr><th>Шаг</th><th class="num">Человек</th><th class="num">От зашедших</th><th class="num">С прошлого шага</th></tr>`
       + steps.map(([t, n], i) => {
         const prev = i ? (steps[i - 1][1] || 0) : 0;
         const drop = i && prev ? Math.round(n * 100 / prev) : null;
-        return `<tr><td>${t}</td><td class="num">${n}</td><td class="num">${Math.round(n * 100 / top0)}%</td><td class="num">${drop === null ? '' : drop + '%'}</td></tr>`;
+        const метка = i === худший ? ' <i class="same" style="color:var(--sale)">самая узкая ступень</i>' : '';
+        return `<tr><td>${t}${метка}</td><td class="num">${n || 0}</td><td class="num">${Math.round((n || 0) * 100 / top0)}%</td><td class="num">${drop === null ? '' : drop + '%'}</td></tr>`;
       }).join('');
+
+    // На чём спотыкаются: причины отказов по убыванию
+    const отк = fn.отказы || [];
+    $('#statRefuse').innerHTML = отк.length
+      ? `<tr><th>Что помешало оформить</th><th class="num">Человек</th></tr>`
+        + отк.map(r => `<tr><td>${esc(r.причина)}</td><td class="num">${r.людей}</td></tr>`).join('')
+      : `<tr><td class="hint">Отказов за период не было — или сайт ещё не обновлён.</td></tr>`;
   } catch (_) { $('#statFunnel').innerHTML = '<tr><td>Пока нет данных</td></tr>'; }
 
   // Оценки после вручения
