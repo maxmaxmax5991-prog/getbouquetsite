@@ -457,6 +457,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .sizes-row{position:static;overflow:visible;flex-direction:column;align-items:stretch;gap:6px;margin:-12px 0 16px;padding:0}
 .sizes-group{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .sizes-group::-webkit-scrollbar{display:none}
+.share-pick{margin:-8px 0 16px;align-self:flex-start}
 .sizes-row .chip{font-size:13px;padding:7px 12px;min-height:36px;flex:0 0 auto}
 /* в корзине кончились цветы: строку видно сразу, рядом — как поправить */
 .line-short{background:rgba(224,23,138,.06);border-radius:12px}
@@ -628,6 +629,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
     </div>
     <div class="chips" id="chips" role="group" aria-label="Разделы каталога"></div>
     <div class="chips sizes-row" id="sizeChips" role="group" aria-label="Длина и количество"></div>
+    <button class="btn btn-ghost btn-sm share-pick" id="sharePick" type="button" hidden>Поделиться подборкой</button>
     <div class="grid" id="grid"></div>
   </div>
 </div>
@@ -734,7 +736,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791199738"></script>
+<script src="data.js?v=1791200269"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1139,12 +1141,21 @@ function renderSizeChips() {
   const box = $('#sizeChips');
   box.innerHTML = html;
   box.hidden = !html;
+  // кнопка «поделиться» нужна только когда есть что отправлять
+  const доля = $('#sharePick');
+  if (доля) доля.hidden = !(state.len || state.cnt);
   // Ряд прокручивается вбок, и выбранная кнопка могла оказаться за краем —
   // человек не видел, что именно отобрано. Подтягиваем её в видимую часть.
-  box.querySelectorAll('.chip[aria-pressed="true"]').forEach(b => {
-    const r = b.parentElement;
-    if (!r || r.scrollWidth <= r.clientWidth) return;
-    r.scrollLeft = Math.max(0, b.offsetLeft - r.clientWidth / 2 + b.offsetWidth / 2);
+  //
+  // Через кадр, а не сразу: router рисует каталог, пока он ещё hidden, и у
+  // скрытого элемента все размеры нули — вычислять по ним нечего. По ссылке
+  // с готовым отбором кнопка из-за этого оставалась за краем.
+  requestAnimationFrame(() => {
+    box.querySelectorAll('.chip[aria-pressed="true"]').forEach(b => {
+      const r = b.parentElement;
+      if (!r || r.scrollWidth <= r.clientWidth) return;
+      r.scrollLeft = Math.max(0, b.offsetLeft - r.clientWidth / 2 + b.offsetWidth / 2);
+    });
   });
 }
 
@@ -1157,13 +1168,39 @@ function подРазмер(p) {
     && (!state.len || +v.len === state.len)
     && (!state.cnt || +v.cnt === state.cnt)) || false;
 }
+// Адрес каталога из текущего отбора. Им же делимся с покупателем.
+function адресКаталога() {
+  const путь = state.favOnly ? '#/favorites' : '#/catalog' + (state.cat !== 'all' ? '/' + state.cat : '');
+  const п = new URLSearchParams();
+  if (state.len) п.set('len', state.len);
+  if (state.cnt) п.set('cnt', state.cnt);
+  if (state.q.trim()) п.set('q', state.q.trim());
+  const хвост = п.toString();
+  return путь + (хвост ? '?' + хвост : '');
+}
+// Пишем в адрес без hashchange: иначе страница перерисовалась бы целиком
+// и прыгнула наверх при каждом нажатии кнопки.
+function запомнитьВАдресе() {
+  try { history.replaceState(null, '', адресКаталога()); } catch (_) {}
+}
 $('#sizeChips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
   // повторное нажатие на выбранную кнопку снимает отбор — так не надо искать «любая»
   if (b.dataset.len !== undefined) { const n = +b.dataset.len; state.len = (n && state.len === n) ? 0 : n; }
   if (b.dataset.cnt !== undefined) { const n = +b.dataset.cnt; state.cnt = (n && state.cnt === n) ? 0 : n; }
   try { window.ev && window.ev('size-filter', `${state.len || 'любая'}см × ${state.cnt || 'любое'}шт`); } catch (_) {}
-  renderSizeChips(); renderGrid();
+  запомнитьВАдресе(); renderSizeChips(); renderGrid();
+});
+// «Поделиться подборкой»: на телефоне — обычное меню «Поделиться», на компьютере
+// кладём ссылку в буфер. Набрать такой адрес руками никто не станет.
+$('#sharePick').addEventListener('click', async () => {
+  const ссылка = location.origin + '/' + адресКаталога();
+  const что = (state.len ? state.len + ' см' : '') + (state.len && state.cnt ? ' × ' : '') + (state.cnt ? state.cnt + ' шт' : '');
+  try {
+    if (navigator.share) { await navigator.share({ title: `${SITE} — ${что}`, url: ссылка }); return; }
+    await navigator.clipboard.writeText(ссылка);
+    toast('Ссылка скопирована');
+  } catch (_) { /* человек передумал делиться — это не ошибка */ }
 });
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
@@ -1211,7 +1248,7 @@ function renderGrid() {
       : размерВыбран ? 'Попробуйте другую длину или количество — или позвоните нам, подберём замену.'
       : 'Попробуйте другое название или раздел.'}</div>`;
 }
-$('#q').addEventListener('input', e => { state.q = e.target.value; renderGrid(); });
+$('#q').addEventListener('input', e => { state.q = e.target.value; запомнитьВАдресе(); renderSizeChips(); renderGrid(); });
 $('#sort').addEventListener('change', e => { state.sort = e.target.value; renderGrid(); });
 
 /* ---------- product page ---------- */
@@ -1274,7 +1311,15 @@ $('#pdAdd').onclick = () => addToCart(cardKey(byId[pd.id]), pd.qty);
 let route = { name: 'home' }, keepScroll = false;
 function go404() { location.hash = '#/catalog'; }
 function router() {
-  const h = location.hash.replace(/^#\/?/, '');
+  const весь = location.hash.replace(/^#\/?/, '');
+  // Отбор живёт в адресе: #/catalog?len=40&cnt=51. Так ссылку можно отправить
+  // покупателю, и он увидит ровно то, что ему отобрали, а не весь каталог.
+  const [h, хвост = ''] = весь.split('?');
+  const пар = new URLSearchParams(хвост);
+  state.len = +пар.get('len') || 0;
+  state.cnt = +пар.get('cnt') || 0;
+  const иск = пар.get('q') || '';
+  if (иск !== state.q) { state.q = иск; const поле = $('#q'); if (поле) поле.value = иск; }
   const [a, b] = h.split('/');
   const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery') };
   let name = 'home', scrollTo = null;
