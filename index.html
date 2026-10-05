@@ -736,7 +736,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791201134"></script>
+<script src="data.js?v=1791202554"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -936,17 +936,46 @@ const FLOWER = [[/роз/i, ['роза', 'розы', 'роз']], [/гортен�
 // на фото с 25 розами не должно быть написано «101 роза». Не проставлено — подписи нет.
 function countText(p, label) {
   const v = variant(p, label);
-  const n = +((v && (v.img || v.photo)) ? v.cnt : p.cnt) || 0;
+  const f = photoFor(p, label);
+  // считаем по тому снимку, который показан: у размера свой (pcnt), подобранный
+  // под размер (f.cnt) или главный снимок товара (p.cnt)
+  const n = +(f ? f.cnt : (v && (v.img || v.photo)) ? v.pcnt : p.cnt) || 0;
   if (!n) return '';
   const src = `${p.name} ${catName[p.cat] || ''}`;   // слово берём из названия или раздела
   const w = (FLOWER.find(([re]) => re.test(src)) || [])[1] || ['штука', 'штуки', 'штук'];
-  return `${n} ${plural(n, w[0], w[1], w[2])}`;
+  const текст = `${n} ${plural(n, w[0], w[1], w[2])}`;
+  // Снимок подобрать под размер не вышло — такого количества либо нет в прайсе,
+  // либо оно кончилось. Тогда «51 роза» на карточке, которая продаётся по 19,
+  // читается как обещание: говорим прямо, что это про фотографию.
+  const размер = v && +v.cnt;
+  return (размер && размер !== n) ? `на фото ${текст}` : текст;
 }
 // длина 0 — значит длины у товара нет (гортензии и прочее не по стеблю)
 const labelText = l => /^\d+-\d+$/.test(l) ? (l.split('-')[0] === '0' ? `${l.split('-')[1]} шт` : `${l.split('-')[1]} шт · ${l.split('-')[0]} см`) : /^\d+$/.test(l) ? `${l} шт` : `размер ${l}`;
-const photoOf = (p, label) => { const v = variant(p, label); return v && v.img ? v.img : v && v.photo ? img(v.photo) : (p.img || img(p.id)); };
+// Снимок под выбранный размер. Если у размера своего фото нет, но среди снимков
+// товара есть такой, где ровно столько же цветов, сколько в размере, — берём его.
+// Иначе на карточке, проданной как 51 штука, висела подпись «19 роз» с фотографии.
+const photoFor = (p, label) => {
+  const v = variant(p, label);
+  if (!v || v.img || v.photo) return null;          // у размера есть свой снимок
+  const n = +v.cnt;
+  if (!n || !Array.isArray(p.photos)) return null;
+  return p.photos.find(f => +f.cnt === n) || null;
+};
+const photoOf = (p, label) => {
+  const v = variant(p, label);
+  if (v && v.img) return v.img;
+  if (v && v.photo) return img(v.photo);
+  const f = photoFor(p, label);
+  return f ? f.img : (p.img || img(p.id));
+};
 // на странице товара фото во всю ширину — берём снимок покрупнее, если сервер его отдаёт
-const photoBig = (p, label) => { const v = variant(p, label); return (v && v.big) || p.big || photoOf(p, label); };
+const photoBig = (p, label) => {
+  const v = variant(p, label);
+  if (v && v.big) return v.big;
+  const f = photoFor(p, label);
+  return (f && f.big) || p.big || photoOf(p, label);
+};
 
 // полоска снимков под фото: показываем, когда у товара их несколько
 function renderShots(p, label) {

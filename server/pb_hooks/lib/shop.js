@@ -156,7 +156,13 @@ function variantsOf(p, s) {
   const express = !!p.get("is_express");
   return v.filter((x) => x && x.label && +x.price > 0).map((x) => {
     const out = express && x.ready !== undefined && x.ready !== null && !(+x.ready > 0);
-    return Object.assign({}, x, { parts: undefined, ready: express ? Math.max(0, +x.ready || 0) : undefined, out: out || undefined });
+    // У товаров без ростовок количество записано прямо в названии размера («13»).
+    // Без этого у них не было `cnt` вовсе: не работал ни отбор по количеству,
+    // ни подбор снимка под размер — французские розы открывались на «5 шт»
+    // с фотографией, где тринадцать роз.
+    const cnt = +x.cnt > 0 ? +x.cnt : (/^\d+$/.test(String(x.label)) ? +x.label : undefined);
+    return Object.assign({}, x, { parts: undefined, cnt,
+      ready: express ? Math.max(0, +x.ready || 0) : undefined, out: out || undefined });
   });
 }
 
@@ -179,14 +185,23 @@ function catalog(app, brand) {
       // сколько цветов на самом снимке — подпись поверх фото берётся отсюда, а не из выбранного размера
       const counts = jget(p, "photo_counts") || {};
       const cntOf = (name) => (name && +counts[name] > 0 ? +counts[name] : undefined);
+      // ВАЖНО: у варианта `cnt` — сколько цветов в этом размере (из прайса),
+      // а `pcnt` — сколько их на снимке этого размера. Раньше оба лежали в `cnt`,
+      // и количество из прайса затиралось количеством с фотографии: подпись
+      // «19 роз» висела на карточке, проданной как 51 штука.
       const variants = variantsOf(p, s).map((v) => Object.assign({}, v,
-        v.photo ? { img: fileUrl(p, v.photo, "560x0"), big: fileUrl(p, v.photo, "1080x0"), cnt: cntOf(v.photo) } : {}));
+        v.photo ? { img: fileUrl(p, v.photo, "560x0"), big: fileUrl(p, v.photo, "1080x0"), pcnt: cntOf(v.photo) } : {}));
       const lengths = jget(p, "lengths");
       const cut = p.get("cutout");
-      // какой размер показывать сразу: задаётся в прайсе («по умолчанию»)
+      // Какой размер показывать сразу. Сначала тот, что совпадает с количеством
+      // цветов на главном снимке: на фото 51 роза — открываем 51 штуку, и подпись
+      // с ценой говорят об одном и том же. Потом заданный в прайсе, потом любой.
       const table = priceTables(s).find((x) => x.id === p.get("price_table"));
       const defCnt = table && +table.def_count > 0 ? +table.def_count : 0;
-      const defVar = (defCnt ? variants.find((v) => v.cnt === defCnt && !v.out) : null) || variants.find((v) => !v.out) || null;
+      const photoCnt = photos.length ? cntOf(photos[0]) : 0;
+      const defVar = (photoCnt ? variants.find((v) => +v.cnt === +photoCnt && !v.out) : null)
+        || (defCnt ? variants.find((v) => +v.cnt === defCnt && !v.out) : null)
+        || variants.find((v) => !v.out) || null;
       return {
         id: p.id,
         name: p.get("name"),
