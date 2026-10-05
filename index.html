@@ -736,7 +736,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791200614"></script>
+<script src="data.js?v=1791201134"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2194,13 +2194,22 @@ function cartReady() {
 // На странице товара размер уже выбран — говорим про него, а не про сорт целиком.
 // Выбрал 40 см, которые есть, — ни слова про ожидание; переключился на 50 см,
 // которые едут, — тут же появится «доставим с 16:40».
+// Какой это день: сегодня, завтра или дата. Без дня время читается как сегодняшнее —
+// кенийские розы приезжают завтра в 15:30, а плашка говорила «доставим с 16:00»,
+// и покупатель понимал это как «сегодня к четырём».
+function деньПривоза(r) {
+  const сег = mskNow().date;
+  if (r.date === сег) return 'сегодня';
+  const завтра = new Date(new Date(сег + 'T12:00').getTime() + 864e5).toISOString().slice(0, 10);
+  if (r.date === завтра) return 'завтра';
+  return new Date(r.date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
 function readyNote(p) {
   const r = readyPick(p);
   if (!r) return '';
   const from = hhmm(readyStart(r, p.price || 0));
-  const day = r.date === mskNow().date ? 'сегодня' :
-    new Date(r.date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-  return `Цветы ещё едут с теплицы — будут у нас ${day} к ${r.text}. Доставим с ${from}.`;
+  const день = деньПривоза(r);
+  return `Цветы ещё едут с теплицы — будут у нас ${день} к ${r.text}. Доставим ${день === 'сегодня' ? '' : день + ' '}с ${from}.`;
 }
 // Короткая версия для плашки на фото: длинная ломала бы высоту карточек.
 // Смотрим на ВЫБРАННЫЙ размер: 60 см в холодильнике — молчим, переключились
@@ -2208,7 +2217,9 @@ function readyNote(p) {
 // чего сегодня нет, и узнаёт об этом только на оформлении.
 function readyShort(p) {
   const r = readyPick(p);
-  return r ? `В пути с теплицы — доставим с ${hhmm(readyStart(r, p.price || 0))}` : '';
+  if (!r) return '';
+  const день = деньПривоза(r);
+  return `В пути с теплицы — доставим ${день === 'сегодня' ? '' : день + ' '}с ${hhmm(readyStart(r, p.price || 0))}`;
 }
 // когда по такому товару возможна ближайшая доставка: приедет + сборка, кратно шагу
 function readyStart(r, sum) {
@@ -2234,7 +2245,7 @@ function fillIntervals() {
     const rd = cartReady();
     note.hidden = !list.length || (!today && !rd);
     note.textContent = !list.length ? ''
-      : rd ? `Цветы в заказе едут с теплицы — будут у нас к ${rd.text}, поэтому везём с ${list[0].slice(0, 5)}.`
+      : rd ? `Цветы в заказе едут с теплицы — будут у нас ${деньПривоза(rd)} к ${rd.text}, поэтому везём с ${list[0].slice(0, 5)}.`
       : today ? (loadExtra() > 0
           ? `Сегодня много заказов, собираем дольше обычного — поэтому везём с ${list[0].slice(0, 5)}.`
           : `Букет собираем ${prepMin(sum)} минут, поэтому сегодня везём с ${list[0].slice(0, 5)}.`)
