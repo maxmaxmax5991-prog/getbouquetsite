@@ -204,6 +204,8 @@ function catalog(app, brand) {
         || variants.find((v) => !v.out) || null;
       return {
         id: p.id,
+        // адрес страницы товара: /catalog/<раздел>/<slug>/
+        slug: p.get("slug") || undefined,
         name: p.get("name"),
         cat: catById[p.get("category")].get("slug"),
         price: variants.length ? Math.min.apply(null, (variants.filter((v) => !v.out).length ? variants.filter((v) => !v.out) : variants).map((v) => v.price)) : p.get("price"),

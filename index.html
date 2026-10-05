@@ -11,8 +11,12 @@
 <link rel="preload" href="/fonts/manrope-500-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/unbounded-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/fonts/fonts.css">
+<script>document.documentElement.classList.add('js')</script>
 <style>
 body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+/* текст страницы от сервера — для поисковиков и без скриптов; витрину рисует скрипт */
+.js #ssr{display:none}
+.ssr{padding:24px 0;font-family:system-ui,sans-serif;line-height:1.5}.ssr img{max-width:280px;height:auto;display:block}.ssr-list{list-style:none;padding:0;display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 :root{
   --ground:#F6F7F3; --paper:#FFFFFF; --tile:#FFFFFF; --soft:#ECEEE8;
   --ink:#14171A; --ink-2:rgba(20,23,26,.64); --ink-3:rgba(20,23,26,.42);
@@ -526,15 +530,15 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <header class="top">
   <div class="wrap">
-    <a class="logo" id="logoTop" href="#/" aria-label="На главную">venikoff<span class="dot"></span><i>net</i></a>
+    <a class="logo" id="logoTop" href="/" aria-label="На главную">venikoff<span class="dot"></span><i>net</i></a>
     <span class="city"><svg class="i"><use href="#i-pin"/></svg>Москва</span>
     <nav class="nav" aria-label="Разделы">
-      <a href="#/catalog" data-nav="catalog">Каталог</a>
-      <a href="#/studio" data-nav="studio">Собрать букет</a>
-      <a href="#/delivery" data-nav="delivery">Доставка</a>
+      <a href="/catalog/" data-nav="catalog">Каталог</a>
+      <a href="/studio/" data-nav="studio">Собрать букет</a>
+      <a href="/delivery/" data-nav="delivery">Доставка</a>
     </nav>
     <div class="top-actions">
-      <a class="icon-btn only-m" href="#/catalog" aria-label="Каталог"><svg class="i"><use href="#i-grid"/></svg></a>
+      <a class="icon-btn only-m" href="/catalog/" aria-label="Каталог"><svg class="i"><use href="#i-grid"/></svg></a>
       <button class="icon-btn" id="favBtn" aria-label="Избранное"><svg class="i"><use href="#i-heart"/></svg><span class="badge num" id="favCount" hidden>0</span></button>
       <button class="icon-btn" id="meBtn" aria-label="Личный кабинет"><svg class="i"><use href="#i-user"/></svg></button>
       <button class="icon-btn" id="cartBtn" aria-label="Корзина"><svg class="i"><use href="#i-bag"/></svg><span class="badge num" id="cartCount" hidden>0</span></button>
@@ -552,7 +556,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
         <h1 id="heroTitle">Букет, <em>а не веник.</em></h1>
         <p class="lede" id="heroText">Тот самый цветочный: оптовые цены, невероятный ассортимент. Берём цветы напрямую от производителей и присылаем фото букета перед доставкой.</p>
         <div class="hero-cta">
-          <a class="btn btn-primary" href="#/catalog">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
+          <a class="btn btn-primary" href="/catalog/">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
         </div>
         <ul class="perks">
           <li><b>💰 Оптовые цены</b>цветы напрямую от производителей</li>
@@ -601,14 +605,14 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
   <section class="sec">
     <div class="wrap">
-      <div class="sec-head"><h2 class="h2">Популярные букеты</h2><a class="more" href="#/catalog">Смотреть все <svg class="i"><use href="#i-arrow"/></svg></a></div>
+      <div class="sec-head"><h2 class="h2">Популярные букеты</h2><a class="more" href="/catalog/">Смотреть все <svg class="i"><use href="#i-arrow"/></svg></a></div>
       <div class="grid" id="popular"></div>
     </div>
   </section>
 
   <section class="sec">
     <div class="wrap">
-      <div class="sec-head"><h2 class="h2">Каталог</h2><a class="more" href="#/catalog">Смотреть все <svg class="i"><use href="#i-arrow"/></svg></a></div>
+      <div class="sec-head"><h2 class="h2">Каталог</h2><a class="more" href="/catalog/">Смотреть все <svg class="i"><use href="#i-arrow"/></svg></a></div>
       <div class="tiles" id="tiles"></div>
     </div>
   </section>
@@ -617,7 +621,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <!-- ============ CATALOG ============ -->
 <div id="viewCatalog" hidden>
   <div class="wrap">
-    <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Каталог</span></nav>
+    <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Каталог</span></nav>
     <div class="cat-head">
       <div><h1 id="catTitle">Каталог</h1><p id="count" class="num"></p><p class="cat-note">Оптовые цены в розницу — цветы напрямую от производителей</p></div>
       <div class="tools">
@@ -637,7 +641,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <!-- ============ КАБИНЕТ ============ -->
 <div id="viewDelivery" hidden>
   <div class="wrap">
-    <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Доставка</span></nav>
+    <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Доставка</span></nav>
     <div class="cat-head"><div><h1>Доставка по Москве</h1><p>Введите адрес — посчитаем стоимость</p></div></div>
     <div id="dlvBody"></div>
   </div>
@@ -645,7 +649,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <div id="viewMe" hidden>
   <div class="wrap">
-    <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Личный кабинет</span></nav>
+    <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Личный кабинет</span></nav>
     <div class="cat-head"><div><h1>Личный кабинет</h1><p id="meSub"></p></div><div class="tools" id="meTools"></div></div>
     <div id="meBody"></div>
   </div>
@@ -653,7 +657,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <div id="viewOrder" hidden>
   <div class="wrap">
-    <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span>Заказ</span></nav>
+    <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Заказ</span></nav>
     <div class="cat-head"><div><h1 id="ordTitle">Заказ</h1><p id="ordSub"></p></div></div>
     <div id="ordBody"></div>
   </div>
@@ -662,7 +666,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 <!-- ============ PRODUCT ============ -->
 <div id="viewProduct" hidden>
   <div class="wrap">
-    <nav class="crumbs" aria-label="Навигация"><a href="#/">Главная</a><span><a href="#/catalog">Каталог</a></span><span id="pdCrumb"></span></nav>
+    <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span><a href="/catalog/">Каталог</a></span><span id="pdCrumb"></span></nav>
     <div class="pd">
       <div>
         <div class="pd-img"><img id="pdImg" alt=""><span class="tag" id="pdTag" hidden></span><span class="count-tag" id="pdCount" hidden></span></div>
@@ -691,7 +695,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
       <div class="addons" id="addons"></div>
     </section>
     <section class="sec" style="padding-top:0">
-      <div class="sec-head"><h2 class="h2">Похожие</h2><a class="more" id="simMore" href="#/catalog">Весь раздел <svg class="i"><use href="#i-arrow"/></svg></a></div>
+      <div class="sec-head"><h2 class="h2">Похожие</h2><a class="more" id="simMore" href="/catalog/">Весь раздел <svg class="i"><use href="#i-arrow"/></svg></a></div>
       <div class="grid" id="similar"></div>
     </section>
   </div>
@@ -700,8 +704,8 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 
 <footer class="foot">
   <div class="wrap">
-    <a class="logo" id="logoFoot" href="#/">venikoff<span class="dot"></span><i>net</i></a>
-    <nav aria-label="Ссылки"><a href="#/catalog">Каталог</a><a href="#/studio">Собрать букет</a><a href="#/delivery">Доставка</a></nav>
+    <a class="logo" id="logoFoot" href="/">venikoff<span class="dot"></span><i>net</i></a>
+    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/studio/">Собрать букет</a><a href="/delivery/">Доставка</a></nav>
     <div class="contacts">
       <span class="lbl">Связаться с нами</span>
       <a class="btn btn-ghost btn-sm" id="footTg" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
@@ -736,7 +740,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="data.js?v=1791204916"></script>
+<script src="/data.js?v=1791204916"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -849,7 +853,9 @@ const prepMin = sum => loadExtra() + (cartAllExpress() ? (SLOTS.prep_express || 
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rub = n => n.toLocaleString('ru-RU') + ' ₽';
 const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
-const img = id => `img/p/${id}.jpg`;
+const img = id => `/img/p/${id}.jpg`;
+// постоянный адрес страницы товара — его же отдаёт сервер поисковикам
+const purl = p => `/catalog/${p.cat}/${p.slug || p.id}/`;
 const icon = n => `<svg class="i"><use href="#i-${n}"/></svg>`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store = {
@@ -1079,13 +1085,13 @@ function card(p) {
     : p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
   return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}">
-    <a class="card-img" href="#/p/${p.id}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
+    <a class="card-img" href="${purl(p)}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
     <div class="card-note${readyNow(p) ? ' express' : readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${
       readyNow(p) ? `⚡ Готов сейчас — ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)}` :
       readyShort(p) ? `🚚 ${esc(readyShort(p))}` :
       p.fresh ? '🌿 <b class="wide">Этот сорт сегодня приехал к нам напрямую с теплицы</b><b class="slim">Сегодня с теплицы</b>' : ''}</div>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
-    <h3><a href="#/p/${p.id}">${esc(p.name)}</a></h3>
+    <h3><a href="${purl(p)}">${esc(p.name)}</a></h3>
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : p.made ? `<div class="sub made" title="${esc(p.made)}">${esc(p.made)}</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
     ${sizesHTML(p)}
     <div class="buy-slot">${buyHTML(p)}</div>
@@ -1132,7 +1138,7 @@ $('#tiles').innerHTML = CATS.map(([k, label]) => {
   // считаем то, что есть в наличии; пусто — обещаем привезти, а не пишем «0 позиций»
   const n = count[k] || 0;
   const note = n ? `${n} ${plural(n, 'позиция', 'позиции', 'позиций')}` : 'скоро подвезём';
-  return `<a href="#/catalog/${k}"><div><b>${label}</b><br><small class="num">${note}</small></div>${pic && byId[pic] ? `<img src="${photoOf(byId[pic], '')}" alt="" loading="lazy">` : ''}</a>`;
+  return `<a href="/catalog/${k}/"><div><b>${label}</b><br><small class="num">${note}</small></div>${pic && byId[pic] ? `<img src="${photoOf(byId[pic], '')}" alt="" loading="lazy">` : ''}</a>`;
 }).join('');
 
 /* ---------- catalog ---------- */
@@ -1219,7 +1225,7 @@ function доступность(p) {
 }
 // Адрес каталога из текущего отбора. Им же делимся с покупателем.
 function адресКаталога() {
-  const путь = state.favOnly ? '#/favorites' : '#/catalog' + (state.cat !== 'all' ? '/' + state.cat : '');
+  const путь = state.favOnly ? '/favorites/' : '/catalog/' + (state.cat !== 'all' ? state.cat + '/' : '');
   const п = new URLSearchParams();
   if (state.len) п.set('len', state.len);
   if (state.cnt) п.set('cnt', state.cnt);
@@ -1237,13 +1243,13 @@ $('#sizeChips').addEventListener('click', e => {
   // повторное нажатие на выбранную кнопку снимает отбор — так не надо искать «любая»
   if (b.dataset.len !== undefined) { const n = +b.dataset.len; state.len = (n && state.len === n) ? 0 : n; }
   if (b.dataset.cnt !== undefined) { const n = +b.dataset.cnt; state.cnt = (n && state.cnt === n) ? 0 : n; }
-  try { window.ev && window.ev('size-filter', `${state.len || 'любая'}см × ${state.cnt || 'любое'}шт`); } catch (_) {}
+  шаг('filter', `${state.len || 'любая'}см × ${state.cnt || 'любое'}шт`);
   запомнитьВАдресе(); renderSizeChips(); renderGrid();
 });
 // «Поделиться подборкой»: на телефоне — обычное меню «Поделиться», на компьютере
 // кладём ссылку в буфер. Набрать такой адрес руками никто не станет.
 $('#sharePick').addEventListener('click', async () => {
-  const ссылка = location.origin + '/' + адресКаталога();
+  const ссылка = location.origin + адресКаталога();
   const что = (state.len ? state.len + ' см' : '') + (state.len && state.cnt ? ' × ' : '') + (state.cnt ? state.cnt + ' шт' : '');
   try {
     if (navigator.share) { await navigator.share({ title: `${SITE} — ${что}`, url: ссылка }); return; }
@@ -1253,8 +1259,8 @@ $('#sharePick').addEventListener('click', async () => {
 });
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
-  if ('favonly' in b.dataset) location.hash = state.favOnly ? '#/catalog' : '#/favorites';
-  else location.hash = b.dataset.cat === 'all' ? '#/catalog' : '#/catalog/' + b.dataset.cat;
+  if ('favonly' in b.dataset) nav(state.favOnly ? '/catalog/' : '/favorites/');
+  else nav(b.dataset.cat === 'all' ? '/catalog/' : '/catalog/' + b.dataset.cat + '/');
 });
 function list() {
   const q = state.q.trim().toLowerCase().replace(/ё/g, 'е');
@@ -1301,7 +1307,13 @@ function renderGrid() {
       : размерВыбран ? 'Попробуйте другую длину или количество — или позвоните нам, подберём замену.'
       : 'Попробуйте другое название или раздел.'}</div>`;
 }
-$('#q').addEventListener('input', e => { state.q = e.target.value; запомнитьВАдресе(); renderSizeChips(); renderGrid(); });
+let ждёмПоиск = 0;
+$('#q').addEventListener('input', e => {
+  state.q = e.target.value; запомнитьВАдресе(); renderSizeChips(); renderGrid();
+  // записываем не каждую букву, а то, на чём человек остановился
+  clearTimeout(ждёмПоиск);
+  ждёмПоиск = setTimeout(() => { const q = state.q.trim(); if (q.length > 1) шаг('search', q); }, 1200);
+});
 $('#sort').addEventListener('change', e => { state.sort = e.target.value; renderGrid(); });
 
 /* ---------- product page ---------- */
@@ -1350,41 +1362,73 @@ function showProduct(id) {
   $('#addonsSec').hidden = isAddon(p);
   if (!isAddon(p)) {
     const pick = [...ADDONS].sort((a, b) => (a.id * 7 + +id) % 13 - (b.id * 7 + +id) % 13).slice(0, 10);
-    $('#addons').innerHTML = pick.map(a => `<div class="addon" data-id="${a.id}"><a class="ph" href="#/p/${a.id}"><img src="${img(a.id)}" alt="" loading="lazy"></a><h4>${esc(a.name)}</h4><div class="buy-slot">${buyHTML(a)}</div></div>`).join('');
+    $('#addons').innerHTML = pick.map(a => `<div class="addon" data-id="${a.id}"><a class="ph" href="${purl(a)}"><img src="${a.img || img(a.id)}" alt="" loading="lazy"></a><h4>${esc(a.name)}</h4><div class="buy-slot">${buyHTML(a)}</div></div>`).join('');
   }
   const sim = P.filter(x => x.cat === p.cat && x.id !== id).slice(0, 4);
   $('#similar').innerHTML = sim.map(card).join('');
-  $('#simMore').href = '#/catalog/' + p.cat;
+  $('#simMore').href = '/catalog/' + p.cat + '/';
 }
 $('#pdMinus').onclick = () => { pd.qty = Math.max(1, pd.qty - 1); pdSync(); };
 $('#pdPlus').onclick = () => { pd.qty++; pdSync(); };
 $('#pdAdd').onclick = () => addToCart(cardKey(byId[pd.id]), pd.qty);
 
-/* ---------- router ---------- */
+/* ---------- router ----------
+   Настоящие адреса: /catalog/<раздел>/<товар>/. Раньше всё жило после «#»,
+   и поисковики видели у сайта одну-единственную страницу. Сервер отдаёт по
+   каждому адресу готовую страницу (server/pb_hooks/lib/page.js), а здесь
+   по тому же адресу рисуется живая витрина. Переходы — без перезагрузки. */
 let route = { name: 'home' }, keepScroll = false;
-function go404() { location.hash = '#/catalog'; }
+function nav(url, replace) {
+  try { history[replace ? 'replaceState' : 'pushState'](null, '', url); } catch (_) { location.href = url; return; }
+  router();
+}
+function go404() { nav('/catalog/', true); }
+// Старые ссылки с «#/…» уже разосланы ботами и лежат в переписке — переводим их
+// на новый адрес на месте, без лишнего захода на сервер.
+function изСтарогоАдреса() {
+  const h = location.hash;
+  if (!h.startsWith('#/')) return;
+  const [путь, хвост = ''] = h.slice(2).split('?');
+  const [a, b] = путь.split('/');
+  const q = хвост ? '?' + хвост : '';
+  let url = '/';
+  if (a === 'p' && b) url = byId[b] ? purl(byId[b]) : '/catalog/';
+  else if (a === 'catalog') url = '/catalog/' + (b ? b + '/' : '') + q;
+  else if (a === 'favorites') url = '/favorites/' + q;
+  else if (a === 'order' && b) url = '/order/' + b + '/';
+  else if (a === 'me' || a === 'delivery' || a === 'studio') url = '/' + a + '/';
+  try { history.replaceState(null, '', url); } catch (_) {}
+}
 function router() {
-  const весь = location.hash.replace(/^#\/?/, '');
-  // Отбор живёт в адресе: #/catalog?len=40&cnt=51. Так ссылку можно отправить
+  изСтарогоАдреса();
+  const ssr = document.getElementById('ssr'); if (ssr) ssr.remove();
+  // Отбор живёт в адресе: /catalog/?len=40&cnt=51. Так ссылку можно отправить
   // покупателю, и он увидит ровно то, что ему отобрали, а не весь каталог.
-  const [h, хвост = ''] = весь.split('?');
-  const пар = new URLSearchParams(хвост);
+  const пар = new URLSearchParams(location.search);
   state.len = +пар.get('len') || 0;
   state.cnt = +пар.get('cnt') || 0;
   const иск = пар.get('q') || '';
   if (иск !== state.q) { state.q = иск; const поле = $('#q'); if (поле) поле.value = иск; }
-  const [a, b] = h.split('/');
+  const [a, b, c] = decodeURIComponent(location.pathname).split('/').filter(Boolean);
   const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery') };
   let name = 'home', scrollTo = null;
   if (a === 'delivery') { name = 'delivery'; document.title = `Доставка по Москве — ${SITE}`; renderDelivery(); }
   else if (a === 'order' && b) { name = 'order'; document.title = `Заказ — ${SITE}`; renderOrder(b); }
   else if (a === 'me') { name = 'me'; document.title = `Личный кабинет — ${SITE}`; renderMe(); }
+  else if ((a === 'catalog' && c) || (a === 'p' && b)) {
+    const ключ = a === 'p' ? b : c;
+    const p = P.find(x => x.slug === ключ) || byId[ключ];
+    if (!p) return go404();
+    // раздел в адресе не тот (товар переехал) — поправляем адрес, страницу не теряем
+    if (location.pathname !== purl(p)) try { history.replaceState(null, '', purl(p) + location.search); } catch (_) {}
+    name = 'product'; route = { name, id: p.id }; showProduct(p.id);
+  }
   else if (a === 'catalog' || a === 'favorites') {
     name = 'catalog';
     state.favOnly = a === 'favorites'; state.cat = state.favOnly ? 'all' : (b && catName[b] ? b : 'all');
     renderChips(); renderGrid();
     document.title = (state.favOnly ? 'Избранное' : state.cat === 'all' ? 'Каталог' : catName[state.cat]) + ' — ' + SITE;
-  } else if (a === 'p' && b) { name = 'product'; route = { name, id: b }; showProduct(b); }
+  }
   else { scrollTo = a === 'studio' ? '#studio-sec' : null; document.title = SITE; }
   if (name !== 'product') route = { name };
   Object.entries(views).forEach(([k, v]) => v.hidden = k !== name);
@@ -1394,12 +1438,22 @@ function router() {
   else if (keepScroll) keepScroll = false; else scrollTo0();
 }
 function scrollTo0() { window.scrollTo(0, 0); }
-addEventListener('hashchange', router);
-$('#favBtn').onclick = () => { location.hash = '#/favorites'; if (!favs.size) toast('Отмечайте букеты сердечком', false); };
-$('#meBtn').onclick = () => { location.hash = '#/me'; };
+addEventListener('popstate', router);
+// Свои ссылки открываем без перезагрузки страницы. Новая вкладка, клик
+// с Ctrl/Cmd, админка и файлы — как обычно, браузером.
+document.addEventListener('click', e => {
+  const l = e.target.closest('a[href]');
+  if (!l || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || l.target || l.hasAttribute('download')) return;
+  const href = l.getAttribute('href');
+  if (!href.startsWith('/') || href.startsWith('//') || /^\/(admin|add|api|img|fonts)(\/|$)/.test(href)) return;
+  e.preventDefault();
+  nav(href);
+});
+$('#favBtn').onclick = () => { nav('/favorites/'); if (!favs.size) toast('Отмечайте букеты сердечком', false); };
+$('#meBtn').onclick = () => { nav('/me/'); };
 
 /* ---------- «Рассчитать доставку» ----------
-   Отдельная страница #/delivery: покупатель вводит адрес и сразу видит цену,
+   Отдельная страница /delivery/: покупатель вводит адрес и сразу видит цену,
    не начиная заказ. Спрашиваем тот же /api/shop/address, что и форма заказа,
    поэтому цифра здесь и в корзине всегда одна и та же.
    Код самостоятельный и ничего не берёт у формы заказа — чтобы её не задеть. */
@@ -1425,7 +1479,7 @@ function renderDelivery() {
       ${pickup ? `<p class="hint">Можно забрать самому: ${esc(pickup.address || '')}${pickup.hours ? `, ${esc(pickup.hours)}` : ''} — это бесплатно.</p>` : ''}
       ${API && API.phone ? `<p class="hint">Не нашли свой адрес? Позвоните: <a href="tel:${esc(String(API.phone).replace(/[^+\d]/g, ''))}">${esc(API.phone)}</a></p>` : ''}
     </div>
-    <p class="hint"><a href="#/catalog">Перейти в каталог</a></p>`;
+    <p class="hint"><a href="/catalog/">Перейти в каталог</a></p>`;
 
   const hint = $('#dHint');
   const say = (text, bad) => { hint.hidden = !text; hint.innerHTML = text || ''; hint.className = 'addr-hint' + (text ? (bad ? ' bad' : ' good') : ''); };
@@ -1461,7 +1515,7 @@ function renderDelivery() {
 }
 
 /* ---------- страница заказа ----------
-   Постоянный адрес #/order/<код>. Что показать, решает сервер — не память браузера,
+   Постоянный адрес /order/<код>/. Что показать, решает сервер — не память браузера,
    не обработчики окна оплаты и не кнопка «Вернуться в магазин» у банка.
    Поэтому страница одинаково работает после любого способа оплаты, по ссылке из бота,
    с другого телефона и через час. Пока оплата не подтвердилась, сама переспрашивает. */
@@ -1495,7 +1549,7 @@ async function renderOrder(code) {
       </div>
       ${bot || mx ? `<div class="me-card"><h3>Статусы и фото букета</h3>
         <p class="hint">Пришлём фото перед доставкой, а вы ответите, всё ли нравится.</p>${bot}${mx}</div>` : ''}
-      <p class="hint"><a href="#/catalog">Вернуться в каталог</a></p>`;
+      <p class="hint"><a href="/catalog/">Вернуться в каталог</a></p>`;
     const pb = $('#ordPay');
     if (pb) pb.onclick = async () => {
       pb.disabled = true;
@@ -1518,7 +1572,7 @@ async function renderOrder(code) {
       if (r.status === 404) gone = true; else d = await r.json();
     } catch (_) {}
     if (mine !== ordPoll) return;
-    if (gone) { box.innerHTML = '<div class="me-card">Такого заказа нет. Возможно, ссылка устарела. <a href="#/catalog">В каталог</a></div>'; return; }
+    if (gone) { box.innerHTML = '<div class="me-card">Такого заказа нет. Возможно, ссылка устарела. <a href="/catalog/">В каталог</a></div>'; return; }
     if (!d) { box.innerHTML = '<div class="me-card">Нет связи с сервером. Обновите страницу.</div>'; return; }
     const waiting = draw(d);
     tries++;
@@ -1587,8 +1641,8 @@ async function renderMe() {
         </div>
         ${o.payment_method === 'card' && o.payment_status !== 'paid' && o.status !== 'cancelled' && PAY && PAY.card ? `<div style="margin-top:10px"><button class="btn btn-primary btn-sm" data-pay-order="${o.id}" data-sum="${o.total}" data-num="${o.number}" data-code="${esc(o.tg_code || '')}">Оплатить ${rub(o.total)}</button></div>` : ''}
         ${!o.subscribed && API.bot && o.tg_code ? `<div style="margin-top:10px"><a class="btn btn-ghost btn-sm" href="https://t.me/${API.bot}?start=o${o.tg_code}" target="_blank" rel="noopener">Получать статусы в Телеграме</a></div>` : ''}
-        ${o.tg_code ? `<p class="hint" style="margin-top:8px"><a href="#/order/${esc(o.tg_code)}">Страница заказа</a></p>` : ''}
-      </div>`).join('') : '<div class="me-card">Заказов пока нет. <a href="#/catalog">Перейти в каталог</a></div>'}`;
+        ${o.tg_code ? `<p class="hint" style="margin-top:8px"><a href="/order/${esc(o.tg_code)}/">Страница заказа</a></p>` : ''}
+      </div>`).join('') : '<div class="me-card">Заказов пока нет. <a href="/catalog/">Перейти в каталог</a></div>'}`;
 $$("[data-pay-order]").forEach(b => b.onclick = async () => {
   b.disabled = true;
   const res = await payCard({ id: b.dataset.payOrder, number: b.dataset.num, total: +b.dataset.sum, tg_code: b.dataset.code }, ME.name || "", ME.phone || "");
@@ -1632,12 +1686,12 @@ async function prepLogin(tgSel, maxSel, waitSel, done) {
   }
   if (tg) {
     if (d.link) { tg.href = d.link; tg.hidden = false; } else tg.hidden = true;
-    tg.onclick = () => waitLogin(d.code, waitSel, done, 'Ждём подтверждения в Телеграме…');
+    tg.onclick = () => { шаг('login_go', 'телеграм'); waitLogin(d.code, waitSel, done, 'Ждём подтверждения в Телеграме…'); };
   }
   if (mx) {
     if (d.max_link) { mx.href = d.max_link; mx.hidden = false; } else mx.hidden = true;
     // код уходит прямо в ссылке (?start=…), покупателю печатать ничего не надо
-    mx.onclick = () => waitLogin(d.code, waitSel, done, 'Ждём подтверждения в MAX…', true);
+    mx.onclick = () => { шаг('login_go', 'max'); waitLogin(d.code, waitSel, done, 'Ждём подтверждения в MAX…', true); };
   }
 }
 
@@ -1653,7 +1707,7 @@ function waitLogin(code, waitSel, done, text, html) {
       const c = await fetch('/api/shop/login-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
       const cd = await c.json();
       if (!cd.token) return false;
-      meToken = cd.token; store.set('token', meToken); try { window.chatLink && window.chatLink(); } catch (_) {}
+      meToken = cd.token; store.set('token', meToken); шаг('login_ok', ''); try { window.chatLink && window.chatLink(); } catch (_) {}
       await loadMe();
       if (wait) wait.hidden = true;
       toast('Вы вошли');
@@ -1729,7 +1783,7 @@ let pos = 0, drag = 0, spacing = 160;
 const wrapD = d => { d = ((d % N) + N) % N; return d > N / 2 ? d - N : d; };
 const current = () => ((Math.round(pos) % N) + N) % N;
 // первые три букета нужны сразу, остальные подгрузятся, пока листают
-carousel.innerHTML = FEATURED.map((f, i) => `<div class="c-item" role="option" data-i="${i}" aria-label="${f.name}"><img src="${f.cut || `img/cut/${f.id}.png`}" alt="" draggable="false" ${i < 3 ? 'fetchpriority="high"' : 'loading="lazy"'} onload="this.dataset.w=this.naturalWidth;this.dataset.h=this.naturalHeight"></div>`).join('');
+carousel.innerHTML = FEATURED.map((f, i) => `<div class="c-item" role="option" data-i="${i}" aria-label="${f.name}"><img src="${f.cut || `/img/cut/${f.id}.png`}" alt="" draggable="false" ${i < 3 ? 'fetchpriority="high"' : 'loading="lazy"'} onload="this.dataset.w=this.naturalWidth;this.dataset.h=this.naturalHeight"></div>`).join('');
 $('#dots').innerHTML = FEATURED.map((f, i) => `<button data-i="${i}" aria-label="${f.name}"></button>`).join('');
 const items = [...carousel.children];
 function layout() {
@@ -1789,7 +1843,7 @@ function flyPetals(f) {
   for (let i = 0; i < 8; i++) {
     const [cx, cy] = SPOTS[i % 4], el = document.createElement('span'), s = 0.8 + (i % 3) * 0.18;
     el.className = 'petal';
-    el.style.backgroundImage = `url(${f.cut || `img/cut/${f.id}.png`})`;
+    el.style.backgroundImage = `url(${f.cut || `/img/cut/${f.id}.png`})`;
     el.style.backgroundSize = `${bw}px ${bh}px`;
     el.style.backgroundPosition = `${-(cx * bw - 36)}px ${-(cy * bh - 36)}px`;
     box.appendChild(el);
@@ -1807,7 +1861,7 @@ function assemble() {
   scene.classList.remove('revealed');
   $('#sEyebrow').textContent = 'Немного цветочной магии';
   $('#sName').textContent = f.name; $('#sMood').textContent = f.mood;
-  $('#sImg').src = f.cut || `img/cut/${f.id}.png`; $('#sImg').alt = f.name;
+  $('#sImg').src = f.cut || `/img/cut/${f.id}.png`; $('#sImg').alt = f.name;
   syncStudioFav(); setStep(0);
   studio.dataset.phase = 'assembling';
   later(150, () => flyPetals(f));
@@ -1820,7 +1874,7 @@ function resetStudio() { clearTimers(); studio.dataset.phase = 'choosing'; scene
 function syncStudioFav() { const on = favs.has(FEATURED[current()].id); $('#sFav').setAttribute('aria-pressed', on); $('#sFav').setAttribute('aria-label', on ? 'Убрать из избранного' : 'В избранное'); }
 $('#assemble').onclick = assemble; $('#again').onclick = assemble; $('#other').onclick = resetStudio;
 $('#sFav').onclick = () => toggleFav(FEATURED[current()].id);
-$('#choose').onclick = () => { const f = FEATURED[current()]; location.hash = byId[f.id] ? '#/p/' + f.id : '#/catalog/single'; };
+$('#choose').onclick = () => { const f = FEATURED[current()]; nav(byId[f.id] ? purl(byId[f.id]) : '/catalog/single/'); };
 meta();
 
 /* ---------- toast ---------- */
@@ -1852,6 +1906,7 @@ async function проверитьКорзину() {
 }
 function openCart() {
   view = 'list'; renderCart(); cartDlg.showModal();
+  шаг('cart_open', String(totals().n || 0) + ' поз.');
   проверитьКорзину().then(() => { if (cartDlg.open && view === 'list') renderCart(); });
 }
 $('#cartBtn').onclick = openCart;
@@ -1861,7 +1916,7 @@ function renderCart() {
   if (view === 'list') {
     $('#cartTitle').textContent = 'Корзина';
     if (!t.n) {
-      body.innerHTML = `<div class="cart-empty"><h3>Здесь пока пусто.</h3><p>Найдите букет, который скажет всё за вас.</p><button class="btn btn-primary" data-close data-go="#/catalog">Перейти в каталог</button></div>`;
+      body.innerHTML = `<div class="cart-empty"><h3>Здесь пока пусто.</h3><p>Найдите букет, который скажет всё за вас.</p><button class="btn btn-primary" data-close data-go="/catalog/">Перейти в каталог</button></div>`;
       foot.hidden = true; return;
     }
     body.innerHTML = Object.entries(cart).map(([k, n]) => {
@@ -1879,6 +1934,10 @@ function renderCart() {
       <button class="btn btn-primary btn-wide" id="toCheckout"${нехваток ? ' disabled' : ''}><span>Оформить заказ</span>${icon('arrow')}</button>`;
   } else if (view === 'form') {
     $('#cartTitle').textContent = 'Доставка';
+    // Шаг воронки ставим ЗДЕСЬ, при показе формы. Раньше он висел в обработчике
+    // переключателя «доставка/самовывоз» и считал не тех, кто дошёл до оформления,
+    // а тех, кто щёлкнул способ получения — цифра воронки была не про то.
+    шаг('checkout', `${t.n} поз. · ${Math.round(t.sum / 1000)} тыс`);
     const today = mskToday();
     const zones = DEL ? DEL.zones : [];
     const closedNote = DEL && !DEL.accepting ? `<p class="demo-note" style="color:var(--sale);font-size:13.5px">Сейчас мы не принимаем заказы через сайт${API && API.phone ? ` — позвоните: ${esc(API.phone)}` : ''}.</p>` : '';
@@ -1899,7 +1958,7 @@ function renderCart() {
           <button type="button" data-get="pickup" aria-pressed="false">Самовывоз</button>
         </div></div>` : ''}
         <label for="fName">Ваше имя<input id="fName" name="name" required autocomplete="name" placeholder="Анна" maxlength="120"></label>
-        <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[0-9+\-\(\) ]{10,}" maxlength="40"></label>
+        <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[-+0-9 ()]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
         <div id="addrBox">
           <label for="fStreet" class="sugg-wrap">Улица<input id="fStreet" name="street" required autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="streetSugg" placeholder="Начните вводить улицу" maxlength="200"><ul class="sugg" id="streetSugg" role="listbox" hidden></ul></label>
@@ -1951,7 +2010,7 @@ ${payChoice()}
       if (!pickup && payMethod === 'on_delivery') payMethod = 'card';
       if (PAY && PAY.card && $('#payBox')) { $('#payBox').outerHTML = payChoice(); bindPaySeg(); }
       fillIntervals(); recalc();
-      try { window.ev && window.ev('checkout', ''); } catch (_) {}
+      шаг('get_type', pickup ? 'самовывоз' : 'доставка');
     };
     const afterLogin = () => {
       // шаг пройден — не прячем молча, а показываем, что он закрыт
@@ -1975,15 +2034,19 @@ ${payChoice()}
     // запоминаем на ходу: вход в Телеграм уводит со страницы, и браузер её выгружает
     const форма = $('#orderForm');
     if (форма) {
-      let ждём = 0;
-      const запомнить = () => { clearTimeout(ждём); ждём = setTimeout(сохранитьЧерновик, 400); };
+      let ждём = 0, тронул = false;
+      const запомнить = () => {
+        // «начал заполнять» — ровно один раз за визит, иначе шаг превратится в шум
+        if (!тронул) { тронул = true; шаг('form', getType === 'pickup' ? 'самовывоз' : 'доставка'); }
+        clearTimeout(ждём); ждём = setTimeout(сохранитьЧерновик, 400);
+      };
       форма.addEventListener('input', запомнить);
       форма.addEventListener('change', запомнить);
     }
 
     $('#fDate').onchange = () => { fillIntervals(); recalc(); };
     if ($('#fZone')) $('#fZone').onchange = recalc;
-    $('#fTime').onchange = recalc;
+    $('#fTime').onchange = () => { шаг('slot', $('#fTime').value || ''); recalc(); };
   } else {
     $("#cartTitle").textContent = "Готово";
     const botLink = API && API.bot && lastOrder.code ? `https://t.me/${API.bot}?start=o${lastOrder.code}` : "";
@@ -2000,12 +2063,12 @@ ${payChoice()}
         <b>Следите за заказом в мессенджере</b>
         <span>Пришлём фото букета перед доставкой, а вы ответите, всё ли нравится.</span>
       </div>` : ""}
-      ${API && lastOrder.code ? `<p class="hint" style="margin-top:14px">Страница заказа: <a href="#/order/${esc(lastOrder.code)}">открыть</a> — там всегда видно, оплачен он и что с ним сейчас. Ссылку можно сохранить.</p>` : ""}</div>`;
+      ${API && lastOrder.code ? `<p class="hint" style="margin-top:14px">Страница заказа: <a href="/order/${esc(lastOrder.code)}/">открыть</a> — там всегда видно, оплачен он и что с ним сейчас. Ссылку можно сохранить.</p>` : ""}</div>`;
     foot.hidden = false;
     foot.innerHTML = `${needPay ? `<button class="btn btn-primary btn-wide" id="doneRepay"><span>Оплатить ${rub(lastOrder.sum)}</span>${icon("arrow")}</button>` : ""}
       ${botLink ? `<a class="btn ${needPay ? "btn-ghost" : "btn-primary"} btn-wide" href="${botLink}" target="_blank" rel="noopener"><span>Открыть бота и получать статусы</span>${icon("arrow")}</a>` : ""}
       ${API && API.maxBot && lastOrder.code ? `<a class="btn btn-ghost btn-wide" href="https://max.ru/${esc(API.maxBot)}?start=o_${esc(lastOrder.code)}" target="_blank" rel="noopener"><span>Следить в MAX</span>${icon("arrow")}</a>` : ""}
-      <button class="btn ${botLink ? "btn-ghost" : "btn-primary"} btn-wide" data-close data-go="#/catalog"><span>Продолжить выбор</span>${icon("arrow")}</button>`;
+      <button class="btn ${botLink ? "btn-ghost" : "btn-primary"} btn-wide" data-close data-go="/catalog/"><span>Продолжить выбор</span>${icon("arrow")}</button>`;
   }
 }
 // количество поменяли — остатки проверяем заново, но не на каждое нажатие
@@ -2037,7 +2100,7 @@ cartDlg.addEventListener('click', async e => {
   else if (t.dataset.dec) { setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1); перепроверить(); }
   else if (t.id === 'toCheckout') { view = 'form'; renderCart(); }
   else if (t.id === 'toList') { view = 'list'; renderCart(); }
-  else if ('close' in t.dataset) { cartDlg.close(); if (t.dataset.go) location.hash = t.dataset.go; }
+  else if ('close' in t.dataset) { cartDlg.close(); if (t.dataset.go) nav(t.dataset.go); }
 });
 /* оплата и способ получения */
 const PAY = API ? API.payment : null;
@@ -2069,7 +2132,7 @@ async function payWidget(order, name, phone) {
     if (!ok || !window.cp) return { paid: false, error: 'Не удалось открыть окно оплаты. Мы свяжемся с вами для оплаты.' };
     // Куда возвращаем покупателя: на страницу его заказа. Она спрашивает сервер сама,
     // поэтому одинаково работает и после кнопки банка, и по ссылке из бота, и с другого телефона.
-    const back = order.tg_code ? `${location.origin}/#/order/${encodeURIComponent(order.tg_code)}` : `${location.origin}/?paid=1`;
+    const back = order.tg_code ? `${location.origin}/order/${encodeURIComponent(order.tg_code)}/` : `${location.origin}/?paid=1`;
     return new Promise(resolve => {
       let answered = false, poll = 0;
       const stop = () => { if (poll) { clearInterval(poll); poll = 0; } };
@@ -2077,6 +2140,7 @@ async function payWidget(order, name, phone) {
       // Уводим покупателя обратно к нам: корзину чистим, оплату помечаем, страница перезагрузится
       const goPaid = () => {
         stop();
+        шаг('paid', '');
         answered = true;   // окно закроется следом, и обработчик «не завершено» уже ничего не перепишет
         try { store.set('cart', {}); } catch (_) {}
         try { const l = store.get('last', null); if (l) { l.paid = true; store.set('last', l); } } catch (_) {}
@@ -2398,9 +2462,14 @@ const checkAddress = debounce(async () => {
   try {
     const r = await fetch('/api/shop/address', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...f, sum: totals().sum }) });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) { fixList = await addrFixes(f); addrSay(d.message || 'Не нашли такой адрес.', true, fixList); }
+    if (!r.ok) {
+      fixList = await addrFixes(f); addrSay(d.message || 'Не нашли такой адрес.', true, fixList);
+      // на чём именно спотыкается адрес — по этому видно, где чинить геокодер
+      шаг('addr_fail', (d.message || 'не нашли').slice(0, 60));
+    }
     else {
       addrInfo = { km: d.km, price: d.price, zone: d.zone || '' };
+      шаг('addr_ok', `${Math.round(d.km || 0)} км · ${d.price || 0} ₽`);
       // при расчёте от МКАД покупателю понятнее «внутри МКАД» или «4.1 км за МКАД», чем км от магазина
       addrSay(`${d.address || ''} · доставка ${d.price ? rub(d.price) : 'бесплатно'}`, false);
     }
@@ -2456,22 +2525,34 @@ cartDlg.addEventListener('submit', async e => {
   const f = e.target, v = k => { const el = f.elements.namedItem(k); return el ? el.value : ''; };
   const err = m => { $('#fErr').textContent = m; $('#fErr').hidden = !m; };
   err('');
+  // считаем саму попытку: разрыв между «нажал» и «заказ создан» показывает,
+  // сколько людей упирается в отказы, а не передумало
+  шаг('submit', getType === 'pickup' ? 'самовывоз' : 'доставка');
   // проверку формы оборачиваем: в некоторых браузерах она может упасть и оборвать оформление заказа
   let ok = true;
   try { ok = f.checkValidity(); } catch (_) { ok = true; }
-  if (!ok) { const bad = f.querySelector(':invalid'); if (bad) bad.focus(); try { f.reportValidity(); } catch (_) {} return; }
-  if (!v('time')) return err('Выберите другую дату — на эту нет свободных интервалов.');
+  if (!ok) {
+    const bad = f.querySelector(':invalid');
+    шаг('refuse', 'не заполнено: ' + ((bad && (bad.name || bad.id)) || 'поле'));
+    if (bad) bad.focus();
+    try { f.reportValidity(); } catch (_) {}
+    return;
+  }
+  if (!v('time')) { шаг('refuse', 'нет интервалов'); return err('Выберите другую дату — на эту нет свободных интервалов.'); }
   // до оплаты покупатель должен назваться: иначе, вернувшись, он не найдёт свой заказ
   if (API && !ME) {
     const box = $('#idBox');
     if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // Самый вероятный затык формы: человек всё заполнил и упёрся во вход.
+    // Без этой отметки он в воронке выглядел бы как «передумал».
+    шаг('refuse', 'требуется вход');
     return err('Начните с шага 1 — подтвердите, что это вы. Заполненное не потеряется.');
   }
 
   // при расчёте по километрам заказ уходит только с найденным на карте адресом
   const km = !!(DEL && DEL.km) && getType !== 'pickup';
-  if (km && addrBusy) return err('Секунду, проверяем адрес.');
-  if (km && !addrInfo) return err('Проверьте адрес: мы не нашли такой дом в Москве.');
+  if (km && addrBusy) { шаг('refuse', 'адрес ещё проверяется'); return err('Секунду, проверяем адрес.'); }
+  if (km && !addrInfo) { шаг('refuse', 'адрес не найден'); return err('Проверьте адрес: мы не нашли такой дом в Москве.'); }
   const d = new Date(v('date') + 'T12:00');
   const when = `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}, ${v('time')}`;
   if (API) {
@@ -2495,8 +2576,9 @@ cartDlg.addEventListener('submit', async e => {
         // Отказ не должен превращаться в долбёжку кнопкой: каждое нажатие тратит
         // лимит запросов, и шестое 04.10 упёрлось в «слишком много попыток».
         setTimeout(() => { const b = $('#fSubmit'); if (b) b.disabled = false; }, 2500);
-        if (res.status === 429) return err('Слишком часто — подождите минуту и нажмите ещё раз. Всё заполненное сохранится.');
+        if (res.status === 429) { шаг('refuse', 'лимит запросов'); return err('Слишком часто — подождите минуту и нажмите ещё раз. Всё заполненное сохранится.'); }
         const текст = data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.';
+        шаг('refuse', текст);
         // кончились цветы — чинить это надо в корзине, а не в форме доставки
         if (/осталось|разобрали|закончил/i.test(текст)) {
           err(текст);
@@ -2517,7 +2599,9 @@ cartDlg.addEventListener('submit', async e => {
       lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code, order: data, name: v('name').trim(), phone: v('phone').trim() };
       saveLastOrder();
       забытьЧерновик();   // заказ принят — хранить введённое больше незачем
+      шаг('order', `${Math.round((data.total || 0) / 1000)} тыс · ${getType === 'pickup' ? 'самовывоз' : 'доставка'}`);
       if (payMethod === 'card') {
+        шаг('pay_go', '');
         cartDlg.close();   // корзина открыта поверх всего, окно оплаты было бы под ней
         const res = await payCard(data, v('name').trim(), v('phone').trim());
         if (res.leaving) return;             // уходим на страницу оплаты, вернёмся уже на страницу заказа
@@ -2565,7 +2649,7 @@ async function askPaid(id, tries) {
 }
 async function resumeOrder() {
   const back = new URLSearchParams(location.search).get('paid');
-  if (back !== null) history.replaceState(null, '', location.pathname + location.hash);
+  if (back !== null) history.replaceState(null, '', location.pathname);
   const saved = store.get('last', null);
 
   if (!saved || !saved.number || Date.now() - (saved.at || 0) > 6 * 3600e3) return;
@@ -2583,7 +2667,7 @@ async function resumeOrder() {
     // заказа на сервере уже нет — забываем его, иначе сайт вечно напоминает о призраке
     if (res === 'нет заказа') { lastOrder = null; store.set('last', null); return; }
     if (res === 'нет связи') return;      // молчим, а не пугаем «не оплачено»
-    if (res === 'оплачен') { lastOrder.paid = true; saveLastOrder(); }
+    if (res === 'оплачен') { lastOrder.paid = true; saveLastOrder(); шаг('paid', ''); }
   }
   if (lastOrder.paid) {
     // вернулись из окна оплаты — покажем «Готово» с кнопкой на бота
@@ -2665,7 +2749,7 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
   function tick() { clearInterval(timer); timer = setInterval(load, open ? 4000 : 45000); }
 
   const loginBar = () => { const el = $('#chatLogin'); if (el) el.hidden = !!store.get('token', ''); };
-  $('#chatLoginGo').onclick = () => { location.hash = '#/me'; open = false; win.hidden = true; fab.hidden = false; tick(); };
+  $('#chatLoginGo').onclick = () => { nav('/me/'); open = false; win.hidden = true; fab.hidden = false; tick(); };
   fab.onclick = () => { open = true; win.hidden = false; fab.hidden = true; loginBar(); load(); tick(); field.focus(); };
   $('#chatClose').onclick = () => { open = false; win.hidden = true; fab.hidden = false; tick(); };
 
@@ -2757,15 +2841,17 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
         if (sent >= 3 || seen.has(k)) return;
         seen.add(k); sent++;
         fetch('/api/shop/js-error', { method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text: String(text).slice(0, 400), where: String(where || location.hash || '/').slice(0, 200) }) }).catch(() => {});
+          body: JSON.stringify({ text: String(text).slice(0, 400), where: String(where || location.pathname || '/').slice(0, 200) }) }).catch(() => {});
       } catch (_) {}
     };
-    window.addEventListener('error', (e) => send(e.message + (e.filename ? ` (${String(e.filename).split('/').pop()}:${e.lineno})` : ''), location.hash));
-    window.addEventListener('unhandledrejection', (e) => send('Обещание отклонено: ' + ((e.reason && e.reason.message) || e.reason), location.hash));
+    window.addEventListener('error', (e) => send(e.message + (e.filename ? ` (${String(e.filename).split('/').pop()}:${e.lineno})` : ''), location.pathname));
+    window.addEventListener('unhandledrejection', (e) => send('Обещание отклонено: ' + ((e.reason && e.reason.message) || e.reason), location.pathname));
   })();
 
   // Шаги посетителя для воронки: карточка → корзина → оформление.
   // Одна отметка на шаг в день, поэтому счётчик считает людей, а не клики.
+  // короткая запись: шаг(…) не падает, если события выключены
+  window.шаг = (kind, ctx) => { try { window.ev && window.ev(kind, ctx); } catch (_) {} };
   window.ev = (kind, ctx) => {
     try {
       fetch('/api/shop/ev', { method: 'POST', headers: { 'content-type': 'application/json' },

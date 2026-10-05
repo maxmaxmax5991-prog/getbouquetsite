@@ -65,7 +65,30 @@ routerAdd("POST", "/api/shop/ev", (e) => {
   const b = e.requestInfo().body || {};
   const vid = String(b.vid || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 40);
   const kind = String(b.kind || "").slice(0, 20);
-  if (vid.length < 8 || ["view", "cart", "checkout"].indexOf(kind) < 0) return e.json(200, { ok: true });
+  // Шаги воронки. Список закрытый: иначе в таблицу натечёт что угодно, а по
+  // ней строится отчёт. Было три вида, и всё, что добавлялось на сайте сверх
+  // них, молча выбрасывалось — так пропал отбор по размеру.
+  const ШАГИ = [
+    "view",        // смотрел карточку товара
+    "filter",      // отобрал по длине и количеству
+    "search",      // искал по названию
+    "cart",        // положил в корзину
+    "cart_open",   // открыл корзину
+    "checkout",    // открыл оформление
+    "get_type",    // переключил доставку/самовывоз
+    "form",        // начал заполнять форму
+    "login_go",    // нажал «войти»
+    "login_ok",    // вошёл
+    "addr_ok",     // адрес найден на карте
+    "addr_fail",   // адрес не нашёлся
+    "slot",        // выбрал интервал
+    "submit",      // нажал «подтвердить заказ»
+    "refuse",      // сервер отказал, ctx — причина
+    "order",       // заказ создан
+    "pay_go",      // ушёл на оплату
+    "paid",        // оплата прошла
+  ];
+  if (vid.length < 8 || ШАГИ.indexOf(kind) < 0) return e.json(200, { ok: true });
   const day = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
   let bid = "";
   try { const br = require(`${__hooks}/lib/brand.js`).byHost($app, e); bid = br ? br.id : ""; } catch (_) {}
@@ -85,14 +108,20 @@ routerAdd("GET", "/api/shop/funnel", (e) => {
   const to = String(q.get("to") || "").match(/^\d{4}-\d{2}-\d{2}$/) ? q.get("to") : from;
   const bid = String(q.get("brand") || "").trim();
   const only = bid ? " AND brand = {:b}" : "";
-  const out = { visits: 0, view: 0, cart: 0, checkout: 0 };
+  // Полный путь покупателя. Считаем ЛЮДЕЙ, а не клики: ключ таблицы событий
+  // не даёт записать один и тот же шаг дважды за день.
+  const ШАГИ = ["view", "filter", "search", "cart", "cart_open", "checkout", "get_type", "form",
+    "login_go", "login_ok", "addr_ok", "addr_fail", "slot", "submit", "refuse",
+    "order", "pay_go", "paid"];
+  const out = { visits: 0, отказы: [] };
+  ШАГИ.forEach((k) => out[k] = 0);
   try {
     const row = new DynamicModel({ n: 0 });
     $app.db().newQuery(`SELECT COUNT(*) as n FROM visits WHERE day >= {:f} AND day <= {:t}${only}`)
       .bind(bid ? { f: from, t: to, b: bid } : { f: from, t: to }).one(row);
     out.visits = +row.n;
   } catch (_) {}
-  ["view", "cart", "checkout"].forEach((k) => {
+  ШАГИ.forEach((k) => {
     try {
       const row = new DynamicModel({ n: 0 });
       $app.db().newQuery(`SELECT COUNT(DISTINCT vid) as n FROM events WHERE day >= {:f} AND day <= {:t} AND kind = {:k}${only}`)
@@ -100,6 +129,16 @@ routerAdd("GET", "/api/shop/funnel", (e) => {
       out[k] = +row.n;
     } catch (_) {}
   });
+  // На чём именно спотыкаются: причина отказа лежит в ctx
+  try {
+    const rows = new DynamicModel({ ctx: "", n: 0 });
+    const arr = $app.db().newQuery(
+      `SELECT ctx, COUNT(DISTINCT vid) as n FROM events
+       WHERE day >= {:f} AND day <= {:t} AND kind IN ('refuse','addr_fail')${only}
+       GROUP BY ctx ORDER BY n DESC LIMIT 12`)
+      .bind(bid ? { f: from, t: to, b: bid } : { f: from, t: to }).all(rows);
+    out.отказы = (arr || []).map((r) => ({ причина: String(r.ctx || "—"), людей: +r.n }));
+  } catch (err) { console.log("воронка: отказы", err); }
   return e.json(200, out);
 }, $apis.requireAuth("managers"));
 
