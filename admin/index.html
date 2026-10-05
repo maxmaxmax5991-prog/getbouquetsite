@@ -3426,6 +3426,12 @@ function renderBrandsCard() {
         <p class="hint" style="flex:1;align-self:center">С этой буквой номер уходит в банк: заказ №3171 → счёт «${esc(b.pay_prefix || 'v')}3171». Так наш счёт не совпадёт со старым чужим из того же кабинета. Номер заказа на сайте и в МоёмСкладе не меняется.</p>
       </div>
       <p class="hint">Свой терминал у каждого сайта: деньги приходят на свой счёт и не путаются в выписке. Не заполнено — работает общий терминал из блока «Оплата картой».</p>
+      <div class="row" style="align-items:center">
+        ${['logo', 'logo_dark'].map(f => `<label class="f">${f === 'logo' ? 'Логотип (светлая тема)' : 'Логотип (тёмная тема)'}
+          ${b[f] ? `<img src="/api/files/brands/${b.id}/${esc(b[f])}" alt="" style="height:32px;width:auto;margin:4px 0;align-self:flex-start;background:${f === 'logo' ? '#fff' : '#111'};padding:4px 8px;border-radius:8px">` : ''}
+          <input class="in" type="file" accept="image/svg+xml,image/png,image/webp" data-blogo="${f}" data-bid="${b.id}"></label>`).join('')}
+      </div>
+      <p class="hint">SVG или PNG на прозрачном фоне. Нет логотипа — в шапке сайта будет название текстом.</p>
       ${brandTextsHTML(b)}
       <div class="bar">
         <button class="btn btn-p" data-bsave="${b.id}">Сохранить</button>
@@ -3448,6 +3454,13 @@ $('#brandsBox').addEventListener('click', safe(async e => {
       if (v) body[{ max: 'max_token', cp: 'cp_secret', tg: 'tg_client_token' }[i.dataset.btok]] = v;
     });
     await api(`/api/collections/brands/records/${id}`, { method: 'PATCH', body });
+    // логотип — файлом, отдельным запросом: в обычный запрос файл не положить
+    const files = $$(`#brandsBox [data-blogo][data-bid="${id}"]`).filter(i => i.files && i.files[0]);
+    if (files.length) {
+      const fd = new FormData();
+      files.forEach(i => fd.append(i.dataset.blogo, i.files[0]));
+      await api(`/api/collections/brands/records/${id}`, { method: 'PATCH', body: fd });
+    }
     BRANDS = await list('brands', '&sort=sort');
     renderBrandsCard(); toast('Витрина сохранена');
     return;
