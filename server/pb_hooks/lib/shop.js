@@ -516,6 +516,12 @@ function prepareOrder(app, rec) {
   const fail = (msg) => { throw new BadRequestError(msg); };
   if (!s.get("accepting")) fail("Сейчас мы не принимаем заказы. Позвоните нам, пожалуйста.");
 
+  // Согласие на обработку данных проверяем ЗДЕСЬ, а не только галочкой в
+  // браузере: галочку обходит кто угодно, а согласие должно быть настоящим.
+  // Отметку времени храним — это и есть доказательство, что оно было дано.
+  if (!rec.get("consent")) fail("Отметьте согласие на обработку персональных данных — без него мы не можем принять заказ.");
+  rec.set("consent_at", new Date().toISOString());
+
   const raw = jget(rec, "items");
   if (!Array.isArray(raw) || !raw.length || raw.length > 50) fail("Корзина пуста.");
   const items = [];

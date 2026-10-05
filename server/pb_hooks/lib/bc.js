@@ -166,8 +166,13 @@ function channel(app, s, src) {
 
 // Следующая порция получателей источника после id last
 function batch(app, src, last, n) {
-  if (src === "client") return app.findRecordsByFilter("customers", "tg_chat != '' && id > {:l}", "id", n, 0, { l: last || "" }).map((c) => ({ id: c.id, chat: c.get("tg_chat") }));
-  if (src === "max") return app.findRecordsByFilter("customers", "max_chat != '' && id > {:l}", "id", n, 0, { l: last || "" }).map((c) => ({ id: c.id, chat: c.get("max_chat") }));
+  // Рекламу шлём только согласившимся, когда выключатель включён. Пока он
+  // выключен — как раньше, всем с чатом: иначе рассылка обнулится в тот же
+  // день, ведь согласия только начали собираться.
+  let согл = "";
+  try { if (app.findFirstRecordByFilter("settings", "id != ''").get("ads_only_agreed")) согл = " && ads_ok = true"; } catch (_) {}
+  if (src === "client") return app.findRecordsByFilter("customers", `tg_chat != '' && id > {:l}${согл}`, "id", n, 0, { l: last || "" }).map((c) => ({ id: c.id, chat: c.get("tg_chat") }));
+  if (src === "max") return app.findRecordsByFilter("customers", `max_chat != '' && id > {:l}${согл}`, "id", n, 0, { l: last || "" }).map((c) => ({ id: c.id, chat: c.get("max_chat") }));
   return app.findRecordsByFilter("bc_subs", "bot = {:b} && blocked = false && id > {:l}", "id", n, 0, { b: src, l: last || "" }).map((c) => ({ id: c.id, chat: c.get("chat"), sub: true }));
 }
 

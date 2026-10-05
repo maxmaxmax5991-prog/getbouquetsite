@@ -8,6 +8,9 @@
 <title>venikoff.net</title>
 <meta name="description" content="venikoff.net — букеты, розы, коробочки и корзины с доставкой по Москве. Фото букета перед доставкой.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23E0178A'/%3E%3Cpath d='M8.6 10.4 14.4 22h1.2l5.8-11.6' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='24.6' cy='21' r='2.2' fill='%23fff'/%3E%3C/svg%3E">
+<!-- Иконка для «на экран Домой» на айфоне: без неё плитка пустая.
+     Та же аватарка, что в соцсетях, — иконка и профиль совпадают. -->
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="preload" href="/fonts/manrope-500-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/unbounded-700-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/fonts/fonts.css">
@@ -475,6 +478,11 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .doc li{margin-bottom:6px}
 .doc b{color:var(--ink)}
 .doc .rq{background:var(--soft);border-radius:14px;padding:16px 18px;margin:18px 0;font-size:14px}
+/* согласия: галочка крупная, попасть пальцем, текст не мельче 13 */
+.consents{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;font-weight:500;color:var(--ink-2);line-height:1.45;cursor:pointer}
+.chk input{width:22px;height:22px;min-height:22px;flex:none;margin:0;accent-color:var(--accent);cursor:pointer}
+.chk a{color:var(--accent-text)}
 .share-pick{margin:-8px 0 16px;align-self:flex-start}
 .sizes-row .chip{font-size:13px;padding:7px 12px;min-height:36px;flex:0 0 auto}
 /* в корзине кончились цветы: строку видно сразу, рядом — как поправить */
@@ -807,7 +815,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1791212676"></script>
+<script src="/data.js?v=1791213280"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2165,12 +2173,18 @@ function renderCart() {
 ${payChoice()}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
         ${getType === 'pickup' ? '' : `<label for="fDnote">Комментарий курьеру<textarea id="fDnote" name="dnote" placeholder="Например: позвонить за час, оставить на охране, не звонить в дверь" maxlength="500"></textarea></label>`}
+        <div class="consents">
+          <label class="chk"><input type="checkbox" id="fPd" name="pd" required>
+            <span>Согласен на <a href="/policy/" target="_blank" rel="noopener">обработку персональных данных</a> для оформления и доставки заказа</span></label>
+          <label class="chk"><input type="checkbox" id="fAds" name="ads">
+            <span>Хочу получать новости и предложения. Необязательно, отписаться можно в любой момент</span></label>
+        </div>
         <p class="demo-note" id="fErr" style="color:var(--sale);font-size:13.5px;text-align:left" hidden></p>
       </form>`;
     foot.hidden = false;
     foot.innerHTML = `<div class="total"><span>К оплате<small class="num" id="fDelivery"></small></span><b class="num" id="fTotal">${rub(t.sum)}</b></div>
       <button class="btn btn-primary btn-wide" type="submit" form="orderForm" id="fSubmit"${DEL && !DEL.accepting ? ' disabled' : ''}><span>Подтвердить заказ</span>${icon('arrow')}</button>
-      ${API ? '<p class="demo-note">Нажимая кнопку, вы соглашаетесь на <a href="/policy/">обработку персональных данных</a> для выполнения заказа.</p>' : '<p class="demo-note">Демо-версия: заказ пока не отправляется.</p>'}`;
+      ${API ? '' : '<p class="demo-note">Демо-версия: заказ пока не отправляется.</p>'}`;
     if (ME) { if (ME.name) $('#fName').value = ME.name; if (ME.phone) $('#fPhone').value = ME.phone; }
     payMethod = PAY && PAY.card ? 'card' : 'on_delivery';
     bindPaySeg();
@@ -2751,6 +2765,8 @@ cartDlg.addEventListener('submit', async e => {
         delivery_type: getType, payment_method: payMethod,
         // откуда пришёл и кто это по счётчику — чтобы считать выручку по источникам
         source: store.get('src', ''), vid: store.get('vid', ''),
+        // согласия: обработка обязательна, рассылка — как решил покупатель
+        consent: !!(($('#fPd') || {}).checked), ads: !!(($('#fAds') || {}).checked),
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

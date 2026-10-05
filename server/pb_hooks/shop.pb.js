@@ -52,6 +52,18 @@ onRecordCreateRequest((e) => {
     e.record.set("brand", b ? b.id : "");
   } catch (err) { console.log("brand on order", err); }
   shop.prepareOrder($app, e.record);
+  // Согласие на рассылку живёт у покупателя, а не у заказа: один человек —
+  // одно решение. Снимать его здесь нельзя: отказ в одном заказе не должен
+  // молча отписывать того, кто согласился раньше; отписка — отдельным действием.
+  try {
+    if (e.record.get("ads")) {
+      const cid = String(e.record.get("customer") || "");
+      if (cid) {
+        $app.db().newQuery("UPDATE customers SET ads_ok = true, ads_at = {:t} WHERE id = {:id} AND (ads_ok IS NULL OR ads_ok = false)")
+          .bind({ t: new Date().toISOString(), id: cid }).execute();
+      }
+    }
+  } catch (err) { console.log("согласие на рассылку", err); }
   e.next();
 }, "orders");
 
