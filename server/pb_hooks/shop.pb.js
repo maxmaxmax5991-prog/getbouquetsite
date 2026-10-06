@@ -572,3 +572,62 @@ routerAdd("POST", "/api/shop/cart-check", (e) => {
   });
   return e.json(200, { items: out });
 });
+
+// Состав комплекта в МоёмСкладе — чтобы новый заводить по образцу имеющегося,
+// а не на глаз. Только чтение, только владельцу.
+routerAdd("GET", "/api/shop/ms-bundle", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  const msl = require(`${__hooks}/lib/ms.js`);
+  const s = shop.settings($app);
+  const id = String(e.request.url.query().get("id") || "").trim();
+  if (!/^[0-9a-f-]{36}$/.test(id)) return e.json(400, { message: "Нужен номер комплекта." });
+  const r = msl.ms(s, "GET", `/entity/bundle/${id}?expand=components.assortment`);
+  if (!r.ok) return e.json(400, { message: r.error });
+  const d = r.data || {};
+  const рядов = ((d.components || {}).rows) || [];
+  return e.json(200, {
+    name: d.name || "",
+    article: d.article || "",
+    цена: d.salePrices && d.salePrices[0] ? d.salePrices[0].value / 100 : null,
+    ндс: d.vat,
+    группа: (d.productFolder && d.productFolder.meta && d.productFolder.meta.href) || "",
+    состав: рядов.map((x) => ({
+      имя: ((x.assortment || {}).name) || "",
+      id: ((x.assortment || {}).id) || "",
+      тип: (((x.assortment || {}).meta || {}).type) || "",
+      сколько: x.quantity,
+    })),
+  });
+}, $apis.requireAuth("managers"));
+
+// Что реально лежит в заказе МоегоСклада — для проверки после привязок.
+// Только чтение, только владельцу.
+routerAdd("GET", "/api/shop/ms-order", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  const msl = require(`${__hooks}/lib/ms.js`);
+  const s = shop.settings($app);
+  const id = String(e.request.url.query().get("id") || "").trim();
+  if (!/^[0-9a-f-]{36}$/.test(id)) return e.json(400, { message: "Нужен номер заказа в складе." });
+  const r = msl.ms(s, "GET", `/entity/customerorder/${id}?expand=positions.assortment`);
+  if (!r.ok) return e.json(400, { message: r.error });
+  const d = r.data || {};
+  // Склад под нагрузкой отдаёт заказ без раскрытых позиций. Пустой список в
+  // таком случае читается как «позиций нет» — 06.10 я на этом решил, что два
+  // заказа пустые, хотя они были целы. Отличаем «нет» от «не прочитали».
+  if (!d.positions || !Array.isArray(d.positions.rows)) {
+    return e.json(200, { name: d.name || "", сумма: (d.sum || 0) / 100,
+      позиции: null, замечание: "Склад не отдал состав — скорее всего ограничение запросов. Повторите через минуту." });
+  }
+  const ряды = d.positions.rows;
+  return e.json(200, {
+    name: d.name || "", сумма: (d.sum || 0) / 100,
+    позиции: ряды.map((x) => ({
+      имя: ((x.assortment || {}).name) || "",
+      тип: (((x.assortment || {}).meta || {}).type) || "",
+      количество: x.quantity, цена: (x.price || 0) / 100,
+      итого: ((x.price || 0) * (x.quantity || 0)) / 100,
+    })),
+  });
+}, $apis.requireAuth("managers"));

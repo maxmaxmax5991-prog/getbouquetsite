@@ -221,7 +221,10 @@ function assortment(app, s, item) {
       const один = Object.keys(pick).filter((k) => pick[k] && pick[k].id);
       if (!(Array.isArray(lengths) && lengths.length) && один.length === 1) hit = pick[один[0]];
     }
-    if (hit && hit.id) return { ok: true, id: hit.id, type: hit.type || "product" };
+    // whole — номенклатура означает ВЕСЬ букет, а не один стебель.
+    // Без этого признака «Букет из 101 розы» уходил в количестве 101 штуки:
+    // сумма сходилась, а при отгрузке списалось бы сто один букет (№3567).
+    if (hit && hit.id) return { ok: true, id: hit.id, type: hit.type || "product", whole: !!hit.whole };
   }
   let ids = {};
   if (p) { try { ids = JSON.parse(p.getString("ms_ids") || "{}") || {}; } catch (_) { ids = {}; } }
@@ -532,6 +535,13 @@ function positionsFor(app, s, o) {
 
     const as = assortment(app, s, it);
     if (!as.ok) return as;
+    if (as.whole) {
+      // Номенклатура — готовый букет целиком: берём штуки и полную цену.
+      const kop = Math.round(it.price * 100);
+      positions.push({ quantity: it.qty, price: kop, assortment: meta(as.type || "product", as.id) });
+      posKop += kop * it.qty;
+      continue;
+    }
     const st = stemsOf(it);   // в МоёмСкладе номенклатура — стебель: количество стеблей и цена за стебель
     const qty = st.cnt * it.qty;
     const priceKop = Math.round(st.price * 100);
