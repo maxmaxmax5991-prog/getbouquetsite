@@ -3288,11 +3288,16 @@ function readTables() {
 $('#rpTables').addEventListener('click', e => {
   const add = e.target.closest('[data-addlen]'), rm = e.target.closest('[data-rml]'), rmt = e.target.closest('[data-rmt]');
   if (!add && !rm && !rmt) return;
+  // введённую длину запоминаем до readTables: дальше DOM пересобирается
+  const новаяДлина = add ? ($(`[data-newlen="${+add.dataset.addlen}"]`) || {}).value : null;
   readTables();
   if (add) {
-    const ti = +add.dataset.addlen, el = $(`[data-newlen="${ti}"]`), L = +el.value;
-    if (el.value === '' || isNaN(L) || L < 0) return toast('Укажите длину в сантиметрах, 0 — если длины нет', true);
-    TABLES[ti].prices[L] = TABLES[ti].prices[L] || {};
+    const ti = +add.dataset.addlen, L = +новаяДлина;
+    if (новаяДлина === '' || новаяДлина === undefined || isNaN(L) || L < 0) {
+      return toast('Укажите длину в сантиметрах, 0 — если длины нет', true);
+    }
+    if (TABLES[ti].prices[L]) return toast(`Длина ${L ? L + ' см' : 'без длины'} в этом прайсе уже есть`, true);
+    TABLES[ti].prices[L] = {};
   }
   if (rm) { const [ti, L] = rm.dataset.rml.split(':'); delete TABLES[+ti].prices[L]; }
   if (rmt) {
@@ -3303,7 +3308,13 @@ $('#rpTables').addEventListener('click', e => {
   }
   renderTables();
 });
-$('#rpTables').addEventListener('change', () => { readTables(); renderTables(); });
+$('#rpTables').addEventListener('change', (e) => {
+  // Поле «Длина, см» таблицу не меняет. Раньше уход фокуса с него перерисовывал
+  // её целиком — поле и кнопка «+ Длина» пересоздавались, введённое число
+  // пропадало, и нажатие на кнопку просило ввести длину заново.
+  if (e.target && e.target.dataset && e.target.dataset.newlen !== undefined) return;
+  readTables(); renderTables();
+});
 $('#rpAddTable').onclick = () => {
   readTables();
   TABLES.push({ id: 't' + Date.now().toString(36), name: 'Новый прайс', counts: [9, 15, 25, 51], prices: { 40: {}, 50: {} } });
