@@ -14,6 +14,9 @@ routerAdd("POST", "/api/shop/login-start", (e) => {
   const code = $security.randomString(24);
   const rec = new Record($app.findCollectionByNameOrId("logins"));
   rec.set("code", code);
+  // Витрину запоминаем здесь: в боте её потом не узнать, а писать покупателю
+  // «вошли на сайте venikoff.net» с lasflore.ru — стыдно.
+  rec.set("brand", br ? br.id : "");
   $app.save(rec);
   // В MAX ссылка с готовым кодом тоже работает: значение после ?start= приходит боту
   // в событии bot_started, и покупателю ничего печатать не надо.

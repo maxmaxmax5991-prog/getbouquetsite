@@ -715,6 +715,38 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   });
 }
 
+// Как называется сайт витрины — для писем покупателю. Пусто или не нашли —
+// возвращаем общее имя из настроек, чтобы в тексте не было дырки.
+function siteName(app, brandId) {
+  if (brandId) {
+    try {
+      const b = app.findRecordById("brands", String(brandId));
+      const d = String(b.get("domain") || "").trim();
+      if (d) return d.replace(/^www\./, "");
+      const n = String(b.get("name") || "").trim();
+      if (n) return n;
+    } catch (_) {}
+  }
+  try {
+    const u = String(settings(app).get("site_url") || "").trim();
+    if (u) return u.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  } catch (_) {}
+  return "нашем сайте";
+}
+
+// Адрес сайта витрины. Ссылки в ботах строились из общего site_url, поэтому
+// покупатель «Гет Букета» и LasFlore получал ссылки на venikoff.net.
+function siteUrl(app, brandId) {
+  if (brandId) {
+    try {
+      const b = app.findRecordById("brands", String(brandId));
+      const d = String(b.get("domain") || "").trim();
+      if (d) return "https://" + d.replace(/^www\./, "");
+    } catch (_) {}
+  }
+  try { return String(settings(app).get("site_url") || "").replace(/\/$/, ""); } catch (_) { return ""; }
+}
+
 // ---------- Телеграм ----------
 // Одна попытка может не дойти (связь с Телеграмом иногда подвисает), поэтому пробуем дважды —
 // иначе уведомление о заказе теряется совсем.
@@ -908,5 +940,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, stockOf, stockOk, incomingOf, availAt,
-  tg, tgPhoto, clientToken, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  tg, tgPhoto, clientToken, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

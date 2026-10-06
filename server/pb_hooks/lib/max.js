@@ -132,15 +132,21 @@ function customerOf(app, chat, name) {
 // Приходит двумя путями — по ссылке max.ru/<бот>?start=l_<код> (тогда лежит в payload)
 // или сообщением, если человек скопировал код руками.
 function useCode(app, s, token, userId, name, code) {
-  const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  let site = String(s.get("site_url") || "").replace(/\/$/, "");
   let rec = null;
   try { rec = app.findFirstRecordByFilter("logins", "code = {:c}", { c: code }); } catch (_) {}
   if (rec) {
     const c = customerOf(app, userId, name);
     rec.set("customer", c.id);
     app.save(rec);
-    return send(token, userId, `Готово, ${name || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.`,
-      site ? [[btnLink("Мои заказы", `${site}/#/me`)]] : null);
+    // И имя сайта, и ссылка — той витрины, где человек нажал «Войти»
+    const имя = shop.siteName(app, rec.get("brand"));
+    try {
+      const b = rec.get("brand") ? app.findRecordById("brands", String(rec.get("brand"))) : null;
+      if (b && b.get("domain")) site = "https://" + String(b.get("domain"));
+    } catch (_) {}
+    return send(token, userId, `Готово, ${name || "вы"} вошли на сайте ${имя}.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.`,
+      site ? [[btnLink("Мои заказы", `${site}/me/`)]] : null);
   }
   let order = null;
   try { order = app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: code }); } catch (_) {}
@@ -150,7 +156,7 @@ function useCode(app, s, token, userId, name, code) {
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", {
       chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")} в MAX` }));
     return send(token, userId, `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.`,
-      site ? [[btnLink("Мой заказ", `${site}/#/order/${order.get("tg_code")}`)]] : null);
+      site ? [[btnLink("Мой заказ", `${site}/order/${order.get("tg_code")}`)]] : null);
   }
   return null;
 }
@@ -217,15 +223,15 @@ function handle(app, u, brand) {
   // отвечаем ключом ТОЙ витрины, чьим ботом пришло событие
   const token = (brand && brand.get("max_token")) || s.get("max_token");
   if (!token) return;
-  const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  const site = shop.siteUrl(app, brand ? brand.id : "");
 
   if (u.update_type === "message_callback" && u.callback) return onButton(app, s, token, u.callback);
 
   const { userId, name, text } = partsOf(u);
   if (!userId) return;
   const say = (t, rows) => send(token, userId, t, rows);
-  const hello = () => say(`Здравствуйте! Это бот магазина venikoff.net.\n\nЗдесь будут статусы ваших заказов и фото букета перед доставкой.`,
-    site ? [[btnLink("Открыть каталог", site)], [btnLink("Мои заказы", `${site}/#/me`)]] : null);
+  const hello = () => say(`Здравствуйте! Это бот магазина ${shop.siteName(app, brand ? brand.id : "")}.\n\nЗдесь будут статусы ваших заказов и фото букета перед доставкой.`,
+    site ? [[btnLink("Открыть каталог", site)], [btnLink("Мои заказы", `${site}/me/`)]] : null);
 
   // пришли по ссылке с сайта: max.ru/<бот>?start=l_<код>
   const payload = String(u.payload || (u.message && u.message.body && u.message.body.payload) || "").trim();
@@ -282,7 +288,7 @@ function handle(app, u, brand) {
   try { last = app.findFirstRecordByFilter("orders", "max_chat = {:c}", { c: String(userId) }); } catch (_) {}
   if (last) {
     return say(`Заказ №${last.get("number")} — ${shop.STATUS[last.get("status")] || last.get("status")}\n${last.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(last)}\nСумма: ${shop.rub(last.get("total"))}${last.get("payment_status") === "paid" ? " (оплачено)" : ""}`,
-      site ? [[btnLink("Мой заказ", `${site}/#/order/${last.get("tg_code")}`)], [btnLink("Все заказы", `${site}/#/me`)]] : null);
+      site ? [[btnLink("Мой заказ", `${site}/order/${last.get("tg_code")}`)], [btnLink("Все заказы", `${site}/me/`)]] : null);
   }
   return hello();
 }

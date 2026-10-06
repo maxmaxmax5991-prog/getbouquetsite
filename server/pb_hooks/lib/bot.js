@@ -365,7 +365,8 @@ function handleClient(app, upd, brand) {
     const c = acc.byChat(app, chat, who);
     rec.set("customer", c.id);
     app.save(rec);
-    shop.tg(token, "sendMessage", { chat_id: chat, text: `Готово, ${who || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.` });
+    const сайт = shop.siteName(app, rec.get("brand"));
+    shop.tg(token, "sendMessage", { chat_id: chat, text: `Готово, ${who || "вы"} вошли на сайте ${сайт}.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.` });
     // Номер берём у самого Телеграма, а не из формы: только такой номер пускает
     // к прошлым заказам. Набранному в форме доверять нельзя — вписать можно любой.
     if (!c.get("phone_ok")) {
@@ -398,7 +399,7 @@ function handleClient(app, upd, brand) {
     try { order = app.findFirstRecordByFilter("orders", "tg_code = {:c}", { c: sub }); } catch (_) {}
     // ссылка могла устареть: заказ выполнен и убран или её открыли повторно
     if (!order) {
-      const site = String(s.get("site_url") || "").replace(/\/$/, "");
+      const site = shop.siteUrl(app, brand ? brand.id : "");
       return shop.tg(token, "sendMessage", { chat_id: chat,
         text: `Этого заказа уже нет — похоже, ссылка старая.\n\nВы всё равно подключены: сюда придут статусы и фото букета по новым заказам.${site ? `\n\nКаталог: ${site}` : ""}` });
     }
@@ -406,8 +407,8 @@ function handleClient(app, upd, brand) {
     app.save(order);
     shop.adminIds(s).forEach((adm) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));
     // ссылка на страницу заказа: по ней всегда видно, оплачен он и что с ним сейчас
-    const site1 = String(s.get("site_url") || "").replace(/\/$/, "");
-    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.${site1 ? `\n\nСтраница заказа: ${site1}/#/order/${order.get("tg_code")}` : ""}` });
+    const site1 = shop.siteUrl(app, brand ? brand.id : "");
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(order)}.\n\nБудем присылать сюда статусы и фото букета.${site1 ? `\n\nСтраница заказа: ${site1}/order/${order.get("tg_code")}` : ""}` });
   }
 
   // Ждём свободный отзыв после оценок — он важнее, чем обращение в чат
@@ -449,7 +450,7 @@ function handleClient(app, upd, brand) {
   // Обычное сообщение — это вопрос живому человеку. Кладём его в общую ленту чата,
   // менеджер ответит из админки, и ответ вернётся сюда же. Автоответ не шлём:
   // «Заказ №N — Подтверждён» на вопрос «а можно к 18?» выглядит глухо.
-  const site = String(s.get("site_url") || "").replace(/\/$/, "");
+  const site = shop.siteUrl(app, brand ? brand.id : "");
   if (text) {
     let cust = null;
     try { cust = app.findFirstRecordByFilter("customers", "tg_chat = {:c}", { c: String(chat) }); } catch (_) {}
@@ -464,10 +465,10 @@ function handleClient(app, upd, brand) {
   try { last = app.findFirstRecordByFilter("orders", "tg_chat = {:c}", { c: String(chat) }); } catch (_) {}
   if (last) {
     return shop.tg(token, "sendMessage", { chat_id: chat,
-      text: `Заказ №${last.get("number")} — ${shop.STATUS[last.get("status")] || last.get("status")}\n${last.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(last)}\nСумма: ${shop.rub(last.get("total"))}${last.get("payment_status") === "paid" ? " (оплачено)" : ""}${site ? `\n\nВсе заказы: ${site}/#/me` : ""}` });
+      text: `Заказ №${last.get("number")} — ${shop.STATUS[last.get("status")] || last.get("status")}\n${last.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${shop.whenText(last)}\nСумма: ${shop.rub(last.get("total"))}${last.get("payment_status") === "paid" ? " (оплачено)" : ""}${site ? `\n\nВсе заказы: ${site}/me/` : ""}` });
   }
   return shop.tg(token, "sendMessage", { chat_id: chat,
-    text: `Здравствуйте! Это бот магазина venikoff.net.\n\nЗдесь приходят статусы заказа и фото букета перед доставкой.${site ? `\n\nКаталог и личный кабинет: ${site}` : ""}` });
+    text: `Здравствуйте! Это бот магазина ${shop.siteName(app, brand ? brand.id : "")}.\n\nЗдесь приходят статусы заказа и фото букета перед доставкой.${site ? `\n\nКаталог и личный кабинет: ${site}` : ""}` });
 }
 
 function handle(app, secret, upd) {
@@ -638,7 +639,7 @@ function handle(app, secret, upd) {
     const c = acc.byChat(app, chat, who);
     rec.set("customer", c.id);
     app.save(rec);
-    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Готово, ${who || "вы"} вошли на сайте venikoff.net.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.` });
+    return shop.tg(token, "sendMessage", { chat_id: chat, text: `Готово, ${who || "вы"} вошли на сайте ${shop.siteName(app, rec.get("brand"))}.\n\nЗдесь будут статусы заказов и фото букета перед доставкой.` });
   }
 
   // покупатель пришёл по ссылке из сайта: /start o<код>
@@ -652,7 +653,7 @@ function handle(app, secret, upd) {
       const when = `${shop.whenText(order)}`;
       admins.forEach((adm) => shop.tg(token, "sendMessage", { chat_id: adm, text: `📱 ${order.get("name")} (${order.get("phone")}) подписался на статусы заказа №${order.get("number")}` }));
       return shop.tg(token, "sendMessage", { chat_id: chat,
-        text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${when}.\n\nБудем присылать сюда статусы: подтверждение, фото букета, отправку и доставку.${String(s.get("site_url") || "") ? `\n\nСтраница заказа: ${String(s.get("site_url")).replace(/\/$/, "")}/#/order/${order.get("tg_code")}` : ""}` });
+        text: `Заказ №${order.get("number")} на ${shop.rub(order.get("total"))} принят.\n${order.get("delivery_type") === "pickup" ? "Самовывоз" : "Доставка"}: ${when}.\n\nБудем присылать сюда статусы: подтверждение, фото букета, отправку и доставку.${shop.siteUrl(app, (shop.brandOfOrder(app, order) || {}).id) ? `\n\nСтраница заказа: ${shop.siteUrl(app, (shop.brandOfOrder(app, order) || {}).id)}/order/${order.get("tg_code")}/` : ""}` });
     }
     return shop.tg(token, "sendMessage", { chat_id: chat, text: "Не нашёл такой заказ. Проверьте ссылку с сайта." });
   }
