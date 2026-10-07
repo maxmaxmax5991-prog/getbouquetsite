@@ -58,6 +58,8 @@ h1{font:700 24px/1.1 var(--display);letter-spacing:-.04em;margin:10px 0 16px}
 h2{font:700 17px var(--display);letter-spacing:-.03em;margin:0 0 12px}
 .hint{font-size:13px;color:var(--ink-2);margin:4px 0 0}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.chk input{width:18px;height:18px;margin:0;cursor:pointer}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px}
 .stack{display:grid;gap:12px}
 
@@ -254,6 +256,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="orders" aria-selected="true">Заказы <span class="dot" id="newCount" hidden>0</span></button>
       <button role="tab" data-tab="products">Товары</button>
+      <button role="tab" data-tab="nom">Номенклатура</button>
       <button role="tab" data-tab="chat">Чат <span class="dot" id="chatCount" hidden>0</span></button>
       <button role="tab" data-tab="incoming">В пути</button>
       <button role="tab" data-tab="cats">Разделы</button>
@@ -385,6 +388,22 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <p class="hint">Накладная целиком: поставщик, во сколько придёт машина и что в ней. Пока накладная открыта, её содержимое числится «в пути» — что лежит в холодильнике, продаётся как обычно, а размер, которого без привоза не хватает, покупателю обещают «с 16:40». Пришла машина — одна кнопка <b>«Приехало»</b> на всю накладную: всё прибавится к остаткам.</p>
       <div id="dlvList" class="stack"></div>
     </section>
+    <!-- Номенклатура: все сорта одним списком, раздел и прайс выбираются прямо здесь -->
+    <section id="tab-nom" hidden>
+      <div class="card">
+        <h2>Номенклатура</h2>
+        <p class="hint" style="margin-bottom:12px">Все сорта одним списком. Раздел и прайс меняются прямо в строке — удобно, когда заводишь партию новых позиций или наводишь порядок. Изменения применяются после «Сохранить».</p>
+        <div class="bar" style="margin-bottom:10px">
+          <input class="in" id="nomQ" placeholder="Поиск по названию" style="max-width:260px">
+          <label class="chk" style="font-size:13px"><input type="checkbox" id="nomNoPhoto"> <span>только без фото</span></label>
+          <label class="chk" style="font-size:13px"><input type="checkbox" id="nomOff"> <span>включая скрытые</span></label>
+          <span class="hint" id="nomCount" style="margin:0;align-self:center"></span>
+          <button class="btn btn-p btn-s" id="nomSave" style="margin-left:auto">Сохранить</button>
+        </div>
+        <div class="scroll"><table class="t" id="nomList"></table></div>
+      </div>
+    </section>
+
     <section id="tab-cats" hidden>
       <div class="card">
         <h2>Разделы каталога</h2>
@@ -931,7 +950,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ orders: loadOrders, products: loadProducts, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings })[t]();
+  ({ orders: loadOrders, products: loadProducts, nom: loadNom, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
@@ -3329,6 +3348,88 @@ $('#rpSave').onclick = safe(async () => {
   toast('Прайсы сохранены — цены на сайте обновлены');
 });
 
+
+/* ---------- Номенклатура ----------
+   Все сорта одним списком: видно, у кого нет фото, и сразу правятся раздел
+   и прайс. Раньше это приходилось делать по одной карточке во вкладке
+   «Товары», и при заведении партии новых позиций уходила уйма времени. */
+let NOM = [];
+const loadNom = safe(async () => {
+  await loadSettings0();                       // нужны прайсы и разделы
+  NOM = await list('products', '&fields=id,name,active,category,price_table,photo,lengths&sort=name');
+  renderNom();
+});
+
+function renderNom() {
+  const q = ($('#nomQ').value || '').trim().toLowerCase().replace(/ё/g, 'е');
+  const безФото = $('#nomNoPhoto').checked;
+  const соСкрытыми = $('#nomOff').checked;
+  const прайсы = tablesOf(S);
+
+  const строки = NOM.filter(p => {
+    if (!соСкрытыми && !p.active) return false;
+    if (безФото && (p.photo || []).length) return false;
+    if (q && !String(p.name || '').toLowerCase().replace(/ё/g, 'е').includes(q)) return false;
+    return true;
+  });
+  $('#nomCount').textContent = `${строки.length} из ${NOM.length}`;
+
+  const выбор = (поле, id, текущее, список) =>
+    `<select class="in sm" data-nom="${поле}" data-id="${id}" style="min-width:160px">`
+    + `<option value=""${текущее ? '' : ' selected'}>— не задан —</option>`
+    + список.map(x => `<option value="${esc(x.v)}"${x.v === текущее ? ' selected' : ''}>${esc(x.t)}</option>`).join('')
+    + `</select>`;
+
+  const разделы = CATS.filter(c => c.id).map(c => ({ v: c.id, t: c.name }));
+  const тарифы = прайсы.map(t => ({ v: t.id, t: t.name || t.id }));
+
+  $('#nomList').innerHTML =
+    `<tr><th>Сорт</th><th>Раздел</th><th>Прайс</th><th>Ростовки</th><th>Фото</th><th>На сайте</th></tr>`
+    + (строки.length ? строки.map(p => {
+        const фото = (p.photo || []).length;
+        const L = Array.isArray(p.lengths) && p.lengths.length ? p.lengths.join(' / ') : '—';
+        return `<tr>
+          <td><b>${esc(p.name)}</b></td>
+          <td>${выбор('category', p.id, p.category || '', разделы)}</td>
+          <td>${выбор('price_table', p.id, p.price_table || '', тарифы)}</td>
+          <td class="num">${L}</td>
+          <td>${фото ? `${фото} шт` : '<b style="color:var(--sale)">нет</b>'}</td>
+          <td><input type="checkbox" data-nom="active" data-id="${p.id}"${p.active ? ' checked' : ''} aria-label="Показывать на сайте"></td>
+        </tr>`;
+      }).join('')
+      : `<tr><td class="hint">Ничего не нашлось</td></tr>`);
+}
+
+// правки копим в самом списке, на сервер уходят по кнопке
+$('#nomList').addEventListener('change', e => {
+  const el = e.target.closest('[data-nom]'); if (!el) return;
+  const p = NOM.find(x => x.id === el.dataset.id); if (!p) return;
+  const поле = el.dataset.nom;
+  const было = p[поле];
+  p[поле] = поле === 'active' ? el.checked : el.value;
+  if (p[поле] !== было) p.__изменён = true;
+  $('#nomCount').textContent = `${$('#nomCount').textContent.split(' · ')[0]} · есть несохранённые правки`;
+});
+['nomQ', 'nomNoPhoto', 'nomOff'].forEach(id => {
+  const el = $('#' + id);
+  el.addEventListener(id === 'nomQ' ? 'input' : 'change', renderNom);
+});
+$('#nomSave').onclick = safe(async () => {
+  const менять = NOM.filter(p => p.__изменён);
+  if (!менять.length) return toast('Ничего не изменилось');
+  // Прайс без раздела или наоборот — не беда, но товар без раздела с сайта
+  // пропадёт целиком: предупреждаем, пока не поздно.
+  const безРаздела = менять.filter(p => p.active && !p.category).map(p => p.name);
+  if (безРаздела.length && !confirm(`Без раздела товар не показывается на сайте: ${безРаздела.join(', ')}. Всё равно сохранить?`)) return;
+  let ок = 0;
+  for (const p of менять) {
+    await api(`/api/collections/products/records/${p.id}`, { method: 'PATCH',
+      body: { category: p.category || '', price_table: p.price_table || '', active: !!p.active } });
+    delete p.__изменён; ок++;
+  }
+  toast(`Сохранено: ${ок}`);
+  renderNom();
+});
 
 /* ---------- настройки ---------- */
 const loadSettings = safe(async () => {
