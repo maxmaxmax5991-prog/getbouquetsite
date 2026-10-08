@@ -60,6 +60,10 @@ h2{font:700 17px var(--display);letter-spacing:-.03em;margin:0 0 12px}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
 .chk input{width:18px;height:18px;margin:0;cursor:pointer}
+.stlens{display:flex;gap:10px;flex-wrap:wrap}
+.stl{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-2)}
+.stl input{width:86px;padding:4px 8px}
+.stl.minus input{border-color:var(--sale);color:var(--sale);font-weight:700}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px}
 .stack{display:grid;gap:12px}
 
@@ -257,6 +261,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="orders" aria-selected="true">Заказы <span class="dot" id="newCount" hidden>0</span></button>
       <button role="tab" data-tab="products">Товары</button>
       <button role="tab" data-tab="nom">Номенклатура</button>
+      <button role="tab" data-tab="stock">Остатки</button>
       <button role="tab" data-tab="chat">Чат <span class="dot" id="chatCount" hidden>0</span></button>
       <button role="tab" data-tab="incoming">В пути</button>
       <button role="tab" data-tab="cats">Разделы</button>
@@ -401,6 +406,23 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <button class="btn btn-p btn-s" id="nomSave" style="margin-left:auto">Сохранить</button>
         </div>
         <div class="scroll"><table class="t" id="nomList"></table></div>
+      </div>
+    </section>
+
+    <!-- Остатки: всё правится в одном экране, обычный порядок — обнулить и вписать живое -->
+    <section id="tab-stock" hidden>
+      <div class="card">
+        <h2>Остатки</h2>
+        <p class="hint" style="margin-bottom:12px">Сколько стеблей в холодильнике сейчас. Привычный порядок: «Обнулить всё» → вписать то, что осталось → «Сохранить». Пока не нажмёте «Сохранить», на сайте ничего не меняется.</p>
+        <div class="bar" style="margin-bottom:10px">
+          <input class="in" id="stQ" placeholder="Поиск по названию" style="max-width:240px">
+          <label class="chk" style="font-size:13px"><input type="checkbox" id="stOnly" checked> <span>только с остатком или привозом</span></label>
+          <label class="chk" style="font-size:13px"><input type="checkbox" id="stOff"> <span>включая скрытые</span></label>
+          <button class="btn btn-g btn-s" id="stZero">Обнулить всё</button>
+          <span class="hint" id="stInfo" style="margin:0;align-self:center"></span>
+          <button class="btn btn-p btn-s" id="stSave" style="margin-left:auto">Сохранить</button>
+        </div>
+        <div class="scroll"><table class="t" id="stList"></table></div>
       </div>
     </section>
 
@@ -950,7 +972,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ orders: loadOrders, products: loadProducts, nom: loadNom, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings })[t]();
+  ({ orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
@@ -3348,6 +3370,105 @@ $('#rpSave').onclick = safe(async () => {
   toast('Прайсы сохранены — цены на сайте обновлены');
 });
 
+
+/* ---------- Остатки ----------
+   Владелец раз в день диктует «что осталось», и всё остальное — ноль.
+   Поэтому главная кнопка здесь «Обнулить всё»: обнулил, вписал живое,
+   сохранил. Правки копятся в полях и уходят одним махом. */
+let STOCK = [];
+const loadStock = safe(async () => {
+  STOCK = await list('products', '&fields=id,name,active,lengths,stock,incoming&sort=name');
+  renderStock();
+});
+
+const стебли = (p) => Object.values(p.stock || {}).reduce((n, v) => n + (+v || 0), 0);
+
+function renderStock() {
+  const q = ($('#stQ').value || '').trim().toLowerCase().replace(/ё/g, 'е');
+  const тольк = $('#stOnly').checked, скрытые = $('#stOff').checked;
+
+  const годен = p => {
+    if (!скрытые && !p.active) return false;
+    if (!Array.isArray(p.lengths) || !p.lengths.length) return false;   // без ростовок остаток не ведётся
+    if (q && !String(p.name || '').toLowerCase().replace(/ё/g, 'е').includes(q)) return false;
+    if (тольк && !стебли(p) && !Object.keys(p.incoming || {}).length) return false;
+    return true;
+  };
+  const строки = STOCK.filter(годен);
+  const всего = строки.reduce((n, p) => n + стебли(p), 0);
+  $('#stInfo').textContent = `${строки.length} сортов · ${всего} стеблей`;
+
+  $('#stList').innerHTML =
+    `<tr><th>Сорт</th><th>Остаток по ростовкам</th><th>В пути</th></tr>`
+    + (строки.length ? строки.map(p => {
+        // Минус — это стебли, уже обещанные покупателям из непринятого привоза.
+        // Сохранение поднимет их до нуля (так устроен сервер), и обещанное
+        // потеряется. Поэтому минус подсвечиваем и прямо об этом пишем.
+        const поля = (p.lengths || []).map(L => {
+          const v = (p.stock || {})[L];
+          const минус = +v < 0;
+          return `<span class="stl${минус ? ' minus' : ''}"${минус ? ' title="Столько стеблей уже обещано из привоза. Нажмёте «Сохранить» — станет 0, и обещание потеряется: сначала отметьте привоз кнопкой «Приехало»"' : ''}>`
+            + `${L}<input class="in num" type="number" step="10" `
+            + `data-st="${p.id}" data-l="${L}" value="${v === undefined || v === null ? '' : v}" `
+            + `aria-label="${esc(p.name)}, ${L} см"></span>`;
+        }).join('');
+        const едет = Object.entries(p.incoming || {})
+          .filter(([, x]) => x && +x.qty > 0)
+          .map(([L, x]) => `${L}см ${x.qty}${x.at ? ' к ' + String(x.at).slice(11, 16) : ''}`)
+          .join(', ');
+        return `<tr><td><b>${esc(p.name)}</b>${p.active ? '' : ' <i class="same">скрыт</i>'}</td>`
+          + `<td><div class="stlens">${поля}</div></td>`
+          + `<td class="hint" style="white-space:nowrap">${едет || '—'}</td></tr>`;
+      }).join('')
+      : `<tr><td class="hint">Ничего не нашлось</td></tr>`);
+}
+
+// правим поля — запоминаем в списке, на сервер по кнопке
+$('#stList').addEventListener('input', e => {
+  const el = e.target.closest('[data-st]'); if (!el) return;
+  const p = STOCK.find(x => x.id === el.dataset.st); if (!p) return;
+  p.stock = Object.assign({}, p.stock);
+  p.stock[el.dataset.l] = el.value === '' ? 0 : Math.max(0, Math.round(+el.value || 0));
+  p.__изм = true;
+  $('#stInfo').textContent = 'есть несохранённые правки';
+});
+['stQ', 'stOnly', 'stOff'].forEach(id => {
+  const el = $('#' + id);
+  el.addEventListener(id === 'stQ' ? 'input' : 'change', renderStock);
+});
+$('#stZero').onclick = () => {
+  // Обнуляем только то, что сейчас на экране: иначе отбор «только с остатком»
+  // тихо обнулил бы и скрытые позиции, которых человек не видит.
+  const поля = $$('#stList [data-st]');
+  if (!поля.length) return toast('Нечего обнулять', true);
+  if (!confirm(`Обнулить ${поля.length} ростовок на экране? На сайте ничего не изменится, пока не нажмёте «Сохранить».`)) return;
+  поля.forEach(el => {
+    el.value = 0;
+    const p = STOCK.find(x => x.id === el.dataset.st);
+    if (p) { p.stock = Object.assign({}, p.stock); p.stock[el.dataset.l] = 0; p.__изм = true; }
+  });
+  $('#stInfo').textContent = 'всё обнулено — впишите живое и сохраните';
+};
+$('#stSave').onclick = safe(async () => {
+  const менять = STOCK.filter(p => p.__изм);
+  if (!менять.length) return toast('Ничего не изменилось');
+  // Сервер не принимает отрицательные остатки: минус станет нулём, и стебли,
+  // обещанные из привоза, пропадут. Предупреждаем до, а не после.
+  const сМинусом = менять.filter(p => Object.values(p.stock || {}).some(v => +v < 0)).map(p => p.name);
+  if (сМинусом.length && !confirm(
+      `У этих сортов остаток в минусе: ${сМинусом.join(', ')}.\n\n`
+      + 'Минус — это стебли, уже обещанные покупателям из привоза. При сохранении он станет нулём, '
+      + 'и обещанное потеряется. Правильнее сначала отметить привоз кнопкой «Приехало» на вкладке «В пути».\n\nВсё равно сохранить?')) return;
+  let ок = 0;
+  for (const p of менять) {
+    const ст = {};
+    (p.lengths || []).forEach(L => { ст[L] = Math.max(0, Math.round(+(p.stock || {})[L] || 0)); });
+    await api('/api/shop/stock-set', { method: 'POST', body: { product: p.id, stock: ст } });
+    delete p.__изм; ок++;
+  }
+  toast(`Сохранено: ${ок} ${ок === 1 ? 'сорт' : 'сортов'}`);
+  await loadStock();
+});
 
 /* ---------- Номенклатура ----------
    Все сорта одним списком: видно, у кого нет фото, и сразу правятся раздел
