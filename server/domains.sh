@@ -11,7 +11,8 @@
 set -e
 [ $# -ge 1 ] || { echo "Укажите домены: sh server/domains.sh venikoff.net getbouquet.moscow"; exit 1; }
 A="$1"
-SRV=root@147.45.141.23
+IPADDR=${VENIKOFF_IP:-$(cat "$(dirname "$0")/primary-ip")}
+SRV=root@$IPADDR
 KEY=~/.ssh/venikoff_ed25519
 [ -f "$KEY" ] || KEY=~/.ssh/id_ed25519
 
@@ -21,8 +22,8 @@ echo "Проверяю, куда смотрят домены…"
 for D in "$@"; do
   NS=$(dig +short NS "$D" | head -1)
   IP=$(dig +short "$D" A ${NS:+@$NS} | tail -1)
-  if [ "$IP" != "147.45.141.23" ]; then
-    echo "Домен $D показывает на «$IP» (спросили у ${NS:-резолвера}), а нужно 147.45.141.23."
+  if [ "$IP" != "$IPADDR" ]; then
+    echo "Домен $D показывает на «$IP» (спросили у ${NS:-резолвера}), а нужно $IPADDR."
     echo "Поправьте А-запись у регистратора (имя «@» и «www») и подождите 15–60 минут."
     exit 1
   fi

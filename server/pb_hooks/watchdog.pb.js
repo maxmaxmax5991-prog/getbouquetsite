@@ -147,4 +147,27 @@ cronAdd("watchdog", "*/10 * * * *", () => {
       ? `Покупатель не ответил на фото больше двух часов: ${silent.map((o) => `№${o.get("number")} (${o.get("phone")})`).join(", ")}. Лучше позвонить.`
       : "", "На все фото покупатели ответили.");
   } catch (err) { console.log("watchdog photo", err); }
+
+  // 5. Резервные серверы получают копию? Её каждые две минуты делает
+  // reserve-sync.sh (cron от root) и пишет итог в /opt/venikoff/reserve.
+  // Отставший резерв — это потерянные заказы, если основной сервер ляжет.
+  try {
+    const R = "/opt/venikoff/reserve";
+    let hosts = "";
+    try { hosts = toString($os.readFile(`${R}/hosts`)); } catch (_) {}
+    const read = (f) => { try { return toString($os.readFile(f)).trim(); } catch (_) { return ""; } };
+    const late = [];
+    hosts.split("\n").forEach((line) => {
+      const [ip, ...name] = line.trim().split(/\s+/);
+      if (!ip || ip[0] === "#") return;
+      const ok = (+read(`${R}/ok/${ip}`) || 0) * 1000;
+      const err = read(`${R}/err/${ip}`);
+      if (!ok || Date.now() - ok > 15 * 60000) {
+        late.push(`${name.join(" ") || ip} — ${ok ? `копия ${mins(ok)} мин назад` : "ещё ни разу"}${err ? ` (${err})` : ""}`);
+      }
+    });
+    check("reserve:late", late.length
+      ? `Резервный сервер отстал: ${late.join("; ")}. Если основной сейчас ляжет, свежих заказов там не будет.`
+      : "", "Резервные серверы снова получают копию.");
+  } catch (err) { console.log("watchdog reserve", err); }
 });

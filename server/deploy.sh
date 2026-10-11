@@ -2,7 +2,8 @@
 # Выкладка сайта, админки и серверного кода на сервер venikoff.
 # Запуск из папки проекта: sh server/deploy.sh
 set -e
-HOST=root@147.45.141.23
+# адрес основного сервера — в server/primary-ip (меняется при переезде на резервный)
+HOST=root@${VENIKOFF_IP:-$(cat "$(dirname "$0")/primary-ip")}
 KEY="$HOME/.ssh/venikoff_ed25519"
 cd "$(dirname "$0")/.."
 
