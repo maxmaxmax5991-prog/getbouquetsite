@@ -42,6 +42,11 @@ ssh -i "$KEY" "$SRV" "cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak && cat > 
 (page) {
 	rewrite * /api/page
 	reverse_proxy 127.0.0.1:8090 {
+		# Пока PocketBase перезапускается (выкладка — несколько секунд), Caddy
+		# ждёт и повторяет, а не отдаёт 502. Страницу рисует сервер, поэтому
+		# без этого на время перезапуска сайт выглядит пустым.
+		lb_try_duration 10s
+		lb_try_interval 300ms
 		header_up X-Forwarded-Host {host}
 		header_up X-Page-Uri {http.request.orig_uri}
 	}
@@ -58,6 +63,9 @@ $SITES {
 	}
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8090 {
+			# переживаем перезапуск сервера молча, см. выше
+			lb_try_duration 10s
+			lb_try_interval 300ms
 			# по нему сервер и понимает, какая витрина пришла
 			header_up X-Forwarded-Host {host}
 		}

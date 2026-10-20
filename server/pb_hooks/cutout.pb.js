@@ -21,6 +21,8 @@ cronAdd("heic-convert", "* * * * *", () => {
   let changed = false;
   const temps = [];
 
+  const переведённые = [];        // старые имена: по ним перенесём подписи после сохранения
+
   photos.forEach((name) => {
     if (!isHeic(name)) return;
     const dst = `${$app.dataDir()}/../${String(name).replace(/\.(heic|heif)$/i, "")}.jpg`;
@@ -28,6 +30,7 @@ cronAdd("heic-convert", "* * * * *", () => {
       console.log("перевод в JPEG", name, toString($os.cmd(PY, SCRIPT, `${dir}/${name}`, dst).output()).trim());
       rec.set("photo+", $filesystem.fileFromPath(dst));
       rec.set("photo-", name);
+      переведённые.push(name);
       temps.push(dst);              // удалим после сохранения: до него файл ещё нужен
       changed = true;
     } catch (err) {
@@ -38,6 +41,38 @@ cronAdd("heic-convert", "* * * * *", () => {
   });
 
   if (changed) { try { $app.save(rec); } catch (err) { console.log("heic save", err); } }
+
+  // ПОДПИСЬ ПРИВЯЗАНА К ИМЕНИ ФАЙЛА, А ИМЯ ПОСЛЕ ПЕРЕВОДА МЕНЯЕТСЯ.
+  // `photo_counts` — это карта «имя файла → сколько цветов на снимке». Пока
+  // снимок переводился из HEIC в JPEG, ключ оставался на старом имени, и
+  // подпись пропадала молча. 16.10 так потерялись подписи у одиннадцати
+  // снимков, в том числе у розовых французских роз — все три.
+  // Новое имя это старое плюс суффикс, поэтому сопоставляем по началу.
+  // Пишем запросом, мимо хуков: второе сохранение подряд той же записи —
+  // отдельная грабля, см. CLAUDE.md.
+  if (переведённые.length) {
+    try {
+      const файлы = rec.get("photo") || [];
+      let подписи = {};
+      try { подписи = JSON.parse(rec.getString("photo_counts") || "{}") || {}; } catch (_) { подписи = {}; }
+      let сдвиг = false;
+      переведённые.forEach((старое) => {
+        if (подписи[старое] === undefined) return;
+        const основа = String(старое).replace(/\.[^.]+$/, "");
+        const новое = файлы.find((x) => String(x).indexOf(основа + "_") === 0 && подписи[x] === undefined);
+        if (!новое) return;
+        подписи[новое] = подписи[старое];
+        delete подписи[старое];
+        сдвиг = true;
+      });
+      if (сдвиг) {
+        $app.db().newQuery("UPDATE products SET photo_counts = {:v} WHERE id = {:id}")
+          .bind({ v: JSON.stringify(подписи), id: rec.id }).execute();
+        console.log("подписи снимков перенесены на новые имена", rec.get("name"));
+      }
+    } catch (err) { console.log("подписи после перевода", err); }
+  }
+
   temps.forEach((f) => { try { $os.remove(f); } catch (_) {} });
 });
 

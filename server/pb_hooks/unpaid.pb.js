@@ -35,7 +35,7 @@ onRecordAfterUpdateSuccess((e) => {
 // Сколько сейчас висит неоплаченных и что с ними — для админки
 routerAdd("GET", "/api/shop/unpaid", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (!shop.can(e, ["owner", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
+  if (!shop.can(e, ["owner", "sales", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
   const s = shop.settings($app);
   let список = [];
   try {

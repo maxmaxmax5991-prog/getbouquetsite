@@ -1,0 +1,28 @@
+      <div class="studio" id="studio" data-phase="choosing">
+        <div class="studio-bar"><span data-t="studio_bar">Не магазин, а <b>цветочный завод</b></span><span class="num" id="studioIdx">1 / 5</span></div>
+        <div class="chooser">
+          <h2 data-t="studio_title">Что скажут ваши цветы?</h2>
+          <div class="carousel" id="carousel" tabindex="0" role="listbox" aria-label="Выбор букета. Стрелки влево и вправо листают"></div>
+          <div class="c-meta" aria-live="polite"><div class="c-name" id="cName"></div><div class="c-price num" id="cPrice"></div></div>
+          <div class="dots" id="dots"></div>
+          <button class="btn btn-primary btn-wide" id="assemble"><span style="display:flex;gap:10px;align-items:center"><svg class="i"><use href="#i-spark"/></svg>Собрать мой букет</span><svg class="i"><use href="#i-arrow"/></svg></button>
+        </div>
+        <button class="c-arrow prev" id="prev" aria-label="Предыдущий букет"><svg class="i"><use href="#i-chev-l"/></svg></button>
+        <button class="c-arrow next" id="next" aria-label="Следующий букет"><svg class="i"><use href="#i-chev-r"/></svg></button>
+        <div class="scene" id="scene" aria-live="polite">
+          <div class="scene-head"><p class="eyebrow" id="sEyebrow">Немного цветочной магии</p><h3 id="sName"></h3><p id="sMood"></p></div>
+          <div class="floor"></div>
+          <img class="bouquet" id="sImg" alt="">
+          <div id="petals"></div>
+          <button class="heart-round" id="sFav" aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
+          <div class="steps"><div class="steps-bar"><span></span><span></span><span></span></div><div class="steps-text" id="stepText">Выбираем самые красивые</div></div>
+          <div class="ready">
+            <div class="ready-note"><svg class="i"><use href="#i-check"/></svg><span data-t="ready_note">Тот самый букет. Для того самого человека.</span></div>
+            <button class="btn btn-primary btn-wide" id="choose"><span>Выбрать букет</span><svg class="i"><use href="#i-arrow"/></svg></button>
+            <div class="ready-row">
+              <button class="btn btn-ghost btn-sm" id="other"><svg class="i"><use href="#i-left"/></svg>Другой букет</button>
+              <button class="btn btn-ghost btn-sm" id="again"><svg class="i"><use href="#i-redo"/></svg>Ещё раз</button>
+            </div>
+          </div>
+        </div>
+      </div>

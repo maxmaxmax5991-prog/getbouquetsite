@@ -64,6 +64,9 @@ h2{font:700 17px var(--display);letter-spacing:-.03em;margin:0 0 12px}
 .stl{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-2)}
 .stl input{width:86px;padding:4px 8px}
 .stl.minus input{border-color:var(--sale);color:var(--sale);font-weight:700}
+#msStuck{background:#fff1f1;border:1px solid #f3b7b7;border-radius:12px;padding:10px 12px;margin:0 0 8px}
+#msStuck b{color:#b00020}
+#msStuck .bar{margin:8px 0 0}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px}
 .stack{display:grid;gap:12px}
 
@@ -81,6 +84,7 @@ label.f{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
 .chip{height:34px;padding:0 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--paper);font-size:13px;font-weight:700;display:inline-flex;gap:6px;align-items:center}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.bsp{display:flex;gap:6px;align-items:center;margin:0 0 6px;flex-wrap:wrap}
 .sw{position:relative;width:44px;height:26px;border-radius:13px;background:var(--line-2);transition:background .2s;flex:none}
 .sw::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
 .sw[aria-checked="true"]{background:var(--ok)}
@@ -234,6 +238,23 @@ table.t td{padding:4px 6px;vertical-align:middle}
 @media (max-width:900px){.bc{grid-template-columns:1fr}.bc-side{position:static}}
 @media (max-width:600px){.bc-h{grid-template-columns:40px 1fr}.bc-h img,.bc-h .noimg{width:40px;height:40px}.bc-h .act{grid-column:1/-1;justify-content:flex-start}}
 @media (max-width:600px){h1{font-size:21px}.order-h .sum{margin-left:0;width:100%}.ed-b{padding:14px}}
+/* Выбор сортов для плитки в Телеграм. Ячейка повторяет лист: соотношение 4:3,
+   снимок обрезается по ширине серединой, по высоте ближе к верху (на высоких
+   кадрах посередине оказывается пояс, а букет выше) — ровно как рисует canvas.
+   Поэтому владелец видит здесь то же, что получит на листе. */
+.tgp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.tgp{position:relative;display:block;cursor:pointer;border-radius:10px;overflow:hidden;border:2px solid var(--line);opacity:.45;transition:opacity .15s,border-color .15s}
+.tgp.on{opacity:1;border-color:var(--accent)}
+.tgp input{position:absolute;top:8px;left:8px;z-index:2;width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
+.tgp-img{display:block;aspect-ratio:4/3;background:#f2f2f2}
+.tgp-img img{width:100%;height:100%;object-fit:cover;object-position:center 28%;display:block}
+.tgp-cap{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;max-width:calc(100% - 20px);background:#fff;color:#111;font-weight:700;font-size:13px;line-height:1.2;padding:5px 10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tgp-box{display:flex;flex-direction:column;gap:6px}
+.tgp-zoom{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--ink-2);flex-wrap:wrap}
+.tgp-sep{width:1px;height:16px;background:var(--line);margin:0 2px}
+.tgp-zoom button{min-width:30px;padding:2px 8px;font-size:15px;line-height:1.2}
+.tgp-img{overflow:hidden}
+@media (max-width:600px){.tgp-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.tgp-cap{font-size:11px}}
 </style>
 </head>
 <body>
@@ -254,13 +275,17 @@ table.t td{padding:4px 6px;vertical-align:middle}
 <div id="app" hidden>
   <header class="top"><div class="wrap">
     <div class="brand"><span class="mark"><svg viewBox="0 0 24 24"><path d="M12 21V11M12 13l-5-5M12 13l5-5"/><circle cx="12" cy="7" r="2.6"/><circle cx="6" cy="6.5" r="2"/><circle cx="18" cy="6.5" r="2"/></svg></span><span>venikoff<i>.net</i></span></div>
-    <div class="who"><a href="/" target="_blank" rel="noopener">Открыть сайт</a><button class="btn btn-g btn-s" id="logout">Выйти</button></div>
+    <div class="who">
+      <button class="btn btn-g btn-s" id="lineBtn" title="На линии — вам падают новые заказы. Занят — не падают.">…</button>
+      <span class="hint" id="верс" style="margin:0;align-self:center" title="Когда была собрана страница, которую сейчас держит ваш браузер. Если число старое — обновите страницу с очисткой кэша."></span>
+      <a href="/" target="_blank" rel="noopener">Открыть сайт</a><button class="btn btn-g btn-s" id="logout">Выйти</button></div>
   </div></header>
   <div class="wrap">
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="orders" aria-selected="true">Заказы <span class="dot" id="newCount" hidden>0</span></button>
       <button role="tab" data-tab="products">Товары</button>
       <button role="tab" data-tab="nom">Номенклатура</button>
+      <button role="tab" data-tab="baskets">Корзины</button>
       <button role="tab" data-tab="stock">Остатки</button>
       <button role="tab" data-tab="chat">Чат <span class="dot" id="chatCount" hidden>0</span></button>
       <button role="tab" data-tab="incoming">В пути</button>
@@ -269,6 +294,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="prices">Прайс роз</button>
       <button role="tab" data-tab="bc">Рассылка</button>
       <button role="tab" data-tab="care">Забота <span class="dot" id="careCount" hidden>0</span></button>
+      <button role="tab" data-tab="team">Менеджеры</button>
       <button role="tab" data-tab="stats">Статистика</button>
       <button role="tab" data-tab="errors">Ошибки <span class="dot" id="errCount" hidden>0</span></button>
       <button role="tab" data-tab="settings">Настройки</button>
@@ -304,6 +330,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <div>
             <div class="f" style="margin-bottom:6px">Кому</div>
             <div class="bc-to" id="bcTo"></div>
+            <label class="chk" style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" id="bcNew" style="accent-color:var(--accent);width:18px;height:18px"> <span>Только тем, кто ещё не покупал</span></label>
+            <p class="hint" id="bcProbe" style="margin:8px 0 0"></p>
           </div>
           <div class="bar" style="margin:0">
             <button class="btn btn-p" id="bcGo">Отправить всем</button>
@@ -342,10 +370,36 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <button class="btn btn-g btn-s" id="oSearchClear" hidden>Сбросить</button>
         <span class="hint" id="oSearchNote" style="margin:0;align-self:center"></span>
       </div>
+      <div id="msStuck" hidden></div>
       <div class="bar" id="orderFilters"></div>
       <div class="bar" id="orderDays"></div>
       <div class="bar" id="orderKind"></div>
       <div class="orders" id="orders"></div>
+    </section>
+
+    <section id="tab-team" hidden>
+      <div class="card stack">
+        <h2>Сегодня</h2>
+        <div class="tiles" id="teamToday"></div>
+      </div>
+      <div class="card stack">
+        <h2>Менеджеры</h2>
+        <p class="hint" style="margin:0">Зелёная точка — человек сейчас за экраном (админка отмечается раз в полминуты). «На линии» — готов брать заказы: автоназначение раздаёт только им. Просрочки — сколько раз на сообщение покупателя не ответили за 3 минуты.</p>
+        <div class="scroll"><table class="t" id="teamList"></table></div>
+      </div>
+      <div class="card stack" id="teamStaffCard" hidden>
+        <h2>Сотрудники</h2>
+        <div class="scroll"><table class="t" id="teamStaff"></table></div>
+        <div id="tsOut" hidden style="background:#fff1f8;border:1px solid #f3b7d7;border-radius:10px;padding:10px 12px;margin-top:10px"></div>
+        <div class="bar" style="margin-top:10px">
+          <input class="in" id="tsNick" placeholder="Логин (латиницей)" style="max-width:190px">
+          <input class="in" id="tsName" placeholder="Имя" style="max-width:190px">
+          <select class="in" id="tsRole" style="width:auto"></select>
+          <input class="in" id="tsPass" placeholder="Пароль, от 8 знаков" style="max-width:200px">
+          <button class="btn btn-p" id="tsAdd">Добавить</button>
+        </div>
+        <p class="hint">Пароль придумайте сами и передайте сотруднику — на почту он не уходит. Галочка «Диалоги» открывает вкладку «Чат».</p>
+      </div>
     </section>
 
     <!-- Товары -->
@@ -394,6 +448,55 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <div id="dlvList" class="stack"></div>
     </section>
     <!-- Номенклатура: все сорта одним списком, раздел и прайс выбираются прямо здесь -->
+    <section id="tab-baskets" hidden>
+      <div class="card">
+        <h2>Сорта в корзинах</h2>
+        <p class="hint" style="margin-bottom:12px">Выбираете сорт → отмечаете, какие количества можно собрать в корзину → к каждому количеству привязываете корзину, оазис и надбавку к доставке. Кнопка «Собрать корзину» появится на сайте только у сортов, где задано хотя бы одно количество.</p>
+        <div class="bar" style="margin-bottom:10px">
+          <input class="in" id="bpQ" placeholder="Поиск по названию" style="max-width:260px">
+          <label class="chk" style="font-size:13px"><input type="checkbox" id="bpOnly"> <span>только настроенные</span></label>
+          <span class="hint" id="bpCount" style="margin:0;align-self:center"></span>
+        </div>
+        <div class="scroll"><table class="t" id="bpList"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Примеры корзин</h2>
+        <p class="hint" style="margin-bottom:12px">Фотографии ваших собранных корзин. Покупатель видит их в конструкторе и может ткнуть в понравившуюся — количество и сорт выставятся сами. Загрузите снимок, укажите, сколько роз и какой сорт.<br>Рубильник <b>«Плиткой»</b> — этот снимок встанет карточкой в каталоге с кнопкой «Собрать корзину». Включается у одного примера.</p>
+        <div class="scroll"><table class="t" id="bsmList"></table></div>
+        <div class="bar" style="margin-top:10px">
+          <button class="btn btn-g btn-s" id="bsmAdd">+ Пример</button>
+          <button class="btn btn-p" id="bsmSave">Сохранить</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Сколько места занимает цветок</h2>
+        <p class="hint" style="margin-bottom:12px">Вместимость корзины меряется одноголовыми розами. Кустовая и французская занимают места двух одноголовых, гортензия — трёх: в корзину «до 251» войдёт 251 одноголовая, 125 кустовых или 83 гортензии.<br><b>Отметки на бегунке</b> — те круглые числа, между которыми выбирает покупатель. У одноголовых 101/151/251, у кустовых 51/75/101 — делением вместимости такие не получить, поэтому задаются руками.<br>Смешивать категории в одной корзине нельзя — сайт не даст.</p>
+        <div class="scroll"><table class="t" id="bunList"></table></div>
+        <div class="bar" style="margin-top:10px"><button class="btn btn-p" id="bunSave">Сохранить</button></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Цена розы в корзине</h2>
+        <p class="hint" style="margin-bottom:12px">Цена за один стебель, когда розу собирают в корзину — она своя и не равна цене из обычного прайса. Чем больше корзина, тем дешевле стебель: строки — ступени количества, столбцы — ростовки. Пустая клетка значит «считать по обычному прайсу сорта».</p>
+        <div class="bar" style="margin-bottom:10px">
+          <label class="f" style="max-width:280px;margin:0">Группа сортов<select class="in" id="bprGroup"></select></label>
+        </div>
+        <div class="scroll"><table class="t" id="bprList"></table></div>
+        <div class="bar" style="margin-top:10px"><button class="btn btn-p" id="bprSave">Сохранить</button>
+          <span class="hint" style="margin:0;align-self:center">Цены в рублях за стебель</span></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Справочник: корзины и кашпо</h2>
+        <p class="hint" style="margin-bottom:12px">Сюда заглядываете редко — завести основу, поправить цену или вместимость. Вместимость ограничивает конструктор: больше неё покупатель не наберёт. Цена основы — с оазисом внутри. «Доставка +» — значение по умолчанию, у сорта его можно переопределить.</p>
+        <div class="scroll"><table class="t" id="bskList"></table></div>
+        <div class="bar" style="margin-top:10px">
+          <button class="btn btn-g btn-s" id="bskAdd">+ Основа</button>
+          <button class="btn btn-p" id="bskSave">Сохранить</button>
+          <button class="btn btn-g" id="bskMs">Найти на складе</button>
+          <span class="hint" id="bskNote" style="margin:0;align-self:center"></span>
+        </div>
+      </div>
+    </section>
+
     <section id="tab-nom" hidden>
       <div class="card">
         <h2>Номенклатура</h2>
@@ -440,6 +543,21 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <div class="bar" id="careFilter"></div>
       <p class="hint" style="margin:0 0 12px">Сюда попадает каждый, кто поставил <b>6 и ниже</b> из 10. Позвоните, договоритесь — и запишите, чем закончилось: это видит владелец и следующий менеджер.</p>
       <div id="careList" class="stack"></div>
+      <div class="card" style="margin-top:12px">
+        <h2>Оценки после вручения</h2>
+        <p class="hint">Когда заказ стал «Доставлен», клиенту приходит один вопрос: насколько он готов нас порекомендовать, от 1 до 10. Отвечает цифрой в ответном сообщении.<br><b>9–10</b> — зовём оставить отзыв на Яндекс.Картах. <b>7–8</b> — спрашиваем, чего не хватило до десятки. <b>6 и ниже</b> — попадает в «Ждут звонка», вам сразу приходит уведомление.<br>«Индекс» — доля девяток и десяток минус доля шестёрок и ниже, считается только среди ответивших. Выше нуля уже неплохо, выше 50 — отлично.</p>
+        <div class="tiles4" id="revTiles"></div>
+        <div class="bar" style="margin-top:10px">
+          <button class="btn btn-g" id="revBlastDry">Кому ещё не задавали вопрос?</button>
+          <button class="btn btn-g" id="revBlast">Разослать опрос</button>
+          <span class="hint" id="revBlastNote" style="margin:0;align-self:center"></span>
+        </div>
+        <p class="hint">Разовая догоняющая рассылка: один вопрос уйдёт всем, кто когда-либо заказывал и подписан на бота, кроме тех, кто уже ответил. По одному сообщению на человека, а не на заказ. Сначала посмотрите, скольким — кнопка слева никому ничего не отправляет.</p>
+        <div class="scroll" style="margin-top:10px"><table class="t" id="revNeed"></table></div>
+        <div class="scroll" style="margin-top:10px"><table class="t" id="revComments"></table></div>
+        <h2 style="margin-top:14px">Все оценки</h2>
+        <div class="scroll"><table class="t" id="revAll"></table></div>
+      </div>
     </section>
 
     <!-- Статистика -->
@@ -499,19 +617,16 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div class="scroll"><table class="t" id="statRefuse"></table></div>
       </div>
       <div class="card" style="margin-top:12px">
-        <h2>Оценки после вручения</h2>
-        <p class="hint">Когда заказ стал «Доставлен», клиенту приходит один вопрос: насколько он готов нас порекомендовать, от 1 до 10. Отвечает цифрой в ответном сообщении.<br><b>9–10</b> — зовём оставить отзыв на Яндекс.Картах. <b>7–8</b> — спрашиваем, чего не хватило до десятки. <b>6 и ниже</b> — попадает в «Ждут звонка», вам сразу приходит уведомление.<br>«Индекс» — доля девяток и десяток минус доля шестёрок и ниже, считается только среди ответивших. Выше нуля уже неплохо, выше 50 — отлично.</p>
-        <div class="tiles4" id="revTiles"></div>
-        <div class="bar" style="margin-top:10px">
-          <button class="btn btn-g" id="revBlastDry">Кому ещё не задавали вопрос?</button>
-          <button class="btn btn-g" id="revBlast">Разослать опрос</button>
-          <span class="hint" id="revBlastNote" style="margin:0;align-self:center"></span>
-        </div>
-        <p class="hint">Разовая догоняющая рассылка: один вопрос уйдёт всем, кто когда-либо заказывал и подписан на бота, кроме тех, кто уже ответил. По одному сообщению на человека, а не на заказ. Сначала посмотрите, скольким — кнопка слева никому ничего не отправляет.</p>
-        <div class="scroll" style="margin-top:10px"><table class="t" id="revNeed"></table></div>
-        <div class="scroll" style="margin-top:10px"><table class="t" id="revComments"></table></div>
-        <h2 style="margin-top:14px">Все оценки</h2>
-        <div class="scroll"><table class="t" id="revAll"></table></div>
+        <h2>Что работает на витрине</h2>
+        <p class="hint">Две вещи, которые раньше приходилось угадывать: <b>влияет ли подпись на карточке</b> и <b>с какого места на экране покупают</b>. Доля — сколько из показов карточки заканчивается добавлением в корзину.</p>
+        <h2 style="margin-top:14px;font-size:15px">Подпись на карточке</h2>
+        <p class="hint">Состояние карточки восстановлено по истории привозов: до нажатия «Приехало» на карточке висит «приедет к такому-то часу», после — «приехало сегодня с теплицы», в остальные дни ничего. Поэтому отчёт работает с того дня, как вы начали вести накладные.<br>Сравнивать честно можно только сорт сам с собой: у разных сортов спрос разный. Нижняя таблица это и делает.</p>
+        <div class="scroll"><table class="t" id="labTotal"></table></div>
+        <div class="scroll" style="margin-top:10px"><table class="t" id="labSorts"></table></div>
+        <h2 style="margin-top:14px;font-size:15px">Самое продающее место</h2>
+        <p class="hint">Номер — какая по счёту карточка в ряду: 1 — первая на экране. «Главная» — блок популярных, «каталог» — список раздела, «похожие» — лента под карточкой товара.</p>
+        <div class="scroll"><table class="t" id="posPlaces"></table></div>
+        <div class="scroll" style="margin-top:10px"><table class="t" id="posCells"></table></div>
       </div>
       <div class="card" style="margin-top:12px">
         <h2>Оценка букетов</h2>
@@ -676,8 +791,11 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <button class="btn btn-g" id="rpAddTable">+ Новый прайс</button>
         <button class="btn btn-p" id="rpSave">Сохранить прайсы</button>
         <button class="btn btn-g" id="rpPic">🖼 Скачать прайс картинкой</button>
+        <button class="btn btn-g" id="rpTg">📣 Плитка для Телеграма</button>
       </div>
       <p class="hint">Картинка собирается по разделам: какие сорта в разделе и по какому прайсу они считаются. Годится, чтобы отправить в переписке — PNG, читается на телефоне.</p>
+      <div id="rpTgOut" hidden style="margin:10px 0 0"></div>
+      <p class="hint">«Плитка для Телеграма» — листы по 8 карточек: фото, название и доступные ростовки. Берутся только сорта, которые можно купить <b>прямо сейчас</b>: то, что едет или кончилось, в пост не попадает, иначе придут заказы на то, чего нет. Сортов больше восьми — скачается несколько листов.</p>
     </section>
 
     <!-- Настройки -->
@@ -717,6 +835,10 @@ table.t td{padding:4px 6px;vertical-align:middle}
             <label class="f" for="sPhone">Телефон на сайте<input class="in" id="sPhone" placeholder="+7 900 000-00-00"></label>
             <label class="f" for="sUrl">Адрес сайта<input class="in" id="sUrl" placeholder="https://venikoff.net"></label>
             <label class="f" for="sReview">Ссылка на отзывы (Яндекс.Карты)<input class="in" id="sReview" placeholder="https://yandex.ru/maps/org/.../reviews/"></label>
+          </div>
+          <div class="swl"><button class="sw" id="sMix" role="switch" aria-checked="false" aria-label="Перемешивать карточки"></button>Перемешивать карточки раз в час</div>
+          <p class="hint">Первые карточки собирают кратно больше кликов просто потому, что они первые. Раз в час порядок меняется, и за день каждый сорт успевает побывать наверху. Наличие это не трогает: то, что можно купить сегодня, всё равно показывается первым, а кончившееся — внизу. Порядок одинаковый для всех покупателей в пределах часа, так что карточка не убегает из-под пальца.</p>
+          <div class="row">
           </div>
           <div><button class="btn btn-p" id="sSave">Сохранить</button></div>
         </div>
@@ -827,6 +949,19 @@ table.t td{padding:4px 6px;vertical-align:middle}
 </div>
 
 <!-- Редактор товара -->
+<dialog id="bskEd" aria-labelledby="bskEdTitle">
+  <div class="ed-b">
+    <h2 id="bskEdTitle" style="margin:0 0 4px">Корзины сорта</h2>
+    <p class="hint" id="bskEdHint" style="margin:0 0 12px"></p>
+    <div class="stack" id="bskEdRows" style="gap:10px"></div>
+    <div class="bar" style="margin-top:12px">
+      <button class="btn btn-g btn-s" id="bskEdAdd">+ Количество</button>
+      <button class="btn btn-p" id="bskEdSave">Сохранить</button>
+      <button class="btn btn-g" id="bskEdClose">Закрыть</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="ed" aria-labelledby="edTitle">
   <div class="ed-h"><h2 id="edTitle">Товар</h2><div class="swl"><button class="sw" id="eActive" role="switch" aria-checked="true" aria-label="На сайте"></button>На сайте</div></div>
   <div class="ed-b">
@@ -916,6 +1051,15 @@ table.t td{padding:4px 6px;vertical-align:middle}
 <script>
 (() => {
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+// Отметка версии. Берём `document.lastModified` — это дата той копии страницы,
+// которую реально держит браузер. Сервер отдаёт админку с запретом кэша, но
+// телефон всё равно иногда показывает вчерашнюю, и со стороны это выглядит
+// как «правка не доехала». Теперь видно одним взглядом.
+try {
+  const d = new Date(document.lastModified);
+  const э = document.getElementById('верс');
+  if (э && !isNaN(d)) э.textContent = 'версия от ' + d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+} catch (_) {}
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const rub = n => (+n || 0).toLocaleString('ru-RU') + ' ₽';
 // Названия этапов совпадают с МоимСкладом: иначе «Принят» там и «Подтверждён» здесь
@@ -972,7 +1116,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings })[t]();
+  ({ team: loadTeam, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings, baskets: loadBaskets })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
@@ -992,13 +1136,15 @@ function brandPill(id) {
 }
 
 // Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
-const TAB_NEED = { bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'orders', stats: 'all', settings: 'all' };
+const TAB_NEED = { team: 'staff', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all' };
 async function loadRole() {
   try { ME = await api('/api/shop/me-role'); } catch (_) {}
   // витрины нужны всем вкладкам, а не только настройкам: без них заказы
   // и диалоги не показывали, с какого сайта пришли
   try { BRANDS = await list('brands', '&sort=sort'); } catch (_) {}
   $$('.tabs button').forEach(b => { b.hidden = !ME.can[TAB_NEED[b.dataset.tab] || 'all']; });
+  // пульс: раз в полминуты отмечаемся и обновляем список людей
+  рисоватьЛинию(); пульс(); setInterval(пульс, 30000);
   const first = $$('.tabs button').find(b => !b.hidden);
   if (first && $$('.tabs button').find(b => b.getAttribute('aria-selected') === 'true' && b.hidden)) show(first.dataset.tab);
   return ME;
@@ -1006,7 +1152,7 @@ async function loadRole() {
 
 /* ---------- заказы ---------- */
 let oFilter = 'active', oDay = 'today', oKind = 'all';
-const OF = [['active', 'Активные'], ['new', 'Новые'], ['unpaid', 'Ждут оплаты'], ['done', 'Доставленные'], ['cancelled', 'Отменённые'], ['all', 'Все']];
+const OF = [['active', 'Активные'], ['mine', 'Мои'], ['free', 'Ничьи'], ['new', 'Новые'], ['unpaid', 'Ждут оплаты'], ['done', 'Доставленные'], ['cancelled', 'Отменённые'], ['all', 'Все']];
 // день доставки, а не день оформления: флористу важно, что везём сегодня
 const ODAY = [['today', 'Сегодня'], ['tomorrow', 'Завтра'], ['week', 'Ближайшая неделя'], ['all', 'Любой день']];
 const OKIND = [['all', 'Доставка и самовывоз'], ['delivery', 'Только доставка'], ['pickup', 'Только самовывоз']];
@@ -1051,7 +1197,12 @@ const loadOrders = safe(async () => {
   $('#oSearchNote').textContent = '';
 
   const parts = [];
-  const f = { active: "status!='done'&&status!='cancelled'", new: "status='new'", unpaid: "payment_method='card'&&payment_status='unpaid'", done: "status='done'", cancelled: "status='cancelled'", all: '' }[oFilter];
+  const f = { active: "status!='done'&&status!='cancelled'", new: "status='new'",
+    // «Мои» и «Ничьи» — про ответственного, а не про статус: закрытые заказы
+    // в них не нужны, иначе список утонет в доставленных
+    mine: `manager='${(ME.id || '')}'&&status!='done'&&status!='cancelled'`,
+    free: "manager=''&&status!='done'&&status!='cancelled'",
+    unpaid: "payment_method='card'&&payment_status='unpaid'", done: "status='done'", cancelled: "status='cancelled'", all: '' }[oFilter];
   if (f) parts.push(`(${f})`);
   if (oDay === 'today') parts.push(`date='${mskDay()}'`);
   else if (oDay === 'tomorrow') parts.push(`date='${mskDay(1)}'`);
@@ -1066,6 +1217,46 @@ const loadOrders = safe(async () => {
     ? `<div class="hint" style="margin:0 0 4px">Всего ${items.length}: доставок ${dl}, самовывозов ${pk}</div>` + items.map(orderHTML).join('')
     : `<div class="empty">За этот день таких заказов нет.</div>`;
   countNew();
+  msStuckBar();
+});
+
+// Полоса «оплачено, а в складе нет».
+//
+// Зачем на экране, если про это пишет бот. 07.10 бот написал — и сообщение
+// утонуло в потоке. Заказ, которого нет в МоёмСкладе, флорист не собирает, и
+// узнать об этом владелец должен там, где смотрит каждый день, а не в
+// переписке. Полоса висит поверх любых фильтров и считает по всей базе.
+const msStuckBar = safe(async () => {
+  const el = $('#msStuck');
+  if (!el) return;
+  const t = new Date(Date.now() - 10 * 60000).toISOString().replace('T', ' ').slice(0, 19);
+  const q = `payment_status='paid'&&ms_id=''&&status!='cancelled'&&created<'${t}'`;
+  let items = [];
+  try { items = await list('orders', `&sort=created&perPage=50&filter=${encodeURIComponent(q)}`); } catch (_) { el.hidden = true; return; }
+  if (!items.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const мин = Math.round((Date.now() - Date.parse(String(items[0].created).replace(' ', 'T'))) / 60000);
+  const срок = мин >= 60 ? `${Math.floor(мин / 60)} ч ${мин % 60} мин` : `${мин} мин`;
+  const причины = [...new Set(items.map(o => o.ms_error).filter(Boolean))];
+  el.hidden = false;
+  el.innerHTML = `<b>Оплачено, но нет в МоёмСкладе: ${items.length}.</b> Флорист эти заказы не видит и не собирает.`
+    + `<div class="hint" style="margin:4px 0 0">${items.map(o => '№' + o.number).join(', ')} — самый старый ждёт ${esc(срок)}.</div>`
+    + (причины.length ? `<div class="hint" style="margin:4px 0 0">Причина: ${причины.map(esc).join('; ')}</div>` : '')
+    + `<div class="bar"><button class="btn btn-p btn-s" id="msStuckGo">Отправить все в МойСклад</button></div>`;
+  $('#msStuckGo').onclick = safe(async () => {
+    const b = $('#msStuckGo');
+    b.disabled = true;
+    let ушло = 0;
+    const беда = [];
+    for (const o of items) {
+      // по одному и с паузой: склад ограничивает частоту, а одна отправка — это
+      // несколько обращений к нему
+      try { await api('/api/shop/ms-push', { method: 'POST', body: { order: o.id } }); ушло++; }
+      catch (err) { беда.push(`№${o.number}: ${err.message || err}`); }
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    toast(беда.length ? `Ушло ${ушло}, не вышло: ${беда.join('; ')}` : `Отправлено ${ушло}`, !!беда.length);
+    loadOrders();
+  });
 });
 const payPill = o => o.payment_method === 'card'
   ? (o.payment_status === 'paid' ? '<span class="pill st-done">Оплачено картой</span>'
@@ -1080,6 +1271,15 @@ function orderHTML(o) {
     <div class="order-h"><b>№${o.number}</b>${brandPill(o.brand)}<span class="pill st-${o.status}">${STATUS[o.status]}</span>${payPill(o)}
       <span class="hint" style="margin:0">создан ${created.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
       <span class="sum num">${rub(o.total)}</span></div>
+    <div class="bar" style="margin:0 0 6px;gap:8px;align-items:center">
+      <span class="hint" style="margin:0">Ответственный:</span>
+      <b>${o.manager ? esc(имяПоId(o.manager) || 'кто-то') : '<span style="color:#b00020">никто</span>'}</b>
+      ${o.manager_how === 'auto' ? '<span class="hint" style="margin:0">(автоматически)</span>' : ''}
+      ${o.manager === ME.id ? '' : `<button class="btn btn-g btn-s" data-take="${o.id}">Беру</button>`}
+      <select class="in sm" data-give="${o.id}" style="width:auto"><option value="">передать…</option>${ЛЮДИ.map(m => `<option value="${m.id}"${m.id === o.manager ? ' selected' : ''}>${esc(m.имя || m.ник)}</option>`).join('')}<option value="-">снять</option></select>
+      <button class="btn btn-g btn-s" data-log="${o.id}">История</button>
+    </div>
+    <div class="log" data-logbox="${o.id}" hidden></div>
     <ul>${(o.items || []).map((it, n) => `<li data-i="${n}">${esc(it.name)}${it.label_text ? ' · ' + esc(it.label_text) : ''} × ${it.qty} — <span class="num">${rub(it.sum)}</span> <button class="lnk" data-swap title="Собрали из другого сорта">заменить сорт</button></li>`).join('')}</ul>
     <div class="meta">
       <div><span>Когда</span><b>${new Date(o.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })}</b>, ${esc(o.interval || '—')}</div>
@@ -1097,7 +1297,32 @@ function orderHTML(o) {
     </div>
   </article>`;
 }
+$('#orders').addEventListener('click', safe(async e => {
+  const t = e.target;
+  if (t.matches('[data-take]')) {
+    await api('/api/shop/order-take', { method: 'POST', body: { order: t.dataset.take } });
+    toast('Заказ за вами'); return loadOrders();
+  }
+  if (t.matches('[data-log]')) {
+    const box = document.querySelector(`[data-logbox="${t.dataset.log}"]`);
+    if (!box.hidden) { box.hidden = true; return; }
+    box.hidden = false; box.innerHTML = '<span class="hint">Смотрю…</span>';
+    const d = await api(`/api/shop/order-log?order=${encodeURIComponent(t.dataset.log)}`);
+    box.innerHTML = (d.строки || []).length
+      ? '<ul class="hint" style="margin:4px 0 8px;padding-left:18px">' + d.строки.map(x =>
+          `<li>${new Date(x.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} — <b>${esc(x.nick || 'система')}</b>: ${esc(x.action)}${x.text ? ' — ' + esc(x.text) : ''}</li>`).join('') + '</ul>'
+      : '<span class="hint">Пока ничего не меняли.</span>';
+  }
+}));
 $('#orders').addEventListener('change', safe(async e => {
+  const g = e.target.closest('[data-give]');
+  if (g) {
+    const v = g.value === '-' ? '' : g.value;
+    if (v === '' && g.value !== '-') return;
+    await api('/api/shop/order-take', { method: 'POST', body: { order: g.dataset.give, to: v } });
+    toast(v ? 'Передано' : 'Снято'); return loadOrders();
+  }
+
   if (!e.target.matches('[data-status]')) return;
   const el = e.target.closest('.order');
   await api(`/api/collections/orders/records/${el.dataset.id}`, { method: 'PATCH', body: { status: e.target.value } });
@@ -1348,7 +1573,7 @@ $('#eMode').onclick = e => { const b = e.target.closest('[data-mode]'); if (b) {
 function expressMode() {
   const on = sw($('#eExpress'));
   $('#eExpPriceBox').hidden = !on;
-  $('#ePartsBox').hidden = !on;
+  $('#ePartsBox').hidden = !on && E.partsFor === undefined;
   $('#eMode').hidden = on;
   if (on) {
     if (E.mode !== 'single') { E.mode = 'single'; }
@@ -1374,15 +1599,18 @@ function renderMode() {
 function renderVars() {
   const opts = ph => `<option value="">—</option>` + E.photos.filter(p => p.name).map((p, i) => `<option value="${esc(p.name)}"${p.name === ph ? ' selected' : ''}>Фото ${i + 1}</option>`).join('');
   const exp = sw($('#eExpress'));
-  $('#eVars').innerHTML = `<tr><th>Кнопка</th><th>Цена, ₽</th>${exp ? '<th>Готовых, шт</th><th>Состав</th>' : '<th>Фото</th><th>Расчётная</th>'}<th></th></tr>` +
+  // «Состав» нужен не только экспрессу: у постоянного сборного букета размеры
+  // M/L/XL — это три разных набора цветов, и без состава все три списались бы
+  // со склада одной номенклатурой.
+  $('#eVars').innerHTML = `<tr><th>Кнопка</th><th>Цена, ₽</th>${exp ? '<th>Готовых, шт</th>' : '<th>Фото</th><th>Расчётная</th>'}<th>Состав</th><th></th></tr>` +
     E.variants.map((v, i) => `<tr${v.estimated && !exp ? ' style="background:var(--warn-soft)"' : ''}>
       <td><input class="in sm" data-v="label" data-i="${i}" value="${esc(v.label)}" style="width:90px" placeholder="${exp ? '9 роз' : '25'}"></td>
       <td><input class="in sm num" data-v="price" data-i="${i}" type="number" min="0" step="10" value="${v.price || ''}" style="width:110px"></td>
       ${exp
-        ? `<td><input class="in sm num" data-v="ready" data-i="${i}" type="number" min="0" value="${v.ready ?? ''}" style="width:90px" placeholder="0"></td>
-           <td><button class="btn btn-g btn-s" data-vparts="${i}"${E.partsFor === i ? ' aria-pressed="true"' : ''}>${E.partsFor === i ? 'правим ниже' : (v.parts || []).length ? `${(v.parts || []).length} поз.` : 'задать'}</button></td>`
+        ? `<td><input class="in sm num" data-v="ready" data-i="${i}" type="number" min="0" value="${v.ready ?? ''}" style="width:90px" placeholder="0"></td>`
         : `<td><select class="in sm" data-v="photo" data-i="${i}" style="width:100px">${opts(v.photo)}</select></td>
            <td><input type="checkbox" data-v="estimated" data-i="${i}"${v.estimated ? ' checked' : ''} aria-label="Расчётная цена"></td>`}
+      <td><button class="btn btn-g btn-s" data-vparts="${i}"${E.partsFor === i ? ' aria-pressed="true"' : ''}>${E.partsFor === i ? 'правим ниже' : (v.parts || []).length ? `${(v.parts || []).length} поз.` : 'задать'}</button></td>
       <td><button class="btn btn-d btn-s" data-rmv="${i}">Убрать</button></td></tr>`).join('');
 }
 function readVars() {
@@ -1435,7 +1663,7 @@ function renderParts() {
   const h = $('#ePartsTitle'); if (h) h.textContent = title;
   E.partsList = list;
   // вариантов несколько, а состав у каждого свой — сначала выбираем, чей правим
-  const need = sw($('#eExpress')) && E.variants.length > 0 && vi === undefined;
+  const need = E.variants.length > 0 && vi === undefined;
   $('#ePartAdd').hidden = need;
   if (need) {
     E.partsList = [];
@@ -1460,7 +1688,11 @@ function readParts() {
     const hit = MSFOUND.find(x => x.name === name) || (old.name === name && old.id ? old : null);
     // цветок не с подсказки — строку сохраняем как есть, чтобы не пропала из формы,
     // а при сохранении товара скажем, что надо выбрать из списка
-    out.push(hit && hit.id ? { id: hit.id, name: hit.name || name, qty } : { id: '', name, qty });
+    // тип обязателен: комплект уходит в заказ иначе, чем товар. Без него
+    // склад отвечает «объект не найден», и заказ не уезжает (заказы 5123, 5127).
+    out.push(hit && hit.id
+      ? { id: hit.id, name: hit.name || name, qty, type: hit.тип || hit.type || old.type || 'product' }
+      : { id: '', name, qty });
   });
   if (E.partsFor !== undefined && E.variants[E.partsFor]) E.variants[E.partsFor].parts = out;
   else E.parts = out;
@@ -1477,6 +1709,9 @@ $('#eVars').addEventListener('click', e => {
   if (!b) return;
   readVars(); readParts();
   E.partsFor = (E.partsFor === +b.dataset.vparts) ? undefined : +b.dataset.vparts;
+  // Без экспресса блок состава скрыт — открываем его, иначе «задать» нажимается
+  // в пустоту: состав есть, а править негде.
+  $('#ePartsBox').hidden = E.partsFor === undefined && !sw($('#eExpress'));
   renderVars(); renderParts();
   if (E.partsFor !== undefined) {
     $('#ePartsBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1518,8 +1753,9 @@ function readStock() {
 let MSFOUND = [], msTimer = null;
 document.addEventListener('input', e => {
   // поле состава букета (data-pname) тоже ищет по складу — без этого подсказок не было
-  // и строка состава молча пропадала при сохранении
-  if (!e.target.matches('[data-ms], [data-pname]')) return;
+  // и строка состава молча пропадала при сохранении.
+  // Оазис на вкладке «Корзины» ищется тем же способом: поле с data-f="oasis_name".
+  if (!e.target.matches('[data-ms], [data-pname], [data-f="oasis_name"]')) return;
   clearTimeout(msTimer);
   const q = e.target.value.trim();
   if (q.length < 2) return;
@@ -1558,7 +1794,18 @@ $('#eSave').onclick = safe(async () => {
   readVars(); readCounts();
   const name = $('#eName').value.trim();
   if (!name) return toast('Укажите название', true);
-  if (!E.photos.length) return toast('Добавьте хотя бы одно фото', true);
+  // Фото больше не запрещает сохранить карточку, но без него она останется
+  // скрытой. Жёсткий запрет мешал делу: сорт нового привоза надо завести
+  // вечером — с ценами, составом и привязкой к складу, — а снимок появляется
+  // утром, когда букет собран. Из-за запрета работа упиралась в «Добавьте хотя
+  // бы одно фото», причём сообщение всплывает внизу длинной формы и его легко
+  // не увидеть: со стороны выглядит как «кнопка не работает».
+  // Выпускать на сайт без снимка всё равно нельзя — карточка-пустышка хуже
+  // отсутствия товара, поэтому выключатель гасим и говорим об этом прямо.
+  const безФото = !E.photos.length;
+  const хотелиВключить = sw($('#eActive'));
+  if (безФото && хотелиВключить
+    && !confirm('Фотографии нет. Карточку сохраню, но на сайт не выпущу — пустая карточка хуже отсутствия товара.\n\nДобавите фото — включите её одной галочкой. Сохранить скрытой?')) return;
   const fd = new FormData();
   fd.append('name', name);
   fd.append('category', $('#eCat').value);
@@ -1568,16 +1815,34 @@ $('#eSave').onclick = safe(async () => {
   fd.append('mood', $('#eMood').value.trim());
   fd.append('tint', $('#eTint').value);
   fd.append('description', $('#eDesc').value.trim());
-  fd.append('active', sw($('#eActive')));
+  fd.append('active', хотелиВключить && !безФото);
   fd.append('site_only', sw($('#eOnly')));
   fd.append('is_express', sw($('#eExpress')));
   readVars(); readParts();
-  if (sw($('#eExpress'))) {
-    const rows = (E.parts || []).concat(...E.variants.map(v => v.parts || []));
-    const bad = rows.find(x => !x.id || !(x.qty > 0));
-    if (bad) return toast(bad.id
-      ? `Укажите, сколько стеблей: «${bad.name || 'цветок'}»`
-      : `Цветок «${bad.name || ''}» не найден в МоёмСкладе — начните печатать название и выберите из подсказок`, true);
+  {
+    // Плохая строка может лежать в составе любого из вариантов, а на экране
+    // открыт состав только одного. Раньше сообщение называло цветок, но не
+    // говорило, у какого размера он спрятан: при M/L/XL это три разных состава,
+    // и приходилось открывать их по очереди. Теперь сами открываем нужный и
+    // подводим к нему — иначе «Сохранить» выглядит как неработающая кнопка.
+    // Состав карточки проверяем только у экспресса: у остальных сервер его не
+    // читает, и ругаться на него значило бы держать человека из-за пустяка.
+    const где = (sw($('#eExpress')) ? [{ i: undefined, rows: E.parts || [] }] : [])
+      .concat(E.variants.map((v, i) => ({ i, rows: v.parts || [] })));
+    let bad = null, уКого = null;
+    for (const г of где) {
+      const x = (г.rows || []).find((r) => !r.id || !(r.qty > 0));
+      if (x) { bad = x; уКого = г.i; break; }
+    }
+    if (bad) {
+      if (уКого !== undefined) { E.partsFor = уКого; renderVars(); renderParts(); }
+      const блок = $('#ePartsBox');
+      if (блок) { блок.hidden = false; блок.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      const чей = уКого !== undefined ? ` у размера «${E.variants[уКого].label || уКого + 1}»` : '';
+      return toast(bad.id
+        ? `Укажите, сколько стеблей: «${bad.name || 'цветок'}»${чей}`
+        : `Цветок «${bad.name || ''}»${чей} не найден в МоёмСкладе — начните печатать название и выберите из подсказок`, true);
+    }
   }
   fd.append('ms_parts', JSON.stringify((E.parts || []).filter(x => x.id && x.qty > 0)));
   fd.append('ready_qty', $('#eReady').value === '' ? 0 : Math.max(0, +$('#eReady').value || 0));
@@ -1696,22 +1961,52 @@ function bcPreview() {
 
 function bcPicked() {
   const saved = bcLS('vk.bcTo');
-  return BC.sources.filter(s => s.builtin || s.active).filter(s => saved ? saved.includes(s.id) : true).map(s => s.id);
+  const list = BC.sources.filter(s => s.builtin || s.active);
+  const pick = list.filter(s => saved ? saved.includes(s.id) : true).map(s => s.id);
+  // Сохранённый выбор мог устареть (у витрин появились свои боты) — тогда
+  // отмечаем всех, иначе список молча оказывается пустым.
+  return pick.length ? pick : list.map(s => s.id);
 }
 function renderBcTo() {
   const pick = bcPicked(), list = BC.sources.filter(s => s.builtin || s.active);
+  const нов = $('#bcNew') && $('#bcNew').checked;
   $('#bcTo').innerHTML = list.length ? list.map(s => `<label><input type="checkbox" value="${s.id}"${pick.includes(s.id) ? ' checked' : ''}>
-      <span>${esc(s.title)} <small>${esc(s.note || '')}</small></span><span class="n num">${s.count}</span></label>`).join('')
+      <span>${esc(s.title)} <small>${esc(s.note || '')}</small></span><span class="n num">${нов ? (s.fresh || 0) : s.count}</span></label>`).join('')
     : '<p class="hint">Пока нет ни одного бота. Подключите бота ниже или клиентского бота в Настройках.</p>';
   bcSum();
 }
+// Разбор «кто в каком боте». Бот Телеграма пишет только тем, кто сам его
+// запустил, а номер собеседника у всех ботов один и тот же — пока покупатель
+// не разобран, он числится за витриной по умолчанию, и рассылка чужой витрины
+// до него не дойдёт.
+function renderBcProbe() {
+  const p = BC.probe || {}, el = $('#bcProbe');
+  if (!el) return;
+  const идёт = p.state && p.state !== 'done';
+  if (идёт) {
+    el.innerHTML = `Разбираем, кто в каком боте… осталось ${p.left} ${plural(p.left, 'человек', 'человека', 'человек')} `
+      + `<button class="btn btn-g btn-s" id="bcProbeStop">Остановить</button>`;
+  } else if (p.left) {
+    el.innerHTML = `${p.left} ${plural(p.left, 'подписчик', 'подписчика', 'подписчиков')} пока числятся за витриной по умолчанию — непонятно, чей это бот. `
+      + `<button class="btn btn-g btn-s" id="bcProbeGo">Разобрать по ботам</button>`;
+  } else {
+    el.textContent = 'Подписчики разобраны по ботам.';
+  }
+  const go = $('#bcProbeGo'), stop = $('#bcProbeStop');
+  if (go) go.onclick = safe(async () => { await api('/api/bc/probe', { method: 'POST', body: {} }); toast('Разбираем — это займёт несколько минут'); loadBc(); });
+  if (stop) stop.onclick = safe(async () => { await api('/api/bc/probe', { method: 'POST', body: { stop: true } }); toast('Остановлено'); loadBc(); });
+}
 function bcSum() {
   const ids = $$('#bcTo input:checked').map(i => i.value);
-  const n = BC.sources.filter(s => ids.includes(s.id)).reduce((a, s) => a + (s.count || 0), 0);
-  $('#bcSum').textContent = ids.length ? `получат ${n} ${plural(n, 'человек', 'человека', 'человек')}` : 'никто не отмечен';
+  const нов = $('#bcNew') && $('#bcNew').checked;
+  const n = BC.sources.filter(s => ids.includes(s.id)).reduce((a, s) => a + ((нов ? s.fresh : s.count) || 0), 0);
+  $('#bcSum').textContent = ids.length
+    ? `получат ${n} ${plural(n, 'человек', 'человека', 'человек')}${нов ? ' — без тех, кто уже заказывал' : ''}`
+    : 'никто не отмечен';
   return { ids, n };
 }
 $('#bcTo').onchange = () => { bcLS('vk.bcTo', $$('#bcTo input:checked').map(i => i.value)); bcSum(); };
+$('#bcNew').onchange = () => { renderBcTo(); };
 
 function bcForm(test) {
   const text = $('#bcText').value.trim(), bt = $('#bcBtnT').value.trim(), bu = $('#bcBtnU').value.trim();
@@ -1722,6 +2017,7 @@ function bcForm(test) {
   const fd = new FormData();
   fd.append('text', text); fd.append('button_text', bt); fd.append('button_url', bu);
   fd.append('targets', JSON.stringify(ids));
+  if ($('#bcNew') && $('#bcNew').checked) fd.append('only_new', '1');
   if (bcPhoto) fd.append('photo', bcPhoto);
   if (test) fd.append('test', '1');
   return fd;
@@ -1758,14 +2054,26 @@ function renderBcHist() {
     return `<div class="bc-h">
       ${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<span class="noimg"></span>'}
       <div><div class="t">${esc(r.text.replace(/<[^>]+>/g, '')) || '<i>только фото</i>'}</div>
-        <div class="m"><span class="pill ${cls}">${st}</span> ${bcWhen(r.created)} · доставлено <b class="num">${r.sent || 0}</b>${r.failed ? `, не дошло ${r.failed}` : ''} из ${r.total || 0}${live && left ? ` · осталось ~${mins} мин` : ''}</div>
-        ${live ? `<div class="prog"><i style="width:${pct}%"></i></div>` : ''}</div>
-      <div class="act">${live ? `<button class="btn btn-g btn-s btn-d" data-stop="${r.id}">Остановить</button>` : ''}<button class="btn btn-g btn-s" data-again="${r.id}">Повторить</button></div>
+        <div class="m"><span class="pill ${cls}">${st}</span> ${bcWhen(r.created)}${r.only_new ? ' · только новичкам' : ''} · доставлено <b class="num">${r.sent || 0}</b>${r.failed ? `, не дошло ${r.failed}` : ''} из ${r.total || 0}${live && left ? ` · осталось ~${mins} мин` : ''}</div>
+        ${live ? `<div class="prog"><i style="width:${pct}%"></i></div>` : ''}
+        <div class="m" id="bcMoney-${r.id}"></div></div>
+      <div class="act">${live ? `<button class="btn btn-g btn-s btn-d" data-stop="${r.id}">Остановить</button>` : ''}${(r.sent || 0) ? `<button class="btn btn-g btn-s" data-money="${r.id}">Сколько принесла</button>` : ''}<button class="btn btn-g btn-s" data-again="${r.id}">Повторить</button></div>
     </div>`;
   }).join('') : '<p class="hint">Рассылок ещё не было.</p>';
 }
 $('#bcHist').onclick = safe(async e => {
   const stop = e.target.closest('[data-stop]'), again = e.target.closest('[data-again]');
+  const money = e.target.closest('[data-money]');
+  if (money) {
+    const id = money.dataset.money, box = $('#bcMoney-' + id);
+    box.textContent = 'считаем…';
+    const d = await api(`/api/bc/money/${id}?days=7`);
+    // Два счёта рядом: по ссылке — кто нажал кнопку, по получателям — кто
+    // получил сообщение и заказал потом как угодно, хоть по телефону.
+    box.innerHTML = `за 7 дней после рассылки: по ссылке <b class="num">${d.link.n}</b> ${plural(d.link.n, 'заказ', 'заказа', 'заказов')} на <b class="num">${rub(d.link.sum)}</b>`
+      + ` · от получателей <b class="num">${d.people.n}</b> ${plural(d.people.n, 'заказ', 'заказа', 'заказов')} на <b class="num">${rub(d.people.sum)}</b>`;
+    return;
+  }
   if (stop) {
     if (!confirm('Остановить рассылку? Тем, кому уже ушло, сообщение останется.')) return;
     await api(`/api/bc/stop/${stop.dataset.stop}`, { method: 'POST' }); toast('Остановлена'); return loadBc();
@@ -1830,9 +2138,11 @@ $('#bcAdd').onclick = safe(async () => {
 const loadBc = safe(async () => {
   clearTimeout(bcTimer);
   BC = await api('/api/bc');
-  renderBcTo(); renderBcBots(); renderBcHist(); bcPreview();
+  renderBcTo(); renderBcBots(); renderBcHist(); bcPreview(); renderBcProbe();
   // пока идёт рассылка — обновляем ход каждые 4 секунды
   if (BC.history.some(r => r.status === 'queued' || r.status === 'sending')) bcTimer = setTimeout(() => { if (tab === 'bc' && auth) loadBc(); }, 4000);
+  // пока идёт разбор по ботам — раз в 15 секунд: он длинный
+  else if (BC.probe && BC.probe.state && BC.probe.state !== 'done') bcTimer = setTimeout(() => { if (tab === 'bc' && auth) loadBc(); }, 15000);
 });
 
 /* ---------- табло ошибок ---------- */
@@ -1863,8 +2173,125 @@ $('#errTable').addEventListener('click', safe(async e => {
   loadErrors();
 }));
 
+/* ---------- кабинет менеджеров ---------- */
+// Пульс. Админка раз в полминуты говорит серверу «я тут» — по этому и горит
+// зелёная точка. Кнопка «На линии / Занят» — отдельно: вкладка может висеть
+// открытой, пока человек обедает, и заказы в это время ему слать не надо.
+let ЛЮДИ = [];
+const имяПоId = (id) => { const m = ЛЮДИ.find(x => x.id === id); return m ? (m.имя || m.ник) : ''; };
+
+async function пульс() {
+  try {
+    const d = await api('/api/shop/beat', { method: 'POST', body: {} });
+    ЛЮДИ = d.люди || [];
+    ME.line = d.линия || '';
+    рисоватьЛинию();
+  } catch (_) { /* связь моргнула — не шумим, следующий удар через полминуты */ }
+}
+function рисоватьЛинию() {
+  const b = $('#lineBtn');
+  if (!b) return;
+  const на = ME.line === 'on';
+  b.textContent = на ? '🟢 На линии' : '⏸ Занят';
+  b.className = 'btn btn-s ' + (на ? 'btn-p' : 'btn-g');
+}
+$('#lineBtn').onclick = safe(async () => {
+  const станет = ME.line === 'on' ? 'busy' : 'on';
+  const d = await api('/api/shop/line', { method: 'POST', body: { line: станет } });
+  ME.line = d.линия; рисоватьЛинию();
+  toast(d.линия === 'on' ? 'Вы на линии — заказы будут назначаться вам' : 'Вы заняты — новые заказы пойдут другим');
+});
+
+const loadTeam = safe(async () => {
+  const d = await api('/api/shop/staff');
+  const люди = d.staff || [];
+  ЛЮДИ = люди.map(m => ({ id: m.id, имя: m.name, ник: m.nick }));
+  const день = await api('/api/shop/team-day', { method: 'POST', body: {} }).catch(() => null);
+
+  if (день) {
+    $('#teamToday').innerHTML = [
+      ['Заказов', день.заказов], ['На сумму', rub(день.сумма)], ['Оплачено', день.оплачено],
+      ['Отменено', день.отменено], ['Средний чек', rub(день.чек)], ['Без ответственного', день.ничьих],
+    ].map(([t, v]) => `<div class="tile"><span>${t}</span><b>${v}</b></div>`).join('');
+  }
+
+  const точка = (m) => `<span title="${m.online ? 'за экраном' : 'не в сети'}" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${m.online ? '#16a34a' : '#cbd5e1'};margin-right:6px"></span>`;
+  const линия = (m) => m.off ? '<span class="pill st-cancelled">отключён</span>'
+    : m.line === 'on' ? '<span class="pill st-done">на линии</span>'
+    : m.line === 'busy' ? '<span class="pill">занят</span>' : '<span class="hint" style="margin:0">—</span>';
+  const сут = (день && день.поЛюдям) || {};
+  $('#teamList').innerHTML = `<tr><th>Сотрудник</th><th>Состояние</th><th>Сейчас на нём</th><th>Сегодня взял</th><th>Закрыл</th><th>Отменил</th><th>Сумма</th><th>Просрочек 3 мин</th></tr>` +
+    люди.filter(m => !m.off).map(m => {
+      const d2 = сут[m.id] || {};
+      return `<tr><td>${точка(m)}<b>${esc(m.name || m.nick)}</b> <span class="hint" style="margin:0">${esc(ROLE_RU[m.role] || m.role)}</span></td>
+        <td>${линия(m)}</td><td class="num">${m.active}</td><td class="num">${d2.взял || 0}</td>
+        <td class="num">${d2.закрыл || 0}</td><td class="num">${d2.отменил || 0}</td>
+        <td class="num">${rub(d2.сумма || 0)}</td>
+        <td class="num"${(d2.просрочек || 0) > 0 ? ' style="color:#b00020;font-weight:700"' : ''}>${d2.просрочек || 0}</td></tr>`;
+    }).join('');
+
+  // управление людьми — только владельцу и руководителю продаж
+  $('#teamStaffCard').hidden = !d.могуПравить;
+  if (d.могуПравить) {
+    $('#tsRole').innerHTML = Object.entries(ролиДляМеня()).map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
+    $('#teamStaff').innerHTML = `<tr><th>Сотрудник</th><th>Логин</th><th>Роль</th><th>Диалоги</th><th>Пароль</th><th></th></tr>` +
+      люди.map(m => `<tr data-ts="${m.id}"${m.off ? ' style="opacity:.5"' : ''}>
+        <td><b>${esc(m.name || m.nick)}</b>${m.me ? ' <span class="hint" style="margin:0">это вы</span>' : ''}${m.off ? ' <span class="pill st-cancelled">отключён</span>' : ''}</td>
+        <td><code>${esc(m.nick)}</code></td>
+        <td>${(ME.role === 'owner' || ['manager', 'care'].includes(m.role))
+          ? `<select class="in sm" data-tsrole style="width:auto">${Object.entries(Object.assign({}, ролиДляМеня(), { [m.role]: ROLE_RU[m.role] })).map(([k, t]) => `<option value="${k}"${k === m.role ? ' selected' : ''}>${t}</option>`).join('')}</select>`
+          : esc(ROLE_RU[m.role] || m.role)}</td>
+        <td style="text-align:center"><input type="checkbox" data-tschat${m.can_chat ? ' checked' : ''} aria-label="Доступ к диалогам"></td>
+        <td><button class="btn btn-g btn-s" data-tsgen>Новый</button> <button class="btn btn-g btn-s" data-tspass>Свой</button></td>
+        <td>${m.me ? '' : `<button class="btn btn-g btn-s" data-tsoff>${m.off ? 'Включить' : 'Отключить'}</button>`}</td>
+      </tr>`).join('');
+  }
+});
+$('#teamStaff').addEventListener('change', safe(async e => {
+  const row = e.target.closest('[data-ts]'); if (!row) return;
+  const id = row.dataset.ts;
+  if (e.target.matches('[data-tsrole]')) { await api('/api/shop/staff-edit', { method: 'POST', body: { id, role: e.target.value } }); toast('Роль изменена'); }
+  if (e.target.matches('[data-tschat]')) { await api('/api/shop/staff-edit', { method: 'POST', body: { id, can_chat: e.target.checked } }); toast(e.target.checked ? 'Диалоги открыты' : 'Диалоги закрыты'); }
+  loadTeam();
+}));
+$('#teamStaff').addEventListener('click', safe(async e => {
+  const row = e.target.closest('[data-ts]'); if (!row) return;
+  const id = row.dataset.ts;
+  if (e.target.matches('[data-tsgen]')) {
+    const d = await api('/api/shop/staff-edit', { method: 'POST', body: { id, gen: true } });
+    // Показываем один раз и крупно: второй возможности подсмотреть не будет —
+    // в базе хранится односторонний отпечаток, а не сам пароль.
+    const box = $('#tsOut');
+    box.hidden = false;
+    box.innerHTML = `Логин <b>${esc(d.nick)}</b>, новый пароль <b style="font-size:19px;letter-spacing:1px">${esc(d.пароль)}</b> — передайте сотруднику. Больше он нигде не покажется.`;
+    return;
+  }
+  if (e.target.matches('[data-tspass]')) {
+    const pass = prompt('Новый пароль (не короче 8 знаков):');
+    if (!pass) return;
+    await api('/api/shop/staff-edit', { method: 'POST', body: { id, password: pass } });
+    return toast('Пароль изменён');
+  }
+  if (e.target.matches('[data-tsoff]')) {
+    const выкл = e.target.textContent === 'Отключить';
+    if (выкл && !confirm('Отключить сотрудника? Он не сможет войти, а его заказы останутся за ним.')) return;
+    await api('/api/shop/staff-edit', { method: 'POST', body: { id, off: выкл } });
+    toast(выкл ? 'Отключён' : 'Включён'); loadTeam();
+  }
+}));
+$('#tsAdd').onclick = safe(async () => {
+  const body = { nick: $('#tsNick').value.trim(), name: $('#tsName').value.trim(), role: $('#tsRole').value, password: $('#tsPass').value };
+  await api('/api/shop/staff', { method: 'POST', body });
+  $('#tsNick').value = ''; $('#tsName').value = ''; $('#tsPass').value = '';
+  toast('Сотрудник добавлен'); loadTeam();
+});
+
 /* ---------- сотрудники ---------- */
-const ROLE_RU = { owner: 'Владелец', head: 'Управляющий', manager: 'Менеджер', care: 'Отдел заботы' };
+const ROLE_RU = { owner: 'Владелец', sales: 'Руководитель продаж', head: 'Управляющий', manager: 'Менеджер', care: 'Отдел заботы' };
+// Кого вправе назначить тот, кто смотрит. Владелец — кого угодно; руководитель
+// продаж — только своих. Сервер проверяет это заново, список здесь только
+// чтобы не предлагать невозможное.
+const ролиДляМеня = () => (ME.role === 'owner' ? ROLE_RU : { manager: ROLE_RU.manager, care: ROLE_RU.care });
 const VIA_RU = { site: 'сайт', tg: 'Телеграм', max: 'MAX' };
 const loadStaff = safe(async () => {
   if (!ME.can.all) return;
@@ -2227,6 +2654,48 @@ const loadCare = safe(async () => {
   const d = await api('/api/shop/care');
   CARE = d.rows || [];
   renderCare();
+  // Оценки живут здесь, а не в «Статистике»: это работа отдела заботы,
+  // и в статистике блок занимал пол-экрана. Период тут свой — месяц.
+  try {
+    const rv = await api(`/api/shop/reviews?from=${mskDate(-29)}&to=${mskDate(0)}`);
+    // Рассылку опроса шлёт только владелец — у остальных кнопки незачем
+    // показывать: сервер всё равно откажет, а человек решит, что сломалось.
+    const блок = $('#revBlastDry') && $('#revBlastDry').parentElement;
+    if (блок) блок.hidden = !(ME && ME.can && ME.can.all);
+    const nn = x => x === null || x === undefined ? '—' : x;
+    const доля = n => rv.answered ? `<i class="same">${Math.round(n * 100 / rv.answered)}% ответивших</i>` : '';
+    $('#revTiles').innerHTML = [
+      ['Опросов отправлено', rv.total, rv.total ? `<i class="same">ответили ${Math.round((rv.answered || 0) * 100 / rv.total)}%</i>` : ''],
+      ['Ответили', nn(rv.answered), ''],
+      ['Индекс рекомендации', nn(rv.nps), ''],
+      ['Средняя оценка', nn(rv.nps_avg), rv.nps_avg ? '<i class="same">из 10</i>' : ''],
+      ['Готовы рекомендовать', nn(rv.промоутеры), доля(rv.промоутеры || 0)],
+      ['Недовольных', nn(rv.критики), доля(rv.критики || 0)],
+    ].map(([t, v, extra]) => `<div class="tile"><span>${t}</span><b class="num">${v}</b>${extra || ''}</div>`).join('');
+    $('#revNeed').innerHTML = (rv.need || []).length
+      ? `<tr><th>Ждут звонка</th><th>Оценка</th><th>Телефон</th><th></th></tr>`
+        + rv.need.map(n => `<tr><td>№${n.number} — ${esc(n.name || '')}</td>
+            <td class="num">${n.nps ? n.nps + ' из 10' : n.marks.join(' / ')}</td>
+            <td><a href="tel:${esc(String(n.phone).replace(/[^\d+]/g, ''))}">${esc(n.phone || '')}</a></td>
+            <td><button class="btn btn-p btn-s" data-revok="${n.id}">Взял в работу</button></td></tr>`).join('')
+      : '<tr><td>Недовольных нет.</td></tr>';
+    const STEP_RU = { nps: 'ждём ответа', order: 'ждём ответа', bouquet: 'ответил 1 из 3', delivery: 'ответил 2 из 3', comment: 'оценил, ждём пояснение', done: 'готово' };
+    const балл = r => r.nps ? `<b>${r.nps}</b> из 10` : (r.marks.some(x => x) ? r.marks.join(' / ') : '—');
+    $('#revAll').innerHTML = (rv.rows || []).length
+      ? `<tr><th>Заказ</th><th>Оценка</th><th>Отзыв</th><th>Состояние</th><th>Когда</th></tr>`
+        + rv.rows.map(r => `<tr${r.needs_call && !r.handled ? ' style="background:color-mix(in srgb,var(--sale) 8%,transparent)"' : ''}>
+            <td>№${r.number}${r.name ? '<br><span class="hint">' + esc(r.name) + '</span>' : ''}</td>
+            <td class="num">${балл(r)}</td>
+            <td>${esc(r.comment || '')}</td>
+            <td>${r.needs_call ? (r.handled ? 'взяли в работу' : '<b style="color:var(--sale)">нужен звонок</b>') : (STEP_RU[r.step] || '')}</td>
+            <td>${chatAt(r.at)}</td></tr>`).join('')
+      : '<tr><td>Опросов ещё не было.</td></tr>';
+    $('#revComments').innerHTML = (rv.comments || []).length
+      ? `<tr><th>Отзывы словами</th><th>Оценки</th><th>Когда</th></tr>`
+        + rv.comments.map(c => `<tr><td>№${c.number}: ${esc(c.text)}</td><td class="num">${c.marks.join(' / ')}</td><td>${chatAt(c.at)}</td></tr>`).join('')
+      : '<tr><td class="hint">Отзывов словами пока нет.</td></tr>';
+  } catch (_) {}
+
 });
 
 $('#careFilter').onclick = e => { const b = e.target.closest('[data-cf]'); if (b) { careShow = b.dataset.cf; renderCare(); } };
@@ -2303,6 +2772,424 @@ const pct = (now, was) => {
 async function ordersBetween(fromUtc, toUtc) {
   return list('orders', `&sort=created&filter=${encodeURIComponent(`created>="${fromUtc}" && created<"${toUtc}"`)}`);
 }
+
+/* ---------- корзины и кашпо ----------
+   Справочник основ и пары «количество → основа» у каждого сорта.
+   Правки копятся в памяти и уходят по «Сохранить», как на вкладке остатков:
+   случайный клик по селекту не должен менять товар молча. */
+let BSK = [], BPROD = [], OASIS = [];
+const loadBaskets = safe(async () => {
+  BSK = await list('baskets', '&sort=sort,name');
+  BPROD = await list('products', '&fields=id,name,active,lengths,basket_counts&sort=name');
+  // Оазисы спрашиваем у склада один раз на вкладку и показываем выпадающим
+  // списком. Подсказка-датлист тут не работает: она лежит в другом окне, а
+  // модальное окно до чужих элементов не достаёт — владелец увидел пустоту.
+  try {
+    const d = await api('/api/shop/ms-search?q=' + encodeURIComponent('оазис'));
+    OASIS = (d.items || []).filter(x => !x.архив);
+  } catch (_) { OASIS = []; }
+  if (!S) await loadSettings0();
+  BPRICE = (S && S.basket_prices && typeof S.basket_prices === 'object') ? JSON.parse(JSON.stringify(S.basket_prices)) : {};
+  try { BSAMP = await list('basket_samples', '&sort=sort'); } catch (_) { BSAMP = []; }
+  // состав: старые примеры хранили один сорт в product/qty — переносим в строку
+  BSAMP.forEach(x => {
+    x.parts = (Array.isArray(x.parts) ? x.parts : []).filter(y => y && y.id)
+      .map(y => ({ id: y.id, len: +y.len || 0, n: +y.n || 0 }));
+    if (!x.parts.length && x.product) x.parts = [{ id: x.product, len: 0, n: +x.qty || 0 }];
+  });
+  renderBaskets(); renderBasketProducts(); renderBasketPrices(); renderBasketUnits(); renderBasketSamples();
+});
+
+function renderBaskets() {
+  $('#bskList').innerHTML = `<tr><th>Название</th><th>Вид</th><th>Вместимость</th><th>Цена</th><th>Доставка +</th><th>Оазис</th><th>шт</th><th>На складе</th><th>Фото</th><th>На сайте</th></tr>`
+    + (BSK.length ? BSK.map((b, i) => `<tr>
+        <td><input class="in sm" data-bk="${i}" data-f="name" value="${esc(b.name || '')}" style="min-width:190px"></td>
+        <td><select class="in sm" data-bk="${i}" data-f="kind">
+            <option value="корзина"${b.kind !== 'кашпо' ? ' selected' : ''}>корзина</option>
+            <option value="кашпо"${b.kind === 'кашпо' ? ' selected' : ''}>кашпо</option></select></td>
+        <td><input class="in sm num" type="number" min="0" step="10" data-bk="${i}" data-f="capacity" value="${b.capacity || ''}" style="width:90px"></td>
+        <td><input class="in sm num" type="number" min="0" step="50" data-bk="${i}" data-f="price" value="${b.price || ''}" style="width:100px"></td>
+        <td><input class="in sm num" type="number" min="0" step="50" data-bk="${i}" data-f="delivery_extra" value="${b.delivery_extra || ''}" style="width:90px"></td>
+        <td><select class="in sm" data-bk="${i}" data-f="oasis_name" style="min-width:150px">
+            <option value="">без оазиса</option>
+            ${OASIS.map(o => `<option value="${esc(o.name)}"${(b.oasis_name || '') === o.name ? ' selected' : ''}>${esc(o.name)}</option>`).join('')}
+            ${(b.oasis_name && !OASIS.some(o => o.name === b.oasis_name)) ? `<option value="${esc(b.oasis_name)}" selected>${esc(b.oasis_name)}</option>` : ''}
+          </select></td>
+        <td><input class="in sm num" type="number" min="0" step="1" data-bk="${i}" data-f="oasis_qty" value="${b.oasis_qty || ''}" style="width:70px"></td>
+        <td><input class="in sm" data-bk="${i}" data-f="ms_name" value="${esc(b.ms_name || '')}" placeholder="точное имя номенклатуры" style="min-width:210px">${b.ms_id ? ' <i class="same">привязана</i>' : ' <i class="same" style="color:var(--warn)">нет привязки</i>'}</td>
+        <td>${(b.photo && b.photo.length)
+            ? `<img src="/api/files/baskets/${b.id}/${b.photo[0]}?thumb=100x100" alt="" style="width:46px;height:46px;border-radius:9px;object-fit:cover;vertical-align:middle">`
+            : '<i class="same">нет</i>'}
+          ${b.id ? `<label class="btn btn-g btn-s" style="margin-left:6px">Загрузить<input type="file" accept="image/*" data-bimg="${b.id}" hidden></label>` : '<i class="same">сначала сохраните</i>'}</td>
+        <td><button class="sw" data-bsw="${i}" role="switch" aria-checked="${b.active ? 'true' : 'false'}" aria-label="На сайте"></button></td>
+      </tr>`).join('')
+      : '<tr><td class="hint">Основ пока нет. Нажмите «+ Основа».</td></tr>');
+}
+
+$('#bskList').addEventListener('input', e => {
+  const el = e.target.closest('[data-bk]'); if (!el) return;
+  const b = BSK[+el.dataset.bk]; if (!b) return;
+  const f = el.dataset.f;
+  b[f] = ['capacity', 'price', 'delivery_extra', 'oasis_qty'].indexOf(f) >= 0 ? (+el.value || 0) : el.value;
+});
+$('#bskList').addEventListener('change', e => {
+  const el = e.target.closest('[data-bk]'); if (!el) return;
+  const b = BSK[+el.dataset.bk]; if (b) b[el.dataset.f] = el.value;
+});
+$('#bskList').addEventListener('click', e => {
+  const s = e.target.closest('[data-bsw]');
+  if (s) {
+    const b = BSK[+s.dataset.bsw]; if (!b) return;
+    b.active = !b.active; s.setAttribute('aria-checked', b.active ? 'true' : 'false');
+    return;
+  }
+});
+// Снимок основы грузим сразу: он нужен для плитки в каталоге, и копить его
+// до общего «Сохранить» незачем — файл всё равно уходит отдельным запросом.
+$('#bskList').addEventListener('change', safe(async e => {
+  const f = e.target.closest('[data-bimg]'); if (!f || !f.files || !f.files[0]) return;
+  const fd = new FormData();
+  fd.append('photo', f.files[0]);
+  await api(`/api/collections/baskets/records/${f.dataset.bimg}`, { method: 'PATCH', body: fd });
+  toast('Снимок загружен'); loadBaskets();
+}));
+$('#bskAdd').onclick = () => { BSK.push({ name: '', kind: 'корзина', capacity: 0, price: 0, delivery_extra: 0, ms_name: '', active: false, sort: BSK.length }); renderBaskets(); };
+
+$('#bskSave').onclick = safe(async () => {
+  const пусто = BSK.filter(b => !String(b.name || '').trim());
+  if (пусто.length) return toast('У основы без названия нечего сохранять');
+  for (let i = 0; i < BSK.length; i++) {
+    const b = BSK[i];
+    const тело = { name: b.name.trim(), kind: b.kind || 'корзина', capacity: +b.capacity || 0,
+      price: +b.price || 0, delivery_extra: +b.delivery_extra || 0, ms_name: (b.ms_name || '').trim(),
+      oasis_name: (b.oasis_name || '').trim(), oasis_qty: +b.oasis_qty || 0,
+      active: !!b.active, tile: !!b.tile, sort: i };
+    if (b.id) await api(`/api/collections/baskets/records/${b.id}`, { method: 'PATCH', body: тело });
+    else await api('/api/collections/baskets/records', { method: 'POST', body: тело });
+  }
+  toast('Сохранено'); loadBaskets();
+});
+
+// Привязка к складу: ищем номенклатуру по точному имени и запоминаем номер.
+// Без номера заказ с корзиной в МойСклад не уйдёт — туда нужна ссылка на товар.
+$('#bskMs').onclick = safe(async () => {
+  $('#bskNote').textContent = 'Спрашиваем склад…';
+  const r = await api('/api/shop/baskets-ms', { method: 'POST', body: {} });
+  $('#bskNote').textContent = `Привязано ${r.привязано} из ${r.всего}` + (r.нет && r.нет.length ? `. Не нашлось: ${r.нет.join(', ')}` : '');
+  loadBaskets();
+});
+
+// Список сортов: только название и что уже задано. Вся возня — в окне,
+// иначе пять полей в строке посреди сорока сортов читаются как каша
+// (так и было в первом подходе, владелец сказал прямо).
+function renderBasketProducts() {
+  const q = ($('#bpQ').value || '').trim().toLowerCase().replace(/ё/g, 'е');
+  const только = $('#bpOnly').checked;
+  const пары = p => Array.isArray(p.basket_counts) ? p.basket_counts : [];
+  const имяОсновы = id => (BSK.find(b => b.id === id) || {}).name || '—';
+  const строки = BPROD.filter(p => {
+    if (!p.active) return false;
+    if (только && !пары(p).length) return false;
+    if (q && !String(p.name || '').toLowerCase().replace(/ё/g, 'е').includes(q)) return false;
+    return true;
+  });
+  $('#bpCount').textContent = `${строки.length} ${plural(строки.length, 'сорт', 'сорта', 'сортов')}`
+    + `, настроено ${BPROD.filter(p => пары(p).length).length}`;
+  $('#bpList').innerHTML = `<tr><th>Сорт</th><th>Количества в корзине</th><th></th></tr>`
+    + (строки.length ? строки.map(p => {
+        const i = BPROD.indexOf(p);
+        const сп = пары(p);
+        return `<tr><td><b>${esc(p.name)}</b></td>
+          <td>${сп.length
+            ? сп.slice().sort((a, b) => a.qty - b.qty).map(x => `<span class="pill">${x.qty} шт → ${esc(имяОсновы(x.basket))}</span>`).join(' ')
+            : '<i class="same">не настроен</i>'}</td>
+          <td><button class="btn btn-g btn-s" data-bpopen="${i}">Настроить</button></td></tr>`;
+      }).join('')
+      : '<tr><td class="hint">Ничего не нашлось.</td></tr>');
+}
+['bpQ', 'bpOnly'].forEach(id => $('#' + id).addEventListener(id === 'bpQ' ? 'input' : 'change', renderBasketProducts));
+$('#bpList').addEventListener('click', e => {
+  const b = e.target.closest('[data-bpopen]'); if (!b) return;
+  открытьКорзиныСорта(+b.dataset.bpopen);
+});
+
+/* ---------- примеры корзин ----------
+   Фото + количество + сорт. Снимок уходит сразу при выборе файла: копить его
+   до общего «Сохранить» незачем, он всё равно отправляется отдельным запросом. */
+let BSAMP = [];
+/* строка состава в примере: сорт, ростовка, количество */
+function renderBasketSamples() {
+  const сорта = (BPROD || []).filter(p => p.active);
+  // Состав строкой: сорт, ростовка и количество — в корзине их может быть до
+  // трёх. Цену примера витрина считает по этому составу, поэтому ростовка тут
+  // обязательна: по самой дешёвой цена расходилась с настоящей корзиной.
+  const состав = (x, i) => (x.parts || []).map((y, j) => {
+    const p = (BPROD || []).find(z => z.id === y.id);
+    const L = (p && p.lengths) || [];
+    return `<div class="bsp">
+      <select class="in sm" data-bsp="${i}:${j}" data-f="id" style="min-width:170px">
+        <option value="">— сорт —</option>
+        ${сорта.map(z => `<option value="${z.id}"${z.id === y.id ? ' selected' : ''}>${esc(z.name)}</option>`).join('')}
+      </select>
+      <select class="in sm" data-bsp="${i}:${j}" data-f="len" style="width:92px">
+        <option value="0">см</option>
+        ${L.map(l => `<option value="${l}"${+l === +y.len ? ' selected' : ''}>${l} см</option>`).join('')}
+      </select>
+      <input class="in sm num" type="number" min="1" step="1" data-bsp="${i}:${j}" data-f="n" value="${y.n || ''}" placeholder="шт" style="width:80px">
+      <button class="btn btn-g btn-s" data-bsprm="${i}:${j}" aria-label="Убрать сорт">✕</button>
+    </div>`;
+  }).join('') + ((x.parts || []).length < 3
+    ? `<button class="btn btn-g btn-s" data-bspadd="${i}">+ сорт</button>` : '');
+  $('#bsmList').innerHTML = `<tr><th>Фото</th><th>Что в корзине</th><th>Всего</th><th>Подпись</th><th>Плиткой</th><th>На сайте</th><th></th></tr>`
+    + (BSAMP.length ? BSAMP.map((x, i) => `<tr>
+        <td>${x.photo
+          ? `<img src="/api/files/basket_samples/${x.id}/${x.photo}?thumb=100x100" alt="" style="width:54px;height:54px;border-radius:9px;object-fit:cover">`
+          : '<i class="same">нет</i>'}
+          ${x.id ? `<label class="btn btn-g btn-s" style="margin-left:6px">Загрузить<input type="file" accept="image/*" data-bsimg="${x.id}" hidden></label>` : '<i class="same">сначала сохраните</i>'}</td>
+        <td>${состав(x, i)}</td>
+        <td class="num">${(x.parts || []).reduce((n, y) => n + (+y.n || 0), 0) || '—'} шт</td>
+        <td><input class="in sm" data-bsm="${i}" data-f="name" value="${esc(x.name || '')}" placeholder="необязательно" style="min-width:150px"></td>
+        <td><button class="sw" data-bstile="${i}" role="switch" aria-checked="${x.tile ? 'true' : 'false'}" aria-label="Плиткой в каталоге"></button></td>
+        <td><button class="sw" data-bssw="${i}" role="switch" aria-checked="${x.active ? 'true' : 'false'}" aria-label="На сайте"></button></td>
+        <td><button class="btn btn-g btn-s" data-bsrm="${i}">Убрать</button></td>
+      </tr>`).join('')
+      : '<tr><td class="hint">Примеров пока нет. Нажмите «+ Пример», сохраните — и появится кнопка загрузки снимка.</td></tr>');
+}
+// правка состава: сорт и ростовка — перерисовываем строку (у нового сорта
+// свои ростовки), количество — молча, чтобы не прыгал курсор
+function правкаСостава(el, перерисовать) {
+  const [i, j] = el.dataset.bsp.split(':').map(Number);
+  const y = BSAMP[i] && BSAMP[i].parts[j]; if (!y) return;
+  if (el.dataset.f === 'n') { y.n = Math.max(0, +el.value || 0); return; }
+  if (el.dataset.f === 'len') { y.len = +el.value || 0; return; }
+  y.id = el.value; y.len = 0;
+  if (перерисовать) renderBasketSamples();
+}
+$('#bsmList').addEventListener('input', e => {
+  const sp = e.target.closest('[data-bsp]');
+  if (sp) { правкаСостава(sp, false); return; }
+  const el = e.target.closest('[data-bsm]'); if (!el) return;
+  const x = BSAMP[+el.dataset.bsm]; if (!x) return;
+  x[el.dataset.f] = el.value;
+});
+$('#bsmList').addEventListener('change', e => {
+  const sp = e.target.closest('[data-bsp]');
+  if (sp) { правкаСостава(sp, sp.dataset.f === 'id'); return; }
+  const el = e.target.closest('[data-bsm]');
+  if (el) { const x = BSAMP[+el.dataset.bsm]; if (x) x[el.dataset.f] = el.value; }
+});
+$('#bsmList').addEventListener('click', safe(async e => {
+  const s = e.target.closest('[data-bssw]');
+  if (s) { const x = BSAMP[+s.dataset.bssw]; x.active = !x.active; s.setAttribute('aria-checked', x.active ? 'true' : 'false'); return; }
+  const тп = e.target.closest('[data-bstile]');
+  if (тп) {
+    // плиткой показываем один пример: две карточки «соберите корзину» в ряду
+    // каталога — путаница, а не выбор
+    BSAMP.forEach(y => { y.tile = false; });
+    BSAMP[+тп.dataset.bstile].tile = true;
+    $$('[data-bstile]').forEach((el, j) => el.setAttribute('aria-checked', BSAMP[j] && BSAMP[j].tile ? 'true' : 'false'));
+    return;
+  }
+  const доб = e.target.closest('[data-bspadd]');
+  if (доб) {
+    const x = BSAMP[+доб.dataset.bspadd];
+    (x.parts = x.parts || []).push({ id: '', len: 0, n: 0 });
+    renderBasketSamples(); return;
+  }
+  const убр = e.target.closest('[data-bsprm]');
+  if (убр) {
+    const [i, j] = убр.dataset.bsprm.split(':').map(Number);
+    BSAMP[i].parts.splice(j, 1); renderBasketSamples(); return;
+  }
+  const rm = e.target.closest('[data-bsrm]');
+  if (rm) {
+    const x = BSAMP[+rm.dataset.bsrm];
+    if (x.id) await api(`/api/collections/basket_samples/records/${x.id}`, { method: 'DELETE' });
+    BSAMP.splice(+rm.dataset.bsrm, 1); renderBasketSamples();
+  }
+}));
+$('#bsmList').addEventListener('change', safe(async e => {
+  const f = e.target.closest('[data-bsimg]'); if (!f || !f.files || !f.files[0]) return;
+  const fd = new FormData(); fd.append('photo', f.files[0]);
+  await api(`/api/collections/basket_samples/records/${f.dataset.bsimg}`, { method: 'PATCH', body: fd });
+  toast('Снимок загружен'); loadBaskets();
+}));
+$('#bsmAdd').onclick = () => { BSAMP.push({ parts: [{ id: '', len: 0, n: 0 }], name: '', active: true, sort: BSAMP.length }); renderBasketSamples(); };
+$('#bsmSave').onclick = safe(async () => {
+  for (let i = 0; i < BSAMP.length; i++) {
+    const x = BSAMP[i];
+    // qty и product держим в согласии с составом: на них стоят старые примеры
+    const части = (x.parts || []).filter(y => y.id && +y.n > 0)
+      .map(y => ({ id: y.id, len: +y.len || 0, n: +y.n || 0 }));
+    const тело = { parts: части, qty: части.reduce((n, y) => n + y.n, 0),
+      product: части.length ? части[0].id : '', name: (x.name || '').trim(),
+      active: !!x.active, tile: !!x.tile, sort: i };
+    if (x.id) await api(`/api/collections/basket_samples/records/${x.id}`, { method: 'PATCH', body: тело });
+    else await api('/api/collections/basket_samples/records', { method: 'POST', body: тело });
+  }
+  toast('Сохранено'); loadBaskets();
+});
+
+/* ---------- сколько места занимает цветок ----------
+   Вместимость считается в одноголовых розах: кустовая и французская стоят
+   двух, гортензия — трёх. Число у раздела, а не у сорта: это свойство вида
+   цветка, и копии по сорока карточкам разъехались бы. */
+function renderBasketUnits() {
+  const потолок = 1001;   // самая большая корзина
+  $('#bunList').innerHTML = `<tr><th>Раздел</th><th>Мест</th><th>Отметки на бегунке, шт</th><th>Больше не даст</th></tr>`
+    + (CATS || []).filter(c => !c.addon).map(c => {
+        const n = +c.basket_units || 1;
+        return `<tr><td><b>${esc(c.name)}</b></td>
+          <td><input class="in sm num" type="number" min="1" max="10" step="1" data-bun="${c.id}" value="${n}" style="width:70px"></td>
+          <td><input class="in sm" data-bmk="${c.id}" value="${esc(c.basket_marks || '')}" placeholder="через запятую" style="min-width:230px"></td>
+          <td class="hint">${Math.floor(потолок / n)} шт</td></tr>`;
+      }).join('');
+}
+$('#bunList').addEventListener('input', e => {
+  const u = e.target.closest('[data-bun]');
+  if (u) {
+    const c = (CATS || []).find(x => x.id === u.dataset.bun);
+    if (c) c.basket_units = Math.max(1, +u.value || 1);
+    return;
+  }
+  const m = e.target.closest('[data-bmk]');
+  if (m) {
+    const c = (CATS || []).find(x => x.id === m.dataset.bmk);
+    if (c) c.basket_marks = m.value;
+  }
+});
+$('#bunSave').onclick = safe(async () => {
+  for (const c of (CATS || [])) {
+    const марки = String(c.basket_marks || '').split(',').map(x => parseInt(x, 10)).filter(x => x > 0);
+    await api(`/api/collections/categories/records/${c.id}`, { method: 'PATCH',
+      body: { basket_units: +c.basket_units || 1, basket_marks: марки.join(',') } });
+  }
+  toast('Сохранено'); renderBasketUnits();
+});
+
+/* ---------- цена розы в корзине ----------
+   Три измерения: группа сортов (прайс) × ступень количества × ростовка.
+   «От 200 штук стебель дешевле» — это обычная оптовая лестница, и без ступеней
+   пришлось бы заводить отдельный прайс на каждый размер корзины.
+   Пустая клетка — считать по обычному прайсу сорта, поэтому незаполненная
+   таблица ничего не ломает. */
+const РОСТОВКИ_КОРЗИН = [40, 50, 60, 70, 80];
+// Ступень «от 50» нужна кустовым, пионовидным, французским и гортензиям:
+// у них наборы начинаются с 25–51 штуки, и без неё цена падала на обычный
+// прайс букетов вместо корзинного.
+const СТУПЕНИ_КОРЗИН = [50, 100, 200, 300, 500, 1001];
+let BPRICE = {}, BPRGROUP = '';
+function группыПрайсов() {
+  return tablesOf(S).filter(t => t.prices && Object.keys(t.prices).length);
+}
+function renderBasketPrices() {
+  const группы = группыПрайсов();
+  if (!группы.length) { $('#bprList').innerHTML = '<tr><td class="hint">Прайсов нет.</td></tr>'; return; }
+  if (!группы.some(g => g.id === BPRGROUP)) BPRGROUP = группы[0].id;
+  $('#bprGroup').innerHTML = группы.map(g => `<option value="${g.id}"${g.id === BPRGROUP ? ' selected' : ''}>${esc(g.name)}${(BPRICE[g.id] && Object.keys(BPRICE[g.id]).length) ? ' ✓' : ''}</option>`).join('');
+  const g = группы.find(x => x.id === BPRGROUP);
+  const свои = BPRICE[BPRGROUP] || {};
+  // показываем только те ростовки, что есть в этом прайсе: у кустовых нет 80,
+  // у колумбии только 70 — пустые столбцы сбивают с толку
+  const ростовки = РОСТОВКИ_КОРЗИН.filter(L => (g.prices || {})[String(L)]);
+  if (!ростовки.length) { $('#bprList').innerHTML = '<tr><td class="hint">В этом прайсе нет ростовок из списка.</td></tr>'; return; }
+  $('#bprList').innerHTML = `<tr><th>Количество</th>${ростовки.map(L => `<th>${L} см</th>`).join('')}</tr>`
+    + СТУПЕНИ_КОРЗИН.map(n => `<tr><td><b>от ${n} шт</b></td>${ростовки.map(L => {
+        const v = ((свои[String(n)] || {})[String(L)]) || '';
+        // Дробная цена нужна: «301 роза за 25 990 с корзиной» в целых рублях
+        // за стебель не раскладывается — выходит 61,43.
+        return `<td><input class="in sm num" type="number" min="0" step="0.01" data-bpr="${n}" data-l="${L}" value="${v}" style="width:92px" placeholder="по прайсу"></td>`;
+      }).join('')}</tr>`).join('');
+}
+$('#bprGroup').addEventListener('change', e => { BPRGROUP = e.target.value; renderBasketPrices(); });
+$('#bprList').addEventListener('input', e => {
+  const el = e.target.closest('[data-bpr]'); if (!el) return;
+  const n = el.dataset.bpr, L = el.dataset.l;
+  BPRICE[BPRGROUP] = BPRICE[BPRGROUP] || {};
+  BPRICE[BPRGROUP][n] = BPRICE[BPRGROUP][n] || {};
+  if (+el.value > 0) BPRICE[BPRGROUP][n][L] = Math.round(+el.value * 100) / 100; else delete BPRICE[BPRGROUP][n][L];
+  if (!Object.keys(BPRICE[BPRGROUP][n]).length) delete BPRICE[BPRGROUP][n];
+});
+$('#bprSave').onclick = safe(async () => {
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { basket_prices: BPRICE } });
+  toast('Сохранено'); renderBasketPrices();
+});
+
+/* ---------- окно «корзины сорта» ----------
+   Сорт → какие количества доступны → у каждого своя корзина, оазис и надбавка. */
+let BPI = -1, BPROWS = [];
+function открытьКорзиныСорта(i) {
+  BPI = i;
+  const p = BPROD[i]; if (!p) return;
+  BPROWS = JSON.parse(JSON.stringify(Array.isArray(p.basket_counts) ? p.basket_counts : []));
+  $('#bskEdTitle').textContent = `Корзины: ${p.name}`;
+  $('#bskEdHint').textContent = 'Количество — сколько стеблей этого сорта идёт в корзину. Оазис обычно трогать не нужно: он задан у самой корзины (маленькая — 3, средняя — 5 и так далее) и подставляется сам. Поле здесь — на случай исключения.';
+  рисоватьКорзиныСорта();
+  $('#bskEd').showModal();
+}
+function рисоватьКорзиныСорта() {
+  const выбор = val => BSK.map(b => `<option value="${b.id || ''}"${b.id === val ? ' selected' : ''}>${esc(b.name)}${b.capacity ? ` (до ${b.capacity})` : ''}</option>`).join('');
+  $('#bskEdRows').innerHTML = BPROWS.length ? BPROWS.map((x, j) => `
+    <div class="row" data-br="${j}" style="align-items:flex-end;gap:8px;flex-wrap:wrap">
+      <label class="f" style="max-width:110px;margin:0">Стеблей<input class="in num" type="number" min="1" step="10" data-bf="qty" value="${x.qty || ''}"></label>
+      <label class="f" style="flex:1;min-width:190px;margin:0">Корзина<select class="in" data-bf="basket">${выбор(x.basket)}</select></label>
+      <label class="f" style="flex:1;min-width:180px;margin:0">Оазис<select class="in" data-bf="oasis_id">
+        <option value="">как у корзины</option>
+        ${OASIS.map(o => `<option value="${o.id}"${(x.oasis && x.oasis.id) === o.id ? ' selected' : ''}>${esc(o.name)}</option>`).join('')}
+        ${(x.oasis && x.oasis.id && !OASIS.some(o => o.id === x.oasis.id)) ? `<option value="${x.oasis.id}" selected>${esc(x.oasis.name || 'выбрано раньше')}</option>` : ''}
+      </select></label>
+      <label class="f" style="max-width:90px;margin:0">шт<input class="in num" type="number" min="0" step="1" data-bf="oasis_qty" value="${(x.oasis && x.oasis.qty) || ''}"></label>
+      <label class="f" style="max-width:130px;margin:0">Доставка +, ₽<input class="in num" type="number" min="0" step="50" data-bf="delivery_extra" value="${x.delivery_extra || ''}"></label>
+      <button class="btn btn-g btn-s" data-brm="${j}">Убрать</button>
+    </div>`).join('')
+    : '<span class="hint">Количеств пока нет. Нажмите «+ Количество».</span>';
+}
+$('#bskEdRows').addEventListener('input', e => читатьСтрокуКорзины(e.target));
+$('#bskEdRows').addEventListener('change', e => читатьСтрокуКорзины(e.target));
+function читатьСтрокуКорзины(el) {
+  // closest() учитывает и сам элемент, поэтому отдельной проверки не нужно
+  const поле = el && el.closest ? el.closest('[data-bf]') : null;
+  if (!поле) return;
+  const стр = поле.closest('[data-br]'); if (!стр) return;
+  const x = BPROWS[+стр.dataset.br]; if (!x) return;
+  const f = поле.dataset.bf;
+  if (f === 'qty' || f === 'delivery_extra') x[f] = +поле.value || 0;
+  else if (f === 'basket') x.basket = поле.value;
+  else if (f === 'oasis_id') {
+    const o = OASIS.find(y => y.id === поле.value);
+    // тип храним вместе с номером: без него позиция в МойСклад не уйдёт —
+    // на этом встали заказы 5123 и 5127
+    x.oasis = поле.value
+      ? { id: поле.value, name: (o && o.name) || (x.oasis && x.oasis.name) || '', type: (o && (o.тип || o.type)) || (x.oasis && x.oasis.type) || 'product', qty: (x.oasis && +x.oasis.qty) || 1 }
+      : { id: '', name: '', type: '', qty: 0 };
+  }
+  else if (f === 'oasis_qty') x.oasis = Object.assign({}, x.oasis, { qty: +поле.value || 0 });
+}
+$('#bskEdRows').addEventListener('click', e => {
+  const rm = e.target.closest('[data-brm]'); if (!rm) return;
+  BPROWS.splice(+rm.dataset.brm, 1); рисоватьКорзиныСорта();
+});
+$('#bskEdAdd').onclick = () => {
+  // следующее количество подсказываем от прошлого: обычно идут 101, 251, 501
+  const прошлое = BPROWS.length ? +BPROWS[BPROWS.length - 1].qty || 101 : 101;
+  BPROWS.push({ qty: прошлое, basket: (BSK[0] || {}).id || '', delivery_extra: 0 });
+  рисоватьКорзиныСорта();
+};
+$('#bskEdClose').onclick = () => $('#bskEd').close();
+$('#bskEdSave').onclick = safe(async () => {
+  const p = BPROD[BPI]; if (!p) return;
+  const годные = BPROWS.filter(x => +x.qty > 0 && x.basket).map(x => ({
+    qty: +x.qty, basket: x.basket, delivery_extra: +x.delivery_extra || 0,
+    oasis: (x.oasis && x.oasis.id && +x.oasis.qty > 0)
+      ? { id: x.oasis.id, name: x.oasis.name || '', type: x.oasis.type || 'product', qty: +x.oasis.qty }
+      : undefined,
+  }));
+  const безОсновы = BPROWS.filter(x => +x.qty > 0 && !x.basket).length;
+  if (безОсновы) return toast('У каждого количества должна быть корзина');
+  await api(`/api/collections/products/records/${p.id}`, { method: 'PATCH', body: { basket_counts: годные } });
+  p.basket_counts = годные;
+  $('#bskEd').close(); renderBasketProducts(); toast('Сохранено');
+});
 
 const loadStats = safe(async () => {
   await loadSettings0();          // блоку «Брошенная оплата» нужны настройки
@@ -2482,41 +3369,45 @@ const loadStats = safe(async () => {
   } catch (_) { $('#statFunnel').innerHTML = '<tr><td>Пока нет данных</td></tr>'; }
 
   // Оценки после вручения
+  // Что работает на витрине: подписи и места. Отдельно от остального —
+  // отчёт тяжелее прочих (перебирает все показы за период), и если он не
+  // ответит, остальная статистика должна остаться на экране.
   try {
-    const rv = await api(`/api/shop/reviews?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`);
-    const nn = x => x === null || x === undefined ? '—' : x;
-    const доля = n => rv.answered ? `<i class="same">${Math.round(n * 100 / rv.answered)}% ответивших</i>` : '';
-    $('#revTiles').innerHTML = [
-      ['Опросов отправлено', rv.total, rv.total ? `<i class="same">ответили ${Math.round((rv.answered || 0) * 100 / rv.total)}%</i>` : ''],
-      ['Ответили', nn(rv.answered), ''],
-      ['Индекс рекомендации', nn(rv.nps), ''],
-      ['Средняя оценка', nn(rv.nps_avg), rv.nps_avg ? '<i class="same">из 10</i>' : ''],
-      ['Готовы рекомендовать', nn(rv.промоутеры), доля(rv.промоутеры || 0)],
-      ['Недовольных', nn(rv.критики), доля(rv.критики || 0)],
-    ].map(([t, v, extra]) => `<div class="tile"><span>${t}</span><b class="num">${v}</b>${extra || ''}</div>`).join('');
-    $('#revNeed').innerHTML = (rv.need || []).length
-      ? `<tr><th>Ждут звонка</th><th>Оценка</th><th>Телефон</th><th></th></tr>`
-        + rv.need.map(n => `<tr><td>№${n.number} — ${esc(n.name || '')}</td>
-            <td class="num">${n.nps ? n.nps + ' из 10' : n.marks.join(' / ')}</td>
-            <td><a href="tel:${esc(String(n.phone).replace(/[^\d+]/g, ''))}">${esc(n.phone || '')}</a></td>
-            <td><button class="btn btn-p btn-s" data-revok="${n.id}">Взял в работу</button></td></tr>`).join('')
-      : '<tr><td>Недовольных нет.</td></tr>';
-    const STEP_RU = { nps: 'ждём ответа', order: 'ждём ответа', bouquet: 'ответил 1 из 3', delivery: 'ответил 2 из 3', comment: 'оценил, ждём пояснение', done: 'готово' };
-    const балл = r => r.nps ? `<b>${r.nps}</b> из 10` : (r.marks.some(x => x) ? r.marks.join(' / ') : '—');
-    $('#revAll').innerHTML = (rv.rows || []).length
-      ? `<tr><th>Заказ</th><th>Оценка</th><th>Отзыв</th><th>Состояние</th><th>Когда</th></tr>`
-        + rv.rows.map(r => `<tr${r.needs_call && !r.handled ? ' style="background:color-mix(in srgb,var(--sale) 8%,transparent)"' : ''}>
-            <td>№${r.number}${r.name ? '<br><span class="hint">' + esc(r.name) + '</span>' : ''}</td>
-            <td class="num">${балл(r)}</td>
-            <td>${esc(r.comment || '')}</td>
-            <td>${r.needs_call ? (r.handled ? 'взяли в работу' : '<b style="color:var(--sale)">нужен звонок</b>') : (STEP_RU[r.step] || '')}</td>
-            <td>${chatAt(r.at)}</td></tr>`).join('')
-      : '<tr><td>Опросов ещё не было.</td></tr>';
-    $('#revComments').innerHTML = (rv.comments || []).length
-      ? `<tr><th>Отзывы словами</th><th>Оценки</th><th>Когда</th></tr>`
-        + rv.comments.map(c => `<tr><td>№${c.number}: ${esc(c.text)}</td><td class="num">${c.marks.join(' / ')}</td><td>${chatAt(c.at)}</td></tr>`).join('')
-      : '<tr><td class="hint">Отзывов словами пока нет.</td></tr>';
-  } catch (_) {}
+    const lb = await api(`/api/shop/stats-labels?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`);
+    const пр = x => x.доля === null || x.доля === undefined ? '—' : x.доля + '%';
+    const ИМЕНА = { приехало: 'Приехало сегодня с теплицы', едет: 'Приедет к такому-то часу', обычная: 'Без подписи' };
+    $('#labTotal').innerHTML = `<tr><th>Подпись</th><th>Показов</th><th>В корзину</th><th>Доля</th></tr>`
+      + ['приехало', 'едет', 'обычная'].map(k => {
+          const x = lb.итог[k];
+          return `<tr><td>${ИМЕНА[k]}</td><td class="num">${x.показы}</td><td class="num">${x.корзины}</td><td class="num"><b>${пр(x)}</b></td></tr>`;
+        }).join('');
+    $('#labSorts').innerHTML = (lb.сорта || []).length
+      ? `<tr><th>Сорт</th><th>Со свежей плашкой</th><th>Без подписи</th><th>Разница</th></tr>`
+        + lb.сорта.map(r => {
+            const з = r.разница === null ? '' : (r.разница > 0 ? 'color:var(--ok)' : 'color:var(--warn)');
+            return `<tr><td>${esc(r.сорт)}</td>
+              <td class="num">${пр(r.приехало)} <i class="same">${r.приехало.показы} пок.</i></td>
+              <td class="num">${пр(r.обычная)} <i class="same">${r.обычная.показы} пок.</i></td>
+              <td class="num" style="${з}">${r.разница === null ? '—' : (r.разница > 0 ? '+' : '') + r.разница + ' п.п.'}</td></tr>`;
+          }).join('')
+      : '<tr><td class="hint">Показов пока мало — отчёт наберётся за несколько дней.</td></tr>';
+  } catch (_) { $('#labTotal').innerHTML = '<tr><td class="hint">Не получилось посчитать.</td></tr>'; }
+
+  try {
+    const ps = await api(`/api/shop/stats-pos?from=${mskDate(dFrom)}&to=${mskDate(dTo)}`);
+    const доля = (a, b) => b ? Math.round(a * 100 / b) + '%' : '—';
+    $('#posPlaces').innerHTML = (ps.места || []).length
+      ? `<tr><th>Место</th><th>Открыли карточку</th><th>Положили в корзину из списка</th></tr>`
+        + ps.места.map(m => `<tr><td>${esc(m.место)}</td><td class="num">${m.клики}</td><td class="num">${m.корзины}</td></tr>`).join('')
+      : '<tr><td class="hint">Пока пусто: счёт мест начинается с этой выкладки, данные появятся за день-два.</td></tr>';
+    const ячейки = (ps.ячейки || []).slice().sort((a, b) => (b.клики + b.корзины) - (a.клики + a.корзины)).slice(0, 20);
+    const макс = ячейки.reduce((n, r) => Math.max(n, r.клики), 0);
+    $('#posCells').innerHTML = ячейки.length
+      ? `<tr><th>Ячейка</th><th>Открыли</th><th>В корзину</th><th>Доля от первой</th></tr>`
+        + ячейки.map(r => `<tr><td>${esc(r.место)}, место ${r.номер}</td><td class="num">${r.клики}</td><td class="num">${r.корзины}</td><td class="num">${доля(r.клики, макс)}</td></tr>`).join('')
+      : '';
+  } catch (_) { $('#posPlaces').innerHTML = '<tr><td class="hint">Не получилось посчитать.</td></tr>'; }
+
 
   // Оценка букетов и причины правок
   const withPhoto = all.filter(o => o.photo_status);
@@ -3268,6 +4159,408 @@ async function priceImage() {
 
   return cv;   // сохранение — забота вызывающего: так картинку можно и просто посмотреть
 }
+// Плитка для Телеграма: листы по 8 карточек, 2 столбца на 4 ряда.
+//
+// Размер ячейки и вид подписи повторяют шаблон, который владелец собирал
+// руками: фото во всю ячейку, белый прямоугольник с названием снизу по центру,
+// ростовки через дробь. Рисуем на canvas без сторонних библиотек — как прайс
+// картинкой; на телефоне работает так же.
+//
+// Две грабли, на которых это не заработало с первого раза:
+//   1. Брали снимок в 1080 px, хотя ячейка 562 — два десятка таких качались
+//      полминуты, кнопка всё это время молчала, и выглядело как «не работает».
+//      Берём обычный каталожный размер и показываем ход сборки на кнопке.
+//   2. Несколько `a.click()` подряд Safari глушит: жест пользователя к тому
+//      моменту уже «остыл» после await. Поэтому готовые листы выкладываем на
+//      страницу ссылками — по ним скачивание идёт от живого нажатия и доходит
+//      всегда, а заодно видно, что получилось, до отправки в канал.
+// Ячейка 4:3 — ровно как сами снимки в каталоге (560×420). При прежних
+// 562×487 даже обычное фото резалось по бокам, и у букета срезало уголки
+// обёртки.
+const ТГ_Ш = 562, ТГ_В = 421;
+// Лист рисуем вдвое крупнее, а координаты оставляем прежними: холст
+// масштабируется целиком. Снимки берём каталожные «большие» (1080 px) — в
+// ячейку 1124 они ложатся почти один в один, без растягивания. На 560 px,
+// как было, картинка в Телеграме выглядела мягкой.
+const ТГ_К = 2;
+
+// Кого вообще можно поставить в плитку: есть фото и есть живой размер без
+// ожидания привоза. Выключенные сорта каталог отдаёт размытыми (off) — мимо.
+// Сам выбор делает владелец в окне предпросмотра: какие снимки хорошо садятся
+// в ячейку 4:3, видно только глазами.
+// Какая витрина: от неё и ассортимент (у товара поле «на каких витринах»),
+// и логотип на листе. Пусто — venikoff, как было.
+let ВИТРИНА = null;
+async function tgКандидаты(slug) {
+  const бр = slug ? `&brand=${encodeURIComponent(slug)}` : '';
+  const d = await (await fetch('/api/shop/catalog?_=' + Date.now() + бр)).json();
+  const сорта = (d.products || []).map(p => {
+    const живые = (p.variants || []).filter(v => !v.out && !v.wait_at);
+    const длины = [...new Set(живые.map(v => +v.len).filter(Boolean))].sort((a, b) => a - b);
+    return { имя: p.name, длины: p.cat === 'hydrangea' ? [] : длины, живых: живые.length,
+             фото: p.big || p.img, мелкое: p.img, поп: p.popular ? 1 : 0, off: !!p.off, есть: !!p.img };
+  }).filter(x => x.живых && x.есть && !x.off);
+  сорта.sort((a, b) => (b.поп - a.поп) || a.имя.localeCompare(b.имя, 'ru'));
+  return сорта;
+}
+
+async function tgTiles(выбранные, ход) {
+  const сорта = (выбранные || []).slice();
+  if (!сорта.length) return [];
+
+  const грузить = src => new Promise(ok => {
+    const im = new Image();
+    im.onload = () => ok(im);
+    im.onerror = () => ok(null);
+    im.src = src;
+  });
+
+  // Логотип: у venikoff он в шапке текстом, картинки нет — так и рисуем,
+  // тем же Unbounded 700, что и на сайте. Белая плашка, чтобы читалось на
+  // любом снимке, хоть на белых розах, хоть на тёмном асфальте.
+  // Один на лист, в правом верхнем углу: подписи у карточек стоят снизу,
+  // так что сверху он ничего не перекрывает.
+  // Логотип той витрины, для которой собираем лист. У venikoff он набирается
+  // в два цвета, как в шапке сайта; у остальных — название их цветом, пока нет
+  // картинки логотипа. Белая плашка под ним, чтобы читалось на любом снимке.
+  const логотип = (g, x, y) => {
+    const ш = 16;
+    g.font = `700 ${ш}px Unbounded, Arial, sans-serif`;
+    const два = !ВИТРИНА || ВИТРИНА.slug === 'venikoff';
+    const части = два
+      ? [['venikoff', '#E0178A'], ['.net', '#FF4FAE']]
+      : [[String(ВИТРИНА.name || ''), ВИТРИНА.accent || '#111']];
+    const ширины = части.map(([т]) => g.measureText(т).width);
+    const пад = 9, бш = ширины.reduce((a2, b2) => a2 + b2, 0) + пад * 2, бв = ш + 12;
+    g.globalAlpha = 0.92; g.fillStyle = '#fff';
+    g.fillRect(x - бш, y - бв, бш, бв);
+    g.globalAlpha = 1;
+    g.textAlign = 'start'; g.textBaseline = 'top';
+    let тx = x - бш + пад;
+    части.forEach(([т, цвет], i) => { g.fillStyle = цвет; g.fillText(т, тx, y - бв + 6); тx += ширины[i]; });
+  };
+
+  // Лист — готовая сетка на 6 ячеек (2×3); последний может быть на 4 (2×2),
+  // если на шестёрку не хватило. Ничего промежуточного не бывает, фотографии
+  // вставляются в готовую сетку. Раньше размер листа подгонялся под остаток,
+  // и на 20 сортах последний выходил вчетверо короче — ряд выглядел обрезанным.
+  // По восемь было слишком мелко в ленте Телеграма — владелец попросил шесть
+  // (18.10.2026).
+  //
+  // Нечётное число сортов в чётную сетку не ложится, поэтому последнюю
+  // ячейку занимает наша плашка «ещё больше на venikoff.net» — и сетка ровная,
+  // и место не пустует.
+  const сетки = (m) => {
+    const out = [];
+    while (m > 6) { out.push(6); m -= 6; }
+    // Остались две штуки — некрасивый огрызок: забираем пару из прошлого листа,
+    // получается 4 + 4 вместо 6 + 2.
+    if (m === 2) { const i = out.length - 1; if (i >= 0) { out[i] = 4; m = 4; } }
+    if (m > 0) out.push(m <= 4 ? 4 : 6);
+    return out;
+  };
+  const добор = сорта.length % 2 ? 1 : 0;
+  if (добор) сорта.push({ заглушка: true });
+  const куски = сетки(сорта.length);
+  // сетка может оказаться крупнее остатка — добиваем плашками
+  const мест = куски.reduce((a, b) => a + b, 0);
+  for (let i = сорта.length; i < мест; i++) сорта.push({ заглушка: true });
+
+  const листы = [];
+  let сделано = 0, с = 0;
+  for (const сколько of куски) {
+    const кусок = сорта.slice(с, с + сколько); с += сколько;
+    const рядов = Math.ceil(кусок.length / 2);
+    const cv = document.createElement('canvas');
+    cv.width = ТГ_Ш * 2 * ТГ_К; cv.height = ТГ_В * рядов * ТГ_К;
+    const g = cv.getContext('2d');
+    g.setTransform(ТГ_К, 0, 0, ТГ_К, 0, 0);
+    g.imageSmoothingQuality = 'high';
+    g.fillStyle = '#fff'; g.fillRect(0, 0, ТГ_Ш * 2, ТГ_В * рядов);
+    for (let i = 0; i < кусок.length; i++) {
+      // Нечётный остаток: последняя карточка занимает ряд целиком. Иначе в
+      // углу листа оставалась бы пустая белая половина — та самая «кривизна».
+      const c = кусок[i];
+      const Ш = ТГ_Ш;
+      const cx = (i % 2) * ТГ_Ш, cy = ((i / 2) | 0) * ТГ_В;
+      if (c.заглушка) {
+        g.fillStyle = '#E0178A'; g.fillRect(cx, cy, Ш, ТГ_В);
+        g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+        g.font = '700 34px Unbounded, Arial, sans-serif';
+        g.fillText('venikoff.net', cx + Ш / 2, cy + ТГ_В / 2 - 18);
+        g.font = '700 24px Arial, Helvetica, sans-serif';
+        g.fillStyle = '#FFC9E6';
+        g.fillText('доставка цветов по Москве', cx + Ш / 2, cy + ТГ_В / 2 + 26);
+        g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+        continue;
+      }
+      const im = await грузить(c.фото);
+      if (ход) ход(++сделано, сорта.filter(x => !x.заглушка).length);
+      if (im) {
+        // ВОТ ИЗ-ЗА ЧЕГО ПЛИТКА БЫЛА КРИВОЙ. Снимок вписывается по большей
+        // стороне и выходит за ячейку: квадратный кадр после подгонки по
+        // ширине выше ячейки на сотню точек, вертикальный — втрое. Лишнее
+        // никуда не девалось, а рисовалось ПОВЕРХ соседних ячеек, и ряд
+        // разъезжался. Ограничиваем рисование границами ячейки.
+        //
+        // По горизонтали берём середину, по вертикали держимся ближе к верху:
+        // на высоких кадрах посередине оказывается пояс человека, а букет выше.
+        // Крупность задаёт владелец у каждого сорта отдельно (окно выбора):
+        // у одних букет мелкий в кадре и просит приблизить, у других он и так
+        // во весь снимок — там увеличение срезало бы края. Одного числа на всех
+        // не бывает, поэтому множитель живёт у сорта.
+        const k = Math.max(Ш / im.width, ТГ_В / im.height) * (+c.зум || 1);
+        const w = im.width * k, h = im.height * k;
+        // Точка привязки: какое место снимка окажется в этом месте ячейки.
+        // По умолчанию середина по ширине и 28% сверху — на высоких кадрах
+        // посередине оказывается пояс, а букет выше. Владелец двигает её
+        // стрелками у каждого сорта: у одних букет снят левее, у других ниже.
+        const ax = c.ax === undefined ? 0.5 : +c.ax;
+        const ay = c.ay === undefined ? (h > ТГ_В + 1 ? 0.28 : 0.5) : +c.ay;
+        g.save();
+        g.beginPath(); g.rect(cx, cy, Ш, ТГ_В); g.clip();
+        g.drawImage(im, cx + (Ш - w) * ax, cy + (ТГ_В - h) * ay, w, h);
+        g.restore();
+      } else { g.fillStyle = '#eee'; g.fillRect(cx, cy, Ш, ТГ_В); }
+
+      const размер = c.длины.length ? c.длины.join('/') + 'см' : '';
+      const КР = '700 30px Arial, Helvetica, sans-serif';
+      const МЕЛ = '700 27px Arial, Helvetica, sans-serif';
+      g.font = КР;
+      const одной = (c.имя + ' ' + размер).trim();
+      let строки;
+      if (размер && g.measureText(одной).width <= Ш - 150) строки = [[одной, КР, 30]];
+      else if (размер) строки = [[c.имя, КР, 30], [размер, МЕЛ, 27]];
+      else строки = [[c.имя, КР, 30]];
+
+      let ширина = 0;
+      строки.forEach(([t, f]) => { g.font = f; ширина = Math.max(ширина, g.measureText(t).width); });
+      const выс = строки.reduce((s, [, , px]) => s + px + 10, 0) + 16;
+      const бш = Math.min(Ш - 40, ширина + 56);
+      const бx = cx + (Ш - бш) / 2, бy = cy + ТГ_В - выс - 22;
+      g.fillStyle = '#fff'; g.fillRect(бx, бy, бш, выс);
+      g.fillStyle = '#111'; g.textAlign = 'center'; g.textBaseline = 'top';
+      let ty = бy + 8;
+      строки.forEach(([t, f, px]) => { g.font = f; g.fillText(t, cx + Ш / 2, ty); ty += px + 10; });
+      g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+    }
+    логотип(g, ТГ_Ш * 2 - 16, 16 + 28);   // правый верхний угол листа
+    листы.push(cv);
+  }
+  return листы;
+}
+// Сорта, которые НЕ берём в плитку. Помним выбор между запусками: раз
+// владелец сказал, что снимок не садится в ячейку, спрашивать каждый день
+// незачем. Первый список — его слова от 18.10.2026.
+const ТГ_МИМО = 'vk.tgSkip';
+const ровноИмя = s => String(s || '').toLowerCase().replace(/ё/g, 'е').trim();
+function тгМимо() {
+  try {
+    const v = JSON.parse(localStorage.getItem(ТГ_МИМО) || 'null');
+    if (Array.isArray(v)) return new Set(v.map(ровноИмя));
+  } catch (_) {}
+  return new Set(['Ксоч', 'Мадам Бомбастик', 'Леди Бомбастик'].map(ровноИмя));
+}
+function тгЗапомнить(набор) {
+  try { localStorage.setItem(ТГ_МИМО, JSON.stringify([...набор])); } catch (_) {}
+}
+
+// Крупность снимка у каждого сорта своя и тоже помнится между запусками.
+const ТГ_ЗУМ = 'vk.tgZoom';
+// Значение — {з, ax, ay}: крупность и точка привязки. Старая запись была просто
+// числом (одна крупность) — читаем и её, чтобы настройки не слетели.
+function тгЗумы() {
+  try {
+    const v = JSON.parse(localStorage.getItem(ТГ_ЗУМ) || 'null');
+    if (v && typeof v === 'object') {
+      const out = {};
+      Object.keys(v).forEach(k => { out[k] = typeof v[k] === 'number' ? { з: v[k] } : (v[k] || {}); });
+      return out;
+    }
+  } catch (_) {}
+  return {};
+}
+function тгЗумЗапомнить(карта) {
+  try { localStorage.setItem(ТГ_ЗУМ, JSON.stringify(карта)); } catch (_) {}
+}
+
+// Окно выбора: каждый сорт показан ровно так, как ляжет в ячейку плитки —
+// то же соотношение 4:3, та же обрезка (по ширине середина, по высоте ближе
+// к верху) и та же белая подпись снизу. Что видно здесь — то и будет на листе.
+function тгВыбор(сорта, мимо) {
+  const карточка = (c, i) => {
+    const размер = c.длины.length ? c.длины.join('/') + 'см' : '';
+    const снят = мимо.has(ровноИмя(c.имя));
+    const з = +c.зум || 1, ax = c.ax === undefined ? 0.5 : +c.ax, ay = c.ay === undefined ? 0.28 : +c.ay;
+    // `transform-origin: center 28%` — та же точка, от которой пляшет холст
+    // (по ширине середина, по высоте ближе к верху), поэтому в предпросмотре
+    // видно ровно тот кадр, который уйдёт на лист.
+    return `<div class="tgp-box">
+      <label class="tgp${снят ? '' : ' on'}" data-i="${i}" title="${esc(c.имя)}">
+        <input type="checkbox" ${снят ? '' : 'checked'} data-tgp="${i}">
+        <span class="tgp-img"><img src="${esc(c.фото)}" alt="" loading="lazy" data-ph="${i}" style="object-position:${(ax*100).toFixed(0)}% ${(ay*100).toFixed(0)}%;transform:scale(${з});transform-origin:${(ax*100).toFixed(0)}% ${(ay*100).toFixed(0)}%"></span>
+        <span class="tgp-cap">${esc(c.имя)}${размер ? ' ' + размер : ''}</span>
+      </label>
+      <div class="tgp-zoom">
+        <button type="button" class="btn btn-g btn-s" data-z="-1" data-i="${i}" aria-label="Мельче">−</button>
+        <span data-zl="${i}">${Math.round(з * 100)}%</span>
+        <button type="button" class="btn btn-g btn-s" data-z="1" data-i="${i}" aria-label="Крупнее">+</button>
+        <span class="tgp-sep"></span>
+        <button type="button" class="btn btn-g btn-s" data-m="l" data-i="${i}" aria-label="Влево">←</button>
+        <button type="button" class="btn btn-g btn-s" data-m="u" data-i="${i}" aria-label="Вверх">↑</button>
+        <button type="button" class="btn btn-g btn-s" data-m="d" data-i="${i}" aria-label="Вниз">↓</button>
+        <button type="button" class="btn btn-g btn-s" data-m="r" data-i="${i}" aria-label="Вправо">→</button>
+        <button type="button" class="btn btn-g btn-s" data-m="0" data-i="${i}" aria-label="Сбросить">⟲</button>
+      </div>
+    </div>`;
+  };
+  const витрины = (BRANDS || []).length > 1
+    ? `<div class="bar" style="margin:0 0 10px;flex-wrap:wrap;gap:6px">
+        <span class="hint" style="margin:0;align-self:center">Витрина:</span>
+        ${BRANDS.map(b => `<button class="chip" data-tgb="${b.slug}" aria-pressed="${(ВИТРИНА && ВИТРИНА.slug === b.slug) ? 'true' : 'false'}">${esc(b.name)}</button>`).join('')}
+      </div>` : '';
+  return витрины + `<div class="bar" style="margin:0 0 10px;flex-wrap:wrap;gap:8px">
+      <b id="tgpN"></b>
+      <button class="btn btn-g btn-s" id="tgpAll">Выделить все</button>
+      <button class="btn btn-g btn-s" id="tgpNone">Снять все</button>
+      <button class="btn btn-p" id="tgpGo">Собрать плитку</button>
+    </div>
+    <p class="hint" style="margin:0 0 10px">Снимок показан так, как он ляжет в ячейку: что обрезано здесь — обрезано и на листе. Кнопками − и + меняете крупность, стрелками двигаете кадр, ⟲ возвращает как было. Стрелки работают там, где снимку есть куда ехать: при 100% кадр часто уже впритык. Выбор запоминается до следующего раза.</p>
+    <div class="tgp-grid">${сорта.map(карточка).join('')}</div>`;
+}
+
+$('#rpTg').onclick = safe(() => открытьПлитку((ВИТРИНА && ВИТРИНА.slug) || ((BRANDS || [])[0] || {}).slug || ''));
+
+const открытьПлитку = safe(async (slug) => {
+  const b = $('#rpTg'), out = $('#rpTgOut');
+  ВИТРИНА = (BRANDS || []).find(x => x.slug === slug) || null;
+  b.disabled = true; out.hidden = false; out.innerHTML = '<span class="hint">Спрашиваем каталог…</span>';
+  let сорта = [];
+  try { сорта = await tgКандидаты(slug); } finally { b.disabled = false; }
+  if (!сорта.length) { out.innerHTML = '<span class="hint">Для этой витрины нечего выкладывать: нет сортов в наличии со снимком.</span>'; return; }
+  const мимо = тгМимо();
+  const зумы = тгЗумы();
+  сорта.forEach(c => {
+    const s = зумы[ровноИмя(c.имя)] || {};
+    c.зум = +s.з || 1;
+    c.ax = s.ax === undefined ? 0.5 : +s.ax;
+    c.ay = s.ay === undefined ? 0.28 : +s.ay;
+  });
+  out.innerHTML = тгВыбор(сорта, мимо);
+  const счёт = () => {
+    const n = $$('[data-tgp]').filter(x => x.checked).length;
+    $('#tgpN').textContent = `Выбрано ${n} из ${сорта.length}`;
+    $('#tgpGo').disabled = !n;
+  };
+  const пометить = el => el.closest('.tgp').classList.toggle('on', el.checked);
+  // onchange, а не addEventListener: кнопку жмут по многу раз за день, и
+  // обработчики копились бы на одном и том же блоке.
+  out.onchange = e => {
+    const el = e.target.closest('[data-tgp]'); if (!el) return;
+    пометить(el); счёт();
+  };
+  // Крупность: шаг 10%, от 100% (как есть) до 220% — меньше 100 не даём, иначе
+  // по краям ячейки полезли бы белые поля. Сдвиг кадра — шагом 5%.
+  // Кнопка ⟲ возвращает исходное: 100%, середина по ширине, 28% сверху.
+  const показать = (i, c) => {
+    const im = out.querySelector(`[data-ph="${i}"]`);
+    if (im) {
+      const пос = `${(c.ax * 100).toFixed(0)}% ${(c.ay * 100).toFixed(0)}%`;
+      im.style.objectPosition = пос;
+      im.style.transformOrigin = пос;
+      im.style.transform = `scale(${c.зум})`;
+    }
+    const l = out.querySelector(`[data-zl="${i}"]`);
+    if (l) l.textContent = Math.round(c.зум * 100) + '%';
+  };
+  out.onclick = e => {
+    const кн = e.target.closest('[data-z],[data-m]'); if (!кн) return;
+    e.preventDefault();
+    const i = +кн.dataset.i, c = сорта[i];
+    if (c.ax === undefined) c.ax = 0.5;
+    if (c.ay === undefined) c.ay = 0.28;
+    if (кн.dataset.z !== undefined) {
+      c.зум = Math.min(2.2, Math.max(1, Math.round(((+c.зум || 1) + 0.1 * +кн.dataset.z) * 10) / 10));
+    } else {
+      const m = кн.dataset.m;
+      // Двигаем точку привязки: «влево» показывает то, что левее, то есть
+      // точка уезжает к левому краю снимка.
+      if (m === 'l') c.ax = Math.max(0, Math.round((c.ax - 0.05) * 100) / 100);
+      if (m === 'r') c.ax = Math.min(1, Math.round((c.ax + 0.05) * 100) / 100);
+      if (m === 'u') c.ay = Math.max(0, Math.round((c.ay - 0.05) * 100) / 100);
+      if (m === 'd') c.ay = Math.min(1, Math.round((c.ay + 0.05) * 100) / 100);
+      if (m === '0') { c.зум = 1; c.ax = 0.5; c.ay = 0.28; }
+    }
+    показать(i, c);
+  };
+  $('#tgpAll').onclick = () => { $$('[data-tgp]').forEach(x => { x.checked = true; пометить(x); }); счёт(); };
+  $('#tgpNone').onclick = () => { $$('[data-tgp]').forEach(x => { x.checked = false; пометить(x); }); счёт(); };
+  счёт();
+
+  $('#tgpGo').onclick = safe(async () => {
+    const взяли = [], снятые = new Set();
+    $$('[data-tgp]').forEach(x => {
+      const c = сорта[+x.dataset.tgp];
+      if (x.checked) взяли.push(c); else снятые.add(ровноИмя(c.имя));
+    });
+    тгЗапомнить(снятые);
+    const карта = {};
+    сорта.forEach(c => {
+      const з = +c.зум || 1, ax = c.ax === undefined ? 0.5 : +c.ax, ay = c.ay === undefined ? 0.28 : +c.ay;
+      if (з !== 1 || ax !== 0.5 || ay !== 0.28) карта[ровноИмя(c.имя)] = { з, ax, ay };
+    });
+    тгЗумЗапомнить(карта);
+    await тгСобрать(взяли);
+  });
+
+  // переключение витрины: другой ассортимент и другой логотип на листе
+  $$('[data-tgb]').forEach(кн => { кн.onclick = () => открытьПлитку(кн.dataset.tgb); });
+});
+
+async function тгСобрать(взяли) {
+  const b = $('#rpTg'), out = $('#rpTgOut'), текст = b.textContent;
+  b.disabled = true;
+  out.innerHTML = '<span class="hint">Готовлю карточки…</span>';
+  try {
+    try { await document.fonts.ready; } catch (_) {}
+    const листы = await tgTiles(взяли, (n, всего) => {
+      b.textContent = `Собираю ${n} из ${всего}…`;
+      out.innerHTML = `<span class="hint">Готовлю карточки: ${n} из ${всего}</span>`;
+    });
+    if (!листы.length) { out.innerHTML = '<span class="hint">Сейчас нечего выкладывать: нет сортов в наличии со снимком.</span>'; return; }
+    const день = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+    out.innerHTML = `<p class="hint" style="margin:0 0 8px">Готово, листов ${листы.length}. Нажмите на лист, чтобы скачать.</p>`
+      + '<div class="bar" id="rpTgList" style="flex-wrap:wrap;gap:12px"></div>';
+    const сюда = $('#rpTgList');
+    for (let i = 0; i < листы.length; i++) {
+      const bl = await new Promise(ok => листы[i].toBlob(ok, 'image/jpeg', 0.95));
+      const url = URL.createObjectURL(bl);
+      const имя = `venikoff-${день}-${i + 1}.jpg`;
+      const файл = new File([bl], имя, { type: 'image/jpeg' });
+
+      const box = document.createElement('div');
+      box.style.cssText = 'text-align:center';
+      const a = document.createElement('a');
+      a.href = url; a.download = имя;
+      a.style.cssText = 'display:block;text-decoration:none';
+      a.innerHTML = `<img src="${url}" style="width:150px;border-radius:8px;border:1px solid var(--line);display:block">`
+        + `<span class="hint" style="margin:4px 0 2px;display:block">Лист ${i + 1} ↓</span>`;
+      box.appendChild(a);
+
+      // На айфоне «скачать» кладёт файл в Файлы → Загрузки, а оттуда его ещё
+      // надо достать, чтобы выложить в канал. Системное «Поделиться» отдаёт
+      // картинку сразу в Телеграм или в Фото — один шаг вместо трёх.
+      if (navigator.canShare && navigator.canShare({ files: [файл] })) {
+        const sh = document.createElement('button');
+        sh.className = 'btn btn-g btn-s';
+        sh.textContent = 'Поделиться';
+        sh.onclick = () => navigator.share({ files: [файл] }).catch(() => {});
+        box.appendChild(sh);
+      }
+      сюда.appendChild(box);
+    }
+  } finally { b.disabled = false; b.textContent = текст; }
+}
 $('#rpPic').onclick = safe(async () => {
   try { await document.fonts.ready; } catch (_) {}
   const cv = await priceImage();
@@ -3558,6 +4851,7 @@ const loadSettings = safe(async () => {
   await loadSettings0();
   renderUpload();
   $('#sPhone').value = S.phone || ''; $('#sUrl').value = S.site_url || location.origin; $('#sReview').value = S.review_url || '';
+  sw($('#sMix'), S.shuffle_hourly);
   $('#sTok').value = ''; $('#sTok').placeholder = S.tg_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ от @BotFather';
 $('#sAdm').value = S.tg_admins || '';
 $('#sFlo').value = S.tg_florists || '';
@@ -3575,7 +4869,7 @@ $('#pPub').value = S.cp_public_id || '';
 $('#pSec').value = ''; $('#pSec').placeholder = S.cp_secret ? 'Секрет сохранён. Вставьте новый, чтобы заменить' : 'Вставьте секрет';
 sw($('#pCard'), S.pay_card); sw($('#pDeliv'), S.pay_on_delivery);
 });
-$('#sSave').onclick = safe(async () => { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { phone: $('#sPhone').value.trim(), site_url: $('#sUrl').value.trim().replace(/\/$/, ''), review_url: $('#sReview').value.trim() } }); toast('Сохранено'); });
+$('#sSave').onclick = safe(async () => { S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { phone: $('#sPhone').value.trim(), site_url: $('#sUrl').value.trim().replace(/\/$/, ''), review_url: $('#sReview').value.trim(), shuffle_hourly: sw($('#sMix')) } }); toast('Сохранено'); });
 $('#cSaveBot').onclick = safe(async () => {
   const raw = $('#cTok').value.trim();
   const found = raw.match(/\d{5,}:[A-Za-z0-9_-]{20,}/);

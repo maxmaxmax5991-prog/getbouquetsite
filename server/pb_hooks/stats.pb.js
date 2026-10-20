@@ -131,13 +131,16 @@ routerAdd("GET", "/api/shop/funnel", (e) => {
   });
   // На чём именно спотыкаются: причина отказа лежит в ctx
   try {
-    const rows = new DynamicModel({ ctx: "", n: 0 });
-    const arr = $app.db().newQuery(
+    // `all()` заполняет массив, а не одну запись: для набора строк нужен
+    // arrayOf(...), как в остальных отчётах. С одиночным DynamicModel движок
+    // отвечал «Invalid variable type», и таблица отказов в воронке была пуста.
+    const rows = arrayOf(new DynamicModel({ ctx: "", n: 0 }));
+    $app.db().newQuery(
       `SELECT ctx, COUNT(DISTINCT vid) as n FROM events
        WHERE day >= {:f} AND day <= {:t} AND kind IN ('refuse','addr_fail')${only}
        GROUP BY ctx ORDER BY n DESC LIMIT 12`)
       .bind(bid ? { f: from, t: to, b: bid } : { f: from, t: to }).all(rows);
-    out.отказы = (arr || []).map((r) => ({ причина: String(r.ctx || "—"), людей: +r.n }));
+    out.отказы = rows.map((r) => ({ причина: String(r.ctx || "—"), людей: +r.n }));
   } catch (err) { console.log("воронка: отказы", err); }
   return e.json(200, out);
 }, $apis.requireAuth("managers"));
@@ -145,7 +148,9 @@ routerAdd("GET", "/api/shop/funnel", (e) => {
 // Оценки после вручения: средние по трём категориям и кто ждёт звонка
 routerAdd("GET", "/api/shop/reviews", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  // Читают те же, кто работает с «Заботой»: блок оценок переехал туда из
+  // статистики. Рассылка опроса правами не расширена — она как была у владельца.
+  if (!shop.can(e, ["owner", "sales", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
   // Оценки за выбранный период — как и всё остальное на вкладке статистики.
   // «Ждут звонка» при этом показываем все: висящий недовольный клиент важнее периода.
   const q = e.request.url.query();
@@ -222,7 +227,7 @@ routerAdd("GET", "/api/shop/reviews", (e) => {
 // разговора, одним куском — чтобы менеджер не искал заказ по вкладкам.
 routerAdd("GET", "/api/shop/care", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (!shop.can(e, ["owner", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
+  if (!shop.can(e, ["owner", "sales", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
   let list = [];
   try { list = $app.findRecordsByFilter("reviews", "needs_call = true", "-created", 200, 0); } catch (_) {}
   const rows = list.map((r) => {
@@ -263,7 +268,7 @@ routerAdd("POST", "/api/shop/review-blast", (e) => {
 // Менеджер отметил, что взял недовольного в работу
 routerAdd("POST", "/api/shop/reviews", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (!shop.can(e, ["owner", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
+  if (!shop.can(e, ["owner", "sales", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
   const b = e.requestInfo().body || {};
   let r;
   try { r = $app.findRecordById("reviews", String(b.id || "")); } catch (_) { return e.json(404, { message: "Не найдено" }); }

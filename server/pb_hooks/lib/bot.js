@@ -279,6 +279,14 @@ function handleClient(app, upd, brand) {
   const s = shop.settings(app);
   const token = shop.clientToken(s, brand);
 
+  // Запоминаем, в чьём боте человек написал: от этого зависит, кому витрина
+  // вправе слать рассылку (писать первым бот может только своим подписчикам).
+  try {
+    const кто = (upd.callback_query && upd.callback_query.message && upd.callback_query.message.chat)
+      || (upd.message && upd.message.chat);
+    if (кто && кто.id && brand) shop.markBot(app, "tg", кто.id, brand);
+  } catch (_) {}
+
   // клиент оценил фото букета
   if (upd.callback_query) {
     const cb = upd.callback_query, cbChat = cb.message.chat.id;

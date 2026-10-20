@@ -32,7 +32,11 @@ $D {
 		-Server
 	}
 	handle /api/* {
-		reverse_proxy 127.0.0.1:8090
+		reverse_proxy 127.0.0.1:8090 {
+			# переживаем перезапуск сервера молча, а не отдаём 502
+			lb_try_duration 10s
+			lb_try_interval 300ms
+		}
 	}
 	# служебная панель PocketBase закрыта снаружи — только через SSH-туннель
 	handle /_/* {

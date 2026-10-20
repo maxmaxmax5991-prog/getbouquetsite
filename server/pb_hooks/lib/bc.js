@@ -1,8 +1,9 @@
 // Рассылки: подключённые боты, их подписчики и отправка.
 //
 // Источники получателей:
-//   "client" — покупатели в нашем клиентском боте Телеграма (customers.tg_chat)
-//   "max"    — покупатели в MAX (customers.max_chat)
+//   "tg:<витрина>"  — покупатели в клиентском боте этой витрины
+//   "mx:<витрина>"  — покупатели в MAX-боте этой витрины
+//   "client"/"max"  — то же, но когда витрин с своими ботами ещё нет (старый вид)
 //   <id>     — любой подключённый по ключу Телеграм-бот (bc_bots), подписчики в bc_subs
 //
 // Отправка идёт заданием раз в минуту небольшими порциями, место остановки (cursor)
@@ -131,26 +132,108 @@ function maxSend(token, userId, m, cache) {
   return { ok: !!r.ok, gone: false, error: r.ok ? "" : String(r.error || "ошибка") };
 }
 
+// ---------- кто у нас уже покупал ----------
+// Заказ привязан к человеку четырьмя способами: карточкой покупателя, чатом
+// в Телеграме, чатом в MAX и номером телефона. Собираем всё разом в память
+// одним запросом: тот же вопрос через NOT EXISTS по каждому подписчику считался
+// почти пять секунд, а список источников открывается на каждый заход в рассылки.
+function покупатели(app) {
+  const карта = { cust: {}, tg: {}, max: {}, tel: {} };
+  try {
+    const rows = arrayOf(new DynamicModel({ customer: "", tg_chat: "", max_chat: "", phone: "" }));
+    app.db().newQuery("SELECT customer, tg_chat, max_chat, phone FROM orders").all(rows);
+    rows.forEach((o) => {
+      if (o.customer) карта.cust[o.customer] = 1;
+      if (o.tg_chat) карта.tg[String(o.tg_chat)] = 1;
+      if (o.max_chat) карта.max[String(o.max_chat)] = 1;
+      const t = String(o.phone || "").replace(/\D/g, "").slice(-10);
+      if (t.length === 10) карта.tel[t] = 1;
+    });
+  } catch (err) { console.log("bc покупатели", err); }
+  return карта;
+}
+// c — строка покупателя (id, tg_chat, max_chat, phone_ok)
+function покупал(карта, c) {
+  if (!карта) return false;
+  if (c.id && карта.cust[c.id]) return true;
+  if (c.tg_chat && карта.tg[String(c.tg_chat)]) return true;
+  if (c.max_chat && карта.max[String(c.max_chat)]) return true;
+  const t = String(c.phone_ok || "").replace(/\D/g, "").slice(-10);
+  return !!(t.length === 10 && карта.tel[t]);
+}
+
 // ---------- источники ----------
 function sources(app) {
   const s = shop.settings(app);
   const count = (sql, bind) => {
     try { const row = new DynamicModel({ n: 0 }); app.db().newQuery(sql).bind(bind || {}).one(row); return row.n; } catch (_) { return 0; }
   };
+  // Всех подписчиков и всех покупателей держим в памяти: так в каждом источнике
+  // сразу видно и общее число, и сколько там тех, кто ещё ничего не заказывал.
+  const купившие = покупатели(app);
+  let люди = [];
+  try {
+    const rows = arrayOf(new DynamicModel({ id: "", tg_chat: "", max_chat: "", phone_ok: "", tg_brands: "", max_brands: "" }));
+    app.db().newQuery("SELECT id, tg_chat, max_chat, phone_ok, tg_brands, max_brands FROM customers WHERE tg_chat != '' OR max_chat != ''").all(rows);
+    люди = rows;
+  } catch (err) { console.log("bc люди", err); }
+  // чей это подписчик: метка витрины в списке, а неразобранные — за витриной
+  // по умолчанию (её бот стоял в настройках, когда меток ещё не было)
+  const счёт = (поле, чат, slug, умолч) => {
+    let всего = 0, новых = 0;
+    люди.forEach((c) => {
+      if (!c[чат]) return;
+      const метки = String(c[поле] || "");
+      if (!(метки.indexOf("," + slug + ",") >= 0 || (умолч && !метки))) return;
+      всего++;
+      if (!покупал(купившие, c)) новых++;
+    });
+    return { count: всего, fresh: новых };
+  };
   const out = [];
-  if (s.get("tg_client_token")) {
-    out.push({ id: "client", kind: "tg", builtin: true, title: s.get("tg_client_bot") ? "@" + s.get("tg_client_bot") : "Клиентский бот",
-      note: "покупатели магазина", count: count("SELECT COUNT(*) AS n FROM customers WHERE tg_chat != ''") });
+  let brands = [];
+  try { brands = app.findRecordsByFilter("brands", "active = true", "sort", 20, 0); } catch (_) {}
+
+  // У каждой витрины свой бот и свои подписчики. Бот умеет писать только тем,
+  // кто сам его запустил, поэтому и источники раздельные: иначе ключом одной
+  // витрины мы стучимся к чужим подписчикам и получаем «chat not found».
+  // Неразобранных (метки ещё нет) считаем за витрину по умолчанию — её бот
+  // стоял в настройках, когда меток не было вовсе.
+  const свои = brands.filter((b) => b.get("tg_client_token"));
+  const вMax = brands.filter((b) => b.get("max_token"));
+  const умолчTg = свои.find((b) => b.get("tg_client_token") === s.get("tg_client_token"));
+  const умолчMax = вMax.find((b) => b.get("max_token") === s.get("max_token"));
+
+  свои.forEach((b) => {
+    const хвост = (умолчTg && b.id === умолчTg.id) ? " OR tg_brands IS NULL OR tg_brands = ''" : "";
+    out.push(Object.assign({ id: "tg:" + b.id, kind: "tg", builtin: true,
+      title: b.get("tg_client_bot") ? "@" + b.get("tg_client_bot") : "Бот " + b.get("name"),
+      note: "покупатели · " + b.get("name") },
+      счёт("tg_brands", "tg_chat", b.get("slug"), !!(умолчTg && b.id === умолчTg.id))));
+  });
+  вMax.forEach((b) => {
+    const хвост = (умолчMax && b.id === умолчMax.id) ? " OR max_brands IS NULL OR max_brands = ''" : "";
+    out.push(Object.assign({ id: "mx:" + b.id, kind: "max", builtin: true,
+      title: "MAX · " + (b.get("max_bot") || b.get("name")),
+      note: "покупатели в MAX · " + b.get("name") },
+      счёт("max_brands", "max_chat", b.get("slug"), !!(умолчMax && b.id === умолчMax.id))));
+  });
+
+  // Витрин с своими ботами нет — остаётся старый общий источник
+  if (!свои.length && s.get("tg_client_token")) {
+    out.push(Object.assign({ id: "client", kind: "tg", builtin: true, title: s.get("tg_client_bot") ? "@" + s.get("tg_client_bot") : "Клиентский бот",
+      note: "покупатели магазина" }, счёт("tg_brands", "tg_chat", "—", true)));
   }
-  if (s.get("max_token")) {
-    out.push({ id: "max", kind: "max", builtin: true, title: s.get("max_bot") ? "MAX · " + s.get("max_bot") : "MAX",
-      note: "покупатели в MAX", count: count("SELECT COUNT(*) AS n FROM customers WHERE max_chat != ''") });
+  if (!вMax.length && s.get("max_token")) {
+    out.push(Object.assign({ id: "max", kind: "max", builtin: true, title: s.get("max_bot") ? "MAX · " + s.get("max_bot") : "MAX",
+      note: "покупатели в MAX" }, счёт("max_brands", "max_chat", "—", true)));
   }
   app.findRecordsByFilter("bc_bots", "id != ''", "created", 200, 0).forEach((b) => {
     out.push({
       id: b.id, kind: "tg", builtin: false, title: b.get("username") ? "@" + b.get("username") : b.get("title") || "Бот",
       note: b.get("title") || "", active: !!b.get("active"), hello: b.get("hello") || "", error: b.get("error") || "",
       count: count("SELECT COUNT(*) AS n FROM bc_subs WHERE bot = {:b} AND blocked = FALSE", { b: b.id }),
+      fresh: count("SELECT COUNT(*) AS n FROM bc_subs s WHERE s.bot = {:b} AND s.blocked = FALSE AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.tg_chat = s.chat)", { b: b.id }),
       blocked: count("SELECT COUNT(*) AS n FROM bc_subs WHERE bot = {:b} AND blocked = TRUE", { b: b.id }),
     });
   });
@@ -161,19 +244,49 @@ function sources(app) {
 function channel(app, s, src) {
   if (src === "client") return s.get("tg_client_token") ? { kind: "tg", token: s.get("tg_client_token") } : null;
   if (src === "max") return s.get("max_token") ? { kind: "max", token: s.get("max_token") } : null;
+  if (/^(tg|mx):/.test(src)) {
+    let b = null;
+    try { b = app.findRecordById("brands", src.slice(3)); } catch (_) { return null; }
+    if (src.slice(0, 2) === "tg") return b.get("tg_client_token") ? { kind: "tg", token: b.get("tg_client_token") } : null;
+    return b.get("max_token") ? { kind: "max", token: b.get("max_token") } : null;
+  }
   try { const b = app.findRecordById("bc_bots", src); return b.get("active") ? { kind: "tg", token: b.get("token"), bot: b } : null; } catch (_) { return null; }
 }
 
 // Следующая порция получателей источника после id last
-function batch(app, src, last, n) {
+function batch(app, src, last, n, новички) {
+  const s = shop.settings(app);
+  // «только тем, кто ещё не покупал»: карту покупателей собираем один раз на
+  // прогон и просеиваем ею порцию. В фильтре записи это не выразить — связь
+  // с заказом идёт по четырём разным полям.
+  const просеять = (list, поле) => (новички ? list.filter((c) => !покупал(новички, {
+    id: c.id, tg_chat: c.tg_chat, max_chat: c.max_chat, phone_ok: c.phone_ok,
+  })) : list);
   // Рекламу шлём только согласившимся, когда выключатель включён. Пока он
   // выключен — как раньше, всем с чатом: иначе рассылка обнулится в тот же
   // день, ведь согласия только начали собираться.
   let согл = "";
   try { if (app.findFirstRecordByFilter("settings", "id != ''").get("ads_only_agreed")) согл = " && ads_ok = true"; } catch (_) {}
-  if (src === "client") return app.findRecordsByFilter("customers", `tg_chat != '' && id > {:l}${согл}`, "id", n, 0, { l: last || "" }).map((c) => ({ id: c.id, chat: c.get("tg_chat") }));
-  if (src === "max") return app.findRecordsByFilter("customers", `max_chat != '' && id > {:l}${согл}`, "id", n, 0, { l: last || "" }).map((c) => ({ id: c.id, chat: c.get("max_chat") }));
-  return app.findRecordsByFilter("bc_subs", "bot = {:b} && blocked = false && id > {:l}", "id", n, 0, { b: src, l: last || "" }).map((c) => ({ id: c.id, chat: c.get("chat"), sub: true }));
+  const людьми = (list, чат) => просеять(list.map((c) => ({
+    id: c.id, chat: c.get(чат), tg_chat: c.get("tg_chat"), max_chat: c.get("max_chat"), phone_ok: c.get("phone_ok"),
+  })));
+  if (src === "client") return людьми(app.findRecordsByFilter("customers", `tg_chat != '' && id > {:l}${согл}`, "id", n, 0, { l: last || "" }), "tg_chat");
+  if (src === "max") return людьми(app.findRecordsByFilter("customers", `max_chat != '' && id > {:l}${согл}`, "id", n, 0, { l: last || "" }), "max_chat");
+  if (/^(tg|mx):/.test(src)) {
+    let b = null;
+    try { b = app.findRecordById("brands", src.slice(3)); } catch (_) { return []; }
+    const тг = src.slice(0, 2) === "tg";
+    const поле = тг ? "tg_brands" : "max_brands";
+    const чат = тг ? "tg_chat" : "max_chat";
+    const свой = тг ? b.get("tg_client_token") === s.get("tg_client_token") : b.get("max_token") === s.get("max_token");
+    const ничей = свой ? ` || ${поле} = ''` : "";
+    return людьми(app.findRecordsByFilter("customers",
+      `${чат} != '' && id > {:l}${согл} && (${поле} ~ {:s}${ничей})`, "id", n, 0,
+      { l: last || "", s: "," + b.get("slug") + "," }), чат);
+  }
+  const подписчики = app.findRecordsByFilter("bc_subs", "bot = {:b} && blocked = false && id > {:l}", "id", n, 0, { b: src, l: last || "" })
+    .map((c) => ({ id: c.id, chat: c.get("chat"), tg_chat: c.get("chat"), sub: true }));
+  return просеять(подписчики);
 }
 
 function photoPath(app, rec) {
@@ -189,6 +302,9 @@ function run(app, rec, until, cache) {
   const s = shop.settings(app);
   const m = message(app, rec);
   const targets = shop.jget(rec, "targets") || [];
+  // «только новичкам»: карту собираем один раз на прогон, а не на каждую порцию
+  if (rec.get("only_new") && !cache.новички) cache.новички = покупатели(app);
+  const новички = rec.get("only_new") ? cache.новички : null;
   const cur = shop.jget(rec, "cursor") || {};
   let i = +cur.i || 0, last = cur.last || "";
   let sent = +rec.get("sent") || 0, failed = +rec.get("failed") || 0;
@@ -206,12 +322,28 @@ function run(app, rec, until, cache) {
   let checks = 0;
   while (i < targets.length && Date.now() < until) {
     const ch = channel(app, s, targets[i]);
-    const list = ch ? batch(app, targets[i], last, 25) : [];
-    if (!list.length) { i++; last = ""; save(); continue; }
+    const list = ch ? batch(app, targets[i], last, 25, новички) : [];
+    if (!list.length) {
+      // Порция могла опустеть после просеивания новичков, а люди дальше есть:
+      // двигаем метку по последнему прочитанному и идём дальше, а не считаем
+      // источник законченным.
+      const сырьё = ch ? batch(app, targets[i], last, 25, null) : [];
+      if (сырьё.length) { last = сырьё[сырьё.length - 1].id; save(); continue; }
+      i++; last = ""; save(); continue;
+    }
     for (const r of list) {
       if (Date.now() >= until) break;
       const res = ch.kind === "max" ? maxSend(ch.token, r.chat, m, cache) : tgSend(ch.token, r.chat, m, cache);
       if (res.ok) sent++; else failed++;
+      // Кому дошло — тем и мерить выручку потом. Пишем запросом: тысячи
+      // сохранений записями на каждую рассылку — это тысячи лишних хуков.
+      if (res.ok) {
+        try {
+          app.db().newQuery("INSERT INTO bc_sent (id, bc, customer, chat, kind, created) VALUES ({:id}, {:bc}, {:cu}, {:ch}, {:k}, {:t})")
+            .bind({ id: $security.randomString(15), bc: rec.id, cu: r.sub ? "" : String(r.id || ""),
+              ch: String(r.chat || ""), k: ch.kind, t: new Date().toISOString() }).execute();
+        } catch (err) { console.log("bc_sent", err); }
+      }
       if (!res.ok && res.gone && r.sub) {
         try { app.db().newQuery("UPDATE bc_subs SET blocked = TRUE WHERE id = {:id}").bind({ id: r.id }).execute(); } catch (_) {}
       }
@@ -274,4 +406,4 @@ function poll(app, bot) {
   });
 }
 
-module.exports = { clean, plain, sources, channel, message, photoPath, run, poll, tgSend, maxSend, tgCall, pause };
+module.exports = { clean, plain, sources, channel, message, photoPath, run, poll, tgSend, maxSend, tgCall, pause, покупатели, покупал };

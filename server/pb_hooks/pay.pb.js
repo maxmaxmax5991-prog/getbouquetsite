@@ -234,3 +234,66 @@ routerAdd("POST", "/api/shop/cp-test", (e) => {
   const r = pay.test(shop.settings($app));
   return r.ok ? e.json(200, { ok: true }) : e.json(400, { message: r.error });
 }, $apis.requireAuth("managers"));
+
+// Уведомление от CloudPayments.
+//
+// Зачем. В кабинете банка прописан адрес /api/cloudpayments/callback, которого
+// у нас не было: банк стучался несколько раз в минуту и получал 404. Заодно
+// это ускоряет подтверждение: сейчас оплату замечает опрос раз в минуту, а с
+// уведомлением — сразу.
+//
+// Содержимому уведомления НЕ ВЕРИМ. Подделать такой запрос может кто угодно,
+// кто знает адрес, поэтому из него берём только номер счёта, а сам платёж
+// перепроверяем у банка своим запросом — той же `checkOrder`, что работает в
+// опросе. Деньги подтверждает только ответ банка на наш вопрос.
+routerAdd("POST", "/api/cloudpayments/callback", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const pay = require(`${__hooks}/lib/pay.js`);
+  let inv = "";
+  try {
+    const info = e.requestInfo();
+    const b = info.body || {};
+    inv = String(b.InvoiceId || b.invoiceId || b.invoice_id || "").trim();
+  } catch (_) {}
+
+  // Банку всегда отвечаем «принято»: иначе он будет слать то же уведомление
+  // снова и снова. Разбираться — наша забота, а не его.
+  const принято = () => e.json(200, { code: 0 });
+  if (!inv) return принято();
+
+  try {
+    // Доплата: счёт вида v4371d1 — отрезаем хвост и находим сам заказ.
+    const корень = inv.replace(/d\d+$/i, "");
+    let o = null;
+    try { o = $app.findFirstRecordByFilter("orders", "invoice = {:i}", { i: корень }); } catch (_) {}
+    if (!o && /^\d+$/.test(корень)) {
+      try { o = $app.findFirstRecordByFilter("orders", "number = {:n}", { n: +корень }); } catch (_) {}
+    }
+    if (!o) { console.log("callback: не нашёл заказ по счёту", inv); return принято(); }
+
+    if (/d\d+$/i.test(inv)) {
+      // Доплата. Отмечаем её оплаченной и проводим в МойСклад отдельным платежом.
+      let ex = null;
+      try { ex = $app.findFirstRecordByFilter("order_extras", "invoice = {:i}", { i: inv }); } catch (_) {}
+      if (ex && !ex.get("paid_at")) {
+        ex.set("paid_at", new Date().toISOString());
+        $app.save(ex);
+        require(`${__hooks}/lib/staff.js`).запись($app, o, null, "доплата пришла", `${shop.rub(ex.get("sum"))}, счёт ${inv}`);
+        try {
+          const s = shop.settings($app);
+          const token = s.get("tg_token");
+          shop.adminIds(s).forEach((c) => shop.tg(token, "sendMessage", { chat_id: c, text: `💰 Доплата ${shop.rub(ex.get("sum"))} по заказу №${o.get("number")} пришла.` }));
+        } catch (_) {}
+      }
+      return принято();
+    }
+
+    // Обычная оплата: перепроверяем у банка и, если подтвердилось, дальше всё
+    // идёт привычным путём — уведомления, МойСклад, статусы.
+    pay.checkOrder($app, o);
+  } catch (err) {
+    console.log("callback", err);
+    require(`${__hooks}/lib/err.js`).note($app, "Оплата", String(err), "уведомление банка");
+  }
+  return принято();
+});

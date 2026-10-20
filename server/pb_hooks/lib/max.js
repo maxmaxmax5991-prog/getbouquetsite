@@ -229,6 +229,8 @@ function handle(app, u, brand) {
 
   const { userId, name, text } = partsOf(u);
   if (!userId) return;
+  // в чьём боте человек написал — от этого зависит, кому слать рассылку
+  if (brand) shop.markBot(app, "max", userId, brand);
   const say = (t, rows) => send(token, userId, t, rows);
   const hello = () => say(`Здравствуйте! Это бот магазина ${shop.siteName(app, brand ? brand.id : "")}.\n\nЗдесь будут статусы ваших заказов и фото букета перед доставкой.`,
     site ? [[btnLink("Открыть каталог", site)], [btnLink("Мои заказы", `${site}/me/`)]] : null);

@@ -61,14 +61,37 @@ cronAdd("watchdog", "*/10 * * * *", () => {
       `${name} снова читает входящие.`);
   });
 
-  // 2. Оплачено, но в МойСклад не уехало — флорист такого заказа не увидит
+  // 2. Оплачено, но в МойСклад не уехало — флорист такого заказа не видит.
+  //
+  // ЭТА ТРЕВОГА УЖЕ БЫЛА И НЕ ПОМОГЛА. 07.10 в 17:01 встал заказ №3778, за ним
+  // ещё восемь, и уехали они только в 12:20 следующего дня — 17 часов не той
+  // задержки, про которую покупателю скажешь «вот-вот». Сторож честно писал в
+  // бот с вечера, но сообщение было одно в общем потоке, рядом с вечными «фото
+  // не ушло» по заказу от 26 сентября. На такой фон перестают смотреть.
+  //
+  // Поэтому здесь: отдельный текст с последствием, а не «отправьте вручную»;
+  // возраст самого старого заказа прямо в строке; и повтор каждый час, пока не
+  // починено, — ключ тревоги меняется вместе с часом ожидания, поэтому `check`
+  // считает это новой бедой и пишет снова.
   try {
+    const t15 = new Date(Date.now() - 15 * 60000).toISOString().replace("T", " ").slice(0, 19);
     const stuck = $app.findRecordsByFilter("orders",
       `payment_status = "paid" && ms_id = "" && status != "cancelled" && created < {:t}`,
-      "created", 20, 0, { t: new Date(Date.now() - 15 * 60000).toISOString().replace("T", " ").slice(0, 19) });
-    check("ms:stuck", stuck.length
-      ? `Оплачено, но не ушло в МойСклад: ${stuck.map((o) => "№" + o.get("number")).join(", ")}. Отправьте вручную из админки.`
-      : "", "Все оплаченные заказы в МоёмСкладе.");
+      "created", 20, 0, { t: t15 });
+    let текст = "";
+    if (stuck.length) {
+      const ждёт = mins(Date.parse(String(stuck[0].get("created")).replace(" ", "T")));
+      const часы = Math.floor(ждёт / 60);
+      const срок = часы >= 1 ? `${часы} ч ${ждёт % 60} мин` : `${ждёт} мин`;
+      // Час ожидания входит в текст, поэтому каждый новый час `check` видит
+      // другую беду и пишет снова. Без этого сообщение приходило один раз за
+      // всю ночь — ровно так 17 часов простоя и остались незамеченными.
+      текст = `🛑 Заказы оплачены, но их НЕТ в МоёмСкладе — флорист их не видит и не собирает.`
+        + `\n\nЖдут: ${stuck.map((o) => "№" + o.get("number")).join(", ")}.`
+        + `\nСамый старый ждёт уже ${срок}.`
+        + `\n\nАдминка → Заказы → кнопка «В МоёмСкладе» у заказа. Жалуется на номенклатуру — значит сорт не заведён на складе.`;
+    }
+    check("ms:stuck", текст, "Все оплаченные заказы доехали до МоегоСклада.");
   } catch (err) { console.log("watchdog stuck", err); }
 
   // 2б. Оплачено, заказ в МоёмСкладе есть, а входящего платежа нет
@@ -118,21 +141,56 @@ cronAdd("watchdog", "*/10 * * * *", () => {
     }
   } catch (err) { console.log("watchdog dup", err); }
 
-  // 3б. В чате на сайте ждут ответа
+  // 3б. В чате на сайте ждут ответа.
+  //
+  // Порог три минуты, а не пятнадцать: владелец считает это временем, за
+  // которое покупателю обязаны ответить. И называем не только покупателя, но и
+  // ТОГО, КТО ДОЛЖЕН БЫЛ ОТВЕТИТЬ, — иначе тревога ни на кого не указывает и
+  // разбираться по ней невозможно.
+  //
+  // Ответственного ищем по порядку: кто последним отвечал в этом диалоге →
+  // кто ведёт свежий заказ этого покупателя → «ничей».
+  //
+  // Только в рабочие часы, 8:00–00:00 по Москве: ночью будить некого, а
+  // ночная тревога обесценивает дневные.
   try {
-    const waiting = $app.findRecordsByFilter("chats",
+    const мск = new Date(Date.now() + 3 * 3600e3).getUTCHours();
+    const рабочее = мск >= 8;            // 8:00–23:59 МСК
+    const waiting = рабочее ? $app.findRecordsByFilter("chats",
       `answered = false && unread > 0 && last_at < {:t}`, "last_at", 20, 0,
-      { t: new Date(Date.now() - 15 * 60000).toISOString() });
+      { t: new Date(Date.now() - 3 * 60000).toISOString() }) : [];
+
+    const имяМенеджера = (id) => { try { const m = $app.findRecordById("managers", id); return m.get("name") || m.get("nick") || "кто-то"; } catch (_) { return "кто-то"; } };
+    const ктоДолжен = (c) => {
+      try {
+        const пред = $app.findRecordsByFilter("chat_messages",
+          `chat = {:c} && side = "shop" && author != ""`, "-created", 1, 0, { c: c.id });
+        if (пред.length) return имяМенеджера(пред[0].get("author"));
+      } catch (_) {}
+      try {
+        if (c.get("customer")) {
+          const o = $app.findRecordsByFilter("orders",
+            `customer = {:k} && manager != "" && status != "cancelled"`, "-created", 1, 0, { k: c.get("customer") });
+          if (o.length) return имяМенеджера(o[0].get("manager"));
+        }
+      } catch (_) {}
+      return "никто не закреплён";
+    };
+    const мин = (c) => Math.max(0, Math.round((Date.now() - Date.parse(c.get("last_at") || "")) / 60000));
+
     check("chat:wait", waiting.length
-      ? `В чате на сайте ждут ответа больше 15 минут: ${waiting.map((c) => c.get("name") || c.get("phone") || "гость").join(", ")}. Откройте админку → Чат.`
+      ? `⏰ Не ответили покупателю дольше 3 минут:\n\n${waiting.map((c) =>
+          `• ${c.get("name") || c.get("phone") || "гость"} — ждёт ${мин(c)} мин, отвечать: ${ктоДолжен(c)}`).join("\n")}\n\nАдминка → Чат.`
       : "", "В чате все ответы даны.");
   } catch (err) { console.log("watchdog chat", err); }
 
   // 3в. Букет собран или уже едет, а фото клиенту не отправили
   try {
+    // Только свежие: в списке висел заказ №3041 от 26.09, и из-за таких
+    // «вечных» строк тревога меняла текст месяцами, а читать её перестали.
     const noPhoto = $app.findRecordsByFilter("orders",
-      `(status = "photo" || status = "delivering") && photo_file_id = "" && (tg_chat != "" || max_chat != "")`,
-      "-created", 20, 0);
+      `(status = "photo" || status = "delivering") && photo_file_id = "" && (tg_chat != "" || max_chat != "") && created > {:d}`,
+      "-created", 20, 0, { d: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString().replace("T", " ").slice(0, 19) });
     check("photo:none", noPhoto.length
       ? `Букет собран, а фото клиенту не ушло: ${noPhoto.map((o) => "№" + o.get("number")).join(", ")}. Пришлите фото в бот с подписью-номером.`
       : "", "По всем собранным букетам фото отправлено.");
@@ -140,9 +198,11 @@ cronAdd("watchdog", "*/10 * * * *", () => {
 
   // 4. Фото букета отправлено, а покупатель не ответил больше двух часов
   try {
+    // Тоже только свежие — по той же причине.
     const silent = $app.findRecordsByFilter("orders",
-      `photo_status = "waiting" && updated < {:t} && status != "done" && status != "cancelled"`,
-      "updated", 10, 0, { t: new Date(Date.now() - 120 * 60000).toISOString().replace("T", " ").slice(0, 19) });
+      `photo_status = "waiting" && updated < {:t} && status != "done" && status != "cancelled" && created > {:d}`,
+      "updated", 10, 0, { t: new Date(Date.now() - 120 * 60000).toISOString().replace("T", " ").slice(0, 19),
+        d: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString().replace("T", " ").slice(0, 19) });
     check("photo:silent", silent.length
       ? `Покупатель не ответил на фото больше двух часов: ${silent.map((o) => `№${o.get("number")} (${o.get("phone")})`).join(", ")}. Лучше позвонить.`
       : "", "На все фото покупатели ответили.");

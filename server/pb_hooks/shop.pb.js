@@ -410,11 +410,21 @@ routerAdd("GET", "/api/shop/me-role", (e) => {
   const r = shop.role(e);
   return e.json(200, {
     role: r,
+    // id нужен админке: по нему фильтр «Мои заказы» и подсветка своих
+    id: (() => { try { return e.auth.id || ""; } catch (_) { return ""; } })(),
+    nick: (() => { try { return e.auth.get("nick") || ""; } catch (_) { return ""; } })(),
+    line: (() => { try { return e.auth.get("line") || ""; } catch (_) { return ""; } })(),
     name: (() => { try { return e.auth.get("name") || e.auth.get("email") || ""; } catch (_) { return ""; } })(),
     can: {
-      orders: true, chat: true, swap: true,          // это может каждый
+      // «Отдел заботы» — только обзвон недовольных, заказы ему не нужны.
+      // Кому нужно и то, и другое, ставят роль «Менеджер»: она включает обе
+      // вкладки. Отдельной «двойной роли» заводить не нужно.
+      orders: r !== "care", care: true, chat: true, swap: r !== "care",
       stock: r === "owner" || r === "head",
       all: r === "owner",
+      // Руководитель продаж заводит людей и видит вкладку «Менеджеры»,
+      // но прайсы, остатки, товары и настройки ему не нужны.
+      staff: r === "owner" || r === "sales",
       // оценку правит только владелец: это не исправление опечатки,
       // а изменение того, что сказал покупатель
       fixnps: r === "owner",
@@ -425,21 +435,45 @@ routerAdd("GET", "/api/shop/me-role", (e) => {
 // Сотрудники: список, добавление, смена роли, удаление. Только владелец.
 routerAdd("GET", "/api/shop/staff", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
-  const list = $app.findRecordsByFilter("managers", "id != ''", "created", 100, 0);
+  const st = require(`${__hooks}/lib/staff.js`);
+  // Список нужен и менеджеру — в заказе показываем ник ответственного и кому
+  // можно передать. Править людей по-прежнему может не каждый.
+  const правлю = shop.can(e, st.СОТРУДНИКИ);
+  // Сортируем по имени: поля `created` у коллекции managers нет, и запрос
+  // падал с «invalid sort field "created"» — список сотрудников не открывался
+  // ни во вкладке «Менеджеры», ни в настройках.
+  const list = $app.findRecordsByFilter("managers", "id != ''", "name", 100, 0);
+  const сейчас = Date.now();
   return e.json(200, {
-    staff: list.map((m) => ({ id: m.id, nick: m.get("nick") || "", email: m.get("email") || "", name: m.get("name") || "", role: m.get("role") || "manager", me: m.id === e.auth.id })),
+    могуПравить: правлю,
+    staff: list.map((m) => ({
+      id: m.id, nick: m.get("nick") || "", email: m.get("email") || "", name: m.get("name") || "",
+      role: m.get("role") || "manager", me: m.id === e.auth.id,
+      line: m.get("line") || "", can_chat: !!m.get("can_chat"), off: !!m.get("off"),
+      seen_at: m.get("seen_at") || "",
+      online: сейчас - (Date.parse(m.get("seen_at") || "") || 0) < st.ТИШИНА,
+      active: st.активных($app, m.id),
+    })),
   });
 }, $apis.requireAuth("managers"));
 
 routerAdd("POST", "/api/shop/staff", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  const st = require(`${__hooks}/lib/staff.js`);
+  if (!shop.can(e, st.СОТРУДНИКИ)) return e.json(403, { message: "Сотрудников заводит владелец или руководитель продаж." });
   const b = e.requestInfo().body || {};
   const nick = String(b.nick || "").trim().toLowerCase();
   const email = String(b.email || "").trim().toLowerCase();
   const pass = String(b.password || "");
-  const rl = ["owner", "head", "manager"].indexOf(String(b.role || "")) >= 0 ? String(b.role) : "manager";
+  // Руководитель продаж заводит только своих: менеджеров и отдел заботы.
+  // Управляющего, другого руководителя и владельца назначает владелец —
+  // иначе роль, выданную «на время», некому будет снять.
+  const свои = ["manager", "care"];
+  const всеРоли = ["owner", "sales", "head", "manager", "care"];
+  const хочет = String(b.role || "");
+  const можно = shop.role(e) === "owner" ? всеРоли : свои;
+  if (хочет && можно.indexOf(хочет) < 0) return e.json(403, { message: "Вы можете заводить только менеджеров и отдел заботы." });
+  const rl = можно.indexOf(хочет) >= 0 ? хочет : "manager";
   if (!/^[a-z0-9_.-]{3,40}$/.test(nick)) return e.json(400, { message: "Логин: латиница, цифры, точка и дефис, от 3 знаков." });
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return e.json(400, { message: "Проверьте почту." });
   if (pass.length < 8) return e.json(400, { message: "Пароль — не короче 8 знаков." });
@@ -453,13 +487,15 @@ routerAdd("POST", "/api/shop/staff", (e) => {
   rec.set("password", pass);
   rec.set("passwordConfirm", pass);
   rec.set("verified", true);
+  if (b.can_chat !== undefined) rec.set("can_chat", !!b.can_chat);
   $app.save(rec);
   return e.json(200, { ok: true, id: rec.id });
 }, $apis.requireAuth("managers"));
 
 routerAdd("POST", "/api/shop/staff-edit", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
-  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  const st = require(`${__hooks}/lib/staff.js`);
+  if (!shop.can(e, st.СОТРУДНИКИ)) return e.json(403, { message: "Сотрудников правит владелец или руководитель продаж." });
   const b = e.requestInfo().body || {};
   let m;
   try { m = $app.findRecordById("managers", String(b.id || "")); } catch (_) { return e.json(404, { message: "Сотрудник не найден" }); }
@@ -470,7 +506,12 @@ routerAdd("POST", "/api/shop/staff-edit", (e) => {
     return e.json(200, { ok: true });
   }
   if (b.role) {
-    const rl = ["owner", "head", "manager"].indexOf(String(b.role)) >= 0 ? String(b.role) : "";
+    const rl = ["owner", "sales", "head", "manager", "care"].indexOf(String(b.role)) >= 0 ? String(b.role) : "";
+    // Руководитель продаж переключает только между «менеджер» и «забота».
+    // Всё остальное — владелец: иначе можно выписать себе права на прайсы,
+    // остатки и реквизиты.
+    if (shop.role(e) !== "owner" && ["manager", "care"].indexOf(rl) < 0)
+      return e.json(403, { message: "Вы можете ставить только роли «Менеджер» и «Отдел заботы»." });
     if (!rl) return e.json(400, { message: "Неизвестная роль" });
     // нельзя снять с себя права владельца, если владелец один — иначе некому будет управлять
     if (m.id === e.auth.id && rl !== "owner") {
@@ -478,6 +519,24 @@ routerAdd("POST", "/api/shop/staff-edit", (e) => {
       if (owners.length < 2) return e.json(400, { message: "Вы единственный владелец — сначала назначьте второго." });
     }
     m.set("role", rl);
+  }
+  // Доступ к диалогам и отключение сотрудника
+  if (b.can_chat !== undefined) m.set("can_chat", !!b.can_chat);
+  if (b.off !== undefined) {
+    if (m.id === e.auth.id) return e.json(400, { message: "Себя отключить нельзя." });
+    m.set("off", !!b.off);
+  }
+  // «Выдать новый пароль»: сервер придумывает и один раз показывает.
+  // Посмотреть старый нельзя — в базе лежит односторонний отпечаток, пароль из
+  // него не достать. Поэтому забытый пароль只 меняют, а не подглядывают.
+  if (b.gen) {
+    const годные = "abcdefghijkmnpqrstuvwxyz23456789";
+    let пароль = "";
+    for (let i = 0; i < 10; i++) пароль += годные[Math.floor(Math.random() * годные.length)];
+    m.set("password", пароль);
+    m.set("passwordConfirm", пароль);
+    $app.save(m);
+    return e.json(200, { ok: true, пароль, nick: m.get("nick") || "" });
   }
   if (b.password) {
     if (String(b.password).length < 8) return e.json(400, { message: "Пароль — не короче 8 знаков." });

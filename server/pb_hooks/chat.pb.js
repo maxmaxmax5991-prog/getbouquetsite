@@ -194,7 +194,11 @@ routerAdd("POST", "/api/shop/chat-reply", (e) => {
   m.set("chat", chat.id);
   m.set("side", "shop");
   m.set("text", text);
-  m.set("author", String(b.author || "").slice(0, 120));
+  // Автор — id вошедшего менеджера, а не то, что прислал браузер: по нему
+  // считается, кто отвечает и кто просрочил три минуты. Присланному имени
+  // верить нельзя, его легко подменить.
+  try { m.set("author", e.auth.id || String(b.author || "").slice(0, 120)); }
+  catch (_) { m.set("author", String(b.author || "").slice(0, 120)); }
   if (file) m.set("photo", file);
   $app.save(m);
 

@@ -49,10 +49,19 @@ routerAdd("GET", "/api/bc", (e) => {
     id: r.id, text: r.get("text"), photo: r.get("photo") ? shop.fileUrl(r, r.get("photo"), "300x0") : "",
     button_text: r.get("button_text"), button_url: r.get("button_url"), targets: shop.jget(r, "targets") || [],
     status: r.get("status"), total: r.get("total"), sent: r.get("sent"), failed: r.get("failed"),
+    only_new: !!r.get("only_new"),
     created: String(r.get("created")), finished: r.get("finished"), author: r.get("author"),
   }));
   const s = shop.settings($app);
-  return e.json(200, { sources: bc.sources($app), history, admins: shop.adminIds(s).length, site: s.get("site_url") || "" });
+  // состояние разбора «кто в каком боте»: сколько ещё без метки
+  let без = 0;
+  try {
+    const row = new DynamicModel({ n: 0 });
+    $app.db().newQuery("SELECT COUNT(*) AS n FROM customers WHERE tg_chat != '' AND (tg_brands IS NULL OR tg_brands = '')").one(row);
+    без = row.n;
+  } catch (_) {}
+  return e.json(200, { sources: bc.sources($app), history, admins: shop.adminIds(s).length, site: s.get("site_url") || "",
+    probe: { state: s.get("bot_probe") || "", at: s.get("bot_probe_at") || "", left: без } });
 }, $apis.requireAuth("managers"));
 
 // Подключить бота по ключу
@@ -127,6 +136,39 @@ routerAdd("POST", "/api/bc/bot/{id}/import", (e) => {
   return e.json(200, { added, total: ids.length });
 }, $apis.requireAuth("managers"));
 
+// Сколько рассылка принесла. Два счёта: по метке в ссылке (кто нажал кнопку и
+// заказал) и по получателям (кто получил и заказал потом как угодно, хоть по
+// телефону). Отменённые заказы не считаем.
+routerAdd("GET", "/api/bc/money/{id}", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (shop.role(e) !== "owner") return e.json(403, { message: "Это может только владелец." });
+  let rec;
+  try { rec = $app.findRecordById("broadcasts", e.request.pathValue("id")); } catch (_) { return e.json(404, { message: "Рассылка не найдена." }); }
+  const дней = Math.min(60, Math.max(1, parseInt(e.request.url.query().get("days"), 10) || 7));
+  const от = String(rec.get("created")).replace(" ", "T").slice(0, 19) + "Z";
+  const до = new Date(new Date(от).getTime() + дней * 86400000).toISOString();
+  const одно = (sql, bind) => {
+    try {
+      const row = new DynamicModel({ n: 0, s: 0.0 });
+      $app.db().newQuery(sql).bind(bind || {}).one(row);
+      return { n: row.n, sum: Math.round(row.s) };
+    } catch (err) { console.log("bc money", err); return { n: 0, sum: 0 }; }
+  };
+  const поСсылке = одно(
+    `SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS s FROM orders
+      WHERE source = {:src} AND status != 'cancelled' AND created >= {:от} AND created <= {:до}`,
+    { src: "bc" + rec.id, от, до });
+  const поПолучателям = одно(
+    `SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS s FROM orders o
+      WHERE o.status != 'cancelled' AND o.created >= {:от} AND o.created <= {:до} AND EXISTS (
+        SELECT 1 FROM bc_sent b WHERE b.bc = {:bc} AND (
+          (b.customer != '' AND o.customer = b.customer)
+          OR (b.kind = 'tg' AND b.chat != '' AND o.tg_chat = b.chat)
+          OR (b.kind = 'max' AND b.chat != '' AND o.max_chat = b.chat)))`,
+    { bc: rec.id, от, до });
+  return e.json(200, { days: дней, from: от, to: до, link: поСсылке, people: поПолучателям, sent: rec.get("sent") || 0 });
+}, $apis.requireAuth("managers"));
+
 // Новая рассылка (или проверка себе: test=1). Форма с файлом, поэтому multipart.
 routerAdd("POST", "/api/bc/send", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
@@ -146,17 +188,35 @@ routerAdd("POST", "/api/bc/send", (e) => {
   targets = targets.filter((t) => known.some((k) => k.id === t && (k.builtin || k.active)));
   if (!targets.length) return e.json(400, { message: "Отметьте хотя бы одного бота." });
   const test = val("test") === "1";
+  const толькоНовым = val("only_new") === "1";
 
   const rec = new Record($app.findCollectionByNameOrId("broadcasts"));
   rec.set("text", text);
   if (photo.length) rec.set("photo", photo[0]);
   rec.set("button_text", btnText); rec.set("button_url", btnUrl);
   rec.set("targets", targets);
+  rec.set("only_new", толькоНовым);
   rec.set("status", test ? "stopped" : "queued");
-  rec.set("total", known.filter((k) => targets.indexOf(k.id) >= 0).reduce((a, k) => a + (k.count || 0), 0));
+  rec.set("total", known.filter((k) => targets.indexOf(k.id) >= 0)
+    .reduce((a, k) => a + ((толькоНовым ? k.fresh : k.count) || 0), 0));
   rec.set("sent", 0); rec.set("failed", 0);
   try { rec.set("author", e.auth.get("email")); } catch (_) {}
   $app.save(rec);
+
+  // Метка в ссылке кнопки: сайт запоминает utm_source и кладёт его в заказ, —
+  // так потом видно, сколько рассылка принесла деньгами. Ставим только на свои
+  // домены и только если метки там ещё нет: чужую ссылку трогать нельзя.
+  if (btnUrl && !/[?&]utm_source=/i.test(btnUrl)) {
+    const хост = (String(btnUrl).match(/^https?:\/\/([^\/?#]+)/i) || ["", ""])[1].replace(/^www\./, "").toLowerCase();
+    const свои = [];
+    try { $app.findRecordsByFilter("brands", "domain != ''", "sort", 20, 0).forEach((b) => свои.push(String(b.get("domain")).replace(/^www\./, "").toLowerCase())); } catch (_) {}
+    const изНастроек = (String(shop.settings($app).get("site_url") || "").match(/^https?:\/\/([^\/?#]+)/i) || ["", ""])[1].replace(/^www\./, "").toLowerCase();
+    if (изНастроек) свои.push(изНастроек);
+    if (хост && свои.indexOf(хост) >= 0) {
+      rec.set("button_url", btnUrl + (btnUrl.indexOf("?") >= 0 ? "&" : "?") + "utm_source=bc" + rec.id);
+      $app.save(rec);
+    }
+  }
   if (!test) return e.json(200, { id: rec.id, total: rec.get("total") });
 
   // Проверка: шлём себе — тем, кто записан в «Кому писать в Телеграм» (Настройки).

@@ -1,0 +1,49 @@
+/// <reference path="../pb_data/types.d.ts" />
+// Вес корзины: цветы + сама корзина + напитанные оазисы.
+//
+// Это не забава: оазис, налитый водой, весит под два килограмма, и корзина на
+// тысячу роз с двадцатью оазисами выходит далеко за тридцать килограммов —
+// такую не отдать курьеру на руки. Пусть сайт считает и честно пишет вес, а
+// склад и курьерская заранее знают, что везти.
+//
+// Граммы у раздела (вид цветка), вес корзины — у самой корзины, вес оазиса —
+// общий в настройках: он один и тот же для всех.
+migrate((app) => {
+  const c = app.findCollectionByNameOrId("categories");
+  if (!c.fields.getByName("gram")) c.fields.add(new Field({ name: "gram", type: "number", min: 0 }));
+  app.save(c);
+
+  const b = app.findCollectionByNameOrId("baskets");
+  if (!b.fields.getByName("weight")) b.fields.add(new Field({ name: "weight", type: "number", min: 0 }));   // граммы
+  app.save(b);
+
+  const s = app.findCollectionByNameOrId("settings");
+  if (!s.fields.getByName("oasis_weight")) s.fields.add(new Field({ name: "oasis_weight", type: "number", min: 0 }));
+  app.save(s);
+
+  // Прикидки, которые владелец поправит глазами: точные числа знает только он.
+  const ГРАММЫ = { "single": 35, "ecuador-premium": 40, "kenya": 30, "french": 45,
+    "kustovye-rozy": 60, "kustovye-rozy-pionovidnye": 65, "hydrangea": 150 };
+  let все = [];
+  try { все = app.findRecordsByFilter("categories", "id != ''", "sort", 100, 0); } catch (_) {}
+  все.forEach((x) => {
+    const g = ГРАММЫ[String(x.get("slug") || "")];
+    if (g) app.db().newQuery("UPDATE categories SET gram = {:g} WHERE id = {:id} AND (gram IS NULL OR gram = 0)").bind({ g, id: x.id }).execute();
+  });
+
+  const ВЕС = { "ЛФ-Корзина маленькая": 1500, "ЛФ-Корзина средняя": 2000, "ЛФ-Корзина большая": 3000,
+    "ЛФ-Корзина XL": 4000, "ЛФ-Корзина XXL": 5000, "ЛФ-Корзина XXXL": 6500, "ЛФ-Корзина XXXXL": 8000 };
+  let корзины = [];
+  try { корзины = app.findRecordsByFilter("baskets", "id != ''", "sort", 200, 0); } catch (_) {}
+  корзины.forEach((x) => {
+    const w = ВЕС[String(x.get("name") || "")];
+    if (w) app.db().newQuery("UPDATE baskets SET weight = {:w} WHERE id = {:id} AND (weight IS NULL OR weight = 0)").bind({ w, id: x.id }).execute();
+  });
+
+  // Оазис, напитанный водой, — около 1,8 кг.
+  app.db().newQuery("UPDATE settings SET oasis_weight = 1800 WHERE oasis_weight IS NULL OR oasis_weight = 0").execute();
+}, (app) => {
+  const c = app.findCollectionByNameOrId("categories"); c.fields.removeByName("gram"); app.save(c);
+  const b = app.findCollectionByNameOrId("baskets"); b.fields.removeByName("weight"); app.save(b);
+  const s = app.findCollectionByNameOrId("settings"); s.fields.removeByName("oasis_weight"); app.save(s);
+});

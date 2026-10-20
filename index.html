@@ -572,6 +572,85 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
   width:min(46vw,560px);aspect-ratio:1;left:-8vw;top:-60px;opacity:.07;transform:rotate(-18deg);
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 62C12 52 6 24 20 2C38 16 45 44 32 62Z' fill='%231E8C4E'/%3E%3Cpath d='M32 62C33 44 42 30 61 24C63 42 52 58 32 62Z' fill='%237CC242'/%3E%3C/svg%3E") center/contain no-repeat}
 [data-brand="lasflore"] .hero > .wrap{position:relative;z-index:1}
+/* конструктор корзин */
+.bk-card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px}
+.bk-h{font:700 16px/1.2 Unbounded,sans-serif;margin:0 0 10px}
+.bk-chips{display:flex;gap:8px;flex-wrap:wrap}
+.bk-chips button{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:9px 16px;font:600 14px Manrope,sans-serif;cursor:pointer;color:var(--ink)}
+.bk-chips button[aria-pressed=true]{border-color:var(--accent);background:var(--accent);color:#fff}
+.bk-qty{font:800 34px/1 Unbounded,sans-serif;color:var(--accent)}
+.bk-range{width:100%;accent-color:var(--accent);height:34px}
+.bk-ticks{display:flex;justify-content:space-between;color:var(--ink-3);font-size:12px;margin-top:-6px;gap:4px}
+.bk-ticks b{color:var(--ink);font-weight:700}
+/* Плашка подобранной корзины. Цвет берём как у других подсказок: глухая
+   светлая заливка в тёмной теме превращалась в белое пятно с невидимым
+   текстом — владелец это и увидел. */
+.bk-base{display:flex;gap:12px;align-items:center;background:color-mix(in srgb,var(--accent) 9%,transparent);
+  color:var(--ink);border-radius:14px;padding:12px;margin-top:12px}
+.bk-base img{width:52px;height:52px;border-radius:11px;object-fit:cover;background:var(--line)}
+.bk-base small{color:var(--ink-2);display:block}
+.bk-base .от{margin-left:auto;text-align:right;white-space:nowrap}
+.bk-base .от b{font-size:17px;font-weight:800}
+.bk-base .от small{color:var(--ink-2);font-size:11px}
+.bk-prog{height:10px;border-radius:99px;background:var(--line);overflow:hidden}
+.bk-prog i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+.bk-slot{border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px}
+.bk-slot .top{display:flex;gap:10px;align-items:center}
+.bk-slot img{width:58px;height:58px;border-radius:12px;object-fit:cover;background:var(--line)}
+.bk-slot .nm{flex:1;min-width:0}
+.bk-slot .nm b{display:block}
+.bk-slot .nm small{color:var(--ink-2);font-size:13px}
+.bk-lens{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.bk-lens button{border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:7px 12px;font-size:14px;cursor:pointer;color:var(--ink)}
+.bk-lens button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);font-weight:700}
+.bk-srow{display:flex;align-items:center;gap:12px;margin-top:10px}
+.bk-srow input{flex:1;accent-color:var(--accent);height:30px}
+.bk-sval{min-width:76px;text-align:right}
+.bk-sval b{font:800 20px/1 Unbounded,sans-serif}
+.bk-sval small{color:var(--ink-2);margin-left:4px}
+.bk-sval.one{min-width:0;text-align:left}
+.bk-add{width:100%;border:1px dashed var(--line);background:var(--paper);border-radius:14px;padding:13px;font:600 15px Manrope,sans-serif;color:var(--accent);cursor:pointer}
+.bk-add[disabled]{color:var(--ink-3);cursor:default}
+/* Итог — одна строка внизу: сумма слева, действие справа. Прежний блок на
+   четыре строки занимал треть экрана телефона и закрывал то, что собираешь. */
+.bk-total{position:sticky;bottom:10px;background:var(--paper);border:1px solid var(--line);border-radius:16px;
+  padding:10px 12px;margin:0 0 18px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;box-shadow:0 6px 20px rgba(20,20,40,.10)}
+.bk-total .sum{flex:1;min-width:0;line-height:1.2}
+.bk-total .sum b{display:block;font-size:18px;font-weight:800}
+.bk-total .sum small{color:var(--ink-2);font-size:12px}
+.bk-total .sum b.big{font:800 22px/1.15 Unbounded,sans-serif}
+/* Пояснение про грузчиков — отдельной строкой под суммой: в самой строке
+   итога владелец просил оставить только цену и кнопку. */
+.bk-total .note{flex:0 0 100%;color:var(--ink-2);font-size:12px;line-height:1.35}
+.bk-fill{width:100%;margin-top:10px;border:1px solid var(--accent);background:transparent;color:var(--accent);
+  border-radius:14px;padding:11px;font:600 14px Manrope,sans-serif;cursor:pointer;text-align:center}
+.bk-fill b{font-weight:800}
+.bk-total .btn{width:auto;flex:0 0 auto;padding:0 18px;height:44px}
+.bk-steps{display:flex;gap:6px;margin:0 0 14px}
+.bk-steps button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);
+  background:var(--paper);border-radius:12px;padding:9px 6px;font:600 13px Manrope,sans-serif;color:var(--ink-2);cursor:pointer}
+.bk-steps button i{width:20px;height:20px;border-radius:50%;background:var(--line);color:var(--ink-2);
+  display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:700}
+.bk-steps button[aria-current=true]{border-color:var(--accent);color:var(--ink)}
+.bk-steps button[aria-current=true] i{background:var(--accent);color:#fff}
+.bk-steps button[data-done=true] i{background:var(--leaf,#2e9c6b);color:#fff}
+@media (max-width:420px){.bk-steps button{font-size:12px;padding:8px 4px}}
+#viewBasket .wrap{padding-bottom:84px}
+body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
+@media (max-width:520px){body:has(#viewBasket:not([hidden])) .chat-fab{bottom:114px}}
+.bk-samples{margin:0 0 14px}
+.bk-samples-h{color:var(--ink-2);font-size:13px;margin:0 0 8px}
+.bk-samples-row{display:flex;gap:10px;overflow-x:auto;padding:2px 0 10px}
+.bk-samples button{flex:0 0 auto;width:160px;border:1px solid var(--line);background:var(--paper);border-radius:14px;padding:0 0 10px;overflow:hidden;cursor:pointer;text-align:left}
+.bk-samples .ph{position:relative;display:block}
+.bk-samples img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+.bk-samples .ph i{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.62);color:#fff;font-style:normal;
+  font-size:11px;font-weight:700;padding:4px 8px;border-radius:999px;letter-spacing:.02em}
+.bk-samples .nm{display:block;padding:8px 10px 0;font-size:13px;font-weight:600;color:var(--ink)}
+.bk-samples .pr{display:block;padding:2px 10px 0;font-size:14px;font-weight:800;color:var(--accent-text,var(--accent))}
+/* кнопка покупки прижата к низу карточки: иначе в ряду они встают
+   на разной высоте из-за разной длины названий и плашек */
+.buy-slot{margin-top:auto}
 </style>
 </head>
 <body>
@@ -605,7 +684,7 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
     <span class="city"><svg class="i"><use href="#i-pin"/></svg>Москва</span>
     <nav class="nav" aria-label="Разделы">
       <a href="/catalog/" data-nav="catalog">Каталог</a>
-      <a href="/studio/" data-nav="studio">Собрать букет</a>
+      <a href="/catalog/" data-nav="catalog">Собрать букет</a>
       <a href="/delivery/" data-nav="delivery">Доставка</a>
     </nav>
     <div class="top-actions">
@@ -636,41 +715,6 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
         </ul>
       </div>
 
-      <div class="studio" id="studio" data-phase="choosing">
-        <div class="studio-bar"><span data-t="studio_bar">Не магазин, а <b>цветочный завод</b></span><span class="num" id="studioIdx">1 / 5</span></div>
-        <div class="chooser">
-          <h2 data-t="studio_title">Что скажут ваши цветы?</h2>
-          <div class="carousel" id="carousel" tabindex="0" role="listbox" aria-label="Выбор букета. Стрелки влево и вправо листают"></div>
-          <div class="c-meta" aria-live="polite"><div class="c-name" id="cName"></div><div class="c-price num" id="cPrice"></div></div>
-          <div class="dots" id="dots"></div>
-          <button class="btn btn-primary btn-wide" id="assemble"><span style="display:flex;gap:10px;align-items:center"><svg class="i"><use href="#i-spark"/></svg>Собрать мой букет</span><svg class="i"><use href="#i-arrow"/></svg></button>
-        </div>
-        <button class="c-arrow prev" id="prev" aria-label="Предыдущий букет"><svg class="i"><use href="#i-chev-l"/></svg></button>
-        <button class="c-arrow next" id="next" aria-label="Следующий букет"><svg class="i"><use href="#i-chev-r"/></svg></button>
-        <div class="scene" id="scene" aria-live="polite">
-          <div class="scene-head"><p class="eyebrow" id="sEyebrow">Немного цветочной магии</p><h3 id="sName"></h3><p id="sMood"></p></div>
-          <div class="floor"></div>
-          <img class="bouquet" id="sImg" alt="">
-          <div id="petals"></div>
-          <button class="heart-round" id="sFav" aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
-          <div class="steps"><div class="steps-bar"><span></span><span></span><span></span></div><div class="steps-text" id="stepText">Выбираем самые красивые</div></div>
-          <div class="ready">
-            <div class="ready-note"><svg class="i"><use href="#i-check"/></svg><span data-t="ready_note">Тот самый букет. Для того самого человека.</span></div>
-            <button class="btn btn-primary btn-wide" id="choose"><span>Выбрать букет</span><svg class="i"><use href="#i-arrow"/></svg></button>
-            <div class="ready-row">
-              <button class="btn btn-ghost btn-sm" id="other"><svg class="i"><use href="#i-left"/></svg>Другой букет</button>
-              <button class="btn btn-ghost btn-sm" id="again"><svg class="i"><use href="#i-redo"/></svg>Ещё раз</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="wrap">
-      <div class="perks">
-        <div class="perk"><span class="ic"><svg class="i"><use href="#i-camera"/></svg></span><div><b data-t="perkA_t">Фото перед доставкой</b><span data-t="perkA_d">Вы видите букет до того, как его увидят</span></div></div>
-        <div class="perk"><span class="ic"><svg class="i"><use href="#i-truck"/></svg></span><div><b data-t="perkB_t">Доставка по Москве</b><span data-t="perkB_d">В удобный вам интервал</span></div></div>
-        <div class="perk"><span class="ic"><svg class="i"><use href="#i-gift"/></svg></span><div><b data-t="perkC_t">Открытка с вашим текстом</b><span data-t="perkC_d">Напишем от руки и вложим в букет</span></div></div>
-      </div>
     </div>
   </section>
 
@@ -710,6 +754,39 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 </div>
 
 <!-- ============ КАБИНЕТ ============ -->
+<div id="viewBasket" hidden>
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Корзина цветов</span></nav>
+    <h1 class="h1">Соберите корзину</h1>
+    <p class="lede" id="bkLead">Выберите цветы и количество — корзина подберётся сама.</p>
+    <div id="bkSamples" class="bk-samples" hidden></div>
+    <div class="bk-steps" id="bkSteps">
+      <button type="button" data-step="1"><i>1</i> Цветы</button>
+      <button type="button" data-step="2"><i>2</i> Сколько</button>
+      <button type="button" data-step="3"><i>3</i> Сорта</button>
+    </div>
+    <div class="bk-card" data-s="1">
+      <h2 class="bk-h">Какие цветы</h2>
+      <div class="bk-chips" id="bkCats"></div>
+    </div>
+    <div class="bk-card" data-s="2" hidden>
+      <h2 class="bk-h">Сколько</h2>
+      <div class="bk-qty num" id="bkQty">—</div>
+      <input type="range" id="bkRange" class="bk-range" min="0" max="1" step="1" value="0" aria-label="Количество цветов">
+      <div class="bk-ticks" id="bkTicks"></div>
+      <div class="bk-base" id="bkBase"></div>
+      <div id="bkFill"></div>
+    </div>
+    <div class="bk-card" data-s="3" hidden>
+      <h2 class="bk-h">Сорта</h2>
+      <div id="bkSlots"></div>
+      <button class="bk-add" id="bkAdd" type="button">Выбрать сорт</button>
+      <p class="hint" style="margin:8px 0 0">В одной корзине до трёх сортов, и только одного вида.</p>
+    </div>
+    <div class="bk-total" id="bkTotal"></div>
+  </div>
+</div>
+
 <div id="viewDelivery" hidden>
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Доставка</span></nav>
@@ -765,6 +842,7 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
         <div id="pdQtyWrap"><p class="label">Количество</p><div class="qty"><button id="pdMinus" aria-label="Меньше"><svg class="i"><use href="#i-minus"/></svg></button><span class="num" id="pdQty">1</span><button id="pdPlus" aria-label="Больше"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
         <div class="pd-buy">
           <button class="btn btn-primary" id="pdAdd">В корзину · <span class="num" id="pdTotal"></span></button>
+          <button class="btn btn-ghost" id="pdBasket" hidden>Собрать корзину</button>
           <button class="icon-btn" id="pdFav" aria-pressed="false" aria-label="В избранное"><svg class="i"><use href="#i-heart"/></svg></button>
         </div>
         <div class="pd-notes"><span><svg class="i"><use href="#i-camera"/></svg>Фото перед доставкой</span><span><svg class="i"><use href="#i-check"/></svg>Гарантия свежести</span><span><svg class="i"><use href="#i-truck"/></svg>Доставка по Москве</span></div>
@@ -785,7 +863,7 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 <footer class="foot">
   <div class="wrap">
     <a class="logo" id="logoFoot" href="/">venikoff<span class="dot"></span><i>net</i></a>
-    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/studio/">Собрать букет</a><a href="/delivery/">Доставка</a><a href="/policy/">Персональные данные</a></nav>
+    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/catalog/">Собрать букет</a><a href="/delivery/">Доставка</a><a href="/policy/">Персональные данные</a></nav>
     <div class="contacts">
       <span class="lbl">Связаться с нами</span>
       <a class="btn btn-ghost btn-sm" id="footTg" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
@@ -808,6 +886,14 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
    (MAX, Телеграм) один запрос легко срывается. Важно различать два случая:
    «мы на статичной копии» и «запрос не прошёл» — раньше оба давали пустой каталог,
    и покупателю на рабочем сайте писали «это копия сайта, заказать нельзя». */
+// Настройки конструктора корзин: основы, примеры, цены за стебель, места и
+// отметки по категориям. Отдельным запросом, чтобы каталог не ждал: без них
+// сайт работает как раньше, просто без кнопки «Собрать корзину».
+window.SHOP_BASKETS = (async () => {
+  if (location.hostname.endsWith('github.io')) return null;
+  try { const r = await fetch('/api/shop/basket-setup'); if (r.ok) return await r.json(); } catch (_) {}
+  return null;
+})();
 window.SHOP = (async () => {
   if (location.hostname.endsWith('github.io')) { window.SHOP_COPY = 1; return null; }
   for (let i = 0; i < 3; i++) {
@@ -820,7 +906,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1791436434"></script>
+<script src="/data.js?v=1792498085"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -848,6 +934,7 @@ const $$ = s => [...document.querySelectorAll(s)];
    код и база у витрин общие, различается только оформление и набор товаров.
    Цвета подменяем через переменные — в вёрстке они уже везде, поэтому
    перекрашивается весь сайт разом, включая тёмную тему. */
+const BSET = (await window.SHOP_BASKETS) || null;
 const BRAND = (API && API.brand) || null;
 const SITE = (BRAND && BRAND.name) || 'venikoff.net';
 function applyBrand(b) {
@@ -935,6 +1022,41 @@ function applyBrand(b) {
 if (BRAND) applyBrand(BRAND);
 
 const P = window.PRODUCTS || [];
+// Тасовать ли карточки раз в час — решает выключатель в настройках магазина.
+// Запасная копия сайта (без сервера) порядок не меняет: там и статистики нет.
+const МЕШАТЬ = !!(API && API.mix);
+// ТАСОВКА РАЗ В ЧАС. Первые карточки собирают кратно больше кликов просто
+// потому, что они первые, — и при постоянном порядке одни и те же сорта всегда
+// наверху. Раз в час порядок меняется, и за день каждый успевает побывать в
+// хороших местах. Наличие при этом не трогаем: сверху всё равно то, что можно
+// купить сегодня, тасуем только ВНУТРИ групп.
+//
+// Семя — московский час, одинаковое для всех: иначе порядок прыгал бы при
+// каждой перерисовке списка, и покупатель терял бы карточку, на которую метил.
+const часМСК = () => new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 13);
+function датчик(семя) {
+  let a = 0;
+  const s = String(семя);
+  for (let i = 0; i < s.length; i++) a = (Math.imul(a, 31) + s.charCodeAt(i)) >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+// Тасуем ДО сортировки по наличию: сортировка устойчивая, поэтому внутри
+// каждой группы останется перемешанный порядок, а сами группы — на местах.
+function тасовать(список, ключ) {
+  if (!МЕШАТЬ || список.length < 3) return список;
+  const r = датчик(часМСК() + '|' + ключ), out = список.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = (r() * (i + 1)) | 0;
+    const t2 = out[i]; out[i] = out[j]; out[j] = t2;
+  }
+  return out;
+}
+
 /* одноголовые розы: цена по прайсу «длина × количество» */
 const RP = window.ROSE_PRICES || {}, COUNTS = [25, 51, 101];
 P.forEach(p => {
@@ -1039,9 +1161,15 @@ const sel = {};   // product id -> chosen label
 // её: покупателю надо показать то, что можно забрать сегодня, а не ожидание.
 const свободен = v => v && !v.out && !v.wait_at;
 const defLabel = p => {
-  const было = p.def_label ? p.def_label : p.lengths
+  // Карточка без размеров вообще: такое бывает, когда у ростовки нет цен в
+  // прайсе. Раньше здесь читали .label у undefined и падали.
+  if (!p.variants || !p.variants.length) return '';
+  const задумано = p.def_label ? p.def_label : p.lengths
     ? ((p.variants.find(v => v.len === p.lengths[0] && v.cnt === 51) || p.variants.find(v => v.len === p.lengths[0]) || p.variants[0]).label)
     : (p.variants.find(v => !v.est) || p.variants[0]).label;
+  // def_label приходит из прайса и может указывать на размер, которого в
+  // карточке уже нет (ростовку сняли). Тогда берём первый существующий.
+  const было = variant(p, задумано) ? задумано : p.variants[0].label;
   if (свободен(variant(p, было))) return было;
   const есть = p.variants.filter(свободен);
   if (!есть.length) return было;
@@ -1049,7 +1177,19 @@ const defLabel = p => {
   const v0 = variant(p, было) || {};
   return (есть.find(v => v.cnt === v0.cnt) || есть[0]).label;
 };
-const curLabel = p => p.variants ? (sel[p.id] || defLabel(p)) : '';
+// ВОТ ИЗ-ЗА ЧЕГО САЙТ ПАДАЛ У ПОКУПАТЕЛЕЙ (236 раз за 14.10).
+// `sel` помнит размер, который человек выбрал. Размер может исчезнуть: ростовку
+// сняли с карточки (Черри 60 снимали и возвращали, Тане и Барбадосу добавляли),
+// сорт переехал на другой прайс, количество пропало. Тогда `variant()` не
+// находил ничего, а `sizesHTML` сразу читал `v.len` — и вся карточка падала
+// вместе с каталогом. Мёртвый выбор забываем и берём размер по умолчанию.
+const curLabel = (p) => {
+  if (!p.variants || !p.variants.length) return '';
+  const выбран = sel[p.id];
+  if (выбран && p.variants.some((v) => v.label === выбран)) return выбран;
+  if (выбран) delete sel[p.id];
+  return defLabel(p);
+};
 const variant = (p, label) => p.variants && p.variants.find(v => v.label === label);
 const FLOWER = [[/роз/i, ['роза', 'розы', 'роз']], [/гортенз/i, ['гортензия', 'гортензии', 'гортензий']],
   [/тюльпан/i, ['тюльпан', 'тюльпана', 'тюльпанов']], [/пион/i, ['пион', 'пиона', 'пионов']],
@@ -1058,9 +1198,13 @@ const FLOWER = [[/роз/i, ['роза', 'розы', 'роз']], [/гортен�
 // сколько цветов на фото — подпись поверх снимка.
 // Число берём у самого снимка (поле «шт на фото» в админке), а НЕ из выбранного размера:
 // на фото с 25 розами не должно быть написано «101 роза». Не проставлено — подписи нет.
-function countText(p, label) {
+// `снимок` — когда подпись нужна не для выбранного размера, а для конкретной
+// фотографии: в полоске под фото листают снимки, и подпись обязана меняться
+// вместе с картинкой. Без этого у французских роз на всех трёх снимках висело
+// «25 роз» — столько на том, с которого карточка открывается.
+function countText(p, label, снимок) {
   const v = variant(p, label);
-  const f = photoFor(p, label);
+  const f = снимок !== undefined ? снимок : photoFor(p, label);
   // считаем по тому снимку, который показан: у размера свой (pcnt), подобранный
   // под размер (f.cnt) или главный снимок товара (p.cnt)
   const n = +(f ? f.cnt : (v && (v.img || v.photo)) ? v.pcnt : p.cnt) || 0;
@@ -1093,6 +1237,34 @@ const photoOf = (p, label) => {
   const f = photoFor(p, label);
   return f ? f.img : (p.img || img(p.id));
 };
+// Двойной снимок для экранов Retina. Там, где его нет (запасная копия сайта
+// берёт картинки из data.js), возвращаем пустоту — тогда srcset не пишем вовсе
+// и браузер просто берёт обычный, как раньше.
+const srcset2 = (x1, x2) => (x2 && x2 !== x1 ? ` srcset="${x1} 1x, ${x2} 2x"` : '');
+// ПОЧЕМУ НЕ «2x», А ШИРИНЫ. Запись «2x» смотрит только на плотность экрана, и
+// телефон с его Retina качал бы снимок 1120 ради карточки в 190 точек — втрое
+// больше трафика без всякой пользы. С ширинами и `sizes` браузер считает,
+// сколько пикселей ему НА САМОМ ДЕЛЕ нужно: телефон остаётся на 560, двойной
+// достаётся только большим экранам, где карточка крупная.
+// Доли в `sizes` слегка завышены: снимок обрезается под 4:5 (object-fit:cover),
+// то есть по ширине от него остаётся четыре пятых.
+const КАРТОЧКА_SIZES = '(max-width:680px) 47vw, (max-width:1020px) 42vw, (min-width:1240px) 350px, 32vw';
+const СТРАНИЦА_SIZES = '(max-width:880px) 92vw, 600px';
+const наборШирин = (x1, x2, w1, w2, sizes) =>
+  (x2 && x2 !== x1 ? ` srcset="${x1} ${w1}w, ${x2} ${w2}w" sizes="${sizes}"` : '');
+const photoOf2 = (p, label) => {
+  const v = variant(p, label);
+  if (v && v.img) return v.img2 || '';
+  if (v && v.photo) return '';
+  const f = photoFor(p, label);
+  return f ? (f.img2 || '') : (p.img2 || '');
+};
+const photoBig2 = (p, label) => {
+  const v = variant(p, label);
+  if (v && v.big) return v.big2 || '';
+  const f = photoFor(p, label);
+  return (f && f.big2) || p.big2 || '';
+};
 // на странице товара фото во всю ширину — берём снимок покрупнее, если сервер его отдаёт
 const photoBig = (p, label) => {
   const v = variant(p, label);
@@ -1109,17 +1281,428 @@ function renderShots(p, label) {
   if (box.hidden) { box.innerHTML = ''; return; }
   const cur = photoBig(p, label);
   box.innerHTML = list.map((f, i) =>
-    `<button type="button" data-shot="${i}" aria-pressed="${f.big === cur}" aria-label="Снимок ${i + 1}"><img src="${f.thumb}" alt="" loading="lazy"></button>`).join('');
+    `<button type="button" data-shot="${i}" aria-pressed="${f.big === cur}" aria-label="Снимок ${i + 1}"><img src="${f.thumb}"${srcset2(f.thumb, f.thumb2)} alt="" loading="lazy"></button>`).join('');
   box.onclick = e => {
     const b = e.target.closest('[data-shot]'); if (!b) return;
     const f = list[+b.dataset.shot];
     $('#pdImg').src = f.big;
+    if (f.big2) { $('#pdImg').srcset = `${f.big} 1080w, ${f.big2} 1600w`; $('#pdImg').sizes = СТРАНИЦА_SIZES; }
+    else $('#pdImg').removeAttribute('srcset');
+    const ct = countText(p, label, f);
+    $('#pdCount').hidden = !ct; $('#pdCount').textContent = ct;
     $$('#pdShots button').forEach(x => x.setAttribute('aria-pressed', x === b));
   };
 }
 
+/* ---------- конструктор корзин ----------
+   Порядок как у покупателя в голове: какие цветы → сколько → какие сорта.
+   Вид выбираем первым, потому что смешивать нельзя и от вида зависит всё
+   остальное: отметки на бегунке, вместимость в «местах» и цена стебля. */
+let БК = { cat: '', всего: 0, слоты: [], шаг: 1 };
+const бкСорта = () => (P || []).filter(p => Array.isArray(p.basket) && p.basket.length && !p.off
+  && (p.variants || []).some(v => !v.out));
+const бкРазделы = () => {
+  const есть = new Set(бкСорта().map(p => p.cat));
+  return ((BSET && BSET.разделы) || []).filter(c => есть.has(c.slug));
+};
+const бкРаздел = () => разделПо(БК.cat) || (бкРазделы()[0] || null);
+// ростовки сорта, которые реально можно набрать: есть цена и есть остаток
+const бкРостовки = (p) => {
+  const вид = {};
+  (p.variants || []).forEach(v => {
+    const L = +v.len; if (!L || v.out) return;
+    if (!вид[L]) вид[L] = { len: L, цена: ценаСтебляКорзины(p, L, Math.max(1, БК.всего)) };
+  });
+  return Object.values(вид).filter(x => x.цена > 0).sort((a, b) => a.len - b.len);
+};
+const бкОсноваПод = (n) => {
+  const c = бкРаздел(); if (!c) return null;
+  const мест = n * (c.units || 1);
+  return ((BSET && BSET.основы) || []).filter(b => b.capacity >= мест).sort((a, b) => a.capacity - b.capacity)[0] || null;
+};
+const бкОснова = () => бкОсноваПод(БК.всего)
+  || ((BSET && BSET.основы) || []).slice().sort((a, b) => b.capacity - a.capacity)[0] || null;
+// «вмещает до 251 розы», «до 83 гортензий» — вид называем словом, а не
+// «цветком»: в корзине с гортензиями счёт идёт совсем другой.
+function бкСлово(n) {
+  const имя = String((бкРаздел() || {}).name || '').toLowerCase();
+  const пара = имя.indexOf('гортенз') >= 0 ? ['гортензии', 'гортензий']
+    : имя.indexOf('роз') >= 0 ? ['розы', 'роз'] : ['цветка', 'цветов'];
+  return (n % 10 === 1 && n % 100 !== 11) ? пара[0] : пара[1];
+}
+// самый дешёвый возможный набор выбранного вида в этом количестве + корзина
+function бкОткуда(n) {
+  const основа = бкОсноваПод(n);
+  let откуда = 0;
+  бкСорта().filter(p => p.cat === БК.cat).forEach(p => {
+    const цены = (p.variants || []).filter(v => +v.len && !v.out).map(v => ценаСтебляКорзины(p, +v.len, n)).filter(x => x > 0);
+    if (!цены.length) return;
+    const с = Math.round(Math.min.apply(null, цены) * n) + (основа ? основа.price : 0);
+    if (!откуда || с < откуда) откуда = с;
+  });
+  return откуда;
+}
+// до скольких цветов можно добрать, не меняя корзину: берём ближайшую
+// «красивую» отметку, которая ещё влезает в подобранную основу
+function бкДобор() {
+  const основа = бкОсноваПод(БК.всего); const c = бкРаздел();
+  if (!основа || !c) return 0;
+  const предел = Math.floor(основа.capacity / (c.units || 1));
+  const marks = (c.marks || []).filter(m => m <= предел && m > БК.всего);
+  return marks.length ? Math.max.apply(null, marks) : 0;
+}
+// «От» — самый дешёвый возможный набор: минимальное количество этого сорта
+// в самой дешёвой ростовке. Не то, что сейчас на бегунке: цена «от» должна
+// быть опорой, а не прыгать под рукой.
+function бкОт(p) {
+  const мин = Math.min.apply(null, (p.basket || []).map(x => +x.qty).filter(Boolean));
+  if (!isFinite(мин) || !мин) return '';
+  const цены = [];
+  (p.variants || []).forEach(v => { const L = +v.len; if (L && !v.out) цены.push(ценаСтебляКорзины(p, L, мин)); });
+  const за = Math.min.apply(null, цены.filter(x => x > 0));
+  if (!isFinite(за)) return '';
+  // цена с корзиной: без неё число меньше того, что человек увидит в итоге
+  const c = разделПо(p.cat) || { units: 1 };
+  const мест = мин * (c.units || 1);
+  const основа = ((BSET && BSET.основы) || []).filter(b => b.capacity >= мест).sort((a, b) => a.capacity - b.capacity)[0];
+  return `от ${rub(Math.round(за * мин) + (основа ? +основа.price || 0 : 0))} за ${мин} шт с корзиной`;
+}
+const бкНабрано = () => БК.слоты.reduce((n, s) => n + (+s.n || 0), 0);
+function бкНадбавка() {
+  const основа = бкОснова();
+  let dx = основа ? +основа.delivery_extra || 0 : 0;
+  БК.слоты.forEach(s => {
+    const p = byId[s.id]; if (!p || !Array.isArray(p.basket)) return;
+    const row = p.basket.filter(r => r.qty <= БК.всего).sort((a, b) => b.qty - a.qty)[0];
+    if (row && +row.dx > dx) dx = +row.dx;
+  });
+  return dx;
+}
+function бкРисоватьРазделы() {
+  const сп = бкРазделы();
+  if (!БК.cat && сп.length) БК.cat = сп[0].slug;
+  $('#bkCats').innerHTML = сп.map(c =>
+    `<button type="button" data-bkcat="${c.slug}" aria-pressed="${c.slug === БК.cat}">${esc(c.name)}</button>`).join('');
+}
+function бкРисоватьШкалу() {
+  const c = бкРаздел(); if (!c) return;
+  const marks = (c.marks || []).slice().sort((a, b) => a - b);
+  if (!marks.length) return;
+  if (!marks.includes(БК.всего)) БК.всего = marks[Math.min(2, marks.length - 1)];
+  const r = $('#bkRange');
+  r.min = 0; r.max = marks.length - 1; r.step = 1;
+  r.value = marks.indexOf(БК.всего);
+  $('#bkQty').textContent = `${БК.всего} шт`;
+  $('#bkTicks').innerHTML = marks.map(m => m === БК.всего ? `<b>${m}</b>` : `<span>${m}</span>`).join('');
+  const основа = бкОснова();
+  // «От» на этом шаге: самый дешёвый сорт выбранного вида в этом количестве
+  // плюс корзина. Человек видит, с чего начинается цена, ещё до выбора сорта.
+  const откуда = бкОткуда(БК.всего);
+  const вмещает = основа ? Math.floor(основа.capacity / (c.units || 1)) : 0;
+  $('#bkBase').innerHTML = основа
+    ? `${основа.img ? `<img src="${основа.img}" alt="">` : ''}<div><b>${esc(основа.name.replace('ЛФ-', ''))}</b>
+        <small>вмещает до ${вмещает} ${бкСлово(вмещает)} · корзина ${rub(основа.price)}</small></div>
+      ${откуда ? `<div class="от"><b>от ${rub(откуда)}</b><small>с корзиной</small></div>` : ''}`
+    : '<small>Подходящей корзины нет — выберите меньше цветов.</small>';
+  // Корзина почти всегда берётся с запасом: показываем, во сколько обойдётся
+  // наполнить её до края, чтобы это не приходилось считать самому.
+  const добор = бкДобор();
+  const разница = добор ? бкОткуда(добор) - откуда : 0;
+  $('#bkFill').innerHTML = добор && разница > 0
+    ? `<button type="button" class="bk-fill" data-bkfill="${добор}">Наполнить до ${добор} ${бкСлово(добор)} — <b>+${rub(разница)}</b></button>`
+    : '';
+}
+// Набранное всегда равно выбранному количеству: бегунок сорта делит корзину,
+// а не уменьшает её. Иначе получалось «набрано 251 из 501» и кнопка «Ещё 250»,
+// из которой непонятно, что делать.
+function бкРазложить(кроме) {
+  if (!БК.слоты.length) return;
+  if (БК.слоты.length === 1) { БК.слоты[0].n = БК.всего; return; }
+  let diff = БК.всего - бкНабрано();
+  for (let k = 0; k < БК.слоты.length && diff !== 0; k++) {
+    const i = (БК.слоты.length - 1 - k);
+    if (i === кроме) continue;
+    const было = +БК.слоты[i].n || 0;
+    const стало = Math.max(0, было + diff);
+    БК.слоты[i].n = стало; diff -= (стало - было);
+  }
+  if (diff !== 0 && кроме !== undefined) БК.слоты[кроме].n = Math.max(0, (+БК.слоты[кроме].n || 0) + diff);
+}
+function бкРисоватьСлоты() {
+  бкРазложить();
+  const один = БК.слоты.length === 1;
+  $('#bkSlots').innerHTML = БК.слоты.map((s, i) => {
+    const p = byId[s.id]; if (!p) return '';
+    const ростовки = бкРостовки(p);
+    const r = ростовки.find(x => x.len === s.len) || ростовки[0] || { len: s.len, цена: 0 };
+    return `<div class="bk-slot">
+      <div class="top">${p.img ? `<img src="${p.img}" alt="">` : ''}
+        <div class="nm"><b>${esc(p.name)}</b><small>${rub(Math.round(r.цена))} за стебель</small></div>
+        <button class="x" type="button" data-bkdel="${i}" aria-label="Убрать">✕</button></div>
+      <div class="bk-lens">${ростовки.map(x =>
+        `<button type="button" data-bklen="${i}:${x.len}" aria-pressed="${x.len === r.len}">${x.len} см</button>`).join('')}</div>
+      ${один ? `<div class="bk-srow"><div class="bk-sval one"><b>${s.n}</b><small>шт</small></div></div>`
+        : `<div class="bk-srow">
+        <input type="range" data-bkn="${i}" min="0" max="${БК.всего}" step="1" value="${s.n}">
+        <div class="bk-sval"><b>${s.n}</b><small>шт</small></div>
+      </div>`}
+    </div>`;
+  }).join('');
+  const b = $('#bkAdd');
+  b.disabled = БК.слоты.length >= 3;
+  b.textContent = БК.слоты.length >= 3 ? 'Больше трёх сортов в корзину не ставим'
+    : (БК.слоты.length ? '+ Добавить ещё сорт' : 'Выбрать сорт');
+}
+function бкПоказатьШаг() {
+  document.querySelectorAll('#viewBasket [data-s]').forEach(el => { el.hidden = +el.dataset.s !== БК.шаг; });
+  document.querySelectorAll('#bkSteps button').forEach(b => {
+    const n = +b.dataset.step;
+    b.setAttribute('aria-current', n === БК.шаг);
+    b.dataset.done = n < БК.шаг ? 'true' : 'false';
+  });
+}
+function бкПересчёт() {
+  бкРисоватьШкалу();
+  const набрано = бкНабрано();
+  const основа = бкОснова();
+  let цветы = 0;
+  БК.слоты.forEach(s => { const p = byId[s.id]; if (p) цветы += ценаСтебляКорзины(p, s.len, БК.всего) * (+s.n || 0); });
+  цветы = Math.round(цветы);
+  const итог = цветы + (основа ? основа.price : 0);
+  const готово = основа && набрано === БК.всего && набрано > 0;
+  // На первых шагах показывать сумму нельзя: цена пустой корзины — не цена
+  // корзины, владелец справедливо поймал меня на этом же на плитке.
+  let слева, кнопка, действие, примечание = '';
+  if (БК.шаг === 1) {
+    слева = `<b>${esc((бкРаздел() || {}).name || 'Выберите цветы')}</b><small>шаг 1 из 3</small>`;
+    кнопка = 'Дальше'; действие = 'next';
+  } else if (БК.шаг === 2) {
+    слева = `<b>${БК.всего} шт</b><small>${основа ? esc(основа.name.replace('ЛФ-Корзина ', 'корзина ')) : 'подбираем корзину'}</small>`;
+    кнопка = 'Выбрать цветы'; действие = 'next';
+  } else if (!БК.слоты.length) {
+    слева = `<b>${БК.всего} шт</b><small>выберите сорт — посчитаем цену</small>`;
+    кнопка = 'Выбрать сорт'; действие = 'pick';
+  } else {
+    // В строке итога — только цена и кнопка. Доплату за доставку выносим
+    // отдельной строкой и объясняем: такую корзину в руках не донести.
+    слева = `<b class="big">${rub(итог)}</b>`;
+    кнопка = 'В корзину'; действие = 'add';
+    if (бкНадбавка() > 0) примечание = `Стоимость доставки увеличится на ${rub(бкНадбавка())} — для такой корзины потребуются грузчики.`;
+  }
+  $('#bkTotal').innerHTML = `<div class="sum">${слева}</div>
+    <button class="btn btn-primary" id="bkGo" data-act="${действие}"${действие === 'add' && !готово ? ' disabled' : ''}>${кнопка}</button>
+    ${примечание ? `<div class="note">${примечание}</div>` : ''}`;
+  бкПоказатьШаг();
+}
+// Цена примера: считаем по тем же правилам, что и в конструкторе, —
+// количество × цена стебля самой дешёвой доступной ростовки + корзина,
+// которая под это количество подбирается. Иначе подпись под фото была бы
+// выдумкой, а не ценой.
+// Состав примера: сорт, ростовка и количество — до трёх сортов. На снимке
+// конкретная корзина, значит и состав конкретный: по самой дешёвой ростовке
+// цена расходилась с настоящей (501 Пинк Аваланж 60 см — 70 120 ₽, а не 60 100).
+const бкСоставПримера = (x) => {
+  const сп = (Array.isArray(x.parts) ? x.parts : []).filter(y => y && byId[y.id] && +y.n > 0);
+  if (сп.length) return сп.map(y => ({ id: y.id, len: +y.len || 0, n: +y.n || 0 }));
+  // старые примеры: один сорт, ростовка — самая дешёвая из доступных
+  const p = byId[x.product];
+  if (!p || !(+x.qty > 0)) return [];
+  const цены = (p.variants || []).filter(v => +v.len && !v.out)
+    .map(v => ({ len: +v.len, цена: ценаСтебляКорзины(p, +v.len, +x.qty) })).filter(y => y.цена > 0)
+    .sort((a, b) => a.цена - b.цена);
+  return цены.length ? [{ id: p.id, len: цены[0].len, n: +x.qty }] : [];
+};
+function бкЦенаПримера(x) {
+  const состав = бкСоставПримера(x);
+  if (!состав.length) return 0;
+  const всего = состав.reduce((n, y) => n + y.n, 0);
+  let цветы = 0;
+  for (let i = 0; i < состав.length; i++) {
+    const за = ценаСтебляКорзины(byId[состав[i].id], состав[i].len, всего);
+    if (!(за > 0)) return 0;
+    цветы += за * состав[i].n;
+  }
+  const c = разделПо((byId[состав[0].id] || {}).cat) || { units: 1 };
+  const мест = всего * (c.units || 1);
+  const основа = ((BSET && BSET.основы) || []).filter(b => b.capacity >= мест).sort((a, b) => a.capacity - b.capacity)[0];
+  return Math.round(цветы) + (основа ? +основа.price || 0 : 0);
+}
+function бкПримеры() {
+  const сп = ((BSET && BSET.примеры) || []).filter(x => x.img);
+  const box = $('#bkSamples');
+  box.hidden = !сп.length;
+  if (!сп.length) return;
+  box.innerHTML = `<div class="bk-samples-h">Примеры наших корзин — нажмите, чтобы повторить</div>`
+    + `<div class="bk-samples-row">` + сп.map(x => {
+    const состав = бкСоставПримера(x);
+    const цена = бкЦенаПримера(x);
+    const всего = состав.reduce((n, y) => n + y.n, 0) || +x.qty || 0;
+    const сам = (состав.length ? состав.map(y => (byId[y.id] || {}).name).filter(Boolean).join(' + ')
+      : ((byId[x.product] || {}).name || '')) + (всего ? ', ' + всего + ' шт' : '');
+    return `<button type="button" data-bksample="${x.id}">
+      <span class="ph"><img src="${x.img}" alt="" loading="lazy"><i>Пример</i></span>
+      <span class="nm">${esc(x.name || сам)}</span>
+      ${цена ? `<span class="pr num">${rub(цена)}</span>` : ''}</button>`;
+  }).join('') + `</div>`;
+}
+function renderBasketPage() {
+  if (!BSET || !((BSET.основы || []).length)) {
+    $('#bkLead').textContent = 'Конструктор корзин сейчас недоступен. Позвоните нам — соберём вручную.';
+    return;
+  }
+  бкРисоватьРазделы(); бкПримеры(); бкРисоватьСлоты(); бкПересчёт();
+}
+// выбор сорта: показываем только те, что того же вида
+function бкОткрытьВыбор() {
+  const c = бкРаздел(); if (!c) return;
+  const сп = бкСорта().filter(p => p.cat === c.slug && !БК.слоты.some(s => s.id === p.id) && бкРостовки(p).length);
+  if (!сп.length) return toast('Для этого вида сейчас нет сортов в наличии');
+  const d = document.createElement('dialog');
+  d.className = 'bk-pick';
+  d.innerHTML = `<div style="padding:16px;max-width:560px">
+    <h3 style="margin:0 0 10px">Выберите сорт</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;max-height:60vh;overflow:auto">
+      ${сп.map(p => `<button type="button" data-pick="${p.id}" style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:8px;text-align:left;cursor:pointer">
+        ${p.img ? `<img src="${p.img}" alt="" style="width:44px;height:44px;border-radius:9px;object-fit:cover">` : ''}
+        <span style="min-width:0"><b style="display:block;font-size:14px">${esc(p.name)}</b>
+        <small style="color:var(--ink-2);font-size:12px">${бкОт(p)} · ${бкРостовки(p).map(x => x.len + 'см').join(' · ')}</small></span></button>`).join('')}
+    </div>
+    <button class="btn btn-ghost btn-wide" type="button" data-pickclose style="margin-top:12px">Отмена</button>
+  </div>`;
+  document.body.appendChild(d);
+  d.showModal();
+  d.addEventListener('click', e => {
+    const b = e.target.closest('[data-pick]');
+    if (b) {
+      const p = byId[b.dataset.pick];
+      const r = бкРостовки(p)[0];
+      // делим поровну: пустой сорт в корзине — это не выбор, а недоделка
+      const доля = Math.floor(БК.всего / (БК.слоты.length + 1));
+      БК.слоты.forEach(s => { s.n = доля; });
+      БК.слоты.push({ id: p.id, len: r ? r.len : 0, n: БК.всего - доля * БК.слоты.length });
+      бкРисоватьСлоты(); бкПересчёт();
+    }
+    if (b || e.target.closest('[data-pickclose]')) { d.close(); d.remove(); }
+  });
+}
+document.addEventListener('click', e => {
+  const t2 = e.target;
+  const cat = t2.closest && t2.closest('[data-bkcat]');
+  if (cat) {
+    // другой вид — набор начинаем заново: сорта из прошлого вида сюда нельзя
+    БК.cat = cat.dataset.bkcat; БК.слоты = []; БК.всего = 0; БК.шаг = 2;
+    бкРисоватьРазделы(); бкРисоватьСлоты(); бкПересчёт(); return;
+  }
+  const del = t2.closest && t2.closest('[data-bkdel]');
+  if (del) { БК.слоты.splice(+del.dataset.bkdel, 1); бкРисоватьСлоты(); бкПересчёт(); return; }
+  const len = t2.closest && t2.closest('[data-bklen]');
+  if (len) { const [i, L] = len.dataset.bklen.split(':'); БК.слоты[+i].len = +L; бкРисоватьСлоты(); бкПересчёт(); return; }
+  const fill = t2.closest && t2.closest('[data-bkfill]');
+  if (fill) {
+    БК.всего = +fill.dataset.bkfill || БК.всего;
+    бкРисоватьСлоты(); бкПересчёт(); return;
+  }
+  const add = t2.closest && t2.closest('#bkAdd');
+  if (add) { бкОткрытьВыбор(); return; }
+  const smp = t2.closest && t2.closest('[data-bksample]');
+  if (smp) {
+    const x = ((BSET && BSET.примеры) || []).find(y => y.id === smp.dataset.bksample);
+    const состав = x ? бкСоставПримера(x) : [];
+    if (состав.length) {
+      БК.cat = (byId[состав[0].id] || {}).cat; БК.шаг = 3;
+      БК.всего = состав.reduce((n, y) => n + y.n, 0);
+      БК.слоты = состав.slice(0, 3).map(y => {
+        const ростовки = бкРостовки(byId[y.id]);
+        const r = ростовки.find(z => z.len === y.len) || ростовки[0];
+        return { id: y.id, len: r ? r.len : y.len, n: y.n };
+      });
+      бкРисоватьРазделы(); бкРисоватьСлоты(); бкПересчёт();
+    }
+    return;
+  }
+  const шаг = t2.closest && t2.closest('#bkSteps button');
+  if (шаг) { БК.шаг = +шаг.dataset.step; бкПересчёт(); return; }
+  const go = t2.closest && t2.closest('#bkGo');
+  if (go && !go.disabled && go.dataset.act === 'next') { БК.шаг = Math.min(3, БК.шаг + 1); бкПересчёт(); return; }
+  if (go && !go.disabled && go.dataset.act === 'pick') { бкОткрытьВыбор(); return; }
+  if (go && !go.disabled) {
+    const основа = бкОснова();
+    корзины.push({ basket: основа.id, cat: БК.cat, parts: БК.слоты.map(s => ({ id: s.id, len: s.len, n: s.n })) });
+    сохрКорзины(); badges(); openCart();
+    БК.слоты = []; бкРисоватьСлоты(); бкПересчёт();
+    toast('Корзина собрана и добавлена');
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'bkRange') {
+    const c = бкРаздел(); const marks = ((c && c.marks) || []).slice().sort((a, b) => a - b);
+    БК.всего = marks[+e.target.value] || marks[0];
+    // один сорт — тянется следом за общим количеством
+    if (БК.слоты.length === 1) БК.слоты[0].n = БК.всего;
+    бкРисоватьСлоты(); бкПересчёт();
+    return;
+  }
+  const sl = e.target.dataset && e.target.dataset.bkn;
+  if (sl !== undefined) {
+    const i = +sl;
+    БК.слоты[i].n = Math.min(БК.всего, Math.max(0, +e.target.value || 0));
+    бкРазложить(i);
+    // перерисовываем только числа: перерисовка разметки уронила бы бегунок из-под пальца
+    document.querySelectorAll('#bkSlots .bk-slot').forEach((el, k) => {
+      const v = el.querySelector('.bk-sval b'); if (v) v.textContent = БК.слоты[k] ? БК.слоты[k].n : 0;
+      const r = el.querySelector('input[data-bkn]');
+      if (r && k !== i && БК.слоты[k]) r.value = БК.слоты[k].n;
+    });
+    бкПересчёт();
+  }
+});
+
 /* ---------- cart: key = id or id|label ---------- */
 let cart = store.get('cart', {});
+/* ---------- собранные корзины ----------
+   Корзина — одна позиция в корзине сайта, но внутри у неё основа и до трёх
+   сортов. Обычный `cart` держит «ключ → количество» и такого не вмещает,
+   поэтому корзины живут рядом, своим списком.
+   Цену здесь считаем только чтобы показать: при оформлении сервер пересчитает
+   всё заново и к присланной сумме даже не притронется. */
+let корзины = store.get('baskets', []);
+const сохрКорзины = () => store.set('baskets', корзины);
+const основаПо = id => ((BSET && BSET.основы) || []).find(b => b.id === id) || null;
+const разделПо = slug => ((BSET && BSET.разделы) || []).find(c => c.slug === slug) || null;
+// цена стебля: свой прайс корзин по ступени количества, иначе набор 101 ÷ 101
+function ценаСтебляКорзины(p, len, всего) {
+  const гр = p && (p.pt || p.price_table);
+  const ст = (BSET && BSET.цены && BSET.цены[гр]) || null;
+  if (ст) {
+    const годные = Object.keys(ст).map(Number).filter(n => n > 0 && n <= всего).sort((a, b) => b - a);
+    for (const n of годные) {
+      const v = +(ст[String(n)] || {})[String(len)];
+      if (v > 0) return v;
+    }
+  }
+  const таблица = (API && API.price_tables || []).find(x => x.id === гр);
+  const строка = таблица && (таблица.prices || {})[String(len)];
+  if (!строка) return 0;
+  const ключ = строка['101'] !== undefined ? '101'
+    : Object.keys(строка).sort((a, b) => Math.abs(+a - 101) - Math.abs(+b - 101))[0];
+  return ключ ? +строка[ключ] / +ключ : 0;
+}
+function счётКорзины(к) {
+  const основа = основаПо(к.basket);
+  const стеблей = (к.parts || []).reduce((n, x) => n + (+x.n || 0), 0);
+  let цветы = 0;
+  (к.parts || []).forEach(x => {
+    const p = byId[x.id];
+    if (p) цветы += ценаСтебляКорзины(p, x.len, стеблей) * (+x.n || 0);
+  });
+  const сумма = Math.round(цветы) + (основа ? +основа.price || 0 : 0);
+  return { основа, стеблей, цветы: Math.round(цветы), сумма };
+}
+const имяКорзины = к => {
+  const c = счётКорзины(к);
+  const сорта = (к.parts || []).map(x => `${(byId[x.id] || {}).name || '?'} ${x.len}см ×${x.n}`).join(', ');
+  return `Корзина ${c.стеблей} шт: ${сорта}`;
+};
 let favs = new Set(store.get('favs', []));
 const parseKey = k => { const [id, label = ''] = k.split('|'); return { id, label }; };
 const cardKey = p => p.variants ? `${p.id}|${curLabel(p)}` : p.id;
@@ -1142,7 +1725,7 @@ function toggleFav(id) {
   favs.has(id) ? favs.delete(id) : favs.add(id);
   store.set('favs', [...favs]);
   $$(`[data-fav="${id}"]`).forEach(b => { const on = favs.has(id); b.setAttribute('aria-pressed', on); b.setAttribute('aria-label', on ? 'Убрать из избранного' : 'В избранное'); });
-  syncStudioFav(); badges();
+  badges();
   if (route.name === 'catalog') { renderChips(); if (state.favOnly) renderGrid(); }
 }
 function badges() {
@@ -1172,9 +1755,11 @@ function buyHTML(p) {
     : `<button class="buy num" data-inc="${k}">${icon('bag')}${rub(keyPrice(k))}</button>`;
 }
 function sizesHTML(p, cls = 'sizes') {
-  if (!p.variants) return '';
+  if (!p.variants || !p.variants.length) return '';
   if (p.lengths) {
-    const v = variant(p, curLabel(p));
+    // Подстраховка: даже если размер не нашёлся, рисуем от первого варианта,
+    // а не падаем на `v.len`.
+    const v = variant(p, curLabel(p)) || p.variants[0];
     // количества берём из самого товара: у роз это 25/51/101, у гортензий свои
     const counts = [...new Set(p.variants.filter(x => x.len === v.len).map(x => x.cnt))];
     const row = (label, items) => `<div class="${cls}" role="group" aria-label="${label}">${items}</div>`;
@@ -1196,18 +1781,46 @@ function sizesHTML(p, cls = 'sizes') {
   return `<div class="${cls}" role="group" aria-label="${/^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер букета'}">${p.variants.map(v =>
     `<button class="num${v.out ? ' gone' : ''}" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === cur}"${v.out ? ` title="${p.express ? 'Этот букет разобрали' : 'Закончились, ждём в следующую срезку'}"` : ''}>${esc(v.label)}</button>`).join('')}</div>`;
 }
-function card(p) {
+// `место` и `и` — откуда и какой по счёту показана карточка: «каталог#7».
+// Нужно, чтобы понимать, с каких ячеек на самом деле покупают: место на
+// экране решает не меньше, чем сам сорт, а до сих пор мы этого не видели.
+// Отметка места: с какой ячейки пошли в карточку (pos) и с какой положили
+// в корзину прямо из списка (poscart). Кладём в ту же ленту событий, что и
+// воронку, — отдельной таблицы ради этого заводить незачем.
+function местоСобытие(el, вид) {
+  try {
+    const c = el && el.closest && el.closest('.card[data-pos]');
+    if (c) window.шаг && window.шаг(вид, c.dataset.pos);
+  } catch (_) {}
+}
+// Карточка «Соберите корзину» в ряду товаров: человек, пришедший за корзиной,
+// сорт выбирать не начинает — ему нужна карточка с фотографией. Снимок берём
+// из примера, помеченного в админке «плиткой».
+function плиткаКорзины() {
+  if (!(BSET && BSET.плитка && (BSET.основы || []).length)) return '';
+  const x = BSET.плитка;
+  // Строение повторяет обычную карточку — та же пустая строка под фото, тот же
+  // заголовок и подпись. Иначе кнопка встаёт выше соседних, и ряд разъезжается.
+  return `<article class="card" data-basket-tile>
+    <a class="card-img" href="/korzina/" aria-label="Соберите корзину"><img src="${x.img}" alt="" loading="lazy" width="560" height="560"><span class="tag own">Корзина</span></a>
+    <div class="card-note fresh">🧺 <b class="wide">Корзины-гиганты по лучшим ценам</b><b class="slim">По лучшим ценам</b></div>
+    <h3><a href="/korzina/">Соберите корзину</a></h3>
+    <div class="sub">На любой вкус</div>
+    <div class="buy-slot"><a class="buy num" href="/korzina/">Собрать корзину</a></div>
+  </article>`;
+}
+function card(p, место, и) {
   const f = favs.has(p.id);
   // своя надпись на фото сильнее готовых меток: её пишут руками под конкретный повод
   const tag = p.badge_text ? `<span class="tag own">${esc(p.badge_text)}</span>`
     : p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
-  return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}">
-    <a class="card-img" href="${purl(p)}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}" alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
+  return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}"${место ? ` data-pos="${место}#${(+и || 0) + 1}"` : ''}>
+    <a class="card-img" href="${purl(p)}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}"${наборШирин(photoOf(p, curLabel(p)), photoOf2(p, curLabel(p)), 560, 1120, КАРТОЧКА_SIZES)} alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
     <div class="card-note${readyNow(p) ? ' express' : readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${
       readyNow(p) ? `⚡ Готов сейчас — ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)}` :
       readyShort(p) ? `🚚 ${esc(readyShort(p))}` :
-      p.fresh ? '🌿 <b class="wide">Этот сорт сегодня приехал к нам напрямую с теплицы</b><b class="slim">Сегодня с теплицы</b>' : ''}</div>
+      p.fresh ? `🌿 <b class="wide">Этот сорт сегодня приехал к нам напрямую ${откуда(p)}</b><b class="slim">Сегодня ${откуда(p)}</b>` : ''}</div>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
     <h3><a href="${purl(p)}">${esc(p.name)}</a></h3>
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : p.made ? `<div class="sub made" title="${esc(p.made)}">${esc(p.made)}</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
@@ -1225,21 +1838,29 @@ document.addEventListener('click', e => {
     $$(`.card[data-id="${p.id}"]`).forEach(el => el.outerHTML = card(p));
     if (route.name === 'product' && route.id === p.id) pdSync();
   }
+  else if (t.dataset.bskdel !== undefined) { корзины.splice(+t.dataset.bskdel, 1); сохрКорзины(); renderCart(); badges(); }
   else if (t.dataset.fav) toggleFav(t.dataset.fav);
-  else if (t.dataset.inc && !t.closest('dialog')) addToCart(t.dataset.inc, 1);
+  else if (t.closest('.card[data-pos] a')) местоСобытие(t, 'pos');
+  else if (t.dataset.inc && !t.closest('dialog')) { местоСобытие(t, 'poscart'); addToCart(t.dataset.inc, 1); }
   else if (t.dataset.dec && !t.closest('dialog')) setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1);
 });
 
 // Отбор в каталоге. Объявлен здесь, а не в разделе каталога ниже: «Популярные»
 // на главной сортируются по наличию и читают его при загрузке страницы.
 // Объявление ниже по файлу роняло главную — const до инициализации не прочитать.
+// Откуда едет товар. Эквадор, гортензии, французские и кенийские розы идут не
+// из подмосковной теплицы, а с плантации — владелец просил не путать покупателя
+// (12.10.2026). Остальное по-прежнему «с теплицы».
+const ПЛАНТАЦИЯ = ['hydrangea', 'french', 'ecuador-premium', 'kenya'];
+const откуда = (p) => (p && ПЛАНТАЦИЯ.indexOf(p.cat) >= 0 ? 'с плантации' : 'с теплицы');
+
 const state = { cat: 'all', q: '', sort: 'pop', favOnly: false, len: 0, cnt: 0 };
 
 /* ---------- home ---------- */
 // В «Популярные» попадают все букеты, кроме открыток и игрушек, — галочку
 // у нового товара ставить не нужно, он появляется здесь сам.
 // на главной только то, что можно купить: погасшие сорта живут в каталоге
-const POPULAR = API ? P.filter(p => !isAddon(p) && !p.off)
+const POPULAR = API ? тасовать(P.filter(p => !isAddon(p) && !p.off), 'главная')
   .slice().sort((a, b) => {
     // Сначала наличие: кончившиеся сорта уходят вниз. На главной они стояли
     // вперемешку, и третьей карточкой на сайте была та, которой нет.
@@ -1249,7 +1870,7 @@ const POPULAR = API ? P.filter(p => !isAddon(p) && !p.off)
     return ((b.express && b.ready) ? 1 : 0) - ((a.express && a.ready) ? 1 : 0);
   })
   .map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
-$('#popular').innerHTML = POPULAR.map(id => card(byId[id])).join('');
+$('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => card(byId[id], 'главная', i)).join('');
 const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
   const pic = (!API && TILE_IMG[k]) || (P.find(p => p.cat === k && !p.off) || P.find(p => p.cat === k) || {}).id;
@@ -1396,6 +2017,9 @@ function list() {
       return true;
     });
   }
+  // Тасуем только обычный порядок: когда человек попросил «дешевле» или
+  // «дороже», перемешивать нельзя — он просил конкретное.
+  if (state.sort !== 'asc' && state.sort !== 'desc') r = тасовать(r, 'каталог|' + (state.cat || 'all'));
   if (state.sort === 'asc') r = [...r].sort((a, b) => a.price - b.price);
   if (state.sort === 'desc') r = [...r].sort((a, b) => b.price - a.price);
   // Наличие важнее всего остального: сначала то, что можно забрать сегодня,
@@ -1419,7 +2043,7 @@ function renderGrid() {
   }
   $('#count').textContent = подпись;
   const размерВыбран = !!(state.len || state.cnt);
-  $('#grid').innerHTML = r.length ? r.map(card).join('') :
+  $('#grid').innerHTML = r.length ? (state.favOnly || state.q ? '' : плиткаКорзины()) + r.map((p, i) => card(p, 'каталог', i)).join('') :
     `<div class="empty"><b>${state.favOnly ? 'В избранном пока пусто' : размерВыбран ? 'В этом размере сейчас ничего нет' : 'Ничего не нашлось'}</b>${
       state.favOnly ? 'Отмечайте букеты сердечком — они соберутся здесь.'
       : размерВыбран ? 'Попробуйте другую длину или количество — или позвоните нам, подберём замену.'
@@ -1442,6 +2066,9 @@ function pdSync() {
   $('#pdTotal').textContent = rub(keyPrice(k) * pd.qty);
   $('#pdQty').textContent = pd.qty;
   $('#pdImg').src = photoBig(p, label);
+  const б2 = photoBig2(p, label);
+  if (б2) { $('#pdImg').srcset = `${photoBig(p, label)} 1080w, ${б2} 1600w`; $('#pdImg').sizes = СТРАНИЦА_SIZES; }
+  else $('#pdImg').removeAttribute('srcset');
   renderShots(p, label);
 
   const ct = countText(p, label);
@@ -1459,12 +2086,15 @@ function showProduct(id) {
   document.title = `${p.name} — ${SITE}`;
   $('#pdCrumb').textContent = p.name;
   $('#pdImg').alt = p.name;
+  // кнопка конструктора — только у сортов, которым заданы корзины
+  { const кн = $('#pdBasket'); if (кн) кн.hidden = !(Array.isArray(p.basket) && p.basket.length && BSET && (BSET.основы || []).length); }
   $('#pdTag').hidden = !(p.sale || p.author); $('#pdTag').textContent = p.sale ? 'Акция' : 'Авторский'; $('#pdTag').className = 'tag' + (p.sale ? '' : ' author');
   $('#pdCat').textContent = catName[p.cat];
   $('#pdName').textContent = p.name;
   try { window.ev && window.ev('view', p.name); } catch (_) {}
   $('#pdOnly').hidden = !p.site_only;
   $('#pdFresh').hidden = !p.fresh;
+  $('#pdFresh').innerHTML = `<b>🌿 Этот сорт сегодня приехал к нам напрямую ${откуда(p)}</b>`;
   $('#pdExpress').hidden = !readyNow(p);
   if (readyNow(p)) $('#pdExpress').innerHTML = `<b>⚡ Готов сейчас</b> — букет уже собран, ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)} шт. Везём без времени на сборку.`;
   $('#pdCat').textContent = p.badge_text || catName[p.cat] || '';
@@ -1483,12 +2113,21 @@ function showProduct(id) {
     $('#addons').innerHTML = pick.map(a => `<div class="addon" data-id="${a.id}"><a class="ph" href="${purl(a)}"><img src="${a.img || img(a.id)}" alt="" loading="lazy"></a><h4>${esc(a.name)}</h4><div class="buy-slot">${buyHTML(a)}</div></div>`).join('');
   }
   const sim = P.filter(x => x.cat === p.cat && x.id !== id).slice(0, 4);
-  $('#similar').innerHTML = sim.map(card).join('');
+  $('#similar').innerHTML = sim.map((p, i) => card(p, 'похожие', i)).join('');
   $('#simMore').href = '/catalog/' + p.cat + '/';
 }
 $('#pdMinus').onclick = () => { pd.qty = Math.max(1, pd.qty - 1); pdSync(); };
 $('#pdPlus').onclick = () => { pd.qty++; pdSync(); };
 $('#pdAdd').onclick = () => addToCart(cardKey(byId[pd.id]), pd.qty);
+// Корзину собирают из того же сорта: ведём в конструктор и подставляем его,
+// чтобы человек не искал сорт заново.
+$('#pdBasket').onclick = () => {
+  const p = byId[pd.id]; if (!p || !Array.isArray(p.basket) || !p.basket.length) return;
+  БК.cat = p.cat; БК.всего = (p.basket[0] || {}).qty || 0; БК.слоты = [];
+  const r = бкРостовки(p)[0];
+  БК.слоты.push({ id: p.id, len: r ? r.len : 0, n: БК.всего });
+  nav('/korzina/');
+};
 
 /* ---------- router ----------
    Настоящие адреса: /catalog/<раздел>/<товар>/. Раньше всё жило после «#»,
@@ -1514,7 +2153,7 @@ function изСтарогоАдреса() {
   else if (a === 'catalog') url = '/catalog/' + (b ? b + '/' : '') + q;
   else if (a === 'favorites') url = '/favorites/' + q;
   else if (a === 'order' && b) url = '/order/' + b + '/';
-  else if (a === 'me' || a === 'delivery' || a === 'studio') url = '/' + a + '/';
+  else if (a === 'me' || a === 'delivery' || a === 'korzina') url = '/' + a + '/';
   try { history.replaceState(null, '', url); } catch (_) {}
 }
 function router() {
@@ -1528,7 +2167,7 @@ function router() {
   const иск = пар.get('q') || '';
   if (иск !== state.q) { state.q = иск; const поле = $('#q'); if (поле) поле.value = иск; }
   const [a, b, c] = decodeURIComponent(location.pathname).split('/').filter(Boolean);
-  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery'), policy: $('#viewPolicy') };
+  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery'), policy: $('#viewPolicy'), basket: $('#viewBasket') };
   let name = 'home', scrollTo = null;
   if (a === 'policy') { name = 'policy'; document.title = `Персональные данные — ${SITE}`; renderPolicy(); }
   else if (a === 'delivery') { name = 'delivery'; document.title = `Доставка по Москве — ${SITE}`; renderDelivery(); }
@@ -1542,17 +2181,24 @@ function router() {
     if (location.pathname !== purl(p)) try { history.replaceState(null, '', purl(p) + location.search); } catch (_) {}
     name = 'product'; route = { name, id: p.id }; showProduct(p.id);
   }
-  else if (a === 'catalog' || a === 'favorites') {
+  // /studio/ остался в ссылках и закладках: карусели больше нет, ведём в каталог
+  else if (a === 'korzina') {
+    name = 'basket';
+    document.title = 'Соберите корзину — ' + SITE;
+    renderBasketPage();
+  }
+  else if (a === 'catalog' || a === 'favorites' || a === 'studio') {
     name = 'catalog';
-    state.favOnly = a === 'favorites'; state.cat = state.favOnly ? 'all' : (b && catName[b] ? b : 'all');
+    if (a === 'studio') { try { history.replaceState(null, '', '/catalog/' + location.search); } catch (_) {} }
+    state.favOnly = a === 'favorites'; state.cat = (state.favOnly || a === 'studio') ? 'all' : (b && catName[b] ? b : 'all');
     renderChips(); renderGrid();
     document.title = (state.favOnly ? 'Избранное' : state.cat === 'all' ? 'Каталог' : catName[state.cat]) + ' — ' + SITE;
   }
-  else { scrollTo = a === 'studio' ? '#studio-sec' : null; document.title = SITE; }
+  else { scrollTo = null; document.title = SITE; }
   if (name !== 'product') route = { name };
   Object.entries(views).forEach(([k, v]) => v.hidden = k !== name);
   $$('.nav a').forEach(l => l.toggleAttribute('aria-current', l.dataset.nav === (name === 'catalog' ? 'catalog' : a)));
-  if (name === 'home') layout();
+  // студию-карусель убрали 19.10.2026 (лежит в attic/), пересчитывать нечего
   if (scrollTo) requestAnimationFrame(() => $(scrollTo).scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }));
   else if (keepScroll) keepScroll = false; else scrollTo0();
 }
@@ -1969,121 +2615,6 @@ async function startLogin(how, waitSel, done) {
 }
 
 /* ---------- studio ---------- */
-const FEATURED = [
-  { id: 'sweet-avalanche', name: 'Свит Аваланж', mood: 'Нежность в каждом лепестке',   tint: '#E8A3B0', w: 640, h: 533 },
-  { id: 'abigail',         name: 'Абигейл',      mood: 'Ярко, как первое свидание',    tint: '#E0418A', w: 640, h: 481 },
-  { id: 'miss-piggy',      name: 'Мисс Пигги',   mood: 'Тёплый персиковый привет',     tint: '#F09A7A', w: 640, h: 494 },
-  { id: 'eltoro',          name: 'Эльторо',      mood: 'Красные розы. Всё понятно',    tint: '#C8102E', w: 640, h: 464 },
-  { id: 'peach-avalanche', name: 'Пич Аваланж',  mood: 'Мягкий свет персика',          tint: '#F2B98A', w: 640, h: 476 },
-  { id: '3177', name: 'Совершенство',     mood: 'Когда нужно сказать главное',  tint: '#9B2C3A', w: 720, h: 684 },
-  { id: '3153', name: 'Талея',            mood: 'Нежность без лишних слов',     tint: '#B9A77A', w: 720, h: 634 },
-  { id: '3146', name: 'Элегантность',     mood: 'Классика, которая не стареет', tint: '#A0414B', w: 684, h: 720 },
-  { id: '3156', name: 'Высокие чувства',  mood: '101 роза — и всё понятно',     tint: '#B24A6E', w: 703, h: 720 },
-  { id: '3068', name: 'Шарли',            mood: 'Яркий повод улыбнуться',       tint: '#C4577E', w: 624, h: 720 }
-];
-if (API) {
-  const fromApi = P.filter(p => p.featured).map(p => ({ id: p.id, name: p.name, mood: p.featured.mood, tint: p.featured.tint, cut: p.featured.cut, w: 640, h: 500 }));
-  if (fromApi.length) FEATURED.splice(0, FEATURED.length, ...fromApi);
-}
-const N = FEATURED.length;
-const studio = $('#studio'), carousel = $('#carousel'), scene = $('#scene');
-let pos = 0, drag = 0, spacing = 160;
-const wrapD = d => { d = ((d % N) + N) % N; return d > N / 2 ? d - N : d; };
-const current = () => ((Math.round(pos) % N) + N) % N;
-// первые три букета нужны сразу, остальные подгрузятся, пока листают
-carousel.innerHTML = FEATURED.map((f, i) => `<div class="c-item" role="option" data-i="${i}" aria-label="${f.name}"><img src="${f.cut || `/img/cut/${f.id}.png`}" alt="" draggable="false" ${i < 3 ? 'fetchpriority="high"' : 'loading="lazy"'} onload="this.dataset.w=this.naturalWidth;this.dataset.h=this.naturalHeight"></div>`).join('');
-$('#dots').innerHTML = FEATURED.map((f, i) => `<button data-i="${i}" aria-label="${f.name}"></button>`).join('');
-const items = [...carousel.children];
-function layout() {
-  spacing = Math.max(150, Math.min(215, (carousel.clientWidth || 360) * 0.4));   // соседи не наезжают на центральный букет
-  const p = pos - drag / spacing;
-  items.forEach((el, i) => {
-    const d = wrapD(i - p), a = Math.abs(d), c = Math.min(a, 1);
-    el.style.transform = `translateX(${d * spacing}px) translateY(${c * 14}px) scale(${1 - c * 0.3}) rotate(${Math.max(-2, Math.min(2, d)) * 9}deg)`;
-    el.style.opacity = a > 1.8 ? 0 : 1 - c * 0.62;
-    el.style.filter = `blur(${c * 1.2}px)`;
-    el.style.zIndex = 10 - Math.round(a * 2);
-    el.setAttribute('aria-selected', i === current());
-  });
-}
-function meta() {
-  const f = FEATURED[current()];
-  $('#cName').textContent = f.name; $('#cPrice').textContent = byId[f.id] ? `от ${rub(byId[f.id].price)}` : f.mood;
-  $('#studioIdx').textContent = `${current() + 1} / ${N}`;
-  $$('#dots button').forEach((b, i) => b.setAttribute('aria-current', i === current()));
-  studio.style.setProperty('--glow', f.tint + '22');
-}
-function goTo(to) { pos = to; drag = 0; layout(); meta(); }
-addEventListener('resize', layout);
-let sx = 0, lastX = 0, lastT = 0, vel = 0, moved = false, down = false;
-carousel.addEventListener('pointerdown', e => { down = true; moved = false; sx = lastX = e.clientX; lastT = performance.now(); vel = 0; carousel.setPointerCapture(e.pointerId); });
-carousel.addEventListener('pointermove', e => {
-  if (!down) return;
-  const dx = e.clientX - sx;
-  if (!moved && Math.abs(dx) > 6) { moved = true; carousel.classList.add('dragging'); }
-  if (!moved) return;
-  const t = performance.now(); vel = (e.clientX - lastX) / Math.max(1, t - lastT); lastX = e.clientX; lastT = t;
-  drag = dx; layout();
-});
-const release = e => {
-  if (!down) return; down = false; carousel.classList.remove('dragging');
-  if (!moved) { const el = e.target.closest('.c-item'); if (el) goTo(pos + Math.round(wrapD(+el.dataset.i - pos))); return; }
-  goTo(pos - Math.max(-2, Math.min(2, Math.round((drag + vel * 220) / spacing))));
-};
-carousel.addEventListener('pointerup', release);
-carousel.addEventListener('pointercancel', release);
-carousel.addEventListener('keydown', e => {
-  if (e.key === 'ArrowRight') { goTo(pos + 1); e.preventDefault(); }
-  if (e.key === 'ArrowLeft') { goTo(pos - 1); e.preventDefault(); }
-  if (e.key === 'Enter') assemble();
-});
-$('#prev').onclick = () => goTo(pos - 1);
-$('#next').onclick = () => goTo(pos + 1);
-$('#dots').onclick = e => { const b = e.target.closest('button'); if (b) goTo(pos + Math.round(wrapD(+b.dataset.i - pos))); };
-let timers = [];
-const later = (ms, fn) => timers.push(setTimeout(fn, reduce ? Math.min(ms, 120) : ms));
-const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
-const SPOTS = [[.35, .18], [.62, .25], [.48, .12], [.68, .15]];
-function flyPetals(f) {
-  const box = $('#petals'); box.innerHTML = ''; if (reduce) return;
-  const im = items[current()].querySelector('img'), fw = +im.dataset.w || f.w, fh = +im.dataset.h || f.h;
-  const bw = 72 / 0.2, bh = bw * fh / fw;
-  for (let i = 0; i < 8; i++) {
-    const [cx, cy] = SPOTS[i % 4], el = document.createElement('span'), s = 0.8 + (i % 3) * 0.18;
-    el.className = 'petal';
-    el.style.backgroundImage = `url(${f.cut || `/img/cut/${f.id}.png`})`;
-    el.style.backgroundSize = `${bw}px ${bh}px`;
-    el.style.backgroundPosition = `${-(cx * bw - 36)}px ${-(cy * bh - 36)}px`;
-    box.appendChild(el);
-    el.animate([
-      { transform: `translate(${(i % 2 ? 1 : -1) * (180 + i * 22)}px,${-360 - i * 30}px) rotate(${i * 67}deg) scale(${s})`, opacity: 1 },
-      { transform: `translate(${(i % 4 - 2) * 28}px,${(i % 3 - 1) * 26 - 40}px) rotate(${(i - 4) * 13}deg) scale(${s * .8})`, opacity: 0 }
-    ], { duration: 1500, delay: i * 95, easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'both' });
-  }
-}
-const STEPS = ['Выбираем самые красивые', 'Собираем с любовью', 'Последний штрих'];
-function setStep(n) { $('#stepText').textContent = STEPS[n]; $$('.steps-bar span').forEach((s, i) => s.classList.toggle('on', i <= n)); }
-function assemble() {
-  clearTimers();
-  const f = FEATURED[current()];
-  scene.classList.remove('revealed');
-  $('#sEyebrow').textContent = 'Немного цветочной магии';
-  $('#sName').textContent = f.name; $('#sMood').textContent = f.mood;
-  $('#sImg').src = f.cut || `/img/cut/${f.id}.png`; $('#sImg').alt = f.name;
-  syncStudioFav(); setStep(0);
-  studio.dataset.phase = 'assembling';
-  later(150, () => flyPetals(f));
-  later(700, () => scene.classList.add('revealed'));
-  later(1600, () => setStep(1));
-  later(2700, () => setStep(2));
-  later(3900, () => { studio.dataset.phase = 'ready'; $('#sEyebrow').textContent = 'Ваш маленький большой жест'; });
-}
-function resetStudio() { clearTimers(); studio.dataset.phase = 'choosing'; scene.classList.remove('revealed'); $('#petals').innerHTML = ''; }
-function syncStudioFav() { const on = favs.has(FEATURED[current()].id); $('#sFav').setAttribute('aria-pressed', on); $('#sFav').setAttribute('aria-label', on ? 'Убрать из избранного' : 'В избранное'); }
-$('#assemble').onclick = assemble; $('#again').onclick = assemble; $('#other').onclick = resetStudio;
-$('#sFav').onclick = () => toggleFav(FEATURED[current()].id);
-$('#choose').onclick = () => { const f = FEATURED[current()]; nav(byId[f.id] ? purl(byId[f.id]) : '/catalog/single/'); };
-meta();
 
 /* ---------- toast ---------- */
 let toastTimer;
@@ -2118,7 +2649,12 @@ function openCart() {
   проверитьКорзину().then(() => { if (cartDlg.open && view === 'list') renderCart(); });
 }
 $('#cartBtn').onclick = openCart;
-function totals() { return Object.entries(cart).reduce((t, [k, n]) => (t.sum += keyPrice(k) * n, t.bonus += keyBonus(k) * n, t.n += n, t), { sum: 0, bonus: 0, n: 0 }); }
+function totals() {
+  const t = Object.entries(cart).reduce((t, [k, n]) => (t.sum += keyPrice(k) * n, t.bonus += keyBonus(k) * n, t.n += n, t), { sum: 0, bonus: 0, n: 0 });
+  // собранные корзины считаются там же: для покупателя это такие же позиции
+  корзины.forEach(к => { t.sum += счётКорзины(к).сумма; t.n += 1; });
+  return t;
+}
 function renderCart() {
   const body = $('#cartBody'), foot = $('#cartFoot'), t = totals();
   if (view === 'list') {
@@ -2127,7 +2663,17 @@ function renderCart() {
       body.innerHTML = `<div class="cart-empty"><h3>Здесь пока пусто.</h3><p>Найдите букет, который скажет всё за вас.</p><button class="btn btn-primary" data-close data-go="/catalog/">Перейти в каталог</button></div>`;
       foot.hidden = true; return;
     }
-    body.innerHTML = Object.entries(cart).map(([k, n]) => {
+    const строкиКорзин = корзины.map((к, i) => {
+      const c = счётКорзины(к);
+      const фото = ((к.parts || [])[0] && byId[к.parts[0].id] && byId[к.parts[0].id].img) || '';
+      return `<div class="line"><img src="${фото}" alt="">
+        <div><div class="line-name">${esc((c.основа && c.основа.name || 'Корзина').replace('ЛФ-Корзина ', 'Корзина '))}, ${c.стеблей} шт</div>
+          <div class="line-price num">${rub(c.сумма)}</div>
+          <div class="hint" style="margin:2px 0 0;font-size:12.5px">${esc((к.parts || []).map(x => `${(byId[x.id] || {}).name || '?'} ${x.len}см ×${x.n}`).join(', '))}</div></div>
+        <div class="mini"><button data-bskdel="${i}" aria-label="Убрать">${icon('minus')}</button></div>
+      </div>`;
+    }).join('');
+    body.innerHTML = строкиКорзин + Object.entries(cart).map(([k, n]) => {
       const мало = нехватка[k];
       return `
       <div class="line${мало ? ' line-short' : ''}"><img src="${keyImg(k)}" alt="">
@@ -2526,7 +3072,7 @@ function readyNote(p) {
   if (!r) return '';
   const from = hhmm(readyStart(r, p.price || 0));
   const день = деньПривоза(r);
-  return `Цветы ещё едут с теплицы — будут у нас ${день} к ${r.text}. Доставим ${день === 'сегодня' ? '' : день + ' '}с ${from}.`;
+  return `Цветы ещё едут ${откуда(p)} — будут у нас ${день} к ${r.text}. Доставим ${день === 'сегодня' ? '' : день + ' '}с ${from}.`;
 }
 // Короткая версия для плашки на фото: длинная ломала бы высоту карточек.
 // Смотрим на ВЫБРАННЫЙ размер: 60 см в холодильнике — молчим, переключились
@@ -2536,7 +3082,7 @@ function readyShort(p) {
   const r = readyPick(p);
   if (!r) return '';
   const день = деньПривоза(r);
-  return `В пути с теплицы — доставим ${день === 'сегодня' ? '' : день + ' '}с ${hhmm(readyStart(r, p.price || 0))}`;
+  return `В пути ${откуда(p)} — доставим ${день === 'сегодня' ? '' : день + ' '}с ${hhmm(readyStart(r, p.price || 0))}`;
 }
 // когда по такому товару возможна ближайшая доставка: приедет + сборка, кратно шагу
 function readyStart(r, sum) {
@@ -2562,7 +3108,7 @@ function fillIntervals() {
     const rd = cartReady();
     note.hidden = !list.length || (!today && !rd);
     note.textContent = !list.length ? ''
-      : rd ? `Цветы в заказе едут с теплицы — будут у нас ${деньПривоза(rd)} к ${rd.text}, поэтому везём с ${list[0].slice(0, 5)}.`
+      : rd ? `Цветы в заказе ещё в пути — будут у нас ${деньПривоза(rd)} к ${rd.text}, поэтому везём с ${list[0].slice(0, 5)}.`
       : today ? (loadExtra() > 0
           ? `Сегодня много заказов, собираем дольше обычного — поэтому везём с ${list[0].slice(0, 5)}.`
           : `Букет собираем ${prepMin(sum)} минут, поэтому сегодня везём с ${list[0].slice(0, 5)}.`)
@@ -2786,7 +3332,11 @@ cartDlg.addEventListener('submit', async e => {
         source: store.get('src', ''), vid: store.get('vid', ''),
         // согласия: обработка обязательна, рассылка — как решил покупатель
         consent: !!(($('#fPd') || {}).checked), ads: !!(($('#fAds') || {}).checked),
-        items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; }) }) });
+        // собранные корзины идут теми же позициями, но со своим составом:
+        // сервер разберёт их сам и пересчитает цену
+        items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; })
+          .concat(корзины.map(к => ({ kind: 'basket', basket: к.basket, qty: 1,
+            parts: (к.parts || []).map(x => ({ id: x.id, len: x.len, n: x.n })) }))) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         // Отказ не должен превращаться в долбёжку кнопкой: каждое нажатие тратит
@@ -2824,7 +3374,7 @@ cartDlg.addEventListener('submit', async e => {
         lastOrder.paid = res.paid;
         lastOrder.payError = res.error;
         if (res.paid) { try { await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: data.id }) }); } catch (_) {} }
-        cart = {}; store.set('cart', cart); badges();
+        cart = {}; store.set('cart', cart); корзины = []; сохрКорзины(); badges();
         $$('.buy-slot').forEach(el => { const id = el.closest('[data-id]').dataset.id; el.innerHTML = buyHTML(byId[id]); });
         view = 'done'; renderCart();
         if (!cartDlg.open) cartDlg.showModal();   // окно «Готово» с кнопкой «Открыть бота»
@@ -2834,7 +3384,7 @@ cartDlg.addEventListener('submit', async e => {
   } else {
     lastOrder = { name: v('name').trim(), sum: totals().sum, when };
   }
-  cart = {}; store.set('cart', cart); badges();
+  cart = {}; store.set('cart', cart); корзины = []; сохрКорзины(); badges();
   $$('.buy-slot').forEach(el => { const id = el.closest('[data-id]').dataset.id; el.innerHTML = buyHTML(byId[id]); });
   view = 'done'; renderCart();
 });

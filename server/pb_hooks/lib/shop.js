@@ -190,7 +190,8 @@ function catalog(app, brand) {
       // и количество из прайса затиралось количеством с фотографии: подпись
       // «19 роз» висела на карточке, проданной как 51 штука.
       const variants = variantsOf(p, s).map((v) => Object.assign({}, v,
-        v.photo ? { img: fileUrl(p, v.photo, "560x0"), big: fileUrl(p, v.photo, "1080x0"), pcnt: cntOf(v.photo) } : {}));
+        v.photo ? { img: fileUrl(p, v.photo, "560x0"), img2: fileUrl(p, v.photo, "1120x0"),
+          big: fileUrl(p, v.photo, "1080x0"), big2: fileUrl(p, v.photo, "1600x0"), pcnt: cntOf(v.photo) } : {}));
       const lengths = jget(p, "lengths");
       const cut = p.get("cutout");
       // Какой размер показывать сразу. Сначала тот, что совпадает с количеством
@@ -215,12 +216,33 @@ function catalog(app, brand) {
         // товар без цены (пустое поле в карточке) нельзя купить — сайт покажет его без кнопки
         no_price: variants.length ? undefined : (+p.get("price") > 0 ? undefined : true),
         bonus: p.get("bonus") || 0,
+        // Группа прайса: по ней конструктор корзин берёт цену за стебель.
+        // Без неё цена выходила нулевой и сорт «пропадал» из конструктора.
+        pt: p.get("price_table") || undefined,
+        // Корзины: какие количества этого сорта можно собрать и какая основа
+        // под каждое. Пусто — кнопки «Собрать корзину» у сорта не будет.
+        basket: (() => {
+          const сп = jget(p, "basket_counts");
+          if (!Array.isArray(сп) || !сп.length) return undefined;
+          return сп.filter((x) => x && +x.qty > 0 && x.basket)
+            .map((x) => ({ qty: +x.qty, basket: String(x.basket), dx: +x.delivery_extra || 0 }))
+            .sort((a, b) => a.qty - b.qty);
+        })(),
         img: photos.length ? fileUrl(p, photos[0], "560x0") : "",
         // на странице товара снимок во всю ширину — там нужен размер побольше, чем на карточке
         big: photos.length ? fileUrl(p, photos[0], "1080x0") : "",
+        // ЗАЧЕМ ВТОРАЯ ПАРА. На экране Retina карточка шириной 275 точек вёрстки
+        // занимает 550 настоящих, а снимок 560 после обрезки под 4:5 даёт только
+        // 448 — браузер растягивал его в 1,2 раза, и фото мылило. Телефон качает
+        // по-прежнему маленький: srcset отдаёт двойной только тем экранам, где он
+        // нужен, поэтому трафик у большинства покупателей не меняется.
+        img2: photos.length ? fileUrl(p, photos[0], "1120x0") : "",
+        big2: photos.length ? fileUrl(p, photos[0], "1600x0") : "",
         // все снимки товара: на странице товара их можно листать
         photos: photos.length > 1 ? photos.map((f) => ({
-          img: fileUrl(p, f, "560x0"), big: fileUrl(p, f, "1080x0"), thumb: fileUrl(p, f, "160x160"), cnt: cntOf(f),
+          img: fileUrl(p, f, "560x0"), img2: fileUrl(p, f, "1120x0"),
+          big: fileUrl(p, f, "1080x0"), big2: fileUrl(p, f, "1600x0"),
+          thumb: fileUrl(p, f, "160x160"), thumb2: fileUrl(p, f, "320x320"), cnt: cntOf(f),
         })) : undefined,
         cnt: photos.length ? cntOf(photos[0]) : undefined,
         variants: variants.length ? variants : undefined,
@@ -283,6 +305,9 @@ function catalog(app, brand) {
   return {
     categories: cats.map((c) => ({ slug: c.get("slug"), name: c.get("name"), addon: c.get("addon") })),
     products,
+    // Тасовать ли карточки раз в час (порядок внутри «есть сейчас» и прочих
+    // групп наличия). Решает владелец в настройках.
+    mix: !!s.get("shuffle_hourly"),
     price_tables: priceTables(s),
     // Сведения о продавце и данные для политики. Отдаём всем: закон требует
     // свободного доступа, прятать тут нечего. Банковский счёт не отдаём —
@@ -527,7 +552,19 @@ function prepareOrder(app, rec) {
   const items = [];
   const take = [];        // что списать с остатков, когда заказ пройдёт все проверки
   let sum = 0, bonus = 0;
+  let корзДоставка = 0;        // надбавка к доставке от собранных корзин
   raw.forEach((it) => {
+    // Собранная корзина — одна позиция заказа со своим составом. Считает её
+    // отдельный разбор: там своя цена за стебель, вместимость в «местах» и
+    // запрет смешивать виды цветов.
+    if (it && it.kind === "basket") {
+      const r = require(`${__hooks}/lib/basket.js`).разобрать(app, s, it);
+      items.push(r.item);
+      r.take.forEach((x) => take.push(x));
+      if (r.dx > корзДоставка) корзДоставка = r.dx;
+      sum += r.item.sum;
+      return;
+    }
     let p;
     try { p = app.findRecordById("products", String(it.id)); } catch (_) { fail("Один из букетов больше недоступен. Обновите страницу."); }
     if (!p.get("active")) fail(`«${p.get("name")}» сейчас недоступен.`);
@@ -668,6 +705,10 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   rec.set("status", "new");
   rec.set("items", items);
   rec.set("items_sum", sum);
+  // Надбавка за большую корзину: её везут иначе, чем букет. Прибавляем к уже
+  // посчитанной цене доставки, а не заменяем — расстояние никуда не делось.
+  // При самовывозе надбавки нет: нести будет сам покупатель.
+  if (корзДоставка > 0 && !pickup) delivery += корзДоставка;
   rec.set("delivery_price", delivery);
   rec.set("total", sum + delivery);
   rec.set("bonus", bonus);
@@ -804,6 +845,26 @@ function tgPhoto(token, chat, path, caption, keyboard) {
 function clientToken(s, brand) {
   return (brand && brand.get("tg_client_token")) || s.get("tg_client_token") || s.get("tg_token");
 }
+// Отмечаем, в чьём боте человек написал. Это единственный честный способ
+// узнать, кому витрина вправе слать рассылку: писать первым бот может только
+// тому, кто его запустил. Пишем запросом, мимо хуков, и только существующей
+// карточке — заводить покупателя ради метки незачем.
+function markBot(app, kind, chat, brand) {
+  const slug = brand && brand.get ? String(brand.get("slug") || "") : String(brand || "");
+  if (!chat || !slug) return;
+  const поле = kind === "max" ? "max_brands" : "tg_brands";
+  const где = kind === "max" ? "max_chat" : "tg_chat";
+  try {
+    app.db().newQuery(
+      `UPDATE customers SET ${поле} = CASE
+         WHEN ${поле} IS NULL OR ${поле} = '' THEN {:one}
+         WHEN instr(${поле}, {:one}) > 0 THEN ${поле}
+         ELSE ${поле} || {:tail} END
+       WHERE ${где} = {:chat}`)
+      .bind({ one: "," + slug + ",", tail: slug + ",", chat: String(chat) }).execute();
+  } catch (err) { console.log("markBot", err); }
+}
+
 // Витрина заказа: по ней и выбираем бота. В Телеграме номер собеседника у разных
 // ботов одинаковый (это номер человека), поэтому «каким ботом отвечать» можно
 // понять только из заказа, а не из номера.
@@ -940,5 +1001,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, stockOf, stockOk, incomingOf, availAt,
-  tg, tgPhoto, clientToken, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  tg, tgPhoto, clientToken, markBot, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

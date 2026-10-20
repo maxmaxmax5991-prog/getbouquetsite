@@ -148,6 +148,25 @@ function deliveryPage(brand) {
     `<h1>Доставка по Москве</h1><p>Введите адрес — сайт сразу покажет стоимость доставки. Перед отправкой присылаем фото букета.</p>`);
 }
 
+// Политика обработки персональных данных. Отдаём с сервера, а не только
+// браузером: 152-ФЗ требует держать её в свободном доступе, а до этой правки
+// прямой заход на /policy/ получал «Такой страницы нет» — отрисовка о таком
+// адресе не знала. Полный текст дорисовывает сайт из реквизитов в настройках,
+// здесь — заголовок и суть, чтобы страница была живой и без скриптов.
+function policyPage(ctx, brand) {
+  const name = brand ? brand.get("name") : "venikoff.net";
+  const org = (ctx.cat && ctx.cat.legal) || {};
+  const кто = org.name || org.short || "";
+  return page({ title: `Политика обработки персональных данных — ${name}`,
+      desc: `Как ${name} собирает, хранит и использует персональные данные покупателей.`,
+      path: "/policy/", crumbs: [["Политика обработки персональных данных", "/policy/"]] },
+    `<h1>Политика обработки персональных данных</h1>
+     ${кто ? `<p>Оператор: ${кто}${org.inn ? `, ИНН ${org.inn}` : ""}.</p>` : ""}
+     <p>Мы собираем имя, телефон и адрес доставки — ровно столько, сколько нужно, чтобы привезти букет.
+     Данные хранятся на сервере в России и не передаются третьим лицам, кроме курьера и платёжного сервиса.</p>
+     ${org.email ? `<p>Вопросы по персональным данным: ${org.email}</p>` : ""}`);
+}
+
 function head(meta, origin, brand) {
   const url = origin + (meta.path || "/");
   const name = brand ? brand.get("name") : "venikoff.net";
@@ -291,6 +310,13 @@ function serve(app, e) {
     if (p) return e.redirect(301, productUrl(p));
   }
   else if (parts[0] === "delivery" && parts.length === 1) out = deliveryPage(brand);
+  else if (parts[0] === "policy" && parts.length === 1) out = policyPage(ctx, brand);
+  else if (parts[0] === "korzina" && parts.length === 1) {
+    const name = brand ? brand.get("name") : "venikoff.net";
+    out = page({ title: "Соберите корзину — " + name,
+      desc: "Корзина цветов на заказ: выберите количество и сорта, корзина подберётся сама. Доставка по Москве.",
+      path }, "<h1>Соберите корзину</h1><p>Выберите цветы и количество — корзина подберётся сама.</p>");
+  }
   else if (["me", "favorites", "order", "studio"].indexOf(parts[0]) >= 0) {
     const name = brand ? brand.get("name") : "venikoff.net";
     out = page({ title: name, desc: "", path, noindex: true }, "");

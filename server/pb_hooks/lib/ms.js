@@ -483,15 +483,55 @@ function positionsFor(app, s, o) {
   for (const it of items) {
     itemsKop += Math.round(it.price * 100) * it.qty;
 
+    // СОБРАННАЯ КОРЗИНА. На сайте это одна позиция, а на складе — стебли
+    // каждого сорта по своей номенклатуре, сама корзина и оазисы. Иначе
+    // флорист не увидит, что собирать, а остатки не спишутся.
+    if (it.kind === "basket") {
+      const части = Array.isArray(it.parts) ? it.parts : [];
+      let основа = null;
+      try { основа = app.findRecordById("baskets", String(it.basket || "")); } catch (_) {}
+      части.forEach((ч) => {
+        const as = assortment(app, s, { id: ч.id, label: `${ч.len}-${ч.n}`, name: ч.name, price: ч.price });
+        if (!as.ok) throw new Error(as.error || `не нашёл номенклатуру для «${ч.name}»`);
+        const коп = Math.round((+ч.price || 0) * 100);
+        positions.push({ quantity: +ч.n || 0, price: коп, assortment: meta(as.type || "product", String(as.id)) });
+        posKop += коп * (+ч.n || 0);
+      });
+      if (основа && основа.get("ms_id")) {
+        const коп = Math.round((+основа.get("price") || 0) * 100);
+        positions.push({ quantity: 1, price: коп, assortment: meta("product", String(основа.get("ms_id"))) });
+        posKop += коп;
+      }
+      // Оазис уходит нулевой ценой: для покупателя он внутри цены корзины,
+      // а на складе должен списаться штуками.
+      const оазис = основа ? +основа.get("oasis_qty") || 0 : 0;
+      if (оазис > 0 && основа.get("oasis_id")) {
+        positions.push({ quantity: оазис, price: 0,
+          assortment: meta(основа.get("oasis_type") || "product", String(основа.get("oasis_id"))) });
+      }
+      continue;
+    }
+
     // Готовый букет: в складе списываем сами цветы по расписанному составу,
     // а не «1 штуку» — иначе остатки в МоёмСкладе не сходятся.
     let parts = null, prod = null;
     try { prod = app.findRecordById("products", String(it.id)); } catch (_) {}
-    if (prod && prod.get("is_express")) {
-      // у варианта может быть свой состав (9 и 11 стеблей — разные букеты)
+    if (prod) {
+      // Состав, заданный у САМОГО размера, слушаем всегда — не только у
+      // экспресса. Сборный букет M/L/XL живёт на витрине постоянно, экспрессом
+      // его называть незачем (у экспресса своё время сборки, 20 минут вместо
+      // 45), а состав у каждого размера свой и без него все три размера ушли бы
+      // в склад одной номенклатурой.
+      //
+      // А вот состав КАРТОЧКИ (ms_parts) по-прежнему только у экспресса: он
+      // остался заполненным у трёх живых товаров — красная Кения, Шамони 70см,
+      // Гортензия пинк, — и если начать его слушать, у них поменяется списание
+      // на складе без всякой просьбы. У красной Кении это сломало бы привязку
+      // к готовым букетам (ms_pick), которая работает правильно.
       const raw = shop.jget(prod, "variants");
       const vrow = (it.label && Array.isArray(raw)) ? raw.find((x) => x && x.label === it.label) : null;
-      const v = (vrow && Array.isArray(vrow.parts) && vrow.parts.length) ? vrow.parts : shop.jget(prod, "ms_parts");
+      const v = (vrow && Array.isArray(vrow.parts) && vrow.parts.length) ? vrow.parts
+        : (prod.get("is_express") ? shop.jget(prod, "ms_parts") : null);
       if (Array.isArray(v) && v.length) parts = v.filter((x) => x && x.id && +x.qty > 0);
     }
 
@@ -500,7 +540,11 @@ function positionsFor(app, s, o) {
       const perStem = Math.floor(Math.round(it.price * 100) * it.qty / Math.max(1, stemsTotal));
       parts.forEach((x) => {
         const q = (+x.qty || 0) * it.qty;
-        positions.push({ quantity: q, price: perStem, assortment: meta("product", String(x.id)) });
+        // ТИП ПОЗИЦИИ ОБЯЗАТЕЛЕН. Комплект нельзя положить в заказ как товар:
+        // ссылка на него другая, и склад отвечает «объект с типом product и
+        // таким идентификатором не найден». Так 19.10 встали заказы 5123 и
+        // 5127 с «Дофаминовым миксом» — он заведён комплектом (bundle).
+        positions.push({ quantity: q, price: perStem, assortment: meta(x.type || "product", String(x.id)) });
         posKop += perStem * q;
       });
       continue;
@@ -526,7 +570,7 @@ function positionsFor(app, s, o) {
         const заСтебель = Math.round(st0.price * 100);
         доли.forEach((x, i) => {
           if (!целые[i]) return;
-          positions.push({ quantity: целые[i], price: заСтебель, assortment: meta("product", String(x.id)) });
+          positions.push({ quantity: целые[i], price: заСтебель, assortment: meta(x.type || "product", String(x.id)) });
           posKop += заСтебель * целые[i];
         });
         continue;
@@ -730,6 +774,17 @@ function markPaid(app, o) {
 // в спокойное время — и починить до того, как кто-то купит.
 // Смотрим только непривязанные и незапомненные пары: остальные и так рабочие,
 // а лишние запросы упираются в ограничение склада.
+// «40-51» относится к длине 40; для товаров без ростовок (r.len === "0") такого
+// сопоставления нет — там ключ это сам размер.
+function k2(ключ, len) {
+  if (!len || len === "0") return false;
+  return String(ключ).indexOf(len + "-") === 0;
+}
+
+function значимыеСлова(имя, чисто, мусор) {
+  return чисто(имя).split(" ").filter((w) => w.length > 2 && мусор.indexOf(w) < 0);
+}
+
 function проверитьПривязки(app, предел) {
   const s = shop.settings(app);
   if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция с МоимСкладом выключена." };
@@ -739,6 +794,27 @@ function проверитьПривязки(app, предел) {
   const беда = [], проверено = [];
   let запросов = 0;
   const лимит = Math.max(1, Math.min(60, +предел || 40));
+
+  // Склад обрывает проверку на ограничении запросов — у нас это случалось уже
+  // после восьми сортов. Без памяти каждый следующий запуск начинал с тех же
+  // восьми, и хвост каталога не проверялся НИКОГДА. Поэтому удачно опознанное
+  // помним неделю и пропускаем: каждый запуск продвигается дальше.
+  // Табличка watchdog_state уже есть и ровно для такого учёта, миграция не нужна.
+  const свежесть = Date.now() - 7 * 24 * 3600 * 1000;
+  const ужеСмотрели = (ключ) => {
+    try {
+      const row = new DynamicModel({ value: "" });
+      app.db().newQuery("SELECT value FROM watchdog_state WHERE key = {:k}").bind({ k: ключ }).one(row);
+      return Date.parse(String(row.value || "")) > свежесть;
+    } catch (_) { return false; }
+  };
+  const запомнить = (ключ) => {
+    try {
+      const now = new Date().toISOString();
+      app.db().newQuery(`INSERT INTO watchdog_state (key, value, at) VALUES ({:k}, {:v}, {:v})
+        ON CONFLICT(key) DO UPDATE SET value = {:v}, at = {:v}`).bind({ k: ключ, v: now }).execute();
+    } catch (err) { console.log("привязки: не запомнил", err); }
+  };
 
   for (const p of товары) {
     // Микс и готовые букеты с расписанным составом в подборе не участвуют:
@@ -760,14 +836,42 @@ function проверитьПривязки(app, предел) {
     for (const r of размеры) {
       if (виделиДлину[r.len + "|" + (r.len === "0" ? r.label : "")]) continue;
       виделиДлину[r.len + "|" + (r.len === "0" ? r.label : "")] = 1;
-      if (pick[r.len] || pick[r.label] || ids[r.label]) continue;      // уже привязано или запомнено
+      // Привязка бывает заведена не на длину, а на размер: у кенийских роз это
+      // «40-25», «40-51», «40-101» — там продаётся готовый букет целиком, и
+      // ключом служит количество. Старая проверка смотрела только на `40` и
+      // синтетический «40-0», привязки не видела и каждый день ругалась бы на
+      // белую Кению, которая на самом деле привязана. Ложная тревога в такой
+      // проверке хуже отсутствия: именно из-за потока неправды 07.10 не прочли
+      // настоящее предупреждение.
+      const этаДлина = (к) => k2(к, r.len);
+      if (pick[r.len] || pick[r.label] || ids[r.label]
+        || Object.keys(pick).some(этаДлина) || Object.keys(ids).some(этаДлина)) continue;
+      const памятка = `bind:${p.id}:${r.len === "0" ? r.label : r.len}`;
+      if (ужеСмотрели(памятка)) continue;
       if (запросов >= лимит) return { ok: true, беда, проверено, ещё: true };
       запросов++;
       const m = matchProduct(s, Object.assign(
         { id: p.id, name: p.get("name"), label: r.label, price: p.get("price") || 0 },
         p.get("ms_name") ? { ms_name: String(p.get("ms_name")).trim() } : {}));
       const где = r.len !== "0" ? `${r.len} см` : r.label;
-      if (m.ok) { проверено.push(`${p.get("name")} ${где} → ${m.name}`); continue; }
+      if (m.ok) {
+        проверено.push(`${p.get("name")} ${где} → ${m.name}`);
+        // Сорт подменился? Все значимые слова нашего названия должны быть в
+        // складском. Так ловится молчаливая подмена: «Леди Бомбастик 50 см»
+        // уезжала как «Бомбастик 50 см» — другой сорт, и ни одной ошибки нигде.
+        const чисто = (x) => String(x || "").toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/g, " ").trim();
+        const мусор = ["роза", "розы", "роз", "куст", "кустовой", "кустовых", "букет", "премиум", "см", "шт"];
+        const своё = значимыеСлова(p.get("ms_name") || p.get("name"), чисто, мусор);
+        const склад = чисто(m.name);
+        const нет = своё.filter((w) => склад.indexOf(w) < 0);
+        if (нет.length) {
+          беда.push({ товар: p.get("name"), размер: где,
+            причина: `подбор даёт «${m.name}» — в названии нет: ${нет.join(", ")}. Это может быть другой сорт, заказ уедет не тем.` });
+          continue;
+        }
+        запомнить(памятка);
+        continue;
+      }
       // «Склад не ответил» — это не беда с сортом, а наша же спешка: сорок
       // запросов подряд упираются в ограничение. Прерываемся и доскажем позже,
       // иначе в отчёт попадут два десятка выдуманных проблем.
