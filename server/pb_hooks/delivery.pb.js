@@ -67,3 +67,46 @@ routerAdd("POST", "/api/shop/delivery-del", (e) => {
   require(`${__hooks}/lib/delivery.js`).пересчитать($app);
   return e.json(200, { ok: true });
 }, $apis.requireAuth("managers"));
+
+// Наступило время привоза — отметка «приехало» ставится сама.
+//
+// Владелец пишет в накладной час, к которому придёт машина, и ждёт, что в этот
+// час цветы окажутся в остатках. Нажимать кнопку ему некогда, а пока отметки
+// нет, сайт продолжает обещать ростовку «с 15:00» и не даёт собрать букет на
+// сейчас — то есть сам себе мешает продавать уже привезённое.
+//
+// Кнопка «Приехало» остаётся: машина приходит и раньше срока.
+//
+// Внимание: обработчики PocketBase не видят код верхнего уровня — всё нужное
+// подключаем внутри задания.
+cronAdd("delivery-arrive", "* * * * *", () => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const del = require(`${__hooks}/lib/delivery.js`);
+
+  // Время в накладной московское, а сервер живёт по Гринвичу
+  const м = new Date(Date.now() + 3 * 3600 * 1000).toISOString();
+  const сейчас = м.slice(0, 10) + " " + м.slice(11, 16);
+
+  let список = [];
+  try { список = $app.findRecordsByFilter("deliveries", "done = false && at != ''", "at", 20, 0); } catch (_) { return; }
+
+  список.forEach((d) => {
+    const at = String(d.get("at") || "").trim();
+    if (!at || at > сейчас) return;
+    let r;
+    try { r = del.привезли($app, d); }
+    catch (err) {
+      console.log("привоз по времени", d.id, err);
+      require(`${__hooks}/lib/err.js`).note($app, "Привоз", String(err), d.get("supplier") || "");
+      return;
+    }
+    console.log(`привоз по времени: ${d.get("supplier")} — ${r.товаров} сортов, ${r.стеблей} стеблей`);
+    try {
+      const s = shop.settings($app);
+      const текст = `🚚 Привоз «${d.get("supplier")}» отмечен привезённым: время ${at} наступило.\n`
+        + `В остатки добавлено ${r.стеблей} стеблей в ${r.товаров} сортах — они уже продаются как «есть сейчас».\n\n`
+        + `Если машина задержалась, поправьте остатки на вкладке «Остатки».`;
+      shop.adminIds(s).forEach((id) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: id, text: текст }));
+    } catch (_) {}
+  });
+});

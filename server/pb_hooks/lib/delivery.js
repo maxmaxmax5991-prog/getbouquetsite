@@ -37,8 +37,19 @@ function пересчитать(app) {
   });
 }
 
-// Перенести накладную в остатки
+// Перенести накладную в остатки.
+//
+// ВАЖНО: отметку «привезли» ставим ПЕРВОЙ и запросом, мимо хуков. 21.10 порядок
+// был обратный — сначала прибавляли стебли, потом `app.save(d)`, — и сохранение
+// упёрлось в проверку поля: заметка оказалась длиннее 300 знаков. Задание раз в
+// минуту повторяло попытку, каждый раз снова прибавляя стебли: за ночь у Пич
+// Аваланж 50 см вместо 1 499 стало 875 399. Пока отметка не стоит, повтор
+// обязан быть безвредным.
 function привезли(app, d) {
+  try {
+    app.db().newQuery("UPDATE deliveries SET done = TRUE, done_at = {:t} WHERE id = {:id}")
+      .bind({ t: new Date().toISOString(), id: d.id }).execute();
+  } catch (err) { console.log("привоз: отметка", d.id, err); return { товаров: 0, стеблей: 0 }; }
   const сорта = {};
   (shop.jget(d, "lines") || []).forEach((l) => {
     const id = String(l.product || ""), len = String(l.len || ""), qty = Math.max(0, Math.round(+l.qty || 0));
@@ -61,9 +72,6 @@ function привезли(app, d) {
     } catch (err) { console.log("привоз в остаток", id, err); }
   });
 
-  d.set("done", true);
-  d.set("done_at", new Date().toISOString());
-  app.save(d);
   пересчитать(app);
   return { товаров, стеблей };
 }
