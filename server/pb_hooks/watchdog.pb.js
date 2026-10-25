@@ -27,14 +27,15 @@ cronAdd("watchdog", "*/10 * * * *", () => {
         .bind({ k: key, v: value, t: new Date().toISOString() }).execute();
     } catch (err) { console.log("watchdog state", err); }
   };
-  const tell = (text) => shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", { chat_id: chat, text }));
-  // problem — текст беды или "" если всё хорошо
-  const check = (key, problem, ok) => {
+  const tell = (text, markup) => shop.adminIds(s).forEach((chat) =>
+    shop.tg(token, "sendMessage", Object.assign({ chat_id: chat, text }, markup ? { reply_markup: markup } : {})));
+  // problem — текст беды или "" если всё хорошо; markup — кнопки под тревогой
+  const check = (key, problem, ok, markup) => {
     const prev = was(key);
     const now = problem || "";
     if (now === prev) return;
     remember(key, now);
-    if (now) tell(`⚠️ ${now}`);
+    if (now) tell(`⚠️ ${now}`, markup);
     else if (prev) tell(`✅ ${ok}`);
   };
 
@@ -86,12 +87,21 @@ cronAdd("watchdog", "*/10 * * * *", () => {
       // Час ожидания входит в текст, поэтому каждый новый час `check` видит
       // другую беду и пишет снова. Без этого сообщение приходило один раз за
       // всю ночь — ровно так 17 часов простоя и остались незамеченными.
+      // Причина — главное в этом сообщении. 25.10 тревога пришла вовремя, но
+      // без причины: чтобы понять «склад закрыл доступ к API», пришлось лезть
+      // в журнал сервера с компьютера. Теперь причина в тексте, а под ним —
+      // кнопки, чтобы разобраться прямо с телефона.
+      const причины = {};
+      stuck.forEach((o) => { const e = String(o.get("ms_error") || "").trim(); if (e) причины[e] = (причины[e] || 0) + 1; });
+      const чаще = Object.keys(причины).sort((a, b) => причины[b] - причины[a])[0] || "";
       текст = `🛑 Заказы оплачены, но их НЕТ в МоёмСкладе — флорист их не видит и не собирает.`
         + `\n\nЖдут: ${stuck.map((o) => "№" + o.get("number")).join(", ")}.`
         + `\nСамый старый ждёт уже ${срок}.`
-        + `\n\nАдминка → Заказы → кнопка «В МоёмСкладе» у заказа. Жалуется на номенклатуру — значит сорт не заведён на складе.`;
+        + (чаще ? `\n\nПричина: ${чаще}` : `\n\nПричина пока не записана — нажмите «Проверить склад».`);
     }
-    check("ms:stuck", текст, "Все оплаченные заказы доехали до МоегоСклада.");
+    check("ms:stuck", текст, "Все оплаченные заказы доехали до МоегоСклада.",
+      { inline_keyboard: [[{ text: "🚚 Отправить сейчас", callback_data: "ms:push" },
+        { text: "🔌 Проверить склад", callback_data: "ms:check" }]] });
   } catch (err) { console.log("watchdog stuck", err); }
 
   // 2б. Оплачено, заказ в МоёмСкладе есть, а входящего платежа нет

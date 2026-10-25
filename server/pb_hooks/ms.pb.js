@@ -6,6 +6,14 @@ cronAdd("ms-push", "* * * * *", () => {
   const msl = require(`${__hooks}/lib/ms.js`);
   const s = shop.settings($app);
   if (!s.get("ms_enabled") || !s.get("ms_token")) return;
+
+  // Склад закрыл доступ (нет прав у сотрудника, просрочен ключ, ограничение со
+  // стороны поддержки) — долбиться каждую минуту бессмысленно и вредно: 25.10
+  // за ночь набралось 1356 отказов подряд, и именно такая долбёжка выглядит со
+  // стороны склада злоупотреблением. Пробуем раз в 10 минут, пока не откроют.
+  const отказДо = +s.get("ms_denied_until") || 0;
+  if (отказДо && Date.now() < отказДо) return;
+
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().replace("T", " ").slice(0, 19);
   // Берём только то, что вообще можно отправить. Доставку отправляем после оплаты,
   // и раньше неоплаченные занимали всю очередь: двадцать старых «ждём оплату»
@@ -33,11 +41,35 @@ cronAdd("ms-push", "* * * * *", () => {
     list = свежие.concat(сошибкой.slice(off).concat(сошибкой.slice(0, off)).slice(0, 5 - свежие.length));
   }
   let стоп = false;
+  let первый = true;
   list.forEach((o) => {
     if (стоп) return;
+    // Передышка между заказами: одна отправка — это 8-10 обращений подряд, а
+    // склад считает 45 запросов за 3 секунды. Пять заказов без пауз выжигали
+    // лимит за секунды, и дальше всё падало с «превышено ограничение».
+    if (!первый) { try { require(`${__hooks}/lib/bc.js`).pause(2500); } catch (_) {} }
+    первый = false;
     try {
       const r = msl.pushOrder($app, o);
-      if (!r.ok && /Превышено ограничение/.test(String(r.error || ""))) стоп = true;
+      if (!r.ok && /Превышено ограничение/.test(String(r.error || ""))) {
+        стоп = true;
+        // Упёрлись в потолок — молчим три минуты, иначе следующая минута
+        // начинается с той же стены и лимит не успевает отпустить.
+        try {
+          $app.db().newQuery("UPDATE settings SET ms_denied_until = {:v} WHERE id = {:id}")
+            .bind({ v: Date.now() + 3 * 60000, id: s.id }).execute();
+        } catch (_) {}
+      }
+      // Доступ закрыт — дальше в эту минуту не пробуем и молчим 10 минут
+      if (!r.ok && /доступ к API|ключ доступа|аутентификации/i.test(String(r.error || ""))) {
+        стоп = true;
+        try {
+          $app.db().newQuery("UPDATE settings SET ms_denied_until = {:v} WHERE id = {:id}")
+            .bind({ v: Date.now() + 10 * 60000, id: s.id }).execute();
+        } catch (_) {}
+      } else if (r.ok && отказДо) {
+        try { $app.db().newQuery("UPDATE settings SET ms_denied_until = 0 WHERE id = {:id}").bind({ id: s.id }).execute(); } catch (_) {}
+      }
       // Неудачу видно только в карточке заказа, да и то если текст изменился.
       // В логе её не было вовсе — искать причину было нечем.
       if (!r.ok) console.log("ms-push:", o.get("number"), r.wait ? "ждём —" : "ошибка —", r.error);

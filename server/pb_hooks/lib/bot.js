@@ -540,6 +540,56 @@ function handle(app, secret, upd) {
         shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id,
           text: `${cb.message.text}\n\n✅ Взял в работу: ${cb.from.first_name || "менеджер"}` });
       } catch (_) { shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Не нашёл" }); }
+    } else if (kind === "ms") {
+      // Склад с телефона: «что со складом» и «отправить сейчас».
+      //
+      // 25.10 МойСклад закрыл доступ к API, и заказы не уезжали 10 часов.
+      // Тревога в бот приходила, но сделать по ней с телефона было нечего:
+      // причину видно только в журнале сервера, а кнопка «Отправить все»
+      // живёт в админке. Теперь и причина, и кнопка здесь.
+      if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
+      const msl = require(`${__hooks}/lib/ms.js`);
+      const set = shop.settings(app);
+      const ждут = () => {
+        try {
+          return app.findRecordsByFilter("orders",
+            `ms_id = "" && status != "cancelled" && (delivery_type = "pickup" || payment_status = "paid")`,
+            "created", 30, 0);
+        } catch (_) { return []; }
+      };
+      if (String(a) === "check") {
+        shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Спрашиваю склад…" });
+        const r = msl.ms(set, "GET", "/context/employee");
+        const список = ждут();
+        const строки = список.slice(0, 10).map((o) => `№${o.get("number")} — ${o.get("ms_error") || "ещё не пробовали"}`);
+        return shop.tg(token, "sendMessage", { chat_id: chat,
+          text: (r.ok ? `✅ Склад отвечает, доступ есть.` : `🛑 Склад не пускает: ${r.error}`)
+            + `\n\nНе уехало заказов: ${список.length}.`
+            + (строки.length ? `\n\n${строки.join("\n")}` : "")
+            + (r.ok ? "" : `\n\nЕсли написано про доступ к API — это чинится только в кабинете МоегоСклада: права сотрудника или оплата тарифа.`),
+          reply_markup: { inline_keyboard: [[{ text: "🚚 Отправить сейчас", callback_data: "ms:push" }, { text: "🔌 Проверить ещё раз", callback_data: "ms:check" }]] } });
+      }
+      if (String(a) === "push") {
+        shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Отправляю…" });
+        // снимаем паузу, которую сервер ставит себе после отказа склада
+        try { app.db().newQuery("UPDATE settings SET ms_denied_until = 0 WHERE id = {:id}").bind({ id: set.id }).execute(); } catch (_) {}
+        const список = ждут().slice(0, 5);
+        let ушло = 0; const беды = [];
+        список.forEach((o, i) => {
+          if (i) { try { require(`${__hooks}/lib/bc.js`).pause(2500); } catch (_) {} }
+          try {
+            const r = msl.pushOrder(app, o);
+            if (r.ok) ушло++; else беды.push(`№${o.get("number")} — ${r.error}`);
+          } catch (err) { беды.push(`№${o.get("number")} — ${String(err).slice(0, 120)}`); }
+        });
+        const осталось = ждут().length;
+        return shop.tg(token, "sendMessage", { chat_id: chat,
+          text: `Отправил: ${ушло} из ${список.length}. Осталось не уехавших: ${осталось}.`
+            + (беды.length ? `\n\n${беды.join("\n")}` : "")
+            + (осталось ? `\n\nОстальные сервер добирает сам, по пять в минуту.` : ""),
+          reply_markup: осталось ? { inline_keyboard: [[{ text: "🚚 Ещё раз", callback_data: "ms:push" }, { text: "🔌 Проверить склад", callback_data: "ms:check" }]] } : undefined });
+      }
+      return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
     } else if (kind === "ga") {
       if (!isAdmin) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Нет доступа" });
       const gid = String(a), set = shop.settings(app);

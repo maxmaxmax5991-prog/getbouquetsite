@@ -491,9 +491,36 @@ function positionsFor(app, s, o) {
       let основа = null;
       try { основа = app.findRecordById("baskets", String(it.basket || "")); } catch (_) {}
       части.forEach((ч) => {
+        const коп = Math.round((+ч.price || 0) * 100);
+        let сорт = null;
+        try { сорт = app.findRecordById("products", String(ч.id)); } catch (_) {}
+        // Микс в корзине раскладываем по долям, как и в обычном букете.
+        // Без этого «Гортензии Микс» искались по названию, и склад возвращал
+        // сразу три похожих («ЛФ-Игрушка Микс», «ЛФ-Лепестки микс», «ЛФ-Калла
+        // Микс»): заказ №5375 из-за этого не уезжал трое суток.
+        const микс = сорт ? shop.jget(сорт, "ms_mix") : null;
+        if (Array.isArray(микс) && микс.length) {
+          const доли = микс.filter((m) => m && m.id && +m.share > 0);
+          const сумма = доли.reduce((n, m) => n + (+m.share || 0), 0);
+          const всего = +ч.n || 0;
+          let роздано = 0;
+          const считано = доли.map((m) => {
+            const точно = всего * (+m.share) / сумма;
+            const целых = Math.floor(точно);
+            роздано += целых;
+            return { m, целых, хвост: точно - целых };
+          });
+          считано.sort((x, y) => y.хвост - x.хвост);
+          for (let i = 0; роздано < всего && считано.length; i++, роздано++) считано[i % считано.length].целых++;
+          считано.forEach((x) => {
+            if (x.целых <= 0) return;
+            positions.push({ quantity: x.целых, price: коп, assortment: meta(x.m.type || "product", String(x.m.id)) });
+            posKop += коп * x.целых;
+          });
+          return;
+        }
         const as = assortment(app, s, { id: ч.id, label: `${ч.len}-${ч.n}`, name: ч.name, price: ч.price });
         if (!as.ok) throw new Error(as.error || `не нашёл номенклатуру для «${ч.name}»`);
-        const коп = Math.round((+ч.price || 0) * 100);
         positions.push({ quantity: +ч.n || 0, price: коп, assortment: meta(as.type || "product", String(as.id)) });
         posKop += коп * (+ч.n || 0);
       });

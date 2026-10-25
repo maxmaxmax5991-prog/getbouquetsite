@@ -26,10 +26,26 @@ cronAdd("ms-status", "* * * * *", () => {
     "-created", 50, 0, { since });
   if (!list.length) return;
 
+  // ОДИН запрос на всех вместо запроса на каждый заказ.
+  //
+  // Было по-другому: 50 заказов — 50 обращений к складу каждую минуту, и это
+  // только статусы. Вместе с отправкой заказов (а это ещё 8-10 обращений на
+  // заказ) мы упирались в ограничения МоегоСклада: «превышено ограничение на
+  // одновременное количество запросов», часть запросов просто зависала до
+  // таймаута. 25.10 на этом встала вся выгрузка, а поддержка склада закрыла
+  // нам доступ к API. Теперь спрашиваем разом всё, что там менялось за трое
+  // суток, и раскладываем по своим заказам.
+  const было = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString().slice(0, 19);
+  const ответ = msl.ms(s, "GET", `/entity/customerorder?filter=${encodeURIComponent("updated>=" + было.replace("T", " "))}&expand=state&limit=100&order=updated,desc`);
+  if (!ответ.ok || !ответ.data) return;
+  const поId = {};
+  (ответ.data.rows || []).forEach((r) => { поId[String(r.id)] = r; });
+
   list.forEach((o) => {
     try {
-      const r = msl.ms(s, "GET", `/entity/customerorder/${o.get("ms_id")}?expand=state`);
-      if (!r.ok || !r.data) return;
+      const данные = поId[String(o.get("ms_id"))];
+      if (!данные) return;
+      const r = { ok: true, data: данные };
       const name = (r.data.state && r.data.state.name) || "";
       if (!name) return;
       const hit = MAP.find(([re]) => re.test(name));
