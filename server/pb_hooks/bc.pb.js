@@ -156,16 +156,16 @@ routerAdd("GET", "/api/bc/money/{id}", (e) => {
   };
   const поСсылке = одно(
     `SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS s FROM orders
-      WHERE source = {:src} AND status != 'cancelled' AND created >= {:от} AND created <= {:до}`,
-    { src: "bc" + rec.id, от, до });
+      WHERE source = {:src} AND status != 'cancelled' AND created >= {:since} AND created <= {:till}`,
+    { src: "bc" + rec.id, since: от, till: до });
   const поПолучателям = одно(
     `SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS s FROM orders o
-      WHERE o.status != 'cancelled' AND o.created >= {:от} AND o.created <= {:до} AND EXISTS (
+      WHERE o.status != 'cancelled' AND o.created >= {:since} AND o.created <= {:till} AND EXISTS (
         SELECT 1 FROM bc_sent b WHERE b.bc = {:bc} AND (
           (b.customer != '' AND o.customer = b.customer)
           OR (b.kind = 'tg' AND b.chat != '' AND o.tg_chat = b.chat)
           OR (b.kind = 'max' AND b.chat != '' AND o.max_chat = b.chat)))`,
-    { bc: rec.id, от, до });
+    { bc: rec.id, since: от, till: до });
   return e.json(200, { days: дней, from: от, to: до, link: поСсылке, people: поПолучателям, sent: rec.get("sent") || 0 });
 }, $apis.requireAuth("managers"));
 

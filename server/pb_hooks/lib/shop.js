@@ -557,6 +557,25 @@ function prepareOrder(app, rec) {
     // Собранная корзина — одна позиция заказа со своим составом. Считает её
     // отдельный разбор: там своя цена за стебель, вместимость в «местах» и
     // запрет смешивать виды цветов.
+    // Букет из дропа: цену, количество и право на покупку берём у сервера.
+    // Из браузера приходит только «вот этот сорт» — всё остальное он мог бы
+    // выдумать, а тут дешевле обычного каталога на тысячу рублей.
+    if (it && it.kind === "drop") {
+      const dr = require(`${__hooks}/lib/drop.js`);
+      const выдача = dr.взять(app, rec.get("customer"), it.id);
+      let p;
+      try { p = app.findRecordById("products", String(it.id)); } catch (_) { fail("Сорт из дропа больше недоступен."); }
+      items.push({ id: p.id, kind: "drop", name: `${p.get("name")} ${выдача.len} см, ${выдача.cnt} шт (дроп)`,
+        label: `${выдача.len}-${выдача.cnt}`, label_text: `${выдача.cnt} шт · ${выдача.len} см`,
+        qty: 1, price: выдача.price, sum: выдача.price, stems: выдача.cnt });
+      take.push({ p, len: String(выдача.len), n: выдача.cnt });
+      sum += выдача.price;
+      rec.set("note", String(rec.get("note") || "").slice(0, 1800) + (rec.get("note") ? " · " : "") + "Дроп дня");
+      // отметку «забрал» ставим после сохранения заказа — в хуке ниже
+      rec.set("vid", rec.get("vid") || "");
+      if (!rec.get("drop_q")) rec.set("drop_q", выдача.очередь.id);
+      return;
+    }
     if (it && it.kind === "basket") {
       const r = require(`${__hooks}/lib/basket.js`).разобрать(app, s, it);
       items.push(r.item);

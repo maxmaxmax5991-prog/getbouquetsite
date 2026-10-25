@@ -572,6 +572,67 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
   width:min(46vw,560px);aspect-ratio:1;left:-8vw;top:-60px;opacity:.07;transform:rotate(-18deg);
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 62C12 52 6 24 20 2C38 16 45 44 32 62Z' fill='%231E8C4E'/%3E%3Cpath d='M32 62C33 44 42 30 61 24C63 42 52 58 32 62Z' fill='%237CC242'/%3E%3C/svg%3E") center/contain no-repeat}
 [data-brand="lasflore"] .hero > .wrap{position:relative;z-index:1}
+/* ——— дроп дня: полоска между плитками, раскрывается в карточку ——— */
+.dline{grid-column:1 / -1;border:0;width:100%;text-align:left;cursor:pointer;background:#14171A;color:#fff;
+  border-radius:14px;padding:14px;display:flex;align-items:center;gap:11px;font:inherit}
+.dline .em{font-size:20px;line-height:1;flex:none}
+.dline .tx{flex:1;min-width:0;line-height:1.25}
+.dline .tx b{display:block;font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dline .tx small{display:block;color:rgba(255,255,255,.72);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dline .tm{text-align:right;white-space:nowrap;line-height:1.2}
+.dline .tm small{display:block;font-size:10px;color:rgba(255,255,255,.6)}
+.dline .tm b{font:800 15px/1 var(--display);font-variant-numeric:tabular-nums}
+.dline .ch{opacity:.6;font-size:13px}
+.dline.live{box-shadow:0 0 0 0 rgba(224,23,138,.5);animation:dpPulse 2.2s infinite}
+@keyframes dpPulse{70%{box-shadow:0 0 0 12px rgba(224,23,138,0)}100%{box-shadow:0 0 0 0 rgba(224,23,138,0)}}
+.dp{grid-column:1 / -1;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(20,30,20,.05),0 14px 32px -26px rgba(20,40,30,.5)}
+.dp-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#14171A;color:#fff;min-height:44px}
+/* в тёмной теме «шапка» и «тело» почти одного цвета — отделяем линией и светлее */
+:root[data-theme="dark"] .dp-head,
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .dp-head{background:rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.08)}}
+.dp-head .tag{font:800 10px/1 var(--body);letter-spacing:.1em;text-transform:uppercase;background:var(--accent);padding:5px 8px;border-radius:999px}
+.dp-head .tag.live{background:var(--sale)}
+.dp-head .tag.out{background:rgba(255,255,255,.18)}
+.dp-head small{font-size:11px;color:rgba(255,255,255,.65)}
+.dp-head .t{margin-left:auto;font:800 15px/1 var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dp-head .x{background:none;border:0;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;padding:0 2px;line-height:1}
+.dp.done .dp-head{background:#2a2d31}
+.dp-body{display:flex;gap:12px;padding:12px}
+.dp .ph-wrap{flex:none;width:96px}
+.dp .ph-rail{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;border-radius:14px}
+.dp .ph-rail::-webkit-scrollbar{display:none}
+.dp .ph-rail img{width:96px;height:96px;border-radius:14px;object-fit:cover;flex:none;scroll-snap-align:center;background:var(--soft)}
+.dp.done .ph-rail img{filter:grayscale(.55) brightness(.92)}
+.dp .dots{display:flex;gap:4px;justify-content:center;margin-top:6px}
+.dp .dots i{width:5px;height:5px;border-radius:50%;background:var(--line);display:block}
+.dp .dots i.on{background:var(--accent);width:14px;border-radius:99px}
+.dp-main{min-width:0;flex:1}
+.dp-main h3{font:800 16px/1.15 var(--display);margin:0 0 3px}
+.dp-main .pr{font:800 19px/1 var(--display);color:var(--accent-text);margin:0 0 5px;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.dp-main .pr s{font:600 13px/1 var(--body);color:var(--ink-3)}
+.dp-main .pr i{font:800 10px/1 var(--body);font-style:normal;letter-spacing:.06em;text-transform:uppercase;background:var(--sale);color:#fff;padding:4px 7px;border-radius:999px}
+.dp-main .sub{color:var(--ink-2);font-size:12.5px;line-height:1.35}
+.dp .sorts{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.dp .sorts span{font-size:11.5px;border:1px solid var(--line);border-radius:999px;padding:3px 8px;color:var(--ink-2);white-space:nowrap}
+.dp .sorts span b{color:var(--leaf);font-weight:800}
+.dp .sorts span.low b{color:var(--sale)}
+.dp .sorts span.out{opacity:.45;text-decoration:line-through}
+.dp .sorts span.soon{white-space:normal;background:var(--leaf-soft);border-color:rgba(31,122,77,.25);color:var(--leaf);font-weight:700}
+.dp .how{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 12px 12px}
+.dp .how div{background:var(--accent-soft);border-radius:10px;padding:8px;font-size:11px;line-height:1.3;color:var(--ink-2);
+  display:flex;flex-direction:column;justify-content:flex-start}
+.dp .how b{display:block;color:var(--accent-text);font:800 11px/1.2 var(--body);margin-bottom:3px}
+.dp-foot{display:flex;align-items:center;gap:10px;padding:0 12px 12px}
+.dp-foot .btn{flex:1;border:0;border-radius:12px;padding:13px;font:700 15px var(--body);background:var(--accent);color:#fff;cursor:pointer}
+.dp-foot .btn[disabled]{opacity:.55}
+.dp.done .dp-foot .btn{background:var(--paper);color:var(--accent-text);border:1px solid var(--line)}
+.dp-foot .q{font-size:11.5px;color:var(--ink-3);text-align:center;white-space:nowrap;line-height:1.2}
+.dp-foot .q b{display:block;font:800 15px/1 var(--display);color:var(--ink)}
+.dp-mine{display:flex;align-items:center;gap:10px;background:#14171A;color:#fff;padding:11px 12px}
+.dp-mine .tm{font:800 20px/1 var(--display);font-variant-numeric:tabular-nums}
+.dp-mine small{display:block;color:rgba(255,255,255,.65);font-size:11px}
+
 /* конструктор корзин */
 .bk-card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px}
 .bk-h{font:700 16px/1.2 Unbounded,sans-serif;margin:0 0 10px}
@@ -906,7 +967,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1792923738"></script>
+<script src="/data.js?v=1792941517"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1604,6 +1665,26 @@ document.addEventListener('click', e => {
   }
   const add = t2.closest && t2.closest('#bkAdd');
   if (add) { бкОткрытьВыбор(); return; }
+  if (t2.closest && t2.closest('[data-dropdel]')) {
+    дропБукет = ''; store.set('dropTake', ''); badges(); renderCart(); загрузитьДроп();
+    return;
+  }
+  const готовая = t2.closest && t2.closest('[data-takebasket]');
+  if (готовая) {
+    const x = ((BSET && BSET.примеры) || []).find(y => y.id === готовая.dataset.takebasket);
+    const состав = x ? бкСоставПримера(x) : [];
+    if (!состав.length) return toast('Эта корзина сейчас недоступна');
+    const всего = состав.reduce((n, y) => n + y.n, 0);
+    const c = разделПо((byId[состав[0].id] || {}).cat) || { units: 1 };
+    const основа = ((BSET && BSET.основы) || []).filter(b => b.capacity >= всего * (c.units || 1))
+      .sort((a, b) => a.capacity - b.capacity)[0];
+    if (!основа) return toast('Подходящей корзины нет — соберите свою');
+    корзины.push({ basket: основа.id, cat: (byId[состав[0].id] || {}).cat,
+      parts: состав.map(y => ({ id: y.id, len: y.len, n: y.n })) });
+    сохрКорзины(); badges(); openCart();
+    шаг('ready_basket', x.name || состав.map(y => (byId[y.id] || {}).name).join('+'));
+    return;
+  }
   const smp = t2.closest && t2.closest('[data-bksample]');
   if (smp) {
     const x = ((BSET && BSET.примеры) || []).find(y => y.id === smp.dataset.bksample);
@@ -1620,8 +1701,11 @@ document.addEventListener('click', e => {
     }
     return;
   }
-  const шаг = t2.closest && t2.closest('#bkSteps button');
-  if (шаг) { БК.шаг = +шаг.dataset.step; бкПересчёт(); return; }
+  // Переменную звали «шаг» — тем же словом, что и общую запись событий, и
+  // внутри этого обработчика она её перекрывала: вызов шаг('ready_basket')
+  // падал бы с ошибкой «до объявления». Переименовано.
+  const кнопкаШага = t2.closest && t2.closest('#bkSteps button');
+  if (кнопкаШага) { БК.шаг = +кнопкаШага.dataset.step; бкПересчёт(); return; }
   const go = t2.closest && t2.closest('#bkGo');
   if (go && !go.disabled && go.dataset.act === 'next') { БК.шаг = Math.min(3, БК.шаг + 1); бкПересчёт(); return; }
   if (go && !go.disabled && go.dataset.act === 'pick') { бкОткрытьВыбор(); return; }
@@ -1655,6 +1739,106 @@ document.addEventListener('input', e => {
     });
     бкПересчёт();
   }
+});
+
+/* ---------- дроп: загрузка, часы, кнопки ----------
+   Время берём серверное: на телефоне часы врут, а человек по таймеру решает,
+   когда бросать дела. Поэтому один раз считаем поправку и дальше тикаем от неё,
+   а на нуле переспрашиваем сервер — состояние меняет он, не браузер. */
+let дропБукет = store.get('dropTake', '');
+async function загрузитьДроп() {
+  try {
+    const r = await fetch('/api/shop/drop', { headers: meHeaders() });
+    if (!r.ok) return;
+    const d = await r.json();
+    DROPсдвиг = дропМс(d.сейчас) ? дропМс(d.сейчас) - Date.now() : 0;
+    DROP = d && d.есть ? d : null;
+    if (DROP && DROP.я && DROP.я.статус === 'invited') DROPоткрыт = true;   // своё окно не прячем
+    дропПеререндер();
+  } catch (_) {}
+}
+function дропЧасы() {
+  clearInterval(DROPтик);
+  DROPтик = setInterval(() => {
+    if (!DROP) return;
+    const до = DROP.состояние === 'soon' ? дропМс(DROP.старт) - дропСейчас()
+      : (DROP.я && DROP.я.статус === 'invited' ? Date.parse(String(DROP.я.до).replace(' ', 'T')) - дропСейчас() : 0);
+    if (!до) return;
+    if (до <= 0) { загрузитьДроп(); return; }                 // ноль — спрашиваем сервер заново
+    $$('.dp-t, .dp-mine-t').forEach(el => { el.textContent = дропЧас(до); });
+  }, 1000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) загрузитьДроп(); });
+
+function дропФорма() {
+  const имя = (ME && ME.name) || '', тел = (ME && (ME.phone_ok || ME.phone)) || '';
+  const d = document.createElement('dialog');
+  d.className = 'bk-pick';
+  d.innerHTML = `<form method="dialog" style="padding:16px;max-width:420px">
+    <h3 style="margin:0 0 6px">Встать в очередь</h3>
+    <p class="hint" style="margin:0 0 12px">Позовём в боте, когда подойдёт очередь. Телефон нужен на случай, если букета не хватит — предложим замену.</p>
+    <label class="f">Имя<input class="in" id="dqName" value="${esc(имя)}" maxlength="120" required></label>
+    <label class="f" style="margin-top:8px">Телефон<input class="in" id="dqPhone" type="tel" inputmode="tel" value="${esc(тел)}" placeholder="+7 999 123-45-67" required></label>
+    <div class="bar" style="margin-top:14px">
+      <button class="btn btn-primary" value="ok" type="submit">Встать в очередь</button>
+      <button class="btn btn-ghost" value="no" formnovalidate>Отмена</button>
+    </div></form>`;
+  document.body.appendChild(d);
+  d.showModal();
+  d.addEventListener('close', async () => {
+    const имяЗн = (d.querySelector('#dqName') || {}).value || '';
+    const телЗн = (d.querySelector('#dqPhone') || {}).value || '';
+    d.remove();
+    if (d.returnValue !== 'ok') return;
+    if (String(телЗн).replace(/\D/g, '').length < 10) return toast('Проверьте телефон');
+    try {
+      const r = await fetch('/api/shop/drop-queue', { method: 'POST',
+        headers: Object.assign({ 'content-type': 'application/json' }, meHeaders()),
+        body: JSON.stringify({ name: имяЗн, phone: телЗн }) });
+      const данные = await r.json().catch(() => ({}));
+      if (!r.ok) return toast(данные.message || 'Не получилось встать в очередь', true);
+      toast(данные.место ? `Вы в очереди, ${данные.место}-й` : 'Вы в очереди');
+      шаг('drop_queue', String(данные.место || ''));
+      загрузитьДроп();
+    } catch (_) { toast('Нет связи', true); }
+  });
+}
+function дропВыбрать() {
+  const сп = (DROP.лоты || []).filter(l => l.left > 0);
+  if (!сп.length) return toast('Букеты разобрали');
+  if (сп.length === 1) return дропВзять(сп[0].id);
+  const d = document.createElement('dialog');
+  d.className = 'bk-pick';
+  d.innerHTML = `<div style="padding:16px;max-width:520px">
+    <h3 style="margin:0 0 4px">Выберите сорт</h3>
+    <p class="hint" style="margin:0 0 10px">${DROP.штук} ${plural(DROP.штук, 'роза', 'розы', 'роз')} за ${rub(DROP.цена)}. Держим за вами ещё несколько минут.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
+      ${сп.map(l => `<button type="button" data-dpick="${l.id}" style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:8px;text-align:left;cursor:pointer">
+        ${l.img ? `<img src="${l.img}" alt="" style="width:44px;height:44px;border-radius:9px;object-fit:cover">` : ''}
+        <span><b style="display:block;font-size:14px">${esc(l.name)}</b><small style="color:var(--ink-2);font-size:12px">осталось ${l.left}</small></span></button>`).join('')}
+    </div>
+    <button class="btn btn-ghost btn-wide" type="button" data-dclose style="margin-top:12px">Отмена</button></div>`;
+  document.body.appendChild(d);
+  d.showModal();
+  d.addEventListener('click', e => {
+    const b = e.target.closest('[data-dpick]');
+    if (b) дропВзять(b.dataset.dpick);
+    if (b || e.target.closest('[data-dclose]')) { d.close(); d.remove(); }
+  });
+}
+function дропВзять(pid) {
+  дропБукет = pid; store.set('dropTake', pid);
+  badges(); openCart();
+  шаг('drop_take', (DROP.лоты.find(l => l.id === pid) || {}).name || '');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-drop]');
+  if (!b || !DROP) return;
+  const что = b.dataset.drop;
+  if (что === 'open') { DROPоткрыт = true; store.set('dropOpen', '1'); дропПеререндер(); }
+  else if (что === 'close') { DROPоткрыт = false; store.set('dropOpen', '0'); дропПеререндер(); }
+  else if (что === 'queue') дропФорма();
+  else if (что === 'take') дропВыбрать();
 });
 
 /* ---------- cart: key = id or id|label ---------- */
@@ -1729,7 +1913,8 @@ function toggleFav(id) {
   if (route.name === 'catalog') { renderChips(); if (state.favOnly) renderGrid(); }
 }
 function badges() {
-  const c = Object.values(cart).reduce((a, b) => a + b, 0);
+  let c = Object.values(cart).reduce((a, b) => a + b, 0);
+  try { c += (корзины || []).length + (дропБукет ? 1 : 0); } catch (_) {}
   $('#cartCount').hidden = !c; $('#cartCount').textContent = c;
   $('#favCount').hidden = !favs.size; $('#favCount').textContent = favs.size;
 }
@@ -1796,6 +1981,28 @@ function местоСобытие(el, вид) {
 // Карточка «Соберите корзину» в ряду товаров: человек, пришедший за корзиной,
 // сорт выбирать не начинает — ему нужна карточка с фотографией. Снимок берём
 // из примера, помеченного в админке «плиткой».
+// Готовые корзины плитками. ПОКА НЕ ВКЛЮЧЕНО: владелец хочет сперва набрать
+// больше вариантов и заняться этим отдельно. Функция готова, включается
+// добавлением вызова в #popular и #grid.
+function плиткиГотовыхКорзин(место) {
+  if (!(BSET && (BSET.основы || []).length)) return '';
+  const сп = (BSET.примеры || []).filter(x => x.img && бкЦенаПримера(x) > 0);
+  return сп.map((x, и) => {
+    const цена = бкЦенаПримера(x);
+    const состав = бкСоставПримера(x);
+    const всего = состав.reduce((n, y) => n + y.n, 0);
+    const имя = x.name || (состав.map(y => (byId[y.id] || {}).name).filter(Boolean).join(' + ') || 'Корзина');
+    const длины = [...new Set(состав.map(y => y.len).filter(Boolean))];
+    return `<article class="card" data-ready-basket="${x.id}"${место ? ` data-pos="${место}#корзина${и + 1}"` : ''}>
+      <a class="card-img" href="/korzina/" aria-label="${esc(имя)}"><img src="${x.img}"${наборШирин(x.img, x.big, 560, 1120, КАРТОЧКА_SIZES)} alt="" loading="lazy" width="560" height="560"><span class="tag own">Готовая корзина</span>${
+        всего ? `<span class="count-tag">${всего} ${plural(всего, 'цветок', 'цветка', 'цветов')}</span>` : ''}</a>
+      <div class="card-note fresh">🧺 <b class="wide">Собрана и готова к доставке</b><b class="slim">Готова к доставке</b></div>
+      <h3><a href="/korzina/">${esc(имя)}</a></h3>
+      <div class="sub">${длины.length ? длины.join('/') + ' см · ' : ''}корзина и оазис в цене</div>
+      <div class="buy-slot"><button class="buy num" data-takebasket="${x.id}">${rub(цена)}</button></div>
+    </article>`;
+  }).join('');
+}
 function плиткаКорзины() {
   if (!(BSET && BSET.плитка && (BSET.основы || []).length)) return '';
   const x = BSET.плитка;
@@ -1860,6 +2067,112 @@ const state = { cat: 'all', q: '', sort: 'pop', favOnly: false, len: 0, cnt: 0 }
 // В «Популярные» попадают все букеты, кроме открыток и игрушек, — галочку
 // у нового товара ставить не нужно, он появляется здесь сам.
 // на главной только то, что можно купить: погасшие сорта живут в каталоге
+/* ---------- дроп дня ----------
+   Полоска между плитками: нажал — раскрылась в карточку. Всё время считаем по
+   СЕРВЕРНЫМ часам: на телефоне они врут, а человек по таймеру решает, когда
+   бросать дела и бежать за букетом. Объявление живёт выше любых обращений к
+   кабинету — meToken и прочее трогаем только внутри функций, которые
+   вызываются уже после загрузки страницы (на этом мы один раз уронили сайт). */
+let DROP = null, DROPсдвиг = 0, DROPтик = 0, DROPоткрыт = true;
+const дропЧас = (мс) => {
+  const вс = Math.max(0, Math.floor(мс / 1000));
+  const ч = Math.floor(вс / 3600), м = Math.floor((вс % 3600) / 60), с = вс % 60;
+  return ч ? `${ч} ч ${String(м).padStart(2, '0')} м` : `${м} м ${String(с).padStart(2, '0')} с`;
+};
+const дропМс = (строка) => {
+  const t = String(строка || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(t)) return 0;
+  return Date.parse(t.replace(' ', 'T') + ':00Z') - 3 * 3600 * 1000;   // время московское
+};
+const дропСейчас = () => Date.now() + DROPсдвиг;
+const дропДень = (строка) => {
+  const д = String(строка || '').slice(0, 10);
+  const сег = new Date(дропСейчас() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  if (!д) return '';
+  if (д === сег) return 'сегодня';
+  const зав = new Date(дропСейчас() + 3 * 3600 * 1000 + 86400000).toISOString().slice(0, 10);
+  return д === зав ? 'завтра' : д.slice(8, 10) + '.' + д.slice(5, 7);
+};
+function дропПолоска() {
+  const d = DROP, идёт = d.состояние === 'live';
+  const доСтарта = дропМс(d.старт) - дропСейчас();
+  const справа = идёт
+    ? `<small>осталось</small><b>${d.свободно} шт</b>`
+    : d.состояние === 'over' ? `<small>следующий</small><b>завтра</b>`
+    : `<small>старт через</small><b class="dp-t">${дропЧас(доСтарта)}</b>`;
+  const низ = идёт ? `Идёт сейчас · ${d.подпись || 'букет из Reels'}`
+    : d.состояние === 'over' ? 'Сегодня разобрали · завтра в 12:00'
+    : `Дроп дня · букет из Reels · ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`;
+  return `<button class="dline${идёт ? ' live' : ''}" data-drop="open">
+    <span class="em">🔥</span>
+    <span class="tx"><b>${d.штук} ${plural(d.штук, 'роза', 'розы', 'роз')} за ${rub(d.цена)}</b><small>${esc(низ)}</small></span>
+    <span class="tm">${справа}</span><span class="ch">▾</span></button>`;
+}
+function дропКарточка() {
+  const d = DROP, идёт = d.состояние === 'live', конец = d.состояние === 'over';
+  const доСтарта = дропМс(d.старт) - дропСейчас();
+  const фото = (d.лоты || []).filter(l => l.img).length ? (d.лоты || []).filter(l => l.img) : (d.анонс || []);
+  const лента = фото.length ? `<div class="ph-wrap"><div class="ph-rail">${
+      фото.map(l => `<img src="${l.img}" alt="${esc(l.name)}" loading="lazy">`).join('')}</div>${
+      фото.length > 1 ? `<div class="dots">${фото.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}</div>` : '';
+  const сорта = (d.лоты || []).length
+    ? `<div class="sorts">${d.лоты.map(l => l.left > 0
+        ? `<span class="${l.left <= 2 ? 'low' : ''}">${esc(l.name)} <b>${l.left}</b></span>`
+        : `<span class="out">${esc(l.name)}</span>`).join('')}</div>`
+    : `<div class="sorts"><span class="soon">🌱 Сорта объявим в момент дропа — когда розы приедут с теплицы</span></div>`;
+  const доставка = `🚚 доставим ${дропДень(d.доставка_с) || 'в день дропа'}${d.доставка_с ? ' с ' + String(d.доставка_с).slice(11) : ''}`;
+  const очередь = d.очередь >= 10 ? `<div class="q"><b>${d.очередь}</b>в очереди</div>` : '';
+  const я = d.я;
+  const моё = я && я.статус === 'invited'
+    ? `<div class="dp-mine"><div><div class="tm dp-mine-t">${дропЧас(Date.parse(String(я.до).replace(' ', 'T')) - дропСейчас())}</div>
+        <small>${esc(я.сорт || 'ваш букет')} · держим за вами</small></div>
+        <button class="btn btn-primary" style="margin-left:auto" data-drop="take">Забрать за ${rub(d.цена)}</button></div>` : '';
+  let кнопка;
+  if (я && я.статус === 'invited') кнопка = '';
+  else if (я && я.статус === 'waiting') кнопка = `<button class="btn" disabled>Вы в очереди${я.место ? `, ${я.место}-й` : ''}</button>`;
+  else if (я && я.статус === 'paid') кнопка = `<button class="btn" disabled>Букет ваш — оформлен</button>`;
+  else кнопка = `<button class="btn" data-drop="queue">${конец ? 'Встать в очередь на завтра' : 'Встать в очередь'}</button>`;
+  return `<div class="dp${конец ? ' done' : ''}">
+    <div class="dp-head">
+      <span class="tag${идёт ? ' live' : конец ? ' out' : ''}">${идёт ? 'Идёт сейчас' : конец ? 'Разобрали' : 'Дроп дня'}</span>
+      <small>${идёт ? `разобрали ${d.всего - d.свободно} из ${d.всего}` : конец ? 'следующий завтра в 12:00' : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}</small>
+      <span class="t dp-t">${конец ? '' : идёт ? `${d.свободно} шт` : дропЧас(доСтарта)}</span>
+      <button class="x" data-drop="close" aria-label="Свернуть">✕</button>
+    </div>
+    ${моё}
+    <div class="dp-body">${лента}
+      <div class="dp-main">
+        <h3>${esc(d.подпись || 'Тот самый букет из Reels')}</h3>
+        <div class="pr">${d.штук} ${plural(d.штук, 'роза', 'розы', 'роз')} · ${rub(d.цена)}${
+          d.обычная && d.обычная > d.цена ? ` <s>${rub(d.обычная)}</s> <i>−${rub(d.обычная - d.цена)}</i>` : ''}</div>
+        <div class="sub">Одноголовые ${d.длина} см · ${доставка}</div>
+        ${сорта}
+      </div>
+    </div>
+    ${конец || я ? '' : `<div class="how">
+      <div><b>1 · очередь</b>встаёте заранее</div>
+      <div><b>2 · ${String(d.старт).slice(11)}</b>зовём по очереди</div>
+      <div><b>3 · 15 минут</b>выбрать и оплатить</div></div>`}
+    <div class="dp-foot">${кнопка}${очередь}</div>
+  </div>`;
+}
+// вставляем после первого ряда плиток: человек листает каталог и натыкается
+function вставитьДроп(куда) {
+  if (!DROP || !DROP.есть || !куда) return;
+  куда.querySelectorAll('[data-dropbox]').forEach(x => x.remove());
+  const box = document.createElement('div');
+  box.dataset.dropbox = '1';
+  box.style.display = 'contents';
+  box.innerHTML = DROPоткрыт ? дропКарточка() : дропПолоска();
+  const карточки = куда.children;
+  if (карточки.length > 2) куда.insertBefore(box, карточки[2]);
+  else куда.appendChild(box);
+}
+function дропПеререндер() {
+  вставитьДроп($('#popular'));
+  вставитьДроп($('#grid'));
+}
+
 const POPULAR = API ? тасовать(P.filter(p => !isAddon(p) && !p.off), 'главная')
   .slice().sort((a, b) => {
     // Сначала наличие: кончившиеся сорта уходят вниз. На главной они стояли
@@ -1871,6 +2184,7 @@ const POPULAR = API ? тасовать(P.filter(p => !isAddon(p) && !p.off), 'г
   })
   .map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => card(byId[id], 'главная', i)).join('');
+вставитьДроп($('#popular'));
 const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
   const pic = (!API && TILE_IMG[k]) || (P.find(p => p.cat === k && !p.off) || P.find(p => p.cat === k) || {}).id;
@@ -2043,6 +2357,8 @@ function renderGrid() {
   }
   $('#count').textContent = подпись;
   const размерВыбран = !!(state.len || state.cnt);
+  const послеСетки = () => { try { вставитьДроп($('#grid')); } catch (_) {} };
+  setTimeout(послеСетки, 0);
   $('#grid').innerHTML = r.length ? (state.favOnly || state.q ? '' : плиткаКорзины()) + r.map((p, i) => card(p, 'каталог', i)).join('') :
     `<div class="empty"><b>${state.favOnly ? 'В избранном пока пусто' : размерВыбран ? 'В этом размере сейчас ничего нет' : 'Ничего не нашлось'}</b>${
       state.favOnly ? 'Отмечайте букеты сердечком — они соберутся здесь.'
@@ -2653,6 +2969,8 @@ function totals() {
   const t = Object.entries(cart).reduce((t, [k, n]) => (t.sum += keyPrice(k) * n, t.bonus += keyBonus(k) * n, t.n += n, t), { sum: 0, bonus: 0, n: 0 });
   // собранные корзины считаются там же: для покупателя это такие же позиции
   корзины.forEach(к => { t.sum += счётКорзины(к).сумма; t.n += 1; });
+  // букет из дропа: цену держит сервер, здесь показываем ту, что он прислал
+  if (дропБукет && DROP && DROP.есть) { t.sum += +DROP.цена || 0; t.n += 1; }
   return t;
 }
 function renderCart() {
@@ -2663,7 +2981,14 @@ function renderCart() {
       body.innerHTML = `<div class="cart-empty"><h3>Здесь пока пусто.</h3><p>Найдите букет, который скажет всё за вас.</p><button class="btn btn-primary" data-close data-go="/catalog/">Перейти в каталог</button></div>`;
       foot.hidden = true; return;
     }
-    const строкиКорзин = корзины.map((к, i) => {
+    const лотДропа = дропБукет && DROP ? (DROP.лоты || []).find(l => l.id === дропБукет) : null;
+    const строкаДропа = лотДропа ? `<div class="line"><img src="${лотДропа.img || ''}" alt="">
+        <div><div class="line-name">🔥 ${esc(лотДропа.name)} ${DROP.длина} см, ${DROP.штук} шт</div>
+          <div class="line-price num">${rub(DROP.цена)}</div>
+          <div class="hint" style="margin:2px 0 0;font-size:12.5px">Дроп дня · доставим ${esc(дропДень(DROP.доставка_с) || 'сегодня')}${DROP.доставка_с ? ' с ' + String(DROP.доставка_с).slice(11) : ''}</div></div>
+        <div class="mini"><button data-dropdel aria-label="Убрать">${icon('minus')}</button></div>
+      </div>` : '';
+    const строкиКорзин = строкаДропа + корзины.map((к, i) => {
       const c = счётКорзины(к);
       const фото = ((к.parts || [])[0] && byId[к.parts[0].id] && byId[к.parts[0].id].img) || '';
       return `<div class="line"><img src="${фото}" alt="">
@@ -3336,7 +3661,9 @@ cartDlg.addEventListener('submit', async e => {
         // сервер разберёт их сам и пересчитает цену
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; })
           .concat(корзины.map(к => ({ kind: 'basket', basket: к.basket, qty: 1,
-            parts: (к.parts || []).map(x => ({ id: x.id, len: x.len, n: x.n })) }))) }) });
+            parts: (к.parts || []).map(x => ({ id: x.id, len: x.len, n: x.n })) })))
+          // букет из дропа: шлём только сорт, цену и право на покупку проверит сервер
+          .concat(дропБукет ? [{ kind: 'drop', id: дропБукет, qty: 1 }] : []) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         // Отказ не должен превращаться в долбёжку кнопкой: каждое нажатие тратит
@@ -3365,6 +3692,7 @@ cartDlg.addEventListener('submit', async e => {
       lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code, order: data, name: v('name').trim(), phone: v('phone').trim() };
       saveLastOrder();
       забытьЧерновик();   // заказ принят — хранить введённое больше незачем
+      if (дропБукет) { дропБукет = ''; store.set('dropTake', ''); загрузитьДроп(); }
       шаг('order', `${Math.round((data.total || 0) / 1000)} тыс · ${getType === 'pickup' ? 'самовывоз' : 'доставка'}`);
       if (payMethod === 'card') {
         шаг('pay_go', '');
@@ -3577,6 +3905,11 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
   load(true); tick();
 })();
 
+
+  // Дроп грузим здесь, а не выше: загрузка читает ключ кабинета (meToken),
+  // а он объявлен ниже блока каталога — вызов раньше молча падал бы в
+  // «обращение до объявления», и блок не появлялся вовсе.
+  загрузитьДроп().then(дропЧасы);
 
   // Свой счётчик: один заход — одна отметка в день. Никаких чужих скриптов,
   // данные остаются у нас. Источник берём из utm_source или домена, откуда пришли.

@@ -286,6 +286,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="products">Товары</button>
       <button role="tab" data-tab="nom">Номенклатура</button>
       <button role="tab" data-tab="baskets">Корзины</button>
+      <button role="tab" data-tab="drop">Дроп</button>
+      <button role="tab" data-tab="dpeople">Участники дропа</button>
       <button role="tab" data-tab="stock">Остатки</button>
       <button role="tab" data-tab="chat">Чат <span class="dot" id="chatCount" hidden>0</span></button>
       <button role="tab" data-tab="incoming">В пути</button>
@@ -448,6 +450,55 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <div id="dlvList" class="stack"></div>
     </section>
     <!-- Номенклатура: все сорта одним списком, раздел и прайс выбираются прямо здесь -->
+    <section id="tab-dpeople" hidden>
+      <div class="card">
+        <h2>Участники дропа</h2>
+        <p class="hint" style="margin-bottom:12px">Все, кто хоть раз вставал в очередь. Телефон и имя человек оставляет при записи — именно для того, чтобы тем, кому букета не хватило, можно было позвонить и предложить замену. Телефон кликабельный.</p>
+        <div class="bar" style="margin-bottom:10px">
+          <input class="in" id="dpQ" placeholder="Поиск по имени или телефону" style="max-width:280px">
+          <label class="chk" style="font-size:13px;align-self:center"><input type="checkbox" id="dpLost"> <span>только те, кому не досталось</span></label>
+          <span class="sp"></span>
+          <span class="hint" id="dpCount" style="margin:0;align-self:center"></span>
+          <button class="btn btn-g btn-s" id="dpCsv">Скачать списком</button>
+        </div>
+        <div class="scroll"><table class="t" id="dpList"></table></div>
+      </div>
+    </section>
+
+    <section id="tab-drop" hidden>
+      <div class="card">
+        <h2>Дроп дня</h2>
+        <p class="hint" style="margin-bottom:12px">Каждое утро назначаете, что сегодня уходит в дроп: сорта и сколько букетов. В 12:00 сервер сам позовёт людей из очереди — столько человек, сколько букетов, каждому 15 минут на оплату. Не успел — букет уходит следующему, а он ждёт завтрашнего дропа. Один букет в руки за сутки.</p>
+        <div class="row">
+          <label class="f">День<input class="in" id="drDate" type="date"></label>
+          <label class="f">Старт продаж<input class="in" id="drStart" value="12:00" placeholder="12:00"></label>
+          <label class="f">Доставляем с<input class="in" id="drReady" value="15:00" placeholder="15:00"></label>
+        </div>
+        <div class="row">
+          <label class="f">Роз в букете<input class="in num" id="drCnt" type="number" value="101"></label>
+          <label class="f">Ростовка, см<input class="in num" id="drLen" type="number" value="40"></label>
+          <label class="f">Цена букета, ₽<input class="in num" id="drPrice" type="number" value="5990"></label>
+        </div>
+        <label class="f">Подпись на сайте<input class="in" id="drNote" maxlength="300" placeholder="Тот самый букет из Reels"></label>
+        <div class="scroll" style="margin-top:12px"><table class="t" id="drLots"></table></div>
+        <div class="bar" style="margin-top:10px">
+          <button class="btn btn-g btn-s" id="drAdd">+ Сорт</button>
+          <label class="chk" style="font-size:13px;align-self:center"><input type="checkbox" id="drActive"> <span>Показывать на сайте</span></label>
+          <span class="sp"></span>
+          <button class="btn btn-p" id="drSave">Сохранить</button>
+        </div>
+        <p class="hint" id="drState" style="margin-top:10px"></p>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Очередь</h2>
+        <div class="scroll"><table class="t" id="drQueue"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Прошлые дропы</h2>
+        <div class="scroll"><table class="t" id="drPast"></table></div>
+      </div>
+    </section>
+
     <section id="tab-baskets" hidden>
       <div class="card">
         <h2>Сорта в корзинах</h2>
@@ -1116,7 +1167,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ team: loadTeam, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings, baskets: loadBaskets })[t]();
+  ({ team: loadTeam, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
@@ -1136,7 +1187,7 @@ function brandPill(id) {
 }
 
 // Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
-const TAB_NEED = { team: 'staff', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all' };
+const TAB_NEED = { team: 'staff', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all', drop: 'all', dpeople: 'all' };
 async function loadRole() {
   try { ME = await api('/api/shop/me-role'); } catch (_) {}
   // витрины нужны всем вкладкам, а не только настройкам: без них заказы
@@ -2912,6 +2963,134 @@ $('#bpList').addEventListener('click', e => {
   const b = e.target.closest('[data-bpopen]'); if (!b) return;
   открытьКорзиныСорта(+b.dataset.bpopen);
 });
+
+/* ---------- дроп дня ----------
+   Владелец утром набивает сорта и количество букетов. Остаток (left) трогаем
+   только там, где поменяли количество: продажа могла уже идти, и сброс отдал
+   бы людям второй раз то, что уже разобрали. */
+let DROP = { сорта: [], дропы: [], очередь: [] }, DRLOTS = [];
+const DR_ST = { soon: ['Ждёт старта', 'st-new'], live: ['Идёт', 'st-assembling'], over: ['Разобрали', 'st-done'] };
+const QST = { waiting: 'ждёт', invited: 'позвали', paid: 'оплатил', missed: 'не успел', out: 'не хватило' };
+
+function renderDrLots() {
+  const сорта = DROP.сорта || [];
+  $('#drLots').innerHTML = `<tr><th>Сорт</th><th>Букетов</th><th>Осталось</th><th>Стеблей на складе</th><th></th></tr>`
+    + (DRLOTS.length ? DRLOTS.map((l, i) => {
+        const надо = (+l.qty || 0) * (+$('#drCnt').value || 101);
+        const есть = (сорта.find((p) => p.id === l.product) || {}).stock || 0;
+        return `<tr>
+          <td><select class="in sm" data-drl="${i}" data-f="product" style="min-width:200px">
+            <option value="">— сорт —</option>
+            ${сорта.map((p) => `<option value="${p.id}"${p.id === l.product ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
+          </select></td>
+          <td><input class="in sm num" type="number" min="0" step="1" data-drl="${i}" data-f="qty" value="${l.qty || ''}" style="width:90px"></td>
+          <td class="num">${l.left === undefined ? '—' : l.left}</td>
+          <td class="num ${есть < надо ? 'bad' : ''}">${есть}${надо ? ` / нужно ${надо}` : ''}</td>
+          <td><button class="btn btn-g btn-s" data-drrm="${i}">Убрать</button></td></tr>`;
+      }).join('')
+      : '<tr><td class="hint">Сортов пока нет. Нажмите «+ Сорт».</td></tr>');
+}
+function renderDrQueue() {
+  const q = DROP.очередь || [];
+  $('#drQueue').innerHTML = `<tr><th>#</th><th>Кто</th><th>Телефон</th><th>Статус</th><th>Сорт</th><th>До</th></tr>`
+    + (q.length ? q.map((x) => `<tr><td class="num">${x.место}</td><td>${esc(x.имя || '—')}</td>
+        <td>${esc(x.телефон || '')}</td><td>${QST[x.статус] || x.статус}</td>
+        <td>${esc(x.сорт || '')}</td><td class="num">${x.до ? x.до.slice(11, 16) : ''}</td></tr>`).join('')
+      : '<tr><td class="hint">В очереди пока никого.</td></tr>');
+}
+function renderDrPast() {
+  const сп = (DROP.дропы || []).slice(1);
+  $('#drPast').innerHTML = `<tr><th>День</th><th>Старт</th><th>Букетов</th><th>Осталось</th><th>Состояние</th></tr>`
+    + (сп.length ? сп.map((d) => {
+        const [st, cls] = DR_ST[d.состояние] || [d.состояние, ''];
+        const всего = d.lots.reduce((n, l) => n + l.qty, 0), ост = d.lots.reduce((n, l) => n + l.left, 0);
+        return `<tr><td>${d.date}</td><td>${(d.start_at || '').slice(11)}</td><td class="num">${всего}</td>
+          <td class="num">${ост}</td><td><span class="pill ${cls}">${st}</span></td></tr>`;
+      }).join('')
+      : '<tr><td class="hint">Прошлых дропов нет.</td></tr>');
+}
+function fillDrop(d) {
+  const сег = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  $('#drDate').value = (d && d.date) || сег;
+  $('#drStart').value = d ? (d.start_at || '').slice(11) || '12:00' : '12:00';
+  $('#drReady').value = d ? (d.ready_at || '').slice(11) || '15:00' : '15:00';
+  $('#drCnt').value = (d && d.cnt) || 101;
+  $('#drLen').value = (d && d.len) || 40;
+  $('#drPrice').value = (d && d.price) || 5990;
+  $('#drNote').value = (d && d.note) || 'Тот самый букет из Reels';
+  $('#drActive').checked = !!(d && d.active);
+  DRLOTS = d ? d.lots.map((l) => ({ product: l.product, qty: l.qty, left: l.left })) : [];
+  const [st] = d ? (DR_ST[d.состояние] || ['', '']) : ['', ''];
+  $('#drState').textContent = d
+    ? `Сейчас: ${st.toLowerCase()}. Разобрано ${d.lots.reduce((n, l) => n + (l.qty - l.left), 0)} из ${d.lots.reduce((n, l) => n + l.qty, 0)}.`
+    : 'Дроп на сегодня ещё не заведён.';
+}
+const loadDrop = safe(async () => {
+  DROP = await api('/api/shop/drops');
+  const сег = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  fillDrop((DROP.дропы || []).find((d) => d.date === сег) || null);
+  renderDrLots(); renderDrQueue(); renderDrPast();
+});
+$('#drLots').addEventListener('input', e => {
+  const el = e.target.closest('[data-drl]'); if (!el) return;
+  const l = DRLOTS[+el.dataset.drl]; if (!l) return;
+  if (el.dataset.f === 'qty') { l.qty = Math.max(0, +el.value || 0); renderDrLots(); }
+  else { l.product = el.value; renderDrLots(); }
+});
+$('#drLots').addEventListener('click', e => {
+  const rm = e.target.closest('[data-drrm]'); if (!rm) return;
+  DRLOTS.splice(+rm.dataset.drrm, 1); renderDrLots();
+});
+$('#drAdd').onclick = () => { DRLOTS.push({ product: '', qty: 0 }); renderDrLots(); };
+$('#drSave').onclick = safe(async () => {
+  const lots = DRLOTS.filter((l) => l.product && +l.qty > 0).map((l) => ({ product: l.product, qty: +l.qty }));
+  if (!lots.length) throw new Error('Добавьте хотя бы один сорт с количеством');
+  await api('/api/shop/drop-save', { method: 'POST', body: {
+    date: $('#drDate').value, start_at: $('#drStart').value, ready_at: $('#drReady').value,
+    len: +$('#drLen').value, cnt: +$('#drCnt').value, price: +$('#drPrice').value,
+    note: $('#drNote').value, active: $('#drActive').checked, lots } });
+  toast('Дроп сохранён'); loadDrop();
+});
+
+/* ---------- участники дропа ----------
+   Человек важнее записи: один и тот же покупатель приходит на дроп каждый
+   день, и владельцу нужен не список попыток, а список людей с телефоном. */
+let DPEOPLE = [];
+function renderDPeople() {
+  const q = ($('#dpQ').value || '').trim().toLowerCase();
+  const толькоНет = $('#dpLost').checked;
+  const цифры = s => String(s || '').replace(/\D/g, '');
+  let сп = DPEOPLE.filter(p => !q || (p.имя || '').toLowerCase().includes(q) || цифры(p.телефон).includes(цифры(q) || q));
+  if (толькоНет) сп = сп.filter(p => !p.выиграл && (p.не_хватило || p.не_успел));
+  $('#dpCount').textContent = `${сп.length} ${plural(сп.length, 'человек', 'человека', 'человек')}`;
+  $('#dpList').innerHTML = `<tr><th>Имя</th><th>Телефон</th><th>Участий</th><th>Забрал</th><th>Не успел</th><th>Не хватило</th><th>Последний раз</th></tr>`
+    + (сп.length ? сп.map(p => `<tr>
+        <td>${esc(p.имя || '—')}</td>
+        <td>${p.телефон ? `<a href="tel:${esc(цифры(p.телефон))}">${esc(p.телефон)}</a>` : '<i class="same">нет</i>'}</td>
+        <td class="num">${p.участий}</td>
+        <td class="num">${p.выиграл || ''}</td>
+        <td class="num">${p.не_успел || ''}</td>
+        <td class="num">${p.не_хватило || ''}</td>
+        <td>${p.последний || ''}</td></tr>`).join('')
+      : '<tr><td class="hint">Пока никто не вставал в очередь.</td></tr>');
+}
+const loadDPeople = safe(async () => {
+  const r = await api('/api/shop/drop-people');
+  DPEOPLE = r.люди || [];
+  renderDPeople();
+});
+$('#dpQ').addEventListener('input', renderDPeople);
+$('#dpLost').addEventListener('change', renderDPeople);
+$('#dpCsv').onclick = () => {
+  const строки = [['Имя', 'Телефон', 'Участий', 'Забрал', 'Не успел', 'Не хватило', 'Последний раз']]
+    .concat(DPEOPLE.map(p => [p.имя || '', p.телефон || '', p.участий, p.выиграл, p.не_успел, p.не_хватило, p.последний || '']));
+  // точка с запятой и BOM — чтобы Excel на русской машине открыл как таблицу
+  const csv = '\ufeff' + строки.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(';')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `участники-дропа-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+};
 
 /* ---------- примеры корзин ----------
    Фото + количество + сорт. Снимок уходит сразу при выборе файла: копить его
