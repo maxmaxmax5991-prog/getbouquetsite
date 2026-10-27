@@ -666,6 +666,12 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <h2 style="margin-top:14px;font-size:15px">Почему не оформили</h2>
         <p class="hint">Каждая строка — отказ, который человек увидел вместо заказа. Это не «передумал», это мы ему помешали.</p>
         <div class="scroll"><table class="t" id="statRefuse"></table></div>
+        <h2 style="margin-top:14px;font-size:15px">Дроп дня</h2>
+        <p class="hint">Путь от полоски на главной до выбранного букета. Оплаты считаются отдельно — во вкладке «Дроп».</p>
+        <div class="scroll"><table class="t" id="statDrop"></table></div>
+        <h2 style="margin-top:14px;font-size:15px">Корзины</h2>
+        <p class="hint">Конструктор и готовые корзины. Видно, где человек бросает сборку.</p>
+        <div class="scroll"><table class="t" id="statBasket"></table></div>
       </div>
       <div class="card" style="margin-top:12px">
         <h2>Что работает на витрине</h2>
@@ -3544,6 +3550,33 @@ const loadStats = safe(async () => {
       ? `<tr><th>Что помешало оформить</th><th class="num">Человек</th></tr>`
         + отк.map(r => `<tr><td>${esc(r.причина)}</td><td class="num">${r.людей}</td></tr>`).join('')
       : `<tr><td class="hint">Отказов за период не было — или сайт ещё не обновлён.</td></tr>`;
+    // Две отдельные воронки: у дропа и у корзин свой путь, в общей воронке
+    // они терялись. Пусто — значит сайт ещё не обновлён или никто не заходил.
+    const мини = (узел, шаги, пусто) => {
+      const есть = шаги.some(([, n]) => n > 0);
+      $(узел).innerHTML = есть
+        ? `<tr><th>Шаг</th><th class="num">Человек</th><th class="num">С прошлого шага</th></tr>`
+          + шаги.map(([t, n], i) => {
+              const prev = i ? (шаги[i - 1][1] || 0) : 0;
+              const d = i && prev ? Math.round((n || 0) * 100 / prev) : null;
+              return `<tr><td>${t}</td><td class="num">${n || 0}</td><td class="num">${d === null ? '' : d + '%'}</td></tr>`;
+            }).join('')
+        : `<tr><td class="hint">${пусто}</td></tr>`;
+    };
+    мини('#statDrop', [
+      ['Увидели полоску', fn.drop_show],
+      ['Раскрыли карточку', fn.drop_open],
+      ['Открыли форму очереди', fn.drop_form],
+      ['Встали в очередь', fn.drop_queue],
+      ['Выбрали букет по приглашению', fn.drop_take],
+    ], 'За период дроп никто не видел — возможно, он был выключен.');
+    мини('#statBasket', [
+      ['Открыли конструктор', fn.bk_open],
+      ['Выбрали вид цветов', fn.bk_cat],
+      ['Добавили сорт', fn.bk_pick],
+      ['Собрали корзину', fn.bk_add],
+      ['Взяли готовую корзину', fn.ready_basket],
+    ], 'За период корзины никто не собирал.');
   } catch (_) { $('#statFunnel').innerHTML = '<tr><td>Пока нет данных</td></tr>'; }
 
   // Оценки после вручения

@@ -87,6 +87,19 @@ routerAdd("POST", "/api/shop/ev", (e) => {
     "order",       // заказ создан
     "pay_go",      // ушёл на оплату
     "paid",        // оплата прошла
+    // Дроп дня: своя воронка, отдельная от каталожной. Без этих строк сайт
+    // шлёт события, а сервер молча их выбрасывает — так и вышло 26.10.
+    "drop_show",   // увидел полоску дропа
+    "drop_open",   // раскрыл карточку дропа
+    "drop_form",   // открыл форму «встать в очередь»
+    "drop_queue",  // встал в очередь, ctx — место
+    "drop_take",   // выбрал букет по приглашению, ctx — сорт
+    // Корзины: конструктор и готовые примеры
+    "bk_open",     // открыл конструктор
+    "bk_cat",      // выбрал вид цветов
+    "bk_pick",     // добавил сорт в корзину
+    "bk_add",      // собрал и положил в корзину сайта
+    "ready_basket",// взял готовую корзину целиком
   ];
   if (vid.length < 8 || ШАГИ.indexOf(kind) < 0) return e.json(200, { ok: true });
   const day = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
@@ -112,7 +125,9 @@ routerAdd("GET", "/api/shop/funnel", (e) => {
   // не даёт записать один и тот же шаг дважды за день.
   const ШАГИ = ["view", "filter", "search", "cart", "cart_open", "checkout", "get_type", "form",
     "login_go", "login_ok", "addr_ok", "addr_fail", "slot", "submit", "refuse",
-    "order", "pay_go", "paid"];
+    "order", "pay_go", "paid",
+    "drop_show", "drop_open", "drop_form", "drop_queue", "drop_take",
+    "bk_open", "bk_cat", "bk_pick", "bk_add", "ready_basket"];
   const out = { visits: 0, отказы: [] };
   ШАГИ.forEach((k) => out[k] = 0);
   try {

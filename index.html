@@ -965,7 +965,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793100438"></script>
+<script src="/data.js?v=1793103815"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1639,6 +1639,7 @@ function бкОткрытьВыбор() {
       const доля = Math.floor(БК.всего / (БК.слоты.length + 1));
       БК.слоты.forEach(s => { s.n = доля; });
       БК.слоты.push({ id: p.id, len: r ? r.len : 0, n: БК.всего - доля * БК.слоты.length });
+      window.шаг && window.шаг('bk_pick', p.name || '');
       бкРисоватьСлоты(); бкПересчёт();
     }
     if (b || e.target.closest('[data-pickclose]')) { d.close(); d.remove(); }
@@ -1650,6 +1651,7 @@ document.addEventListener('click', e => {
   if (cat) {
     // другой вид — набор начинаем заново: сорта из прошлого вида сюда нельзя
     БК.cat = cat.dataset.bkcat; БК.слоты = []; БК.всего = 0; БК.шаг = 2;
+    window.шаг && window.шаг('bk_cat', (бкРаздел() || {}).name || БК.cat);
     бкРисоватьРазделы(); бкРисоватьСлоты(); бкПересчёт(); return;
   }
   const del = t2.closest && t2.closest('[data-bkdel]');
@@ -1710,6 +1712,7 @@ document.addEventListener('click', e => {
   if (go && !go.disabled) {
     const основа = бкОснова();
     корзины.push({ basket: основа.id, cat: БК.cat, parts: БК.слоты.map(s => ({ id: s.id, len: s.len, n: s.n })) });
+    window.шаг && window.шаг('bk_add', `${БК.всего} ${бкСлово(БК.всего)} · ${БК.слоты.length} сорт.`);
     сохрКорзины(); badges(); openCart();
     БК.слоты = []; бкРисоватьСлоты(); бкПересчёт();
     toast('Корзина собрана и добавлена');
@@ -1858,9 +1861,9 @@ document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-drop]');
   if (!b || !DROP) return;
   const что = b.dataset.drop;
-  if (что === 'open') { DROPоткрыт = true; store.set('dropOpen', '1'); дропПеререндер(); }
+  if (что === 'open') { DROPоткрыт = true; store.set('dropOpen', '1'); window.шаг && window.шаг('drop_open', DROP.состояние || ''); дропПеререндер(); }
   else if (что === 'close') { DROPоткрыт = false; store.set('dropOpen', '0'); дропПеререндер(); }
-  else if (что === 'queue') дропФорма();
+  else if (что === 'queue') { window.шаг && window.шаг('drop_form', DROP.состояние || ''); дропФорма(); }
   else if (что === 'take') дропВыбрать();
 });
 
@@ -2179,8 +2182,12 @@ function дропКарточка() {
   </div>`;
 }
 // вставляем после первого ряда плиток: человек листает каталог и натыкается
+let дропПоказан = false;
 function вставитьДроп(куда) {
   if (!DROP || !DROP.есть || !куда) return;
+  // один раз за загрузку: полоска рисуется и на главной, и в каталоге,
+  // а событие должно отвечать на вопрос «сколько людей её увидели»
+  if (!дропПоказан) { дропПоказан = true; window.шаг && window.шаг('drop_show', DROP.состояние || ''); }
   куда.querySelectorAll('[data-dropbox]').forEach(x => x.remove());
   const box = document.createElement('div');
   box.dataset.dropbox = '1';
@@ -2522,6 +2529,7 @@ function router() {
   // /studio/ остался в ссылках и закладках: карусели больше нет, ведём в каталог
   else if (a === 'korzina') {
     name = 'basket';
+    window.шаг && window.шаг('bk_open', '');
     document.title = 'Соберите корзину — ' + SITE;
     renderBasketPage();
   }
