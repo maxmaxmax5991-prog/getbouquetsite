@@ -965,7 +965,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793087120"></script>
+<script src="/data.js?v=1793100438"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2158,7 +2158,7 @@ function дропКарточка() {
   return `<div class="dp${конец ? ' done' : ''}">
     <div class="dp-head">
       <span class="tag${идёт ? ' live' : конец ? ' out' : ''}">${идёт ? 'Идёт сейчас' : конец ? 'Разобрали' : 'Дроп дня'}</span>
-      <small>${идёт ? `разобрали ${d.всего - d.свободно} из ${d.всего}` : конец ? 'следующий завтра в 12:00' : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}</small>
+      <small>${идёт ? 'свободно букетов' : конец ? 'следующий завтра в 12:00' : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}</small>
       <span class="t dp-t">${конец ? '' : идёт ? `${d.свободно} шт` : дропЧас(доСтарта)}</span>
       <button class="x" data-drop="close" aria-label="Свернуть">✕</button>
     </div>
