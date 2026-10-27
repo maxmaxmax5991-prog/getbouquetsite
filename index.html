@@ -965,7 +965,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793103815"></script>
+<script src="/data.js?v=1793109382"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2933,18 +2933,24 @@ async function startLogin(how, waitSel, done) {
     const d = await r.json();
     if (!r.ok) return toast(d.message || 'Вход пока недоступен', true);
     const wait = $(waitSel || '#meWait');
-    if (how === 'max') {
-      if (!d.max_link) return toast('Вход через MAX пока не настроен', true);
-      window.open(d.max_link, '_blank', 'noopener');
-      wait.textContent = 'Ждём подтверждения в MAX…';
-    } else {
-      window.open(d.link, '_blank', 'noopener');
-      wait.textContent = 'Ждём подтверждения в Телеграме…';
-    }
+    if (how === 'max' && !d.max_link) return toast('Вход через MAX пока не настроен', true);
+    const ссылка = how === 'max' ? d.max_link : d.link;
+    const где = how === 'max' ? 'MAX' : 'Телеграме';
+    // ВАЖНО: window.open после await браузер считает не жестом пользователя
+    // и блокирует — чаще всего на айфоне. Бот не открывался, а человек сидел
+    // с «ждём подтверждения» до посинения (27.10: покупатель ждал полчаса).
+    // Поэтому ссылку всегда показываем рядом живой: по ней хватает одного тапа.
+    let открылось = null;
+    try { открылось = window.open(ссылка, '_blank', 'noopener'); } catch (_) {}
+    wait.innerHTML = открылось
+      ? `Ждём подтверждения в ${где}… <a href="${ссылка}" target="_blank" rel="noopener"><u>не открылось?</u></a>`
+      : `<b>Откройте бота и нажмите «Старт»</b> — <a href="${ссылка}" target="_blank" rel="noopener"><u>открыть ${где === 'MAX' ? 'MAX' : 'Телеграм'}</u></a>`;
     wait.hidden = false;
     const started = Date.now();
+    // Ждём десять минут, а не три: человек уходит в бот, отвлекается и
+    // возвращается. На три минуты не хватало даже спокойного входа.
     const timer = setInterval(async () => {
-      if (Date.now() - started > 180000) return clearInterval(timer);
+      if (Date.now() - started > 600000) return clearInterval(timer);
       try {
         const c = await fetch('/api/shop/login-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: d.code }) });
         const cd = await c.json();
