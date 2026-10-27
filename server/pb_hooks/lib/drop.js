@@ -110,13 +110,28 @@ function сохранитьЛоты(app, d, сп) {
 // Выдать букет тому, кого позвали. Проверяем всё заново: приглашение живое,
 // срок не вышел, сорт ещё остался. Браузеру верить нельзя — он мог пролежать
 // в кармане полчаса и прислать свою картину мира.
-function взять(app, cust, pid) {
+function взять(app, cust, pid, phone) {
   const беда = (m) => { throw new BadRequestError(m); };
   const d = текущий(app);
   if (!d) беда("Дроп уже закончился.");
   if (Date.now() < вМс(d.get("start_at"))) беда("Дроп ещё не начался.");
   let q = null;
-  try { q = app.findFirstRecordByFilter("drop_queue", "drop = {:d} && customer = {:c}", { d: d.id, c: String(cust || "") }); } catch (_) {}
+  if (cust) {
+    try { q = app.findFirstRecordByFilter("drop_queue", "drop = {:d} && customer = {:c}", { d: d.id, c: String(cust) }); } catch (_) {}
+  }
+  // Запасной путь — по телефону. 26.10 людей позвали в бот, они пришли по
+  // ссылке с телефона, где сайт их не знал, и получали «вас нет в очереди»:
+  // заказ уходил без привязки к карточке покупателя. Телефон в заказе есть
+  // всегда, и в очереди он тоже записан.
+  if (!q) {
+    const хвост = String(phone || "").replace(/\D/g, "").slice(-10);
+    if (хвост.length === 10) {
+      try {
+        q = app.findRecordsByFilter("drop_queue", "drop = {:d}", "-updated", 200, 0, { d: d.id })
+          .find((x) => String(x.get("phone") || "").replace(/\D/g, "").slice(-10) === хвост) || null;
+      } catch (_) {}
+    }
+  }
   if (!q) беда("Вас нет в очереди на этот дроп.");
   if (q.get("status") === "paid") беда("Вы уже забрали букет в этом дропе.");
   if (q.get("status") !== "invited") беда("Ваша очередь ещё не подошла.");
@@ -128,14 +143,24 @@ function взять(app, cust, pid) {
   const i = сп.findIndex((l) => String(l.product) === String(pid));
   if (i < 0) беда("Этого сорта в дропе нет.");
   if (+сп[i].left <= 0) беда("Этот сорт только что разобрали — выберите другой.");
-  сп[i].left = +сп[i].left - 1;
-  сохранитьЛоты(app, d, сп);
+  // Букет списываем НЕ здесь. Проверка идёт в середине сборки заказа, и дальше
+  // он ещё может не пройти по дате или адресу — тогда букет исчез бы в никуда,
+  // не достав никому. Списываем после того, как заказ сохранился.
   return { drop: d, очередь: q, len: +d.get("len") || 40, cnt: +d.get("cnt") || 101, price: +d.get("price") || 0,
     ready_at: d.get("ready_at") || "" };
 }
 // Отметка «забрал» ставится запросом: соседнее сохранение заказа не должно
 // вернуть её обратно в «позвали» (той же граблёй мы ловились с ms_id).
-function отметитьВзятие(app, q, orderId) {
+function отметитьВзятие(app, q, orderId, pid) {
+  // Сначала снимаем букет с остатка дропа — теперь заказ точно состоялся
+  try {
+    const d = текущий(app);
+    if (d && pid) {
+      const сп = лоты(d);
+      const i = сп.findIndex((l) => String(l.product) === String(pid));
+      if (i >= 0 && +сп[i].left > 0) { сп[i].left = +сп[i].left - 1; сохранитьЛоты(app, d, сп); }
+    }
+  } catch (err) { console.log("дроп: списание букета", err); }
   try {
     app.db().newQuery("UPDATE drop_queue SET status = 'paid', \"order\" = {:o} WHERE id = {:id}")
       .bind({ o: String(orderId || ""), id: q.id }).execute();

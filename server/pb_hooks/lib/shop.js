@@ -562,13 +562,15 @@ function prepareOrder(app, rec) {
     // выдумать, а тут дешевле обычного каталога на тысячу рублей.
     if (it && it.kind === "drop") {
       const dr = require(`${__hooks}/lib/drop.js`);
-      const выдача = dr.взять(app, rec.get("customer"), it.id);
+      const выдача = dr.взять(app, rec.get("customer"), it.id, rec.get("phone"));
       let p;
       try { p = app.findRecordById("products", String(it.id)); } catch (_) { fail("Сорт из дропа больше недоступен."); }
       items.push({ id: p.id, kind: "drop", name: `${p.get("name")} ${выдача.len} см, ${выдача.cnt} шт (дроп)`,
         label: `${выдача.len}-${выдача.cnt}`, label_text: `${выдача.cnt} шт · ${выдача.len} см`,
         qty: 1, price: выдача.price, sum: выдача.price, stems: выдача.cnt });
-      take.push({ p, len: String(выдача.len), n: выдача.cnt });
+      // Остаток каталога НЕ трогаем (решение владельца 26.10): букеты на дроп
+      // отложены отдельно, их считает счётчик самого дропа. Списание со склада
+      // идёт как обычно — через заказ в МоёмСкладе.
       sum += выдача.price;
       rec.set("note", String(rec.get("note") || "").slice(0, 1800) + (rec.get("note") ? " · " : "") + "Дроп дня");
       // отметку «забрал» ставим после сохранения заказа — в хуке ниже

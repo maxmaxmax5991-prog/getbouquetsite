@@ -619,10 +619,8 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .dp .sorts span.low b{color:var(--sale)}
 .dp .sorts span.out{opacity:.45;text-decoration:line-through}
 .dp .sorts span.soon{white-space:normal;background:var(--leaf-soft);border-color:rgba(31,122,77,.25);color:var(--leaf);font-weight:700}
-.dp .how{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 12px 12px}
-.dp .how div{background:var(--accent-soft);border-radius:10px;padding:8px;font-size:11px;line-height:1.3;color:var(--ink-2);
-  display:flex;flex-direction:column;justify-content:flex-start}
-.dp .how b{display:block;color:var(--accent-text);font:800 11px/1.2 var(--body);margin-bottom:3px}
+.dp .how{padding:0 12px 12px;color:var(--ink-2);font-size:12px;line-height:1.5}
+.dp .how i{font-style:normal;color:var(--accent-text);font-weight:800}
 .dp-foot{display:flex;align-items:center;gap:10px;padding:0 12px 12px}
 .dp-foot .btn{flex:1;border:0;border-radius:12px;padding:13px;font:700 15px var(--body);background:var(--accent);color:#fff;cursor:pointer}
 .dp-foot .btn[disabled]{opacity:.55}
@@ -967,7 +965,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1792941517"></script>
+<script src="/data.js?v=1793087120"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1772,19 +1770,44 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) за
 
 function дропФорма() {
   const имя = (ME && ME.name) || '', тел = (ME && (ME.phone_ok || ME.phone)) || '';
+  const нужноВойти = !meToken;
   const d = document.createElement('dialog');
   d.className = 'bk-pick';
+  // Поля размечаем явно: общий класс .f в вёрстке сайта кладёт подпись и поле
+  // в строку, и в узком окне «Телефон» уезжал вбок от «Имени».
+  const поле = (id, подпись, знач, доп) => `<label style="display:block;margin-top:10px">
+    <span style="display:block;font-size:13px;color:var(--ink-2);margin-bottom:5px">${подпись}</span>
+    <input class="in" id="${id}" value="${esc(знач)}" ${доп} style="width:100%"></label>`;
   d.innerHTML = `<form method="dialog" style="padding:16px;max-width:420px">
     <h3 style="margin:0 0 6px">Встать в очередь</h3>
-    <p class="hint" style="margin:0 0 12px">Позовём в боте, когда подойдёт очередь. Телефон нужен на случай, если букета не хватит — предложим замену.</p>
-    <label class="f">Имя<input class="in" id="dqName" value="${esc(имя)}" maxlength="120" required></label>
-    <label class="f" style="margin-top:8px">Телефон<input class="in" id="dqPhone" type="tel" inputmode="tel" value="${esc(тел)}" placeholder="+7 999 123-45-67" required></label>
-    <div class="bar" style="margin-top:14px">
-      <button class="btn btn-primary" value="ok" type="submit">Встать в очередь</button>
+    <p class="hint" style="margin:0">Позовём в боте, когда подойдёт очередь. Телефон нужен на случай, если букета не хватит — предложим замену.</p>
+    ${поле('dqName', 'Имя', имя, 'maxlength="120" required')}
+    ${поле('dqPhone', 'Телефон', тел, 'type="tel" inputmode="tel" placeholder="+7 999 123-45-67" required')}
+    ${нужноВойти ? `<div style="margin-top:14px;padding:10px 12px;background:var(--accent-soft);border-radius:12px">
+        <div style="font-size:13px;line-height:1.4;color:var(--ink-2)">Шаг 3 — подключите бота: именно туда придёт «ваша очередь подошла». Без него мы не сможем вас позвать.</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-ghost" type="button" id="dqTg" style="flex:1">Подключить Телеграм</button>
+          <button class="btn btn-ghost" type="button" id="dqMax">MAX</button>
+        </div>
+        <p class="hint" id="dqWait" hidden style="margin:8px 0 0"></p>
+      </div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" value="ok" type="submit" style="flex:1"${нужноВойти ? ' id="dqGo" disabled' : ''}>Встать в очередь</button>
       <button class="btn btn-ghost" value="no" formnovalidate>Отмена</button>
     </div></form>`;
   document.body.appendChild(d);
   d.showModal();
+  if (нужноВойти) {
+    const готово = () => {
+      const кн = d.querySelector('#dqGo'); if (кн) { кн.disabled = false; кн.textContent = 'Встать в очередь'; }
+      const w = d.querySelector('#dqWait'); if (w) { w.hidden = false; w.textContent = '✅ Бот подключён — можно вставать в очередь'; }
+      const п = d.querySelector('#dqName'); if (п && !п.value && ME && ME.name) п.value = ME.name;
+      const т = d.querySelector('#dqPhone'); if (т && !т.value && ME && (ME.phone_ok || ME.phone)) т.value = ME.phone_ok || ME.phone;
+    };
+    const тг = d.querySelector('#dqTg'), мх = d.querySelector('#dqMax');
+    if (тг) тг.onclick = () => startLogin('tg', '#dqWait', готово);
+    if (мх) мх.onclick = () => startLogin('max', '#dqWait', готово);
+  }
   d.addEventListener('close', async () => {
     const имяЗн = (d.querySelector('#dqName') || {}).value || '';
     const телЗн = (d.querySelector('#dqPhone') || {}).value || '';
@@ -2149,10 +2172,9 @@ function дропКарточка() {
         ${сорта}
       </div>
     </div>
-    ${конец || я ? '' : `<div class="how">
-      <div><b>1 · очередь</b>встаёте заранее</div>
-      <div><b>2 · ${String(d.старт).slice(11)}</b>зовём по очереди</div>
-      <div><b>3 · 15 минут</b>выбрать и оплатить</div></div>`}
+    ${конец || я ? '' : идёт
+      ? `<div class="how"><i>1.</i> встаёте в очередь &nbsp;<i>2.</i> зовём по порядку, как освободится букет &nbsp;<i>3.</i> 15 минут на выбор и оплату</div>`
+      : `<div class="how"><i>1.</i> встаёте в очередь &nbsp;<i>2.</i> в ${String(d.старт).slice(11)} зовём по порядку &nbsp;<i>3.</i> 15 минут на выбор и оплату</div>`}
     <div class="dp-foot">${кнопка}${очередь}</div>
   </div>`;
 }
@@ -3905,6 +3927,30 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
   load(true); tick();
 })();
 
+
+  // Ссылка из бота «ваша очередь подошла» приходит с одноразовым кодом:
+  // ?l=<код>. Без этого человек открывал страницу с телефона, сайт его не
+  // узнавал и писал «вас нет в очереди» — ровно это случилось 26.10.
+  (async () => {
+    try {
+      const код = new URLSearchParams(location.search).get('l');
+      if (!код) return;
+      const r = await fetch('/api/shop/login-check', { method: 'POST',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: код }) });
+      const d = await r.json().catch(() => ({}));
+      if (d && d.token) {
+        meToken = d.token; store.set('token', meToken);
+        try { window.chatLink && window.chatLink(); } catch (_) {}
+        await loadMe();
+        toast('Вы вошли — ваш букет ждёт');
+      }
+    } catch (_) {}
+    try {
+      const u = new URL(location.href); u.searchParams.delete('l');
+      history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+    } catch (_) {}
+    загрузитьДроп();
+  })();
 
   // Дроп грузим здесь, а не выше: загрузка читает ключ кабинета (meToken),
   // а он объявлен ниже блока каталога — вызов раньше молча падал бы в

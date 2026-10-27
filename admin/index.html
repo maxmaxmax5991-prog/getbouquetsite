@@ -2974,10 +2974,10 @@ const QST = { waiting: 'ждёт', invited: 'позвали', paid: 'оплат�
 
 function renderDrLots() {
   const сорта = DROP.сорта || [];
-  $('#drLots').innerHTML = `<tr><th>Сорт</th><th>Букетов</th><th>Осталось</th><th>Стеблей на складе</th><th></th></tr>`
+  // Остатки склада здесь не показываем: раз владелец заводит дроп, цветы уже
+  // отложены под него, и продажа дропа остаток каталога не трогает.
+  $('#drLots').innerHTML = `<tr><th>Сорт</th><th>Букетов</th><th>Осталось</th><th></th></tr>`
     + (DRLOTS.length ? DRLOTS.map((l, i) => {
-        const надо = (+l.qty || 0) * (+$('#drCnt').value || 101);
-        const есть = (сорта.find((p) => p.id === l.product) || {}).stock || 0;
         return `<tr>
           <td><select class="in sm" data-drl="${i}" data-f="product" style="min-width:200px">
             <option value="">— сорт —</option>
@@ -2985,7 +2985,6 @@ function renderDrLots() {
           </select></td>
           <td><input class="in sm num" type="number" min="0" step="1" data-drl="${i}" data-f="qty" value="${l.qty || ''}" style="width:90px"></td>
           <td class="num">${l.left === undefined ? '—' : l.left}</td>
-          <td class="num ${есть < надо ? 'bad' : ''}">${есть}${надо ? ` / нужно ${надо}` : ''}</td>
           <td><button class="btn btn-g btn-s" data-drrm="${i}">Убрать</button></td></tr>`;
       }).join('')
       : '<tr><td class="hint">Сортов пока нет. Нажмите «+ Сорт».</td></tr>');

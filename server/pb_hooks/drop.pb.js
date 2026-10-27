@@ -61,15 +61,21 @@ routerAdd("GET", "/api/shop/drop", (e) => {
     // Анонс: сортов ещё нет, но карточка не должна быть пустой — показываем
     // снимки прошлых дропов. Эльторо всегда первой, так просил владелец.
     анонс: dr.лоты(d).length ? [] : (() => {
+      // Только ОДНОГОЛОВЫЕ нужной ростовки: в дропе именно они, а по одной
+      // длине в выборку лезли и кустовые — на снимке оказывалась не та роза.
       const сп = [];
       try {
-        $app.findRecordsByFilter("products", "active = true", "name", 300, 0).forEach((p) => {
-          const L = (shop.jget(p, "lengths") || []).map(Number);
-          if (L.indexOf(+d.get("len") || 40) < 0) return;
-          const ф = p.get("photo") || [];
-          if (!ф.length) return;
-          сп.push({ name: p.get("name"), img: shop.fileUrl(p, ф[0], "560x0") });
-        });
+        let раздел = null;
+        try { раздел = $app.findFirstRecordByFilter("categories", "slug = 'single'"); } catch (_) {}
+        if (раздел) {
+          $app.findRecordsByFilter("products", "active = true && category = {:c}", "name", 300, 0, { c: раздел.id }).forEach((p) => {
+            const L = (shop.jget(p, "lengths") || []).map(Number);
+            if (L.indexOf(+d.get("len") || 40) < 0) return;
+            const ф = p.get("photo") || [];
+            if (!ф.length) return;
+            сп.push({ name: p.get("name"), img: shop.fileUrl(p, ф[0], "560x0") });
+          });
+        }
       } catch (_) {}
       // Эльторо первой — так просил владелец. Берём её отдельно: сорт может
       // быть временно скрыт, а на снимке дропа он всё равно нужен.
@@ -145,15 +151,23 @@ routerAdd("GET", "/api/shop/drops", (e) => {
   const dr = require(`${__hooks}/lib/drop.js`);
   if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
 
+  // Сорта для дропа берём ВСЕ нужной ростовки, включая скрытые с витрины:
+  // Эльторо, лицо дропа, как раз выключена в каталоге, и без этого её нельзя
+  // было выбрать. Скрытые помечаем, чтобы владелец видел, что они не в продаже.
   const длина = 40;
   const сорта = [];
   try {
-    $app.findRecordsByFilter("products", "active = true", "name", 300, 0).forEach((p) => {
-      const L = (shop.jget(p, "lengths") || []).map(Number);
-      if (L.indexOf(длина) < 0) return;
-      const ст = shop.stockOf(p);
-      сорта.push({ id: p.id, name: p.get("name"), stock: +ст[String(длина)] || 0 });
-    });
+    let раздел = null;
+    try { раздел = $app.findFirstRecordByFilter("categories", "slug = 'single'"); } catch (_) {}
+    if (раздел) {
+      $app.findRecordsByFilter("products", "category = {:c}", "name", 500, 0, { c: раздел.id }).forEach((p) => {
+        const L = (shop.jget(p, "lengths") || []).map(Number);
+        if (L.indexOf(длина) < 0) return;
+        const ст = shop.stockOf(p);
+        сорта.push({ id: p.id, name: p.get("name") + (p.get("active") ? "" : " (скрыт)"),
+          stock: +ст[String(длина)] || 0 });
+      });
+    }
   } catch (_) {}
 
   let список = [];
@@ -261,11 +275,22 @@ routerAdd("GET", "/api/shop/drop-people", (e) => {
 onRecordAfterCreateSuccess((e) => {
   try {
     const qид = e.record.get("drop_q");
-    if (!qид) return;
+    // ВАЖНО: без e.next() обрывается вся цепочка — следом идут уведомление
+    // флористу и отправка в МойСклад. Поэтому ранний выход только через next.
+    if (!qид) { e.next(); return; }
+    console.log("дроп: заказ", e.record.get("number"), "место", String(qид));
     const dr = require(`${__hooks}/lib/drop.js`);
     let q = null;
     try { q = $app.findRecordById("drop_queue", String(qид)); } catch (_) { return; }
-    dr.отметитьВзятие($app, q, e.record.id);
+    // какой сорт забрали — берём из позиции заказа
+    let pid = "";
+    try {
+      const поз = JSON.parse(e.record.getString("items") || "[]") || [];
+      const др = поз.find((x) => x && x.kind === "drop");
+      if (др) pid = String(др.id || "");
+    } catch (_) {}
+    dr.отметитьВзятие($app, q, e.record.id, pid);
+    console.log("дроп: отметили взятие, сорт", pid);
   } catch (err) { console.log("дроп: отметка заказа", err); }
   e.next();
 }, "orders");
