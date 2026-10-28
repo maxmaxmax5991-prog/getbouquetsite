@@ -320,7 +320,7 @@ function serve(app, e) {
   else if (parts[0] === "drop" && parts.length === 1) {
     const name = brand ? brand.get("name") : "venikoff.net";
     out = page({ title: "Дроп дня — " + name,
-      desc: "Тот самый букет из Reels: 101 роза за 5 990 ₽. Ограниченное количество, старт в 12:00, доставка в тот же день.",
+      desc: "Ежедневный дроп — тот самый букет за 5 990 ₽.",
       path }, "<h1>Дроп дня</h1><p>101 роза из Reels по особой цене. Встаньте в очередь — позовём, когда подойдёт.</p>");
   }
   else if (["me", "favorites", "order", "studio"].indexOf(parts[0]) >= 0) {
