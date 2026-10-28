@@ -244,6 +244,7 @@ html{overflow-x:clip}
 .card-note.express{background:color-mix(in srgb,#F59E0B 16%,transparent);color:#92400E}
 .card-note.fresh{background:var(--leaf-soft);color:var(--leaf)}
 .card-note.way{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent-text)}
+.card-note.sale{background:color-mix(in srgb,var(--sale) 12%,transparent);color:var(--sale);font-weight:800}
 .card-note.none{background:transparent}
 .card-note .slim{display:none}
 @media (max-width:640px){
@@ -274,7 +275,7 @@ html{overflow-x:clip}
 .tag{position:absolute;left:10px;top:10px;padding:4px 9px;border-radius:8px;font-size:11px;font-weight:700;background:var(--sale);color:#fff;letter-spacing:.02em}
 .tag.author{background:#14171A}
 .tag.only{background:var(--leaf)}
-.tag.own{background:#14171A;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.tag.own{background:#14171A;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:calc(100% - 72px);white-space:normal;line-height:1.3;text-align:left}
 .fav{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.85);color:#6B7079;backdrop-filter:blur(8px);z-index:2}
 .fav .i{width:17px;height:17px}
 .fav[aria-pressed="true"]{color:var(--accent)}
@@ -965,7 +966,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793189144"></script>
+<script src="/data.js?v=1793192638"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2044,13 +2045,18 @@ function плиткаКорзины() {
 }
 function card(p, место, и) {
   const f = favs.has(p.id);
+  // «Акция» + своя надпись = полоса под фотографией: на карточке шириной
+  // 164 px длинный текст меткой не помещается — уезжает под сердечко.
+  const акция = p.sale && p.badge_text ? esc(p.badge_text) : '';
   // своя надпись на фото сильнее готовых меток: её пишут руками под конкретный повод
-  const tag = p.badge_text ? `<span class="tag own">${esc(p.badge_text)}</span>`
+  const tag = акция ? ''
+    : p.badge_text ? `<span class="tag own">${esc(p.badge_text)}</span>`
     : p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
   return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}"${место ? ` data-pos="${место}#${(+и || 0) + 1}"` : ''}>
     <a class="card-img" href="${purl(p)}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}"${наборШирин(photoOf(p, curLabel(p)), photoOf2(p, curLabel(p)), 560, 1120, КАРТОЧКА_SIZES)} alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
-    <div class="card-note${readyNow(p) ? ' express' : readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${
+    <div class="card-note${акция ? ' sale' : readyNow(p) ? ' express' : readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${
+      акция ? акция :
       readyNow(p) ? `⚡ Готов сейчас — ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)}` :
       readyShort(p) ? `🚚 ${esc(readyShort(p))}` :
       p.fresh ? `🌿 <b class="wide">Этот сорт сегодня приехал к нам напрямую ${откуда(p)}</b><b class="slim">Сегодня ${откуда(p)}</b>` : ''}</div>
