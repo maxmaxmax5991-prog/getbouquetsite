@@ -153,6 +153,18 @@ function deliveryPage(brand) {
 // прямой заход на /policy/ получал «Такой страницы нет» — отрисовка о таком
 // адресе не знала. Полный текст дорисовывает сайт из реквизитов в настройках,
 // здесь — заголовок и суть, чтобы страница была живой и без скриптов.
+// Прайс-лист для покупателя. Отдаём с сервера, потому что ссылку на него
+// шлют в переписке: страница должна открываться с текстом сразу, а таблицу
+// цен дорисует сайт из каталога.
+function pricePage(brand) {
+  const name = brand ? brand.get("name") : "venikoff.net";
+  return page({ title: `Прайс-лист на розы — ${name}`,
+      desc: `Цены ${name}: сорт, длина стебля и количество цветов в букете. Доставка по Москве.`,
+      path: "/price/", crumbs: [["Прайс-лист", "/price/"]] },
+    `<h1>Прайс-лист</h1><p>Цена за собранный букет: выберите сорт, длину стебля и количество цветов. Доставка по Москве считается по адресу.</p>
+     <p><a href="/catalog/">Перейти в каталог</a></p>`);
+}
+
 function policyPage(ctx, brand) {
   const name = brand ? brand.get("name") : "venikoff.net";
   const org = (ctx.cat && ctx.cat.legal) || {};
@@ -256,7 +268,7 @@ function render(html, meta, body, origin, brand) {
 }
 
 function sitemap(ctx, origin) {
-  const urls = ["/", "/catalog/", "/delivery/"]
+  const urls = ["/", "/catalog/", "/delivery/", "/price/"]
     .concat(ctx.cat.categories.filter((c) => !c.addon && ctx.live.some((p) => p.cat === c.slug)).map((c) => `/catalog/${c.slug}/`))
     .concat(ctx.live.filter((p) => !ctx.cat.categories.find((c) => c.slug === p.cat && c.addon)).map(productUrl));
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
@@ -310,6 +322,7 @@ function serve(app, e) {
     if (p) return e.redirect(301, productUrl(p));
   }
   else if (parts[0] === "delivery" && parts.length === 1) out = deliveryPage(brand);
+  else if (parts[0] === "price" && parts.length === 1) out = pricePage(brand);
   else if (parts[0] === "policy" && parts.length === 1) out = policyPage(ctx, brand);
   else if (parts[0] === "korzina" && parts.length === 1) {
     const name = brand ? brand.get("name") : "venikoff.net";

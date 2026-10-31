@@ -98,15 +98,19 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 @media (max-width:820px){.nav,.city{display:none}.top-actions{margin-left:auto}.only-m{display:grid}}
 /* На телефоне шапка не помещалась: логотип 157 + четыре кнопки по 44 + отступы —
    411 px при ширине экрана 375. Корзину срезало по краю, а вся страница ездила
-   вбок. Ужимаем кнопки и отступы; на самых узких экранах — ещё и логотип. */
+   вбок. Ужимаем кнопки и отступы; на самых узких экранах — ещё и логотип.
+   31.10 кнопок стало пять (добавился прайс) — на 375 снова выехало на 22 px,
+   поэтому логотип ужимается уже здесь, а не только на самых узких. Кнопки
+   оставлены 38 px: меньше — и в них трудно попасть пальцем. */
 @media (max-width:430px){
-  .top .wrap{gap:10px}
-  .top-actions{gap:6px}
+  .top .wrap{gap:8px}
+  .top-actions{gap:5px}
+  .logo{font-size:18px}
   .icon-btn{width:38px;height:38px}
   .icon-btn .i{width:18px;height:18px}
 }
 @media (max-width:374px){
-  .logo{font-size:18px}
+  .logo{font-size:16px}
   .icon-btn{width:34px;height:34px}
 }
 /* Страховка: что бы ни вылезло за край, боком страница больше не поедет.
@@ -245,6 +249,20 @@ html{overflow-x:clip}
 .card-note.fresh{background:var(--leaf-soft);color:var(--leaf)}
 .card-note.way{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent-text)}
 .card-note.sale{background:color-mix(in srgb,var(--sale) 12%,transparent);color:var(--sale);font-weight:800}
+/* Прайс-лист. Таблица шире телефона, поэтому крутится вбок, а столбец с сортом
+   прилипает к левому краю — иначе, уехав к «101 шт», не поймёшь, чья это цена. */
+.prc h2{font:700 20px/1.2 var(--display);margin:26px 0 10px}
+.prc-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:var(--tile);margin-bottom:10px}
+.prc table{border-collapse:collapse;width:100%;font-size:15px}
+.prc th,.prc td{padding:10px 14px;text-align:right;white-space:nowrap}
+.prc th:first-child,.prc td:first-child{text-align:left;position:sticky;left:0;background:var(--tile)}
+.prc thead th{font:600 12px/1 var(--body);color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
+.prc tbody tr+tr td{border-top:1px solid var(--line)}
+.prc td a{text-decoration:none;color:inherit}
+.prc td a:hover{color:var(--accent-text)}
+.prc .ln{color:var(--ink-3);font-size:13px}
+.prc td.no{color:var(--ink-3)}
+@media (max-width:560px){.prc th,.prc td{padding:9px 10px;font-size:14px}}
 .card-note.none{background:transparent}
 .card-note .slim{display:none}
 @media (max-width:640px){
@@ -720,6 +738,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
   <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></symbol>
   <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-8-4.6-8-10.2A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.8C20 15.4 12 20 12 20z"/></symbol>
   <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-price" viewBox="0 0 24 24"><path d="M11.6 3.5H19a1.5 1.5 0 0 1 1.5 1.5v7.4a2 2 0 0 1-.6 1.4l-6.6 6.6a1.5 1.5 0 0 1-2.1 0l-6.8-6.8a1.5 1.5 0 0 1 0-2.1l6.8-6.8a2 2 0 0 1 1.4-.6z"/><circle cx="16.2" cy="7.8" r="1.6"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3c.6 4.6 1.9 6.9 6 8-4.1 1.1-5.4 3.4-6 8-.6-4.6-1.9-6.9-6-8 4.1-1.1 5.4-3.4 6-8z"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 12a7.5 7.5 0 0 1-7.5 7.5c-1.2 0-2.4-.3-3.4-.8L4 20l1.3-4.2A7.5 7.5 0 1 1 20 12z"/></symbol>
@@ -746,9 +765,11 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
       <a href="/catalog/" data-nav="catalog">Каталог</a>
       <a href="/catalog/" data-nav="catalog">Собрать букет</a>
       <a href="/delivery/" data-nav="delivery">Доставка</a>
+      <a href="/price/" data-nav="price">Прайс</a>
     </nav>
     <div class="top-actions">
       <a class="icon-btn only-m" href="/catalog/" aria-label="Каталог"><svg class="i"><use href="#i-grid"/></svg></a>
+      <a class="icon-btn only-m" href="/price/" data-nav="price" aria-label="Прайс-лист"><svg class="i"><use href="#i-price"/></svg></a>
       <button class="icon-btn" id="favBtn" aria-label="Избранное"><svg class="i"><use href="#i-heart"/></svg><span class="badge num" id="favCount" hidden>0</span></button>
       <button class="icon-btn" id="meBtn" aria-label="Личный кабинет"><svg class="i"><use href="#i-user"/></svg></button>
       <button class="icon-btn" id="cartBtn" aria-label="Корзина"><svg class="i"><use href="#i-bag"/></svg><span class="badge num" id="cartCount" hidden>0</span></button>
@@ -855,6 +876,14 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
   </div>
 </div>
 
+<div id="viewPrice" hidden>
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Прайс-лист</span></nav>
+    <div class="cat-head"><div><h1>Прайс-лист</h1><p id="prcSub"></p></div><div class="tools" id="prcTools"></div></div>
+    <div id="prcBody"></div>
+  </div>
+</div>
+
 <!-- Политика обработки персональных данных: 152-ФЗ требует свободного доступа -->
 <div id="viewPolicy" hidden>
   <div class="wrap">
@@ -923,7 +952,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
 <footer class="foot">
   <div class="wrap">
     <a class="logo" id="logoFoot" href="/">venikoff<span class="dot"></span><i>net</i></a>
-    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/catalog/">Собрать букет</a><a href="/delivery/">Доставка</a><a href="/policy/">Персональные данные</a></nav>
+    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/catalog/">Собрать букет</a><a href="/delivery/">Доставка</a><a href="/price/">Прайс-лист</a><a href="/policy/">Персональные данные</a></nav>
     <div class="contacts">
       <span class="lbl">Связаться с нами</span>
       <a class="btn btn-ghost btn-sm" id="footTg" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
@@ -966,7 +995,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793192638"></script>
+<script src="/data.js?v=1793447627"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2518,10 +2547,11 @@ function router() {
   const иск = пар.get('q') || '';
   if (иск !== state.q) { state.q = иск; const поле = $('#q'); if (поле) поле.value = иск; }
   const [a, b, c] = decodeURIComponent(location.pathname).split('/').filter(Boolean);
-  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery'), policy: $('#viewPolicy'), basket: $('#viewBasket') };
+  const views = { home: $('#viewHome'), catalog: $('#viewCatalog'), product: $('#viewProduct'), me: $('#viewMe'), order: $('#viewOrder'), delivery: $('#viewDelivery'), policy: $('#viewPolicy'), basket: $('#viewBasket'), price: $('#viewPrice') };
   let name = 'home', scrollTo = null;
   if (a === 'policy') { name = 'policy'; document.title = `Персональные данные — ${SITE}`; renderPolicy(); }
   else if (a === 'delivery') { name = 'delivery'; document.title = `Доставка по Москве — ${SITE}`; renderDelivery(); }
+  else if (a === 'price') { name = 'price'; document.title = `Прайс-лист — ${SITE}`; renderPrice(); }
   else if (a === 'order' && b) { name = 'order'; document.title = `Заказ — ${SITE}`; renderOrder(b); }
   else if (a === 'me') { name = 'me'; document.title = `Личный кабинет — ${SITE}`; renderMe(); }
   else if ((a === 'catalog' && c) || (a === 'p' && b)) {
@@ -2568,6 +2598,66 @@ document.addEventListener('click', e => {
 });
 $('#favBtn').onclick = () => { nav('/favorites/'); if (!favs.size) toast('Отмечайте букеты сердечком', false); };
 $('#meBtn').onclick = () => { nav('/me/'); };
+
+/* ---------- Прайс-лист ----------
+   Покупатели просят «пришлите прайс», и раньше приходилось слать картинку из
+   админки. Строка — сорт и длина стебля, столбцы — количество цветов в букете.
+   Внутри раздела сорта разбиты по НАБОРУ количеств: у обычных кустовых
+   19/51/101, у премиальных 15/51/101 — в одну шапку их не свести.
+   По умолчанию показываем только то, что можно купить сейчас: прайс, сплошь
+   набитый кончившимися сортами, обещает больше, чем магазин отдаст. */
+let прайсВсе = false;
+function renderPrice() {
+  const body = $('#prcBody'), tools = $('#prcTools'), sub = $('#prcSub');
+  const годен = v => +v.price > 0 && (прайсВсе || !v.out);
+  const товары = P.filter(p => !p.off && !isAddon(p) && Array.isArray(p.variants) && p.variants.some(годен));
+  const подпись = c => (+c > 0 ? `${c} шт` : String(c));
+
+  const блоки = [];
+  CATS.forEach(([slug, имя]) => {
+    const мои = товары.filter(p => p.cat === slug).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    if (!мои.length) return;
+    const группы = new Map();
+    мои.forEach(p => {
+      const вар = p.variants.filter(годен);
+      const counts = [...new Set(вар.map(v => v.cnt))].sort((a, b) => (+a || 0) - (+b || 0) || String(a).localeCompare(String(b), 'ru'));
+      const ключ = counts.join('|');
+      if (!группы.has(ключ)) группы.set(ключ, { counts, строки: [] });
+      // у товара без ростовок длина 0 — тогда в строке только название
+      const длины = [...new Set(вар.map(v => +v.len || 0))].sort((a, b) => a - b);
+      длины.forEach(L => {
+        const по = {};
+        вар.forEach(v => { if ((+v.len || 0) === L) по[v.cnt] = v; });
+        группы.get(ключ).строки.push({ p, len: L, по });
+      });
+    });
+    блоки.push({ имя, части: [...группы.values()].filter(ч => ч.строки.length) });
+  });
+
+  const строк = блоки.reduce((n, b) => n + b.части.reduce((m, ч) => m + ч.строки.length, 0), 0);
+  sub.textContent = строк
+    ? `${прайсВсе ? 'Все сорта' : 'Есть сейчас'} · ${строк} ${plural(строк, 'позиция', 'позиции', 'позиций')} · цена за собранный букет`
+    : '';
+  tools.innerHTML = `<button class="btn btn-ghost btn-sm" id="prcAll">${прайсВсе ? 'Только то, что есть' : 'Показать все сорта'}</button>`;
+  $('#prcAll').onclick = () => { прайсВсе = !прайсВсе; renderPrice(); };
+
+  body.innerHTML = строк ? `
+    <p class="hint" style="margin:0 0 6px">Доставка по Москве считается по адресу — <a href="/delivery/">посчитать</a>. Нажмите на сорт, чтобы открыть карточку.</p>
+    ${блоки.map(b => `<section class="prc">
+      <h2>${esc(b.имя)}</h2>
+      ${b.части.map(ч => `<div class="prc-wrap"><table>
+        <thead><tr><th>Сорт и длина</th>${ч.counts.map(c => `<th>${esc(подпись(c))}</th>`).join('')}</tr></thead>
+        <tbody>${ч.строки.map(r => `<tr>
+          <td><a href="${purl(r.p)}">${esc(r.p.name)}</a>${r.len ? ` <span class="ln">${r.len} см</span>` : ''}</td>
+          ${ч.counts.map(c => {
+            const v = r.по[c];
+            return v ? `<td${v.out ? ' class="no"' : ''}>${rub(+v.price)}</td>` : '<td class="no">—</td>';
+          }).join('')}
+        </tr>`).join('')}</tbody>
+      </table></div>`).join('')}
+    </section>`).join('')}`
+    : '<p class="notice">Сейчас свободных сортов нет — загляните позже или напишите нам.</p>';
+}
 
 /* ---------- Политика обработки персональных данных ----------
    Текст собирается из реквизитов в настройках, чтобы не разъезжаться с ними.
