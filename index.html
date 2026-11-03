@@ -504,6 +504,9 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .doc .rq{background:var(--soft);border-radius:14px;padding:16px 18px;margin:18px 0;font-size:14px}
 /* согласия: галочка крупная, попасть пальцем, текст не мельче 13 */
 .consents{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+/* подсветка поля, из-за которого не ушёл заказ: на айфоне браузер
+   своих подсказок не показывает вовсе, и кнопка выглядит сломанной */
+.form .bad{outline:2px solid var(--sale);outline-offset:5px;border-radius:12px}
 .chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;font-weight:500;color:var(--ink-2);line-height:1.45;cursor:pointer}
 .chk input{width:22px;height:22px;min-height:22px;flex:none;margin:0;accent-color:var(--accent);cursor:pointer}
 .chk a{color:var(--accent-text)}
@@ -995,7 +998,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793447627"></script>
+<script src="/data.js?v=1793723878"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1198,6 +1201,12 @@ const store = {
    заполнял всё заново. Теперь поля запоминаются на ходу и возвращаются сами —
    это же спасает при случайном обновлении и при «назад». */
 const ПОЛЯ = ['fName','fPhone','fTo','fStreet','fHouse','fBlock','fEntrance','fFloor','fFlat','fIntercom','fNote','fDnote','fDate','fTime','fZone'];
+// Как назвать поле человеку, когда заказ не ушёл из-за него
+const ИМЯ_ПОЛЯ = {
+  fName: 'Ваше имя', fPhone: 'Телефон', fStreet: 'Улица', fHouse: 'Дом',
+  fDate: 'Дата', fTime: 'Интервал', fZone: 'Зона доставки',
+  fPd: 'согласие на обработку персональных данных',
+};
 function сохранитьЧерновик() {
   const d = { тип: getType, поля: {} };
   ПОЛЯ.forEach(id => { const el = $('#' + id); if (el && el.value) d.поля[id] = el.value; });
@@ -1803,6 +1812,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) за
 
 function дропФорма() {
   const имя = (ME && ME.name) || '', тел = (ME && (ME.phone_ok || ME.phone)) || '';
+  // То же правило, что и на карточке: пока букеты есть, про очередь не говорим.
+  const сразу = DROP && DROP.состояние === 'live' && +DROP.свободно > 0;
+  const зовём = сразу ? 'Забрать букет' : 'Встать в очередь';
   const нужноВойти = !meToken;
   const d = document.createElement('dialog');
   d.className = 'bk-pick';
@@ -1812,12 +1824,14 @@ function дропФорма() {
     <span style="display:block;font-size:13px;color:var(--ink-2);margin-bottom:5px">${подпись}</span>
     <input class="in" id="${id}" value="${esc(знач)}" ${доп} style="width:100%"></label>`;
   d.innerHTML = `<form method="dialog" style="padding:16px;max-width:420px">
-    <h3 style="margin:0 0 6px">Встать в очередь</h3>
-    <p class="hint" style="margin:0">Позовём в боте, когда подойдёт очередь. Телефон нужен на случай, если букета не хватит — предложим замену.</p>
+    <h3 style="margin:0 0 6px">${зовём}</h3>
+    <p class="hint" style="margin:0">${сразу
+      ? 'Бот пришлёт ваш букет в течение минуты. Телефон нужен на случай, если этот сорт успеют разобрать — предложим замену.'
+      : 'Позовём в боте, когда подойдёт очередь. Телефон нужен на случай, если букета не хватит — предложим замену.'}</p>
     ${поле('dqName', 'Имя', имя, 'maxlength="120" required')}
     ${поле('dqPhone', 'Телефон', тел, 'type="tel" inputmode="tel" placeholder="+7 999 123-45-67" required')}
     ${нужноВойти ? `<div style="margin-top:14px;padding:10px 12px;background:var(--accent-soft);border-radius:12px">
-        <div style="font-size:13px;line-height:1.4;color:var(--ink-2)">Шаг 3 — подключите бота: именно туда придёт «ваша очередь подошла». Без него мы не сможем вас позвать.</div>
+        <div style="font-size:13px;line-height:1.4;color:var(--ink-2)">Шаг 3 — подключите бота: ${сразу ? 'именно туда придёт ваш букет' : 'именно туда придёт «ваша очередь подошла»'}. Без него мы не сможем вас позвать.</div>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn btn-ghost" type="button" id="dqTg" style="flex:1">Подключить Телеграм</button>
           <button class="btn btn-ghost" type="button" id="dqMax">MAX</button>
@@ -1825,15 +1839,15 @@ function дропФорма() {
         <p class="hint" id="dqWait" hidden style="margin:8px 0 0"></p>
       </div>` : ''}
     <div style="display:flex;gap:8px;margin-top:16px">
-      <button class="btn btn-primary" value="ok" type="submit" style="flex:1"${нужноВойти ? ' id="dqGo" disabled' : ''}>Встать в очередь</button>
+      <button class="btn btn-primary" value="ok" type="submit" style="flex:1"${нужноВойти ? ' id="dqGo" disabled' : ''}>${зовём}</button>
       <button class="btn btn-ghost" value="no" formnovalidate>Отмена</button>
     </div></form>`;
   document.body.appendChild(d);
   d.showModal();
   if (нужноВойти) {
     const готово = () => {
-      const кн = d.querySelector('#dqGo'); if (кн) { кн.disabled = false; кн.textContent = 'Встать в очередь'; }
-      const w = d.querySelector('#dqWait'); if (w) { w.hidden = false; w.textContent = '✅ Бот подключён — можно вставать в очередь'; }
+      const кн = d.querySelector('#dqGo'); if (кн) { кн.disabled = false; кн.textContent = зовём; }
+      const w = d.querySelector('#dqWait'); if (w) { w.hidden = false; w.textContent = сразу ? '✅ Бот подключён — можно забирать' : '✅ Бот подключён — можно вставать в очередь'; }
       const п = d.querySelector('#dqName'); if (п && !п.value && ME && ME.name) п.value = ME.name;
       const т = d.querySelector('#dqPhone'); if (т && !т.value && ME && (ME.phone_ok || ME.phone)) т.value = ME.phone_ok || ME.phone;
     };
@@ -1853,7 +1867,7 @@ function дропФорма() {
         body: JSON.stringify({ name: имяЗн, phone: телЗн }) });
       const данные = await r.json().catch(() => ({}));
       if (!r.ok) return toast(данные.message || 'Не получилось встать в очередь', true);
-      toast(данные.место ? `Вы в очереди, ${данные.место}-й` : 'Вы в очереди');
+      toast(сразу ? 'Готово — бот напишет в течение минуты' : данные.место ? `Вы в очереди, ${данные.место}-й` : 'Вы в очереди');
       шаг('drop_queue', String(данные.место || ''));
       загрузитьДроп();
     } catch (_) { toast('Нет связи', true); }
@@ -2161,7 +2175,7 @@ function дропПолоска() {
     ? `<small>осталось</small><b>${d.свободно} шт</b>`
     : d.состояние === 'over' ? `<small>следующий</small><b>завтра</b>`
     : `<small>старт через</small><b class="dp-t">${дропЧас(доСтарта)}</b>`;
-  const низ = идёт ? `Идёт сейчас · ${d.подпись || 'букет из Reels'}`
+  const низ = идёт ? `Дроп начался · ${d.подпись || 'букет из Reels'}`
     : d.состояние === 'over' ? 'Сегодня разобрали · завтра в 12:00'
     : `Дроп дня · букет из Reels · ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`;
   return `<button class="dline${идёт ? ' live' : ''}" data-drop="open">
@@ -2171,6 +2185,11 @@ function дропПолоска() {
 }
 function дропКарточка() {
   const d = DROP, идёт = d.состояние === 'live', конец = d.состояние === 'over';
+  // Пока дроп идёт и букеты есть, очередь — наше внутреннее устройство, а не то,
+  // что человек должен читать: раздача идёт раз в минуту, и он получает букет
+  // почти сразу. Слово «очередь» тут только отпугивает, поэтому на всей карточке
+  // оно появляется лишь когда свободных букетов действительно не осталось.
+  const сразу = идёт && +d.свободно > 0;
   const доСтарта = дропМс(d.старт) - дропСейчас();
   const фото = (d.лоты || []).filter(l => l.img).length ? (d.лоты || []).filter(l => l.img) : (d.анонс || []);
   const лента = фото.length ? `<div class="ph-wrap"><div class="ph-rail">${
@@ -2182,7 +2201,7 @@ function дропКарточка() {
         : `<span class="out">${esc(l.name)}</span>`).join('')}</div>`
     : `<div class="sorts"><span class="soon">🌱 Сорта объявим в момент дропа — когда розы приедут с теплицы</span></div>`;
   const доставка = `🚚 доставим ${дропДень(d.доставка_с) || 'в день дропа'}${d.доставка_с ? ' с ' + String(d.доставка_с).slice(11) : ''}`;
-  const очередь = d.очередь >= 10 ? `<div class="q"><b>${d.очередь}</b>в очереди</div>` : '';
+  const очередь = !сразу && d.очередь >= 10 ? `<div class="q"><b>${d.очередь}</b>в очереди</div>` : '';
   const я = d.я;
   const моё = я && я.статус === 'invited'
     ? `<div class="dp-mine"><div><div class="tm dp-mine-t">${дропЧас(Date.parse(String(я.до).replace(' ', 'T')) - дропСейчас())}</div>
@@ -2190,12 +2209,14 @@ function дропКарточка() {
         <button class="btn btn-primary" style="margin-left:auto" data-drop="take">Забрать за ${rub(d.цена)}</button></div>` : '';
   let кнопка;
   if (я && я.статус === 'invited') кнопка = '';
-  else if (я && я.статус === 'waiting') кнопка = `<button class="btn" disabled>Вы в очереди${я.место ? `, ${я.место}-й` : ''}</button>`;
+  else if (я && я.статус === 'waiting') кнопка = сразу
+    ? `<button class="btn" disabled>Бот сейчас напишет</button>`
+    : `<button class="btn" disabled>Вы в очереди${я.место ? `, ${я.место}-й` : ''}</button>`;
   else if (я && я.статус === 'paid') кнопка = `<button class="btn" disabled>Букет ваш — оформлен</button>`;
-  else кнопка = `<button class="btn" data-drop="queue">${конец ? 'Встать в очередь на завтра' : 'Встать в очередь'}</button>`;
+  else кнопка = `<button class="btn" data-drop="queue">${сразу ? 'Забрать букет' : конец ? 'Встать в очередь на завтра' : 'Встать в очередь'}</button>`;
   return `<div class="dp${конец ? ' done' : ''}">
     <div class="dp-head">
-      <span class="tag${идёт ? ' live' : конец ? ' out' : ''}">${идёт ? 'Идёт сейчас' : конец ? 'Разобрали' : 'Дроп дня'}</span>
+      <span class="tag${идёт ? ' live' : конец ? ' out' : ''}">${идёт ? 'Дроп начался' : конец ? 'Разобрали' : 'Дроп дня'}</span>
       <small>${идёт ? 'свободно букетов' : конец ? 'следующий завтра в 12:00' : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}</small>
       <span class="t dp-t">${конец ? '' : идёт ? `${d.свободно} шт` : дропЧас(доСтарта)}</span>
       <button class="x" data-drop="close" aria-label="Свернуть">✕</button>
@@ -2210,7 +2231,9 @@ function дропКарточка() {
         ${сорта}
       </div>
     </div>
-    ${конец || я ? '' : идёт
+    ${конец || я ? '' : сразу
+      ? `<div class="how"><b>Дроп начался.</b> Нажмите «Забрать букет» — бот пришлёт его в течение минуты, на выбор сорта и оплату 15 минут.</div>`
+      : идёт
       ? `<div class="how"><i>1.</i> встаёте в очередь &nbsp;<i>2.</i> зовём по порядку, как освободится букет &nbsp;<i>3.</i> 15 минут на выбор и оплату</div>`
       : `<div class="how"><i>1.</i> встаёте в очередь &nbsp;<i>2.</i> в ${String(d.старт).slice(11)} зовём по порядку &nbsp;<i>3.</i> 15 минут на выбор и оплату</div>`}
     <div class="dp-foot">${кнопка}${очередь}</div>
@@ -2237,7 +2260,7 @@ function дропПеререндер() {
   вставитьДроп($('#grid'));
 }
 
-const POPULAR = API ? тасовать(P.filter(p => !isAddon(p) && !p.off), 'главная')
+const POPULAR = API ? разнести(тасовать(P.filter(p => !isAddon(p) && !p.off), 'главная')
   .slice().sort((a, b) => {
     // Сначала наличие: кончившиеся сорта уходят вниз. На главной они стояли
     // вперемешку, и третьей карточкой на сайте была та, которой нет.
@@ -2245,7 +2268,7 @@ const POPULAR = API ? тасовать(P.filter(p => !isAddon(p) && !p.off), 'г
     if (d) return d;
     // внутри — экспресс первым: букет уже собран и ждёт, его надо показать сразу
     return ((b.express && b.ready) ? 1 : 0) - ((a.express && a.ready) ? 1 : 0);
-  })
+  }))
   .map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => card(byId[id], 'главная', i)).join('');
 вставитьДроп($('#popular'));
@@ -2340,6 +2363,40 @@ function доступность(p) {
   if (!v || v.out) return 2;
   return v.wait_at ? 1 : 0;
 }
+// Имя сорта без ростовки и количества: «Барбадос 70см 51шт» и «Барбадос 51шт
+// корзина» — это один и тот же Барбадос.
+function сортКарточки(p) {
+  const чистое = String(p.name || '').toLowerCase()
+    // Окончания отсекаем [а-я], а не \w: в JS \w кириллицу за букву не считает,
+    // и «корзина» резалась до «корзин»+«а» — ключ выходил «барбадос а».
+    .replace(/\d+\s*(см|шт)/g, ' ').replace(/корзин[а-я]*|букет[а-я]*/g, ' ')
+    .replace(/[0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return чистое.split(' ').slice(0, 2).join(' ') || String(p.name || '');
+}
+// Соседние карточки не должны быть одним сортом. Готовые экспресс-букеты
+// поднимаются наверх правилом ниже, и у сорта с тремя готовыми букетами ими
+// забивался весь первый экран: три «Барбадоса» из четырёх карточек главной.
+// Переставляем ТОЛЬКО внутри одной группы наличия, иначе кончившееся всплывёт.
+function разнести(список) {
+  const out = [];
+  for (let i = 0; i < список.length; ) {
+    const г = доступность(список[i]);
+    let j = i;
+    while (j < список.length && доступность(список[j]) === г) j++;
+    const пул = список.slice(i, j);
+    while (пул.length) {
+      // Смотрим не на одного соседа, а на пять последних: у Барбадоса три
+      // готовых букета, и при проверке одного соседа он всё равно занимал
+      // половину первого экрана — через карточку.
+      const рядом = out.slice(-5).map(сортКарточки);
+      let k = пул.findIndex(p => рядом.indexOf(сортКарточки(p)) < 0);
+      if (k < 0) k = 0;                 // остался только этот сорт — ставим как есть
+      out.push(пул.splice(k, 1)[0]);
+    }
+    i = j;
+  }
+  return out;
+}
 // Адрес каталога из текущего отбора. Им же делимся с покупателем.
 function адресКаталога() {
   const путь = state.favOnly ? '/favorites/' : '/catalog/' + (state.cat !== 'all' ? state.cat + '/' : '');
@@ -2403,7 +2460,7 @@ function list() {
   // Наличие важнее всего остального: сначала то, что можно забрать сегодня,
   // потом то, что едет, потом кончившееся, и в самом низу выключенные сорта.
   // Сортировка устойчивая, поэтому выбранный порядок внутри групп сохраняется.
-  return [...r].sort((a, b) => доступность(a) - доступность(b));
+  return разнести([...r].sort((a, b) => доступность(a) - доступность(b)));
 }
 function renderGrid() {
   const r = list();
@@ -2518,6 +2575,7 @@ let route = { name: 'home' }, keepScroll = false;
 function nav(url, replace) {
   try { history[replace ? 'replaceState' : 'pushState'](null, '', url); } catch (_) { location.href = url; return; }
   router();
+  window.метрикаХит && window.метрикаХит(url);
 }
 function go404() { nav('/catalog/', true); }
 // Старые ссылки с «#/…» уже разосланы ботами и лежат в переписке — переводим их
@@ -3751,8 +3809,22 @@ cartDlg.addEventListener('submit', async e => {
   if (!ok) {
     const bad = f.querySelector(':invalid');
     шаг('refuse', 'не заполнено: ' + ((bad && (bad.name || bad.id)) || 'поле'));
-    if (bad) bad.focus();
-    try { f.reportValidity(); } catch (_) {}
+    // Сафари на айфоне не показывает подсказок формы ВООБЩЕ: reportValidity()
+    // там молчит. Человек жмёт «Подтвердить», и ничего не происходит — кнопка
+    // выглядит сломанной. Чаще всего виновата галочка согласия внизу: за две
+    // недели на неё наткнулись 309 человек, 93 ушли совсем. Поэтому говорим
+    // словами, подсвечиваем виноватое поле и сами к нему прокручиваем.
+    if (bad) {
+      const имя = ИМЯ_ПОЛЯ[bad.id] || 'обязательное поле';
+      err(bad.type === 'checkbox' ? `Поставьте галочку: ${имя}.` : `Заполните поле «${имя}».`);
+      const кого = bad.closest('label, .chk') || bad;
+      кого.classList.add('bad');
+      кого.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setTimeout(() => кого.classList.remove('bad'), 5000);
+      try { bad.focus({ preventScroll: true }); } catch (_) { try { bad.focus(); } catch (_) {} }
+    } else {
+      try { f.reportValidity(); } catch (_) {}
+    }
     return;
   }
   if (!v('time')) { шаг('refuse', 'нет интервалов'); return err('Выберите другую дату — на эту нет свободных интервалов.'); }
@@ -4103,7 +4175,26 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
     window.addEventListener('unhandledrejection', (e) => send('Обещание отклонено: ' + ((e.reason && e.reason.message) || e.reason), location.pathname));
   })();
 
-  // Шаги посетителя для воронки: карточка → корзина → оформление.
+  // Яндекс.Метрика. Номер счётчика лежит в настройках магазина (Настройки →
+  // «Счётчик Яндекс.Метрики»); пусто — счётчик просто не подключается, и сайт
+  // работает как раньше. Полгода у магазина не было никакой аналитики вообще:
+  // поле в базе завели, а код к нему так и не написали.
+  window.МЕТРИКА = (window.API && API.metrika) || '';
+  if (window.МЕТРИКА) {
+    try {
+      (function (m, e, t, r, i, k, a) {
+        m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments); };
+        m[i].l = 1 * new Date();
+        k = e.createElement(t); a = e.getElementsByTagName(t)[0];
+        k.async = 1; k.src = r; a.parentNode.insertBefore(k, a);
+      })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
+      ym(МЕТРИКА, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: true });
+    } catch (_) {}
+  }
+  // Переходы без перезагрузки Метрика сама не видит — сообщаем ей адрес.
+  window.метрикаХит = (url) => { try { if (window.ym && window.МЕТРИКА) ym(МЕТРИКА, 'hit', url || location.href); } catch (_) {} };
+
+  // Шаги посетителя для воронки: заход → карточка → корзина → оформление.
   // Одна отметка на шаг в день, поэтому счётчик считает людей, а не клики.
   // короткая запись: шаг(…) не падает, если события выключены
   window.шаг = (kind, ctx) => { try { window.ev && window.ev(kind, ctx); } catch (_) {} };
@@ -4112,9 +4203,24 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
       fetch('/api/shop/ev', { method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ vid: store.get('vid', ''), kind, ctx: String(ctx || '').slice(0, 60) }) }).catch(() => {});
     } catch (_) {}
+    // Тот же шаг уходит целью в Метрику под тем же именем — настраивать цели
+    // руками не нужно, они появятся сами, как только пойдут события.
+    try { if (window.ym && window.МЕТРИКА) ym(МЕТРИКА, 'reachGoal', kind); } catch (_) {}
   };
 
-loadMe().then(() => { badges(); router(); resumeOrder(); });
+// Начало воронки. Без этой отметки первым шагом считалось открытие карточки
+// товара, и человек, ушедший с первого экрана, не попадал в отчёт вовсе.
+function откудаЗашёл() {
+  const p = location.pathname;
+  if (p === '/' || p === '') return 'главная';
+  if (p.startsWith('/catalog/')) return p.split('/').filter(Boolean).length > 1 ? 'товар' : 'каталог';
+  if (p.startsWith('/korzina')) return 'корзины';
+  if (p.startsWith('/price')) return 'прайс';
+  if (p.startsWith('/delivery')) return 'доставка';
+  if (p.startsWith('/me') || p.startsWith('/order/')) return 'кабинет';
+  return 'прочее';
+}
+loadMe().then(() => { badges(); router(); resumeOrder(); шаг('visit', откудаЗашёл()); });
 })();
 
 </script>

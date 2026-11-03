@@ -363,6 +363,8 @@ function catalog(app, brand) {
       : (!brand && s.get("max_token") ? (s.get("max_bot") || "") : ""),
     phone: s.get("phone") || "",
     notice: s.get("notice") || "",
+    // Номер счётчика Метрики. Пусто — счётчик просто не подключается.
+    metrika: String(s.get("metrika_id") || "").replace(/\D/g, ""),
   };
 }
 

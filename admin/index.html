@@ -749,6 +749,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
               <label class="f" for="dDays">Можно выбрать дату на дней вперёд<input class="in num" id="dDays" type="number" min="1" max="120"></label>
             </div>
             <label class="f" for="dNotice">Объявление на сайте (необязательно)<input class="in" id="dNotice" placeholder="Например: 8 марта доставка только до 18:00"></label>
+            <label class="f" for="dMetrika">Счётчик Яндекс.Метрики<input class="in" id="dMetrika" inputmode="numeric" placeholder="например 98765432" autocomplete="off"></label>
+            <p class="hint">Номер счётчика из metrika.yandex.ru — только цифры. Как только он здесь появится, счётчик начнёт работать на всех трёх витринах, а шаги воронки (корзина, оформление, заказ, оплата) сами станут целями с такими же названиями. Пусто — счётчик не подключается.</p>
             <div>
               <label class="f" for="dClosedAdd">Дни без доставки</label>
               <div class="bar" style="margin:6px 0"><input class="in" id="dClosedAdd" type="date" style="width:auto"><button class="btn btn-g btn-s" id="dClosedBtn">Добавить</button></div>
@@ -3811,6 +3813,7 @@ const loadDelivery = safe(async () => {
   sw($('#dAccepting'), S.accepting);
   loadShow();
   $('#dMin').value = S.min_order || 0; $('#dDays').value = S.days_ahead || 14; $('#dNotice').value = S.notice || '';
+  if ($('#dMetrika')) $('#dMetrika').value = S.metrika_id || '';
   sw($('#dPickup'), S.pickup);
   $('#dPickAddr').value = S.pickup_address || ''; $('#dPickHours').value = S.pickup_hours || '';
   CLOSED = Array.isArray(S.closed_dates) ? [...S.closed_dates] : [];
@@ -4040,7 +4043,8 @@ $('#dClosed').onclick = e => { const b = e.target.closest('[data-rmd]'); if (b) 
 $('#dSave').onclick = safe(async () => {
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: {
     accepting: sw($('#dAccepting')), min_order: +$('#dMin').value || 0,
-    days_ahead: +$('#dDays').value || 14, notice: $('#dNotice').value.trim(), closed_dates: CLOSED } });
+    days_ahead: +$('#dDays').value || 14, notice: $('#dNotice').value.trim(), closed_dates: CLOSED,
+    metrika_id: ($('#dMetrika') ? $('#dMetrika').value : '').replace(/\D/g, '') } });
   toast('Сохранено');
 });
 function renderZones() {
