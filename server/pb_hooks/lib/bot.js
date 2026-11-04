@@ -446,7 +446,7 @@ function handleClient(app, upd, brand) {
           file = $filesystem.fileFromURL(`https://api.telegram.org/file/bot${token}/${info.result.file_path}`, 60);
           file.name = "photo.jpg";
         }
-        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, String(msg.caption || ""), "tg", file);
+        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, String(msg.caption || ""), "tg", file, brand);
         return shop.tg(token, "sendMessage", { chat_id: chat, text: "Спасибо, фото получили — сейчас посмотрим." });
       } catch (err) {
         console.log("фото из чата", err);
@@ -464,7 +464,7 @@ function handleClient(app, upd, brand) {
     try { cust = app.findFirstRecordByFilter("customers", "tg_chat = {:c}", { c: String(chat) }); } catch (_) {}
     if (cust) {
       try {
-        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, text, "tg");
+        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, text, "tg", null, brand);
         return;
       } catch (err) { console.log("чат из Телеграма", err); }
     }

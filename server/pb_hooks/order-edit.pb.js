@@ -82,6 +82,14 @@ routerAdd("POST", "/api/shop/order-edit", (e) => {
     }
   }
 
+  // Снять красную плашку «доставка посчитана неверно»: менеджер уточнил адрес.
+  // Сам адрес и цену правит теми же полями выше — здесь только отметка.
+  if (b.zone_ok && /не распознан/i.test(String(o.get("zone_name") || ""))) {
+    o.set("zone_name", "адрес проверен менеджером");
+    o.set("comment", String(o.get("comment") || "").replace(/^⚠️ Карта не нашла этот адрес\..*?покупателем\.\s*/, ""));
+    правки.push(["адрес", "проверен вручную, плашка о неверной доставке снята"]);
+  }
+
   if (!правки.length) return e.json(200, { ok: true, ничего: true });
 
   try { $app.save(o); } catch (err) { return e.json(400, { message: String(err) }); }

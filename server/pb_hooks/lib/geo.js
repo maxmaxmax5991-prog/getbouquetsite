@@ -83,7 +83,10 @@ function suggest(s, q) {
   // город покупатель может назвать сам («Химки, Молодёжная»); если не назвал — ищем в Москве
   const text = q.indexOf(",") >= 0 ? q : `${CITY}, ${q}`;
   const r = get(`${SUGGEST}?apikey=${enc(key)}&text=${enc(text)}&lang=ru&results=7&types=street,house&ll=37.6173,55.7558&spn=1.2,0.8`);
-  if (!r.ok || !r.data || !r.data.results) return [];
+  if (!r.ok || !r.data || !r.data.results) {
+    console.log("подсказки пусто:", r.ok ? "ответ без results: " + JSON.stringify(r.data).slice(0, 200) : r.error);
+    return [];
+  }
   return r.data.results.map((x) => ({
     title: (x.title && x.title.text) || "",
     subtitle: (x.subtitle && x.subtitle.text) || "",

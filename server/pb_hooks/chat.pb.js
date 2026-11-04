@@ -122,13 +122,19 @@ routerAdd("GET", "/api/shop/chats", (e) => {
       id: c.id, name: c.get("name") || "", phone: c.get("phone") || "",
       last_text: c.get("last_text") || "", last_at: c.get("last_at") || "",
       unread: +c.get("unread") || 0, answered: !!c.get("answered"), customer: c.get("customer") || "", from: c.get("last_from") || "site",
-      order: (() => {
+      ...(() => {
+        // Последний заказ этого человека: его номер в списке и красные метки.
+        // «Фото без ответа» — букет показали, а покупатель не нажал ни 👍, ни 👎:
+        // такие заказы уезжают к получателю несогласованными.
         try {
           const tail = String(c.get("phone") || "").replace(/\D/g, "").slice(-10);
-          if (tail.length !== 10) return "";
+          if (tail.length !== 10) return { order: "" };
           const l = $app.findRecordsByFilter("orders", "phone ~ {:t}", "-created", 1, 0, { t: tail });
-          return l.length ? String(l[0].get("number")) : "";
-        } catch (_) { return ""; }
+          if (!l.length) return { order: "" };
+          const o = l[0];
+          return { order: String(o.get("number")), photo: o.get("photo_status") || "",
+            no_bot: !(o.get("tg_chat") || o.get("max_chat")) && o.get("status") !== "done" && o.get("status") !== "cancelled" };
+        } catch (_) { return { order: "" }; }
       })(),
     })),
   });
@@ -146,10 +152,16 @@ routerAdd("GET", "/api/shop/chat-one", (e) => {
   // Заказы ищем и по связи с кабинетом, и по телефону: покупатель мог заказать без входа.
   // Телефоны сравниваем по последним десяти цифрам — записывают их кто как.
   const seen = {}, orders = [];
+  const нас = shop.settings($app);
   const add = (o) => {
     if (seen[o.id]) return;
     seen[o.id] = 1;
-    orders.push({ number: o.get("number"), status: shop.STATUS[o.get("status")] || o.get("status"), total: o.get("total"), code: o.get("tg_code") });
+    const br = shop.brandOfOrder($app, o);
+    const ник = String((br && br.get("tg_client_bot")) || нас.get("tg_client_bot") || "").replace(/^@/, "");
+    orders.push({ number: o.get("number"), status: shop.STATUS[o.get("status")] || o.get("status"),
+      total: o.get("total"), code: o.get("tg_code"), id: o.id,
+      photo: o.get("photo_status") || "", bot: !!(o.get("tg_chat") || o.get("max_chat")),
+      bot_link: ник && o.get("tg_code") ? `https://t.me/${ник}?start=o${o.get("tg_code")}` : "" });
   };
   try {
     if (chat.get("customer")) {
@@ -163,9 +175,23 @@ routerAdd("GET", "/api/shop/chat-one", (e) => {
     }
   } catch (_) {}
   orders.sort((a, b2) => b2.number - a.number);
+  // Куда вообще можно написать этому человеку. Менеджер выбирает канал сам, а не
+  // угадывает: «ответ уйдёт в Телеграм» должно быть видно до отправки.
+  const куда = [{ id: "site", name: "в чат на сайте" }];
+  let cust = null;
+  try { if (chat.get("customer")) cust = $app.findRecordById("customers", chat.get("customer")); } catch (_) {}
+  if (!cust) {
+    const tail = String(chat.get("phone") || "").replace(/\D/g, "").slice(-10);
+    if (tail.length === 10) { try { cust = $app.findFirstRecordByFilter("customers", "phone ~ {:t}", { t: tail }); } catch (_) {} }
+  }
+  if (cust && cust.get("tg_chat")) куда.push({ id: "tg", name: "в Телеграм" });
+  if (cust && cust.get("max_chat")) куда.push({ id: "max", name: "в MAX" });
+
   return e.json(200, {
     name: chat.get("name") || "", phone: chat.get("phone") || "", orders, customer: chat.get("customer") || "",
+    channels: куда, last_from: chat.get("last_from") || "site",
     messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"), author: m.get("author") || "", via: m.get("via") || "site",
+      sent: m.get("side") === "shop" ? !!m.get("sent") : true, error: m.get("error") || "",
       photo: m.get("photo") ? `/api/files/chat_messages/${m.id}/${m.get("photo")}?thumb=480x0` : undefined,
       big: m.get("photo") ? `/api/files/chat_messages/${m.id}/${m.get("photo")}` : undefined })),
   });
@@ -179,7 +205,7 @@ routerAdd("POST", "/api/shop/chat-reply", (e) => {
     e.request.parseMultipartForm(14 << 20);
     const form = e.request.multipartForm;
     const val = (n) => { const v = form.value[n]; return v && v.length ? String(v[0]) : ""; };
-    b = { chat: val("chat"), text: val("text"), author: val("author") };
+    b = { chat: val("chat"), text: val("text"), author: val("author"), via: val("via") };
     const fh = (form.file["photo"] || [])[0];
     if (fh) file = $filesystem.fileFromMultipart(fh);
   } else {
@@ -190,10 +216,17 @@ routerAdd("POST", "/api/shop/chat-reply", (e) => {
   let chat;
   try { chat = $app.findRecordById("chats", String(b.chat || "")); } catch (_) { return e.json(404, { message: "Диалог не найден" }); }
 
+  // Канал выбирает менеджер. Раньше ответ всегда уходил туда, откуда человек
+  // написал последний раз, и «последний раз» часто оказывался сайтом — ответ
+  // ложился в закрытое окно на сайте, а человек ждал его в Телеграме.
+  const каналы = { tg: 1, max: 1, site: 1 };
+  const куда = каналы[String(b.via || "")] ? String(b.via) : String(chat.get("last_from") || "site");
+
   const m = new Record($app.findCollectionByNameOrId("chat_messages"));
   m.set("chat", chat.id);
   m.set("side", "shop");
   m.set("text", text);
+  m.set("via", куда);
   // Автор — id вошедшего менеджера, а не то, что прислал браузер: по нему
   // считается, кто отвечает и кто просрочил три минуты. Присланному имени
   // верить нельзя, его легко подменить.
@@ -208,13 +241,46 @@ routerAdd("POST", "/api/shop/chat-reply", (e) => {
   chat.set("unread", 0);
   $app.save(chat);
 
-  // человек писал из бота — туда ответ и доставляем
   let sent = { ok: true };
   try {
     const path = file ? `${$app.dataDir()}/storage/${m.collection().id}/${m.id}/${m.get("photo")}` : "";
-    sent = require(`${__hooks}/lib/chat.js`).deliver($app, chat, text, path);
+    sent = require(`${__hooks}/lib/chat.js`).deliver($app, chat, text, path, куда);
   } catch (err) { console.log("доставка ответа", err); sent = { ok: false, error: "Не вышло отправить" }; }
-  return e.json(200, { ok: true, warn: sent.ok ? undefined : sent.error });
+
+  // Итог доставки храним у самого сообщения: всплывашку менеджер закроет и
+  // забудет, а в ленте видно, что ответ до человека не дошёл.
+  try {
+    $app.db().newQuery("UPDATE chat_messages SET sent = {:s}, error = {:e} WHERE id = {:id}")
+      .bind({ s: sent.ok ? 1 : 0, e: sent.ok ? "" : String(sent.error || "").slice(0, 300), id: m.id }).execute();
+  } catch (err) { console.log("отметка доставки", err); }
+
+  return e.json(200, { ok: true, where: sent.where || "", warn: sent.ok ? undefined : sent.error });
+}, $apis.requireAuth("managers"));
+
+// Менеджер привязывает диалог к заказу руками: человек пишет из бота или с сайта,
+// а телефона в диалоге нет — по телефону заказ и находится. Один раз привязали —
+// дальше в списке виден номер заказа, а ответ уходит в его мессенджер.
+routerAdd("POST", "/api/shop/chat-bind", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const st = require(`${__hooks}/lib/staff.js`);
+  // Права те же, что на сам чат: отвечать покупателю и привязать его к заказу —
+  // одна и та же работа, отдельного разрешения тут не нужно.
+  const b = e.requestInfo().body || {};
+  let chat;
+  try { chat = $app.findRecordById("chats", String(b.chat || "")); } catch (_) { return e.json(404, { message: "Диалог не найден" }); }
+  const номер = String(b.number || "").replace(/\D/g, "");
+  if (!номер) return e.json(400, { message: "Укажите номер заказа." });
+  let o;
+  try { o = $app.findFirstRecordByFilter("orders", "number = {:n}", { n: +номер }); } catch (_) { return e.json(404, { message: `Заказ №${номер} не нашёлся.` }); }
+
+  chat.set("name", o.get("name") || chat.get("name") || "");
+  chat.set("phone", o.get("phone") || chat.get("phone") || "");
+  if (o.get("customer")) chat.set("customer", String(o.get("customer")));
+  if (o.get("brand")) chat.set("brand", String(o.get("brand")));
+  try { $app.save(chat); } catch (err) { return e.json(400, { message: String(err) }); }
+  const я = st.нынешний($app, e);
+  st.запись($app, o, я, "чат привязан", `диалог с ${chat.get("name") || "покупателем"} привязан к заказу`);
+  return e.json(200, { ok: true, number: o.get("number"), name: o.get("name") || "", phone: o.get("phone") || "" });
 }, $apis.requireAuth("managers"));
 
 // Человек написал до входа, потом вошёл (или оформил заказ) — привязываем диалог к нему.

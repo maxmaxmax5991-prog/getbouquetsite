@@ -474,6 +474,17 @@ function checkItem(app, item) {
   return assortment(app, shop.settings(app), item);
 }
 
+// Ваза в заказе — видно по самому названию заказа: «6682 vaza». Сборщик и курьер
+// замечают её сразу, не читая список позиций, — вазу забывали положить именно так.
+function сВазой(o) {
+  try {
+    return (shop.jget(o, "items") || []).some((it) => /ваз/i.test(String((it && it.name) || "")));
+  } catch (_) { return false; }
+}
+function имяЗаказа(o) {
+  return String(o.get("number")) + (сВазой(o) ? " vaza" : "");
+}
+
 // Позиции заказа для МоегоСклада: цветы в стеблях + доставка услугой.
 // Отдельной функцией, потому что то же самое нужно при замене сорта в заказе.
 function positionsFor(app, s, o) {
@@ -665,7 +676,7 @@ function pushOrder(app, o) {
   // сюда собираем поля, которые не удалось заполнить: молчать о них нельзя
   const missedAttrs = [];
   const body = {
-    name: String(o.get("number")),
+    name: имяЗаказа(o),
     organization: meta("organization", s.get("ms_org_id")),
     store: meta("store", s.get("ms_store_id")),
     agent: meta("counterparty", a.id),
@@ -710,7 +721,12 @@ else {
   // прошлая отправка прошла, а номер к нам не вернулся. Второй такой же создавать
   // нельзя — находим существующий и запоминаем его.
   if (!created.ok && /уникальност/i.test(String(created.error || ""))) {
-    const был = ms(s, "GET", `/entity/customerorder?filter=name=${encodeURIComponent(String(o.get("number")))}&limit=1`);
+    // Ищем и по новому имени («6682 vaza»), и по старому — заказы, уехавшие в
+    // склад до этой метки, иначе задвоим.
+    let был = ms(s, "GET", `/entity/customerorder?filter=name=${encodeURIComponent(имяЗаказа(o))}&limit=1`);
+    if (!(был.ok && был.data && был.data.rows && был.data.rows.length) && имяЗаказа(o) !== String(o.get("number"))) {
+      был = ms(s, "GET", `/entity/customerorder?filter=name=${encodeURIComponent(String(o.get("number")))}&limit=1`);
+    }
     const row = был.ok && был.data.rows && был.data.rows[0];
     if (row) {
       console.log("ms: заказ", o.get("number"), "уже был в складе — подхватили", row.id);

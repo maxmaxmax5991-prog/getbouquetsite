@@ -279,7 +279,7 @@ function handle(app, u, brand) {
     try { cust = app.findFirstRecordByFilter("customers", "max_chat = {:c}", { c: String(userId) }); } catch (_) {}
     if (cust) {
       try {
-        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, text, "max");
+        require(`${__hooks}/lib/chat.js`).fromClient(app, cust, text, "max", null, brand);
         return;
       } catch (err) { console.log("чат из MAX", err); }
     }
