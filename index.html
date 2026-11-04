@@ -136,8 +136,10 @@ html{overflow-x:clip}
 .hero h1{font:700 clamp(44px,7vw,92px)/.95 var(--display);letter-spacing:-.06em;margin:18px 0 0}
 .hero h1 em{font-style:normal;color:var(--accent);display:block}
 .hero .lede{font-size:clamp(16px,1.5vw,18px);color:var(--ink-2);max-width:38ch;margin:22px 0 0;line-height:1.6}
+.hero .lede:empty{display:none}
 .hero-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
 @media (max-width:880px){.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero-copy{text-align:center}.hero .lede{margin-inline:auto}.hero-cta{justify-content:center}}
+@media (max-width:560px){.hero{padding-block:16px 4px}.hero h1{font-size:clamp(38px,11vw,52px);margin-top:12px}.hero-cta{margin-top:18px}ul.perks{margin-top:14px;gap:6px}}
 
 /* studio */
 .studio{position:relative;height:624px;border-radius:32px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow);isolation:isolate;user-select:none;-webkit-user-select:none}
@@ -407,6 +409,12 @@ html{overflow-x:clip}
 .rec-tag{position:absolute;left:6px;top:6px;background:var(--accent);color:#fff;font:800 10px/1 var(--body);letter-spacing:.07em;text-transform:uppercase;padding:5px 7px;border-radius:999px}
 .addon.rec h4{color:var(--accent-text)}
 .addons-hint{margin:0 0 10px;font-size:13px;color:var(--ink-2);line-height:1.45}
+.sizes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:22px}
+.sizes a{display:flex;flex-direction:column;gap:2px;padding:14px;border:1px solid var(--line);border-radius:16px;text-decoration:none;background:var(--paper)}
+.sizes b{font-size:16px;color:var(--ink);font-weight:700}
+.sizes span{font-size:13px;color:var(--ink-2)}
+.sizes a:hover{border-color:var(--accent)}
+@media (max-width:560px){.sizes{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.sizes a{padding:12px}}
 .vase-ask{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:start;margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:16px}
 .vase-ask img{width:56px;height:56px;object-fit:cover;border-radius:12px;background:var(--tile)}
 .vase-ask .buy{height:38px;font-size:14px}
@@ -474,8 +482,9 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(3px)}
 .form input,.form select,.form textarea{height:48px;border-radius:12px;border:1px solid var(--line-2);background:var(--ground);padding:0 14px;color:var(--ink);font-weight:500;font-size:16px;outline:0;width:100%}
 .form textarea{height:88px;padding:12px 14px;resize:vertical}
 .form input:focus,.form select:focus,.form textarea:focus{border-color:var(--accent)}
-ul.perks{list-style:none;margin:22px auto 0;padding:0;display:grid;gap:10px;max-width:520px;text-align:left}
-ul.perks li{display:grid;gap:2px;font-size:14px;color:var(--ink-2);padding-left:18px;position:relative;line-height:1.35}
+ul.perks{list-style:none;margin:18px auto 0;padding:0;display:grid;gap:7px;max-width:520px;text-align:left}
+ul.perks li{font-size:14px;color:var(--ink-2);padding-left:18px;position:relative;line-height:1.45}
+ul.perks span::before{content:" — "}
 ul.perks li::before{content:"";position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
 ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .cat-note{margin:6px 0 0;font-size:13.5px;color:var(--accent-text);font-weight:600}
@@ -805,14 +814,14 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
       <div class="hero-copy">
         <p class="eyebrow" id="heroEyebrow">Оптовые цены в розницу · Москва 🌷</p>
         <h1 id="heroTitle">Букет, <em>а не веник.</em></h1>
-        <p class="lede" id="heroText">Тот самый цветочный: оптовые цены, невероятный ассортимент. Берём цветы напрямую от производителей и присылаем фото букета перед доставкой.</p>
+        <p class="lede" id="heroText"></p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="/catalog/">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
         </div>
         <ul class="perks">
-          <li><b data-t="perk1_t">💰 Оптовые цены</b><span data-t="perk1_d">цветы напрямую от производителей</span></li>
-          <li><b data-t="perk2_t">🌸 Невероятный ассортимент</b><span data-t="perk2_d">розы, гортензии, французские — и всё свежее</span></li>
-          <li><b data-t="perk3_t">📸 Фото перед доставкой</b><span data-t="perk3_d">увидите букет до того, как он поедет</span></li>
+          <li><b data-t="perk1_t">💰 Оптовые цены</b><span data-t="perk1_d">от производителей</span></li>
+          <li><b data-t="perk2_t">🌸 Ассортимент</b><span data-t="perk2_d">розы, гортензии, гигантские корзины</span></li>
+          <li><b data-t="perk3_t">📸 Фото букета</b><span data-t="perk3_d">до отправки</span></li>
         </ul>
       </div>
 
@@ -823,6 +832,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
     <div class="wrap">
       <div class="sec-head"><h2 class="h2" data-t="popular_title">Популярные букеты</h2><a class="more" href="/catalog/">Смотреть все <svg class="i"><use href="#i-arrow"/></svg></a></div>
       <div class="grid" id="popular"></div>
+      <div class="sizes" id="sizeTiles" hidden></div>
     </div>
   </section>
 
@@ -1016,7 +1026,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793796751"></script>
+<script src="/data.js?v=1793799170"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2318,6 +2328,24 @@ const POPULAR = API ? разнести(тасовать(P.filter(p => !isAddon(p
   }))
   .map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => card(byId[id], 'главная', i)).join('');
+/* Частые размеры прямо на главной: шесть сочетаний «длина × количество»,
+   которые чаще всего покупают (посчитано по оплаченным заказам за 28 дней,
+   04.11.2026: 50×51 — 220 заказов, 40×51 — 216, 40×19 — 185, 40×101 — 166,
+   60×51 — 136, 60×25 — 121). Ведут в каталог с готовым отбором.
+   Показываем только то, что сегодня правда можно купить: плитка, ведущая
+   в пустой каталог, хуже, чем её отсутствие. */
+const ЧАСТЫЕ = [[50, 51], [40, 51], [40, 101], [40, 19], [60, 51], [60, 25]];
+{
+  const живой = (L, N) => P.some(p => !p.off && !isAddon(p) &&
+    (p.variants || []).some(v => +v.len === L && +v.cnt === N && !v.out));
+  const список = ЧАСТЫЕ.filter(([L, N]) => живой(L, N));
+  const узел = $('#sizeTiles');
+  if (узел && список.length >= 2) {
+    узел.hidden = false;
+    узел.innerHTML = список.map(([L, N]) => `<a href="/catalog/?len=${L}&cnt=${N}">
+      <b>${N} ${plural(N, 'роза', 'розы', 'роз')}</b><span>${L} см</span></a>`).join('');
+  }
+}
 вставитьДроп($('#popular'));
 const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
 $('#tiles').innerHTML = CATS.map(([k, label]) => {
@@ -3202,6 +3230,7 @@ $('#toastBtn').onclick = () => { $('#toast').classList.remove('show'); openCart(
 /* ---------- cart sheet & checkout ---------- */
 let view = 'list', lastOrder = null;
 const cartDlg = $('#cart');
+let вазаДобавлена = 0;   // когда вазу положили кнопкой «Добавить вазу?»
 /* Нехватка остатков. Покупатель набирает букеты, уходит пить чай, за это время
    стебли кончаются — и раньше он узнавал об этом только по кнопке «Подтвердить
    заказ», заполнив всю форму. Теперь спрашиваем сервер при открытии корзины. */
@@ -3257,7 +3286,7 @@ function вазаВКорзину() {
     <div>
       <div class="line-name">Добавить вазу?</div>
       <div class="hint" style="margin:3px 0 0;font-size:12.5px">${esc(в.name)} — подойдёт к вашему букету: высота примерно вполовину стебля.</div>
-      <div class="buy-slot" style="margin-top:9px">${buyHTML(в)}</div>
+      <div class="buy-slot" style="margin-top:9px"><button class="buy num" data-vaza="${в.id}">${icon('bag')}${rub(keyPrice(в.id))}</button></div>
     </div>
   </div>`;
 }
@@ -3469,7 +3498,19 @@ cartDlg.addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.fit) { setQty(t.dataset.fit, +нехватка[t.dataset.fit].fit || 1); перепроверить(); }
   else if (t.dataset.drop) { setQty(t.dataset.drop, 0); перепроверить(); }
-  else if (t.dataset.inc) { setQty(t.dataset.inc, (cart[t.dataset.inc] || 0) + 1); перепроверить(); }
+  else if (t.dataset.vaza) {
+    // СТАВИМ РОВНО ОДНУ, А НЕ ПРИБАВЛЯЕМ. Нажатие по этой кнопке сразу
+    // перерисовывает корзину, и на место кнопки встаёт строка товара со своим
+    // «плюсом». Сафари на айфоне в такой ситуации шлёт второй, «призрачный»
+    // клик по тому, что оказалось под пальцем, — и ваза уходила в корзину
+    // сразу двумя штуками. При «поставить одну» повтор ничего не меняет.
+    setQty(t.dataset.vaza, 1); вазаДобавлена = Date.now(); перепроверить();
+  }
+  else if (t.dataset.inc) {
+    // тот же призрачный клик мог попасть по «плюсу» только что созданной строки
+    if (Date.now() - вазаДобавлена < 600) return;
+    setQty(t.dataset.inc, (cart[t.dataset.inc] || 0) + 1); перепроверить();
+  }
   else if (t.dataset.dec) { setQty(t.dataset.dec, (cart[t.dataset.dec] || 0) - 1); перепроверить(); }
   else if (t.id === 'toCheckout') { view = 'form'; renderCart(); }
   else if (t.id === 'toList') { view = 'list'; renderCart(); }
