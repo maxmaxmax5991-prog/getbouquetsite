@@ -422,6 +422,30 @@ html{overflow-x:clip}
   background:var(--accent-soft-2);color:var(--accent-text);font-weight:700;font-size:14px;
   text-decoration:none;white-space:nowrap}
 .size-tiles a:hover{background:var(--accent);color:var(--accent-ink)}
+.size-tiles a.basket{background:var(--leaf-soft);color:var(--leaf)}
+.size-tiles a.basket:hover{background:var(--leaf);color:#fff}
+/* Лёгкая пульсация, чтобы кнопки заметили. Волна идёт тенью, а не размером:
+   меняя размер, мы дёргали бы соседние кнопки и строку целиком. Кнопки
+   пульсируют по очереди — одновременная «гирлянда» выглядит дёшево.
+   Тем, кто просил систему убрать анимации, не показываем вовсе. */
+@keyframes волна {
+  0%   { box-shadow: 0 0 0 0 var(--accent-soft-2); }
+  55%  { box-shadow: 0 0 0 9px rgba(224,23,138,0); }
+  100% { box-shadow: 0 0 0 0 rgba(224,23,138,0); }
+}
+.size-tiles a{animation:волна 4.5s ease-out infinite}
+.size-tiles a:nth-child(2){animation-delay:.5s}
+.size-tiles a:nth-child(3){animation-delay:1s}
+.size-tiles a:nth-child(4){animation-delay:1.5s}
+.size-tiles a:nth-child(5){animation-delay:2s}
+.size-tiles a:hover{animation:none}
+@keyframes волнаЗел {
+  0%   { box-shadow: 0 0 0 0 var(--leaf-soft); }
+  55%  { box-shadow: 0 0 0 9px rgba(31,122,77,0); }
+  100% { box-shadow: 0 0 0 0 rgba(31,122,77,0); }
+}
+.size-tiles a.basket{animation-name:волнаЗел}
+@media (prefers-reduced-motion:reduce){.size-tiles a{animation:none}}
 .vase-ask{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:start;margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:16px}
 .vase-ask img{width:56px;height:56px;object-fit:cover;border-radius:12px;background:var(--tile)}
 .vase-ask .buy{height:38px;font-size:14px}
@@ -1033,7 +1057,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793801611"></script>
+<script src="/data.js?v=1793802541"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2242,9 +2266,9 @@ function дропПолоска() {
     ? `<small>осталось</small><b>${d.свободно} шт</b>`
     : d.состояние === 'over' ? `<small>следующий</small><b>завтра</b>`
     : `<small>старт через</small><b class="dp-t">${дропЧас(доСтарта)}</b>`;
-  const низ = идёт ? `Дроп начался · ${d.подпись || 'букет из Reels'}`
-    : d.состояние === 'over' ? 'Сегодня разобрали · завтра в 12:00'
-    : `Дроп дня · букет из Reels · ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`;
+  const низ = идёт ? `Дроп начался · ${d.всего} ${plural(d.всего, 'букет', 'букета', 'букетов')} по спеццене`
+    : d.состояние === 'over' ? 'Сегодня разобрали · каждый день в 12:00'
+    : `Каждый день в ${String(d.старт).slice(11)} · ${d.всего} ${plural(d.всего, 'букет', 'букета', 'букетов')} по спеццене`;
   return `<button class="dline${идёт ? ' live' : ''}" data-drop="open">
     <span class="em">🔥</span>
     <span class="tx"><b>${d.штук} ${plural(d.штук, 'роза', 'розы', 'роз')} за ${rub(d.цена)}</b><small>${esc(низ)}</small></span>
@@ -2280,7 +2304,11 @@ function дропКарточка() {
     ? `<button class="btn" disabled>Бот сейчас напишет</button>`
     : `<button class="btn" disabled>Вы в очереди${я.место ? `, ${я.место}-й` : ''}</button>`;
   else if (я && я.статус === 'paid') кнопка = `<button class="btn" disabled>Букет ваш — оформлен</button>`;
-  else кнопка = `<button class="btn" data-drop="queue">${сразу ? 'Забрать букет' : конец ? 'Встать в очередь на завтра' : 'Встать в очередь'}</button>`;
+  // Пока букеты свободны, кнопка ведёт прямо в оформление: выбор сорта и
+  // корзина, без бота и без очереди. Очередь включается только когда разобрали.
+  else кнопка = сразу
+    ? `<button class="btn" data-drop="take">Забрать букет</button>`
+    : `<button class="btn" data-drop="queue">${конец ? 'Встать в очередь на завтра' : 'Встать в очередь'}</button>`;
   return `<div class="dp${конец ? ' done' : ''}">
     <div class="dp-head">
       <span class="tag${идёт ? ' live' : конец ? ' out' : ''}">${идёт ? 'Дроп начался' : конец ? 'Разобрали' : 'Дроп дня'}</span>
@@ -2299,7 +2327,7 @@ function дропКарточка() {
       </div>
     </div>
     ${конец || я ? '' : сразу
-      ? `<div class="how"><b>Дроп начался.</b> Нажмите «Забрать букет» — бот пришлёт его в течение минуты, на выбор сорта и оплату 15 минут.</div>`
+      ? `<div class="how"><b>Дроп начался.</b> Так каждый день: ${d.всего} ${plural(d.всего, 'букет', 'букета', 'букетов')} по спеццене. Выбираете сорт — и сразу оформляете заказ, без очереди и без бота.</div>`
       : идёт
       ? `<div class="how"><i>1.</i> встаёте в очередь &nbsp;<i>2.</i> зовём по порядку, как освободится букет &nbsp;<i>3.</i> 15 минут на выбор и оплату</div>`
       : `<div class="how"><i>1.</i> встаёте в очередь &nbsp;<i>2.</i> в ${String(d.старт).slice(11)} зовём по порядку &nbsp;<i>3.</i> 15 минут на выбор и оплату</div>`}
@@ -2337,7 +2365,9 @@ const POPULAR = API ? разнести(тасовать(P.filter(p => !isAddon(p
     return ((b.express && b.ready) ? 1 : 0) - ((a.express && a.ready) ? 1 : 0);
   }))
   .map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
-$('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => card(byId[id], 'главная', i)).join('');
+// Плитки «Соберите корзину» в этом ряду больше нет: она стоит кнопкой
+// в ряду быстрого выбора выше. В каталоге плитка осталась.
+$('#popular').innerHTML = POPULAR.map((id, i) => card(byId[id], 'главная', i)).join('');
 /* Плитки быстрого выбора под популярными букетами. Три по цене и две по
    количеству — так просят чаще всего. Вилки не пересекаются: «до 7 000»
    показывает букеты от 3 000 до 7 000, иначе в каждой следующей плитке
@@ -2351,6 +2381,10 @@ $('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => 
   const поКоличеству = n => P.some(p => !p.off && !isAddon(p) && (p.variants || [])
     .some(v => живой(v) && +v.cnt === n));
   const плитки = [
+    // Корзина — не отбор каталога, а отдельный конструктор, поэтому и цвет свой,
+    // зелёный: в ряду фуксиевых кнопок её видно сразу.
+    { имя: '🌹 Конструктор корзин', url: '/korzina/', класс: ' basket',
+      есть: () => !!(BSET && (BSET.основы || []).length) },
     { имя: 'До 3 000 ₽', под: 'недорогие букеты', url: '/catalog/?max=3000', есть: () => поЦене(0, 3000) },
     { имя: 'До 7 000 ₽', под: 'от 3 000 ₽', url: '/catalog/?min=3000&max=7000', есть: () => поЦене(3000, 7000) },
     { имя: 'До 15 000 ₽', под: 'от 7 000 ₽', url: '/catalog/?min=7000&max=15000', есть: () => поЦене(7000, 15000) },
@@ -2360,7 +2394,7 @@ $('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => 
   const узел = $('#sizeTiles');
   if (узел && плитки.length >= 2) {
     узел.hidden = false;
-    узел.innerHTML = плитки.map(п => `<a href="${п.url}">${esc(п.имя)}</a>`).join('');
+    узел.innerHTML = плитки.map(п => `<a class="${(п.класс || '').trim()}" href="${п.url}">${esc(п.имя)}</a>`).join('');
   }
 }
 вставитьДроп($('#popular'));

@@ -132,6 +132,26 @@ function взять(app, cust, pid, phone) {
       } catch (_) {}
     }
   }
+  // БУКЕТЫ СВОБОДНЫ — ОЧЕРЕДЬ НЕ НУЖНА. Очередь существует только чтобы делить
+  // остаток между теми, кому не хватило. Пока букеты есть, человек должен брать
+  // их как обычный товар, без бота: 3 ноября из шести оформивших заплатили
+  // двое, остальных отпугнул вход. Запись в очереди заводим сами, задним
+  // числом, иначе заказ упёрся бы в «вас нет в очереди».
+  if (!q && свободно(d) > 0) {
+    try {
+      const r = new Record(app.findCollectionByNameOrId("drop_queue"));
+      r.set("drop", d.id);
+      if (cust) r.set("customer", String(cust));
+      r.set("phone", String(phone || ""));
+      r.set("place", очередь(app, d).length + 1);
+      r.set("status", "invited");
+      r.set("product", String(pid));
+      r.set("invited_at", new Date().toISOString().slice(0, 19).replace("T", " "));
+      r.set("expires_at", new Date(Date.now() + ОКНО * 60000).toISOString().slice(0, 19).replace("T", " "));
+      app.save(r);
+      q = r;
+    } catch (err) { console.log("дроп: самозапись", err); }
+  }
   if (!q) беда("Вас нет в очереди на этот дроп.");
   if (q.get("status") === "paid") беда("Вы уже забрали букет в этом дропе.");
   if (q.get("status") !== "invited") беда("Ваша очередь ещё не подошла.");
