@@ -1026,7 +1026,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793799170"></script>
+<script src="/data.js?v=1793799383"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -4318,7 +4318,9 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
   // «Счётчик Яндекс.Метрики»); пусто — счётчик просто не подключается, и сайт
   // работает как раньше. Полгода у магазина не было никакой аналитики вообще:
   // поле в базе завели, а код к нему так и не написали.
-  window.МЕТРИКА = (window.API && API.metrika) || '';
+  // Каталог лежит в переменной API этого же файла, а не в window.API:
+  // через window он не виден, и счётчик молча не подключался.
+  window.МЕТРИКА = (API && API.metrika) || '';
   if (window.МЕТРИКА) {
     try {
       (function (m, e, t, r, i, k, a) {
