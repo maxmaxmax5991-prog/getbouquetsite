@@ -142,11 +142,17 @@ html{overflow-x:clip}
 /* На компьютере шапка была сеткой в две колонки: слева текст, справа пусто.
    В правой стояла студия-карусель, её давно убрали, а колонка осталась —
    549 пустых пикселей из 1440, 38 % первого экрана. */
-@media (min-width:881px){.hero .wrap{display:block}.hero-copy{max-width:860px}
+@media (min-width:881px){.hero .wrap{display:block}
+  /* На широком экране текст шапки прижимался влево, и справа оставалось
+     пустое поле в треть ширины. Ставим по центру: пустота распределяется
+     поровну и читается как воздух, а не как дыра. */
+  .hero-copy{max-width:860px;margin-inline:auto;text-align:center}
+  .hero .lede{margin-inline:auto}.hero-cta{justify-content:center}
+  .hero-copy ul.perks{margin-inline:auto}
   /* Список в шапке — три строки, а не три колонки: общий класс .perks задаёт
      сетку в три столбца (это для плиток), и пункты сжимались до 170 px,
      каждый в три строки. */
-  .hero-copy ul.perks{grid-template-columns:minmax(0,1fr);max-width:640px;margin-inline:0}}
+  .hero-copy ul.perks{grid-template-columns:minmax(0,1fr);max-width:620px}}
 @media (max-width:560px){.hero{padding-block:16px 4px}.hero h1{font-size:clamp(38px,11vw,52px);margin-top:12px}.hero-cta{margin-top:18px}ul.perks{margin-top:14px;gap:6px}}
 
 /* studio */
@@ -1065,7 +1071,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793803628"></script>
+<script src="/data.js?v=1793803978"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2354,8 +2360,13 @@ function вставитьДроп(куда) {
   box.dataset.dropbox = '1';
   box.style.display = 'contents';
   box.innerHTML = DROPоткрыт ? дропКарточка() : дропПолоска();
+  // Полоска занимает ВСЮ ширину ряда, поэтому вставлять её надо после целого
+  // ряда карточек, а не после второй. На телефоне колонок две и всё сходилось,
+  // а на компьютере их четыре: полоска не влезала в остаток ряда, уезжала на
+  // следующий, и два места справа оставались пустыми — дыра посреди главной.
+  const колонок = Math.max(1, (getComputedStyle(куда).gridTemplateColumns.match(/px|fr|%/g) || ['']).length);
   const карточки = куда.children;
-  if (карточки.length > 2) куда.insertBefore(box, карточки[2]);
+  if (карточки.length > колонок) куда.insertBefore(box, карточки[колонок]);
   else куда.appendChild(box);
 }
 function дропПеререндер() {
