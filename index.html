@@ -413,14 +413,15 @@ html{overflow-x:clip}
    товара (sizesHTML рисует ими «40 см / 50 см» и «25 / 51 / 101»). Назвав так
    этот блок, я превратил ряды кнопок на всех карточках в двухколоночную сетку.
    Ровно та же грабля, что когда-то была с двумя разными .perks. */
-.size-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 26px}
-.size-tiles a{display:flex;flex-direction:column;gap:2px;padding:14px;border:1px solid var(--line);border-radius:16px;text-decoration:none;background:var(--paper)}
-.size-tiles b{font-size:16px;color:var(--ink);font-weight:700}
-.size-tiles span{font-size:13px;color:var(--ink-2)}
-.size-tiles a:hover{border-color:var(--accent)}
-@media (max-width:560px){.size-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.size-tiles a{padding:12px}
-/* плиток нечётное число — последняя занимает всю строку, иначе половина пустая */
-.size-tiles a:last-child:nth-child(odd){grid-column:1/-1}}
+/* Кнопки быстрого выбора. Заливка фирменным цветом, а не белая плашка
+   с рамкой: на тёмной теме рамка почти не видна, и кнопки переставали
+   читаться как кнопки. --accent-soft-2 меняется вместе с темой (17 % на
+   светлой, 26 % на тёмной), поэтому заметны в обеих. */
+.size-tiles{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 24px}
+.size-tiles a{display:inline-flex;align-items:center;height:38px;padding:0 15px;border-radius:999px;
+  background:var(--accent-soft-2);color:var(--accent-text);font-weight:700;font-size:14px;
+  text-decoration:none;white-space:nowrap}
+.size-tiles a:hover{background:var(--accent);color:var(--accent-ink)}
 .vase-ask{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:start;margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:16px}
 .vase-ask img{width:56px;height:56px;object-fit:cover;border-radius:12px;background:var(--tile)}
 .vase-ask .buy{height:38px;font-size:14px}
@@ -1032,7 +1033,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793801481"></script>
+<script src="/data.js?v=1793801611"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2359,7 +2360,7 @@ $('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => 
   const узел = $('#sizeTiles');
   if (узел && плитки.length >= 2) {
     узел.hidden = false;
-    узел.innerHTML = плитки.map(п => `<a href="${п.url}"><b>${esc(п.имя)}</b><span>${esc(п.под)}</span></a>`).join('');
+    узел.innerHTML = плитки.map(п => `<a href="${п.url}">${esc(п.имя)}</a>`).join('');
   }
 }
 вставитьДроп($('#popular'));
