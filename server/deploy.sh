@@ -17,5 +17,7 @@ rsync -az --delete -e ssh server/pb_migrations/ "$HOST:/opt/venikoff/pb/pb_migra
 rsync -az -e ssh server/bin/ "$HOST:/opt/venikoff/bin/"
 rsync -az --delete -e ssh --include='index.html' --include='data.js' --include='img/***' --include='admin/***' --include='add/***' --include='fonts/***' --exclude='*' ./ "$HOST:/opt/venikoff/site/"
 ssh "$HOST" 'chown -R venikoff:venikoff /opt/venikoff/pb && chmod -R u=rwX,go=rX /opt/venikoff/site && systemctl restart venikoff-pb && sleep 2 && systemctl is-active venikoff-pb'
-curl -s -o /dev/null -w "сайт: %{http_code}\n" https://venikoff.net/
-curl -s -o /dev/null -w "каталог: %{http_code}\n" https://venikoff.net/api/shop/catalog
+# Проверку делаем С САМОГО СЕРВЕРА: с мака прямой связи с ним нет, и curl
+# отсюда всегда возвращал бы 000 — выкладка выглядела бы сломанной.
+ssh "$HOST" 'curl -s -o /dev/null -w "сайт: %{http_code}\n" --resolve venikoff.net:443:127.0.0.1 https://venikoff.net/
+curl -s -o /dev/null -w "каталог: %{http_code}\n" --resolve venikoff.net:443:127.0.0.1 https://venikoff.net/api/shop/catalog' 

@@ -403,6 +403,10 @@ html{overflow-x:clip}
 .addon img{width:100%;height:100%;object-fit:cover}
 .addon h4{margin:4px 0 0;font-size:13px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
 .addon .buy{height:38px;font-size:14px;margin-top:2px}
+.addon .ph{position:relative}
+.rec-tag{position:absolute;left:6px;top:6px;background:var(--accent);color:#fff;font:800 10px/1 var(--body);letter-spacing:.07em;text-transform:uppercase;padding:5px 7px;border-radius:999px}
+.addon.rec h4{color:var(--accent-text)}
+.addons-hint{margin:0 0 10px;font-size:13px;color:var(--ink-2);line-height:1.45}
 
 .me-card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:12px}
 .me-card h3{font:600 17px var(--display);letter-spacing:-.03em;margin:0 0 6px}
@@ -942,6 +946,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
     </div>
     <section class="sec" id="addonsSec">
       <div class="sec-head"><h2 class="h2">Добавить к букету</h2></div>
+      <p class="addons-hint" id="addonsHint" hidden></p>
       <div class="addons" id="addons"></div>
     </section>
     <section class="sec" style="padding-top:0">
@@ -998,7 +1003,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793725124"></script>
+<script src="/data.js?v=1793791116"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1237,7 +1242,9 @@ const CATS = [
   ['single', 'Одноголовые розы'], ['kenya', 'Кенийские розы'], ['french', 'Французские розы'], ['hydrangea', 'Гортензии'],
   ['cards', 'Открытки'], ['toys', 'Игрушки']
 ];
-if (API && API.categories) CATS.splice(0, CATS.length, ...API.categories.map(c => [c.slug, c.name]));
+// Разделы-допы (открытки, игрушки, вазы) в кнопки каталога не идут: их место —
+// блок «Добавить к букету». Иначе «Вазы» встали бы в ряд с сортами роз.
+if (API && API.categories) CATS.splice(0, CATS.length, ...API.categories.filter(c => !c.addon).map(c => [c.slug, c.name]));
 const ADDON_CATS = new Set(API && API.categories ? API.categories.filter(c => c.addon).map(c => c.slug) : ['cards', 'toys']);
 const isAddon = p => ADDON_CATS.has(p.cat);
 const catName = Object.fromEntries(CATS);
@@ -1250,6 +1257,33 @@ const oneOf = (n) => String(n || '')
   .replace(/^Игрушки$/i, 'Игрушка').replace(/^Тюльпаны$/i, 'Тюльпан');
 const isStem = p => p.cat === 'stems';
 const ADDONS = P.filter(p => isAddon(p));
+// Вазы — те же допы, но с размером в названии: «Ваза 20×40 см».
+const ВАЗЫ = ADDONS.map(a => {
+  const m = String(a.name || '').match(/(\d+)\s*[×x]\s*(\d+)/);
+  return m && a.cat === 'vazy' ? { д: +m[1], в: +m[2], товар: a } : null;
+}).filter(Boolean);
+/* Какую вазу советуем к букету.
+   Принцип, по которому считаем (его легко проверить глазом на любом букете):
+   1. ВЫСОТА вазы — примерно половина длины стебля. Ниже — букет вываливается,
+      выше — тонет и видно одни стебли. 40 см → ваза 20–25, 50–60 → 30, 70–80 → 40.
+   2. ДИАМЕТР — по числу стеблей. До 25 одноголовых хватает Ø15, дальше нужен Ø20.
+      У кустовых порог втрое ниже: один кустовой стебель ветвится и занимает
+      в вазе места как три одноголовых, поэтому уже с 19 штук нужен Ø20.
+   3. Высоким букетам (от 70 см) узкой вазы у нас нет вовсе — там всегда 20×40. */
+function вазаДля(p, len, cnt) {
+  if (!ВАЗЫ.length) return null;
+  // Порог, после которого нужна широкая ваза. У гортензии одна голова шире
+  // ладони — трёх штук уже хватает, чтобы Ø15 не закрылась.
+  const порог = p.cat === 'hydrangea' ? 3 : /kustov/.test(p.cat || '') ? 11 : 25;
+  const n = +cnt || 0;
+  // Количество неизвестно (размеры M/L/XL у сборных) — берём пошире:
+  // большая ваза подойдёт любому букету, маленькая — нет.
+  const узкая = n > 0 && n <= порог;
+  const L = +len || 60;                      // товар без ростовки считаем как 60 см
+  const высота = L >= 70 ? 40 : L >= 50 ? 30 : узкая ? 25 : 20;
+  const диаметр = высота === 40 ? 20 : узкая ? 15 : 20;
+  return ВАЗЫ.find(v => v.д === диаметр && v.в === высота) || null;
+}
 const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
 
 /* ---------- sizes: every bouquet has variants [{label, price, photo?}] ---------- */
@@ -2516,6 +2550,32 @@ function pdSync() {
   $('#pdExpress').hidden = !readyNow(p);
   if (readyNow(p)) $('#pdExpress').innerHTML = `<b>⚡ Готов сейчас</b> — букет уже собран, ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)} шт. Везём без времени на сборку.`;
   const f = favs.has(p.id); $('#pdFav').setAttribute('aria-pressed', f); $('#pdFav').dataset.fav = p.id;
+  renderAddons(p);
+}
+// Блок «Добавить к букету». Рисуется из pdSync, а не один раз при открытии
+// карточки: рекомендованная ваза зависит от ВЫБРАННОГО размера, и при переходе
+// с 40 см на 70 см совет обязан меняться вместе с ценой.
+function renderAddons(p) {
+  const sec = $('#addonsSec'); if (!sec) return;
+  sec.hidden = isAddon(p) || !ADDONS.length;
+  if (sec.hidden) return;
+  const label = curLabel(p);
+  const v = (p.variants || []).find(x => x.label === label) || {};
+  const сов = вазаДля(p, v.len, v.cnt);
+  const подсказка = $('#addonsHint');
+  if (подсказка) {
+    подсказка.hidden = !сов;
+    if (сов) подсказка.innerHTML = `Для этого размера подойдёт <b>${esc(сов.товар.name)}</b> — высота примерно вполовину стебля, чтобы букет стоял, а не падал и не тонул.`;
+  }
+  const хвост = ADDONS.filter(a => !сов || a.id !== сов.товар.id);
+  const список = (сов ? [сов.товар] : []).concat(хвост).slice(0, 10);
+  $('#addons').innerHTML = список.map(a => {
+    const это = сов && a.id === сов.товар.id;
+    return `<div class="addon${это ? ' rec' : ''}" data-id="${a.id}">
+      <a class="ph" href="${purl(a)}"><img src="${a.img || img(a.id)}" alt="${esc(a.name)}" loading="lazy">${
+        это ? '<span class="rec-tag">Рекомендуем</span>' : ''}</a>
+      <h4>${esc(a.name)}</h4><div class="buy-slot">${buyHTML(a)}</div></div>`;
+  }).join('');
 }
 function showProduct(id) {
   const p = byId[id]; if (!p) return go404();
@@ -2544,11 +2604,6 @@ function showProduct(id) {
     $('#pdOptsLabel').textContent = p.lengths ? (p.lengths.some(L => L > 0) ? 'Длина и количество' : 'Количество цветов') : /^\d/.test(p.variants[0].label) ? 'Количество цветов' : 'Размер';
   }
   pdSync();
-  $('#addonsSec').hidden = isAddon(p);
-  if (!isAddon(p)) {
-    const pick = [...ADDONS].sort((a, b) => (a.id * 7 + +id) % 13 - (b.id * 7 + +id) % 13).slice(0, 10);
-    $('#addons').innerHTML = pick.map(a => `<div class="addon" data-id="${a.id}"><a class="ph" href="${purl(a)}"><img src="${a.img || img(a.id)}" alt="" loading="lazy"></a><h4>${esc(a.name)}</h4><div class="buy-slot">${buyHTML(a)}</div></div>`).join('');
-  }
   const sim = P.filter(x => x.cat === p.cat && x.id !== id).slice(0, 4);
   $('#similar').innerHTML = sim.map((p, i) => card(p, 'похожие', i)).join('');
   $('#simMore').href = '/catalog/' + p.cat + '/';
