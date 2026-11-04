@@ -269,7 +269,7 @@ function priceFromMkad(s, pos) {
   if (insideMkad(pos.lat, pos.lon)) return { ok: true, price: inside, zone: "", zoneName: "внутри МКАД", out_km: 0 };
   const out = kmFromMkad(pos.lat, pos.lon);
   const max = +s.get("mkad_max_km") || 0;
-  if (max > 0 && out > max) return { ok: false, error: `Пока не возим дальше ${max} км от МКАД. Позвоните нам — договоримся.` };
+  if (max > 0 && out > max) return { ok: false, hard: true, error: `Пока не возим дальше ${max} км от МКАД. Позвоните нам — договоримся.` };
   const perKm = +s.get("mkad_km_price") || 0;
   const base = +s.get("mkad_out_base") || inside;   // за МКАД база своя, а не цена города
   return { ok: true, price: base + Math.ceil(out) * perKm, zone: "", zoneName: `${out} км за МКАД`, out_km: out };
@@ -281,7 +281,7 @@ function priceFromMkad(s, pos) {
 // километр ОТ МКАД (так считают все в Москве, и так же считался прежний режим).
 function priceFor(app, s, km, sum, pos) {
   const zones = zonesByRadius(app);
-  if (!zones.length) return { ok: false, error: "Зоны доставки не настроены. Позвоните нам — оформим вручную." };
+  if (!zones.length) return { ok: false, hard: true, error: "Зоны доставки не настроены. Позвоните нам — оформим вручную." };
   const z = zones.find((x) => km <= +x.get("radius_km"));
   if (z) {
     const free = +z.get("free_from") || 0;
@@ -305,7 +305,7 @@ function priceFor(app, s, km, sum, pos) {
   // говорит: магазин на северо-востоке, и до западного Одинцова ехать через всю
   // Москву, хотя от МКАД там всего семь километров.
   const maxKm = +s.get("max_km") || 0;
-  if (maxKm > 0 && km > maxKm) return { ok: false, error: `Пока не возим дальше ${maxKm} км от магазина. Позвоните нам — договоримся.` };
+  if (maxKm > 0 && km > maxKm) return { ok: false, hard: true, error: `Пока не возим дальше ${maxKm} км от магазина. Позвоните нам — договоримся.` };
   const from = +s.get("mkad_km_from") || 0;
   const paid = Math.max(0, Math.ceil(km - from));          // километры сверх включённых, вверх
   const out = kmFromMkad(pos.lat, pos.lon);                 // только чтобы курьер видел, насколько за кольцом
@@ -314,8 +314,8 @@ function priceFor(app, s, km, sum, pos) {
 
 // Полная проверка адреса: координаты, расстояние, цена. Одно место и для сайта, и для заказа.
 function check(app, s, o, sum) {
-  if (!o.street) return { ok: false, error: "Укажите улицу." };
-  if (!o.house) return { ok: false, error: "Укажите дом." };
+  if (!o.street) return { ok: false, hard: true, error: "Укажите улицу." };
+  if (!o.house) return { ok: false, hard: true, error: "Укажите дом." };
 
   // Сначала геокодер: он точнее и даёт координаты для курьера. Нет ключа или он не
   // подошёл — работаем по подсказкам. Для расчёта от МКАД нужны координаты (три замера),

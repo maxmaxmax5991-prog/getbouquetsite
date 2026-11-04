@@ -1065,7 +1065,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793803013"></script>
+<script src="/data.js?v=1793803628"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -3411,15 +3411,15 @@ function renderCart() {
     body.innerHTML = `<button class="back" id="toList">${icon('left')}К корзине</button>${closedNote}
       <form class="form" id="orderForm" novalidate>
         ${API && !ME ? `<div class="sub-box" id="idBox">
-          <b>Шаг 1. Подтвердите, что это вы</b>
-          <span>Одно нажатие: откроется бот, подтвердите вход — и возвращайтесь сюда. Заказ попадёт в ваш кабинет, туда же придут статус и фото букета.</span>
+          <b>Хотите получить фото букета перед доставкой?</b>
+          <span>Подключите бота — пришлём снимок до того, как букет поедет, и будем писать о статусе. Необязательно: можно оформить заказ и подключиться потом.</span>
           <div class="bar" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
             ${API.bot ? `<a class="btn btn-ghost btn-sm" id="idTg" target="_blank" rel="noopener" hidden>Войти через Телеграм</a>` : ""}
             ${API.maxBot ? `<a class="btn btn-ghost btn-sm" id="idMax" target="_blank" rel="noopener" hidden>Войти через MAX</a>` : ""}
           </div>
           <p class="addr-hint" id="idWait" hidden></p>
         </div>
-        <span class="lbl" id="stepTwo">Шаг 2. Куда и когда везти</span>` : ""}
+        <span class="lbl" id="stepTwo">Куда и когда везти</span>` : ""}
         ${PICKUP ? `<div><span class="lbl">Как получить</span><div class="pay-seg" id="getSeg">
           <button type="button" data-get="delivery" aria-pressed="true">Доставка</button>
           <button type="button" data-get="pickup" aria-pressed="false">Самовывоз</button>
@@ -3452,8 +3452,12 @@ ${payChoice()}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
         ${getType === 'pickup' ? '' : `<label for="fDnote">Комментарий курьеру<textarea id="fDnote" name="dnote" placeholder="Например: позвонить за час, оставить на охране, не звонить в дверь" maxlength="500"></textarea></label>`}
         <div class="consents">
-          <label class="chk"><input type="checkbox" id="fPd" name="pd" required>
-            <span>Согласен на <a href="/policy/" target="_blank" rel="noopener">обработку персональных данных</a> для оформления и доставки заказа</span></label>
+          <!-- Галочки согласия на обработку данных больше нет. За две недели
+               в неё упёрлись 309 человек, 93 ушли совсем: Сафари на айфоне не
+               показывает подсказок формы, человек жал «Подтвердить» и не
+               понимал, почему ничего не происходит. Согласие теперь даётся
+               самим нажатием кнопки — строка об этом стоит прямо под ней,
+               а отметка и время пишутся в заказ, как и раньше. -->
           <label class="chk"><input type="checkbox" id="fAds" name="ads">
             <span>Хочу получать новости и предложения. Необязательно, отписаться можно в любой момент</span></label>
         </div>
@@ -3462,6 +3466,7 @@ ${payChoice()}
     foot.hidden = false;
     foot.innerHTML = `<div class="total"><span>К оплате<small class="num" id="fDelivery"></small></span><b class="num" id="fTotal">${rub(t.sum)}</b></div>
       <button class="btn btn-primary btn-wide" type="submit" form="orderForm" id="fSubmit"${DEL && !DEL.accepting ? ' disabled' : ''}><span>Подтвердить заказ</span>${icon('arrow')}</button>
+      <p class="demo-note" style="font-size:12px;line-height:1.4;margin-top:8px;text-align:left">Нажимая «Подтвердить заказ», вы соглашаетесь на <a href="/policy/" target="_blank" rel="noopener">обработку персональных данных</a> для оформления и доставки.</p>
       ${API ? '' : '<p class="demo-note">Демо-версия: заказ пока не отправляется.</p>'}`;
     if (ME) { if (ME.name) $('#fName').value = ME.name; if (ME.phone) $('#fPhone').value = ME.phone; }
     payMethod = PAY && PAY.card ? 'card' : 'on_delivery';
@@ -4038,20 +4043,23 @@ cartDlg.addEventListener('submit', async e => {
     return;
   }
   if (!v('time')) { шаг('refuse', 'нет интервалов'); return err('Выберите другую дату — на эту нет свободных интервалов.'); }
-  // до оплаты покупатель должен назваться: иначе, вернувшись, он не найдёт свой заказ
-  if (API && !ME) {
-    const box = $('#idBox');
-    if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    // Самый вероятный затык формы: человек всё заполнил и упёрся во вход.
-    // Без этой отметки он в воронке выглядел бы как «передумал».
-    шаг('refuse', 'требуется вход');
-    return err('Начните с шага 1 — подтвердите, что это вы. Заполненное не потеряется.');
-  }
+  // ВХОД БОЛЬШЕ НЕ ОБЯЗАТЕЛЕН. Он стоял здесь стеной: человек заполнял имя,
+  // адрес, дату, жал «Подтвердить» и получал «начните с шага 1». За две недели
+  // так упёрлись 458 человек, 115 ушли совсем. Заказ принимаем по имени и
+  // телефону, а бота предлагаем сразу после — на экране «Готово», когда
+  // человек уже купил и настроен благодушно. Заказ всё равно найдётся: кабинет
+  // ищет заказы по подтверждённому телефону, так что подключившись позже,
+  // покупатель увидит и эту покупку.
 
   // при расчёте по километрам заказ уходит только с найденным на карте адресом
   const km = !!(DEL && DEL.km) && getType !== 'pickup';
   if (km && addrBusy) { шаг('refuse', 'адрес ещё проверяется'); return err('Секунду, проверяем адрес.'); }
-  if (km && !addrInfo) { шаг('refuse', 'адрес не найден'); return err('Проверьте адрес: мы не нашли такой дом в Москве.'); }
+  // АДРЕС, КОТОРЫЙ НЕ УЗНАЛИ КАРТЫ, БОЛЬШЕ НЕ ОСТАНАВЛИВАЕТ ЗАКАЗ. За две
+  // недели сюда упёрлись 160 человек, 41 ушёл совсем. Карты не знают новых
+  // домов, апартаментов и половины посёлков; отказывать живому покупателю
+  // из-за этого — дороже, чем уточнить адрес звонком. Заказ уходит с обычной
+  // городской ценой доставки и пометкой менеджеру, решение за человеком.
+  if (km && !addrInfo) шаг('refuse', 'адрес не найден (приняли)');
   const d = new Date(v('date') + 'T12:00');
   const when = `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}, ${v('time')}`;
   if (API) {
@@ -4070,7 +4078,7 @@ cartDlg.addEventListener('submit', async e => {
         // откуда пришёл и кто это по счётчику — чтобы считать выручку по источникам
         source: store.get('src', ''), vid: store.get('vid', ''),
         // согласия: обработка обязательна, рассылка — как решил покупатель
-        consent: !!(($('#fPd') || {}).checked), ads: !!(($('#fAds') || {}).checked),
+        consent: true, ads: !!(($('#fAds') || {}).checked),
         // собранные корзины идут теми же позициями, но со своим составом:
         // сервер разберёт их сам и пересчитает цену
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; })

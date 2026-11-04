@@ -658,6 +658,7 @@ function prepareOrder(app, rec) {
   }
 
   let delivery = 0;
+  let адресНеУзнан = false;   // карта не нашла дом — предупредим менеджера ниже
   if (!pickup) {
     // Адрес всегда по частям: улица, дом, корпус, подъезд, этаж, квартира, домофон.
     const geo = require(`${__hooks}/lib/geo.js`);
@@ -674,14 +675,31 @@ function prepareOrder(app, rec) {
       // Считает карта: круги от магазина или расстояние от МКАД. Адрес проверяем здесь заново: цену, которую
       // посчитал браузер, не принимаем на веру.
       const r = geo.check(app, s, parts, sum);
-      if (!r.ok) fail(r.error);
-      rec.set("zone", r.zone || "");
-      rec.set("zone_name", r.zoneName || "");   // пояс словами — для разреза по географии
-      rec.set("address", r.address);
-      rec.set("lat", r.lat); rec.set("lon", r.lon);
-      rec.set("distance_km", r.km);
-      rec.set("mkad_km", r.out_km || 0);
-      delivery = r.price;
+      // АДРЕС, КОТОРЫЙ НЕ УЗНАЛИ КАРТЫ, НЕ ПОВОД ТЕРЯТЬ ЗАКАЗ.
+      // Настоящие отказы помечены `hard`: не указана улица или дом, адрес
+      // дальше, чем мы возим, не настроены зоны. Всё остальное — «карта его
+      // не знает»: новостройка, апартаменты, посёлок. За две недели на этом
+      // отвалились 160 человек, 41 ушёл совсем. Такой заказ принимаем по
+      // обычной городской цене и помечаем менеджеру — пусть уточнит звонком
+      // и поправит доставку, если адрес окажется за городом.
+      if (!r.ok && r.hard) fail(r.error);
+      if (!r.ok) {
+        const город = +s.get("mkad_price") || 0;
+        if (!город) fail(r.error);
+        rec.set("address", geo.addressLine(parts));
+        rec.set("zone", "");
+        rec.set("zone_name", "адрес не распознан картой — уточнить");
+        адресНеУзнан = true;
+        delivery = город;
+      } else {
+        rec.set("zone", r.zone || "");
+        rec.set("zone_name", r.zoneName || "");   // пояс словами — для разреза по географии
+        rec.set("address", r.address);
+        rec.set("lat", r.lat); rec.set("lon", r.lon);
+        rec.set("distance_km", r.km);
+        rec.set("mkad_km", r.out_km || 0);
+        delivery = r.price;
+      }
     } else {
       const zoneId = rec.get("zone");
       if (zoneId) {
@@ -735,7 +753,9 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   rec.set("delivery_price", delivery);
   rec.set("total", sum + delivery);
   rec.set("bonus", bonus);
-  rec.set("comment", "");
+  rec.set("comment", адресНеУзнан
+    ? "⚠️ Карта не нашла этот адрес. Доставка посчитана по городу — проверьте адрес с покупателем."
+    : "");
   // просьба курьеру — только при доставке; длину режем на сервере, клиенту не верим
   rec.set("delivery_note", pickup ? "" : String(rec.get("delivery_note") || "").slice(0, 500));
   rec.set("tg_code", $security.randomString(10));   // по нему покупатель подпишется на статусы в боте
