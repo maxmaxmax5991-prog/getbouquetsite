@@ -407,6 +407,9 @@ html{overflow-x:clip}
 .rec-tag{position:absolute;left:6px;top:6px;background:var(--accent);color:#fff;font:800 10px/1 var(--body);letter-spacing:.07em;text-transform:uppercase;padding:5px 7px;border-radius:999px}
 .addon.rec h4{color:var(--accent-text)}
 .addons-hint{margin:0 0 10px;font-size:13px;color:var(--ink-2);line-height:1.45}
+.vase-ask{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:start;margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:16px}
+.vase-ask img{width:56px;height:56px;object-fit:cover;border-radius:12px;background:var(--tile)}
+.vase-ask .buy{height:38px;font-size:14px}
 
 .me-card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:12px}
 .me-card h3{font:600 17px var(--display);letter-spacing:-.03em;margin:0 0 6px}
@@ -1013,7 +1016,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793795239"></script>
+<script src="/data.js?v=1793796751"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -3228,6 +3231,36 @@ function totals() {
   if (дропБукет && DROP && DROP.есть) { t.sum += +DROP.цена || 0; t.n += 1; }
   return t;
 }
+/* Вазу предлагаем второй раз — уже в корзине.
+   На странице букета её видят не все: из каталога букет кладут кнопкой прямо
+   на плитке, карточку при этом не открывают вовсе. Поэтому тот, кто дошёл до
+   корзины без вазы, скорее всего её просто не видел, а не отказался. */
+function вазаВКорзину() {
+  if (!ВАЗЫ.length) return '';
+  // ваза уже взята — не навязываемся
+  if (Object.keys(cart).some(k => ((byId[parseKey(k).id] || {}).cat) === 'vazy')) return '';
+  let лучшая = null, вес = -1;
+  Object.keys(cart).forEach(k => {
+    const { id, label } = parseKey(k), p = byId[id];
+    if (!p || isAddon(p)) return;
+    const v = (p.variants || []).find(x => x.label === label) || {};
+    const ваза = вазаДля(p, v.len, v.cnt);
+    // в корзине может быть несколько букетов; советуем вазу по самому крупному —
+    // большая подойдёт и маленькому букету, обратное неверно
+    const w = (+v.len || 60) * (+v.cnt || 1);
+    if (ваза && w > вес) { вес = w; лучшая = ваза; }
+  });
+  if (!лучшая) return '';
+  const в = лучшая.товар;
+  return `<div class="vase-ask">
+    <img src="${в.img || img(в.id)}" alt="${esc(в.name)}" loading="lazy">
+    <div>
+      <div class="line-name">Добавить вазу?</div>
+      <div class="hint" style="margin:3px 0 0;font-size:12.5px">${esc(в.name)} — подойдёт к вашему букету: высота примерно вполовину стебля.</div>
+      <div class="buy-slot" style="margin-top:9px">${buyHTML(в)}</div>
+    </div>
+  </div>`;
+}
 function renderCart() {
   const body = $('#cartBody'), foot = $('#cartFoot'), t = totals();
   if (view === 'list') {
@@ -3260,7 +3293,7 @@ function renderCart() {
         <div><div class="line-name">${esc(keyName(k))}</div><div class="line-price num">${rub(keyPrice(k))}${n > 1 ? ` × ${n}` : ''}</div>
         ${мало ? `<div class="line-warn">${esc(мало.text)} ${мало.fit ? `<button type="button" class="link-btn" data-fit="${k}">Оставить ${мало.fit}</button>` : `<button type="button" class="link-btn" data-drop="${k}">Убрать</button>`}</div>` : ''}</div>
         <div class="mini"><button data-dec="${k}" aria-label="Меньше">${icon('minus')}</button><span class="num">${n}</span><button data-inc="${k}" aria-label="Больше">${icon('plus')}</button></div>
-      </div>`; }).join('');
+      </div>`; }).join('') + вазаВКорзину();
     const нехваток = Object.keys(нехватка).filter(k => cart[k]).length;
     foot.hidden = false;
     foot.innerHTML = `<div class="total"><span>Итого</span><b class="num">${rub(t.sum)}</b></div>
