@@ -139,6 +139,14 @@ html{overflow-x:clip}
 .hero .lede:empty{display:none}
 .hero-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
 @media (max-width:880px){.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero-copy{text-align:center}.hero .lede{margin-inline:auto}.hero-cta{justify-content:center}}
+/* На компьютере шапка была сеткой в две колонки: слева текст, справа пусто.
+   В правой стояла студия-карусель, её давно убрали, а колонка осталась —
+   549 пустых пикселей из 1440, 38 % первого экрана. */
+@media (min-width:881px){.hero .wrap{display:block}.hero-copy{max-width:860px}
+  /* Список в шапке — три строки, а не три колонки: общий класс .perks задаёт
+     сетку в три столбца (это для плиток), и пункты сжимались до 170 px,
+     каждый в три строки. */
+  .hero-copy ul.perks{grid-template-columns:minmax(0,1fr);max-width:640px;margin-inline:0}}
 @media (max-width:560px){.hero{padding-block:16px 4px}.hero h1{font-size:clamp(38px,11vw,52px);margin-top:12px}.hero-cta{margin-top:18px}ul.perks{margin-top:14px;gap:6px}}
 
 /* studio */
@@ -823,7 +831,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
     <span class="city"><svg class="i"><use href="#i-pin"/></svg>Москва</span>
     <nav class="nav" aria-label="Разделы">
       <a href="/catalog/" data-nav="catalog">Каталог</a>
-      <a href="/catalog/" data-nav="catalog">Собрать букет</a>
+      <a href="/korzina/" data-nav="korzina">Конструктор корзин</a>
       <a href="/delivery/" data-nav="delivery">Доставка</a>
       <a href="/price/" data-nav="price">Прайс</a>
     </nav>
@@ -1014,7 +1022,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
 <footer class="foot">
   <div class="wrap">
     <a class="logo" id="logoFoot" href="/">venikoff<span class="dot"></span><i>net</i></a>
-    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/catalog/">Собрать букет</a><a href="/delivery/">Доставка</a><a href="/price/">Прайс-лист</a><a href="/policy/">Персональные данные</a></nav>
+    <nav aria-label="Ссылки"><a href="/catalog/">Каталог</a><a href="/korzina/">Конструктор корзин</a><a href="/delivery/">Доставка</a><a href="/price/">Прайс-лист</a><a href="/policy/">Персональные данные</a></nav>
     <div class="contacts">
       <span class="lbl">Связаться с нами</span>
       <a class="btn btn-ghost btn-sm" id="footTg" href="https://t.me/venikoff_net" target="_blank" rel="noopener">Написать в Телеграм</a>
@@ -1057,7 +1065,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793802628"></script>
+<script src="/data.js?v=1793803013"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2362,6 +2370,13 @@ const POPULAR = API ? разнести(тасовать(P.filter(p => !isAddon(p
     const d = доступность(a) - доступность(b);
     if (d) return d;
     // внутри — экспресс первым: букет уже собран и ждёт, его надо показать сразу
+    // Закреплённая карточка идёт первой — рычаг владельца «поставь вот этот
+    // букет в начало». Поле `featured` для этого свободно: студии-карусели,
+    // ради которой его заводили, на сайте давно нет (остались только стили),
+    // и больше его никто не читает. Галочка в админке так и называется —
+    // «Закрепить», так что смысл совпал.
+    const з = (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
+    if (з) return з;
     return ((b.express && b.ready) ? 1 : 0) - ((a.express && a.ready) ? 1 : 0);
   }))
   .map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
