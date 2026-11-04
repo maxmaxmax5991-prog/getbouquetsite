@@ -413,12 +413,14 @@ html{overflow-x:clip}
    товара (sizesHTML рисует ими «40 см / 50 см» и «25 / 51 / 101»). Назвав так
    этот блок, я превратил ряды кнопок на всех карточках в двухколоночную сетку.
    Ровно та же грабля, что когда-то была с двумя разными .perks. */
-.size-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:22px}
+.size-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 26px}
 .size-tiles a{display:flex;flex-direction:column;gap:2px;padding:14px;border:1px solid var(--line);border-radius:16px;text-decoration:none;background:var(--paper)}
 .size-tiles b{font-size:16px;color:var(--ink);font-weight:700}
 .size-tiles span{font-size:13px;color:var(--ink-2)}
 .size-tiles a:hover{border-color:var(--accent)}
-@media (max-width:560px){.size-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.size-tiles a{padding:12px}}
+@media (max-width:560px){.size-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.size-tiles a{padding:12px}
+/* плиток нечётное число — последняя занимает всю строку, иначе половина пустая */
+.size-tiles a:last-child:nth-child(odd){grid-column:1/-1}}
 .vase-ask{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:start;margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:16px}
 .vase-ask img{width:56px;height:56px;object-fit:cover;border-radius:12px;background:var(--tile)}
 .vase-ask .buy{height:38px;font-size:14px}
@@ -834,9 +836,9 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
 
   <section class="sec">
     <div class="wrap">
+      <div class="size-tiles" id="sizeTiles" hidden></div>
       <div class="sec-head"><h2 class="h2" data-t="popular_title">Популярные букеты</h2><a class="more" href="/catalog/">Смотреть все <svg class="i"><use href="#i-arrow"/></svg></a></div>
       <div class="grid" id="popular"></div>
-      <div class="size-tiles" id="sizeTiles" hidden></div>
     </div>
   </section>
 
@@ -1030,7 +1032,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793800662"></script>
+<script src="/data.js?v=1793801481"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
