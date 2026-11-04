@@ -1030,7 +1030,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793800148"></script>
+<script src="/data.js?v=1793800662"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2197,7 +2197,10 @@ document.addEventListener('click', e => {
 const ПЛАНТАЦИЯ = ['hydrangea', 'french', 'ecuador-premium', 'kenya'];
 const откуда = (p) => (p && ПЛАНТАЦИЯ.indexOf(p.cat) >= 0 ? 'с плантации' : 'с теплицы');
 
-const state = { cat: 'all', q: '', sort: 'pop', favOnly: false, len: 0, cnt: 0 };
+const state = { cat: 'all', q: '', sort: 'pop', favOnly: false, len: 0, cnt: 0, min: 0, max: 0 };
+// Отбор включён? Длина, количество и вилка цены работают по одним правилам:
+// карточка открывается на подходящем размере, остальное уходит вниз списка.
+const отборРазмера = () => !!(state.len || state.cnt || state.min || state.max);
 
 /* ---------- home ---------- */
 // В «Популярные» попадают все букеты, кроме открыток и игрушек, — галочку
@@ -2332,22 +2335,29 @@ const POPULAR = API ? разнести(тасовать(P.filter(p => !isAddon(p
   }))
   .map(p => p.id) : ['sweet-avalanche', 'abigail', 'miss-piggy', 'eltoro', 'peach-avalanche', '3159', '3137', '3136', '3174', '3178', '3176', '3035', '2178'].filter(id => byId[id]);
 $('#popular').innerHTML = плиткаКорзины() + POPULAR.map((id, i) => card(byId[id], 'главная', i)).join('');
-/* Частые размеры прямо на главной: шесть сочетаний «длина × количество»,
-   которые чаще всего покупают (посчитано по оплаченным заказам за 28 дней,
-   04.11.2026: 50×51 — 220 заказов, 40×51 — 216, 40×19 — 185, 40×101 — 166,
-   60×51 — 136, 60×25 — 121). Ведут в каталог с готовым отбором.
-   Показываем только то, что сегодня правда можно купить: плитка, ведущая
-   в пустой каталог, хуже, чем её отсутствие. */
-const ЧАСТЫЕ = [[50, 51], [40, 51], [40, 101], [40, 19], [60, 51], [60, 25]];
+/* Плитки быстрого выбора под популярными букетами. Три по цене и две по
+   количеству — так просят чаще всего. Вилки не пересекаются: «до 7 000»
+   показывает букеты от 3 000 до 7 000, иначе в каждой следующей плитке
+   лежало бы всё из предыдущей. Плитка появляется, только если в её вилке
+   сегодня правда есть что купить: ведущая в пустой каталог хуже, чем её
+   отсутствие. */
 {
-  const живой = (L, N) => P.some(p => !p.off && !isAddon(p) &&
-    (p.variants || []).some(v => +v.len === L && +v.cnt === N && !v.out));
-  const список = ЧАСТЫЕ.filter(([L, N]) => живой(L, N));
+  const живой = v => !v.out && +v.price > 0;
+  const поЦене = (мин, макс) => P.some(p => !p.off && !isAddon(p) && (p.variants || [])
+    .some(v => живой(v) && (!мин || +v.price >= мин) && (!макс || +v.price <= макс)));
+  const поКоличеству = n => P.some(p => !p.off && !isAddon(p) && (p.variants || [])
+    .some(v => живой(v) && +v.cnt === n));
+  const плитки = [
+    { имя: 'До 3 000 ₽', под: 'недорогие букеты', url: '/catalog/?max=3000', есть: () => поЦене(0, 3000) },
+    { имя: 'До 7 000 ₽', под: 'от 3 000 ₽', url: '/catalog/?min=3000&max=7000', есть: () => поЦене(3000, 7000) },
+    { имя: 'До 15 000 ₽', под: 'от 7 000 ₽', url: '/catalog/?min=7000&max=15000', есть: () => поЦене(7000, 15000) },
+    { имя: '101 роза', под: 'любой длины', url: '/catalog/?cnt=101', есть: () => поКоличеству(101) },
+    { имя: '51 роза', под: 'любой длины', url: '/catalog/?cnt=51', есть: () => поКоличеству(51) },
+  ].filter(п => п.есть());
   const узел = $('#sizeTiles');
-  if (узел && список.length >= 2) {
+  if (узел && плитки.length >= 2) {
     узел.hidden = false;
-    узел.innerHTML = список.map(([L, N]) => `<a href="/catalog/?len=${L}&cnt=${N}">
-      <b>${N} ${plural(N, 'роза', 'розы', 'роз')}</b><span>${L} см</span></a>`).join('');
+    узел.innerHTML = плитки.map(п => `<a href="${п.url}"><b>${esc(п.имя)}</b><span>${esc(п.под)}</span></a>`).join('');
   }
 }
 вставитьДроп($('#popular'));
@@ -2406,7 +2416,7 @@ function renderSizeChips() {
   box.hidden = !html;
   // кнопка «поделиться» нужна только когда есть что отправлять
   const доля = $('#sharePick');
-  if (доля) доля.hidden = !(state.len || state.cnt);
+  if (доля) доля.hidden = !отборРазмера();
   // Ряд прокручивается вбок, и выбранная кнопка могла оказаться за краем —
   // человек не видел, что именно отобрано. Подтягиваем её в видимую часть.
   //
@@ -2425,9 +2435,10 @@ function renderSizeChips() {
 // Какой вариант товара отвечает выбранному размеру. null — фильтр выключен,
 // false — у товара такого размера нет или он кончился.
 function подРазмер(p) {
-  if (!state.len && !state.cnt) return null;
+  if (!отборРазмера()) return null;
   if (!p.variants) return false;
-  const подходит = v => (!state.len || +v.len === state.len) && (!state.cnt || +v.cnt === state.cnt);
+  const подходит = v => (!state.len || +v.len === state.len) && (!state.cnt || +v.cnt === state.cnt)
+    && (!state.min || +v.price >= state.min) && (!state.max || +v.price > 0 && +v.price <= state.max);
   // кончившийся размер не прячем — он уходит вниз списка (см. доступность)
   return p.variants.find(v => подходит(v) && живой(v)) || p.variants.find(подходит) || false;
 }
@@ -2437,7 +2448,7 @@ function подРазмер(p) {
 // Покупатель должен сначала увидеть то, что реально купит, а уже потом остальное.
 function доступность(p) {
   if (p.off) return 3;
-  const v = (state.len || state.cnt) ? подРазмер(p) : (p.variants ? variant(p, curLabel(p)) : null);
+  const v = отборРазмера() ? подРазмер(p) : (p.variants ? variant(p, curLabel(p)) : null);
   if (!p.variants) return 0;
   if (!v || v.out) return 2;
   return v.wait_at ? 1 : 0;
@@ -2482,6 +2493,8 @@ function адресКаталога() {
   const п = new URLSearchParams();
   if (state.len) п.set('len', state.len);
   if (state.cnt) п.set('cnt', state.cnt);
+  if (state.min) п.set('min', state.min);
+  if (state.max) п.set('max', state.max);
   if (state.q.trim()) п.set('q', state.q.trim());
   const хвост = п.toString();
   return путь + (хвост ? '?' + хвост : '');
@@ -2523,7 +2536,7 @@ function list() {
   if (q && !state.favOnly && state.cat === 'all') r = P.filter(p => p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
   // выбран размер — оставляем только тех, у кого он есть, и сразу открываем именно его:
   // иначе карточка показывала бы цену другой ростовки
-  if (state.len || state.cnt) {
+  if (отборРазмера()) {
     r = r.filter(p => {
       const v = подРазмер(p);
       if (!v) return false;          // такого размера у сорта нет вовсе
@@ -2546,7 +2559,7 @@ function renderGrid() {
   $('#catTitle').textContent = state.favOnly ? 'Избранное' : state.cat === 'all' ? 'Каталог' : catName[state.cat];
   let подпись = `${r.length} ${plural(r.length, 'позиция', 'позиции', 'позиций')}`;
   // при выбранном размере важнее другое: сколько можно забрать сегодня, а сколько — после привоза
-  if (state.len || state.cnt) {
+  if (отборРазмера()) {
     const по = n => r.filter(p => доступность(p) === n).length;
     const сейчас = по(0), едет = по(1), нет = r.length - сейчас - едет;
     const части = [];
@@ -2556,7 +2569,7 @@ function renderGrid() {
     подпись = части.length ? части.join(', ') : 'Ничего нет';
   }
   $('#count').textContent = подпись;
-  const размерВыбран = !!(state.len || state.cnt);
+  const размерВыбран = отборРазмера();
   const послеСетки = () => { try { вставитьДроп($('#grid')); } catch (_) {} };
   setTimeout(послеСетки, 0);
   $('#grid').innerHTML = r.length ? (state.favOnly || state.q ? '' : плиткаКорзины()) + r.map((p, i) => card(p, 'каталог', i)).join('') :
@@ -2702,6 +2715,8 @@ function router() {
   const пар = new URLSearchParams(location.search);
   state.len = +пар.get('len') || 0;
   state.cnt = +пар.get('cnt') || 0;
+  state.min = +пар.get('min') || 0;
+  state.max = +пар.get('max') || 0;
   const иск = пар.get('q') || '';
   if (иск !== state.q) { state.q = иск; const поле = $('#q'); if (поле) поле.value = иск; }
   const [a, b, c] = decodeURIComponent(location.pathname).split('/').filter(Boolean);
