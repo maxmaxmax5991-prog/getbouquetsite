@@ -88,6 +88,7 @@ function fromClient(app, cust, text, from, file, brand) {
       const path = `${app.dataDir()}/storage/${m.collection().id}/${m.id}/${m.get("photo")}`;
       shop.adminIds(s).forEach((adm) => shop.tgPhoto(s.get("tg_token"), adm, path, `Фото из чата — ${who}`));
     }
+    require(`${__hooks}/lib/callnow.js`).чатСигнал(app, who, t || "прислал фото", from);
   } catch (err) { console.log("chat from bot", err); }
   return chat;
 }
@@ -169,4 +170,24 @@ function deliver(app, chat, text, photoPath, куда) {
   return { ok: false, error: `${from === "max" ? "MAX" : "Телеграм"} не принял ответ: ${последняя}` };
 }
 
-module.exports = { chatFor, fromClient, deliver, chatByToken, whoIs, findChat, ботыДля };
+// Кто ответил. В поле author лежит id сотрудника (ответ из админки) либо имя
+// из Телеграма (ответ реплаем в служебном боте) — показываем человеческое имя
+// в обоих случаях. Кэш нужен, чтобы на двести сообщений не сходить в базу
+// двести раз.
+function имяАвтора(app, id, кэш) {
+  const ключ = String(id || "");
+  if (!ключ) return "";
+  const c = кэш || {};
+  if (c[ключ] !== undefined) return c[ключ];
+  let имя = ключ;
+  try {
+    const m = app.findRecordById("managers", ключ);
+    имя = m.get("name") || m.get("nick") || m.get("email") || ключ;
+  } catch (_) {
+    // не id, а имя из Телеграма — так и оставляем
+  }
+  c[ключ] = имя;
+  return имя;
+}
+
+module.exports = { chatFor, fromClient, deliver, chatByToken, whoIs, findChat, ботыДля, имяАвтора };

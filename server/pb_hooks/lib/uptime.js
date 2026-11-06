@@ -130,7 +130,7 @@ function сводка(app, часов) {
     const rows = arrayOf(new DynamicModel({ target: "", n: 0, bad: 0, avg: 0.0, worst: 0 }));
     app.db().newQuery(`SELECT target, COUNT(*) AS n,
         SUM(CASE WHEN ok THEN 0 ELSE 1 END) AS bad,
-        AVG(CASE WHEN ok THEN ms END) AS avg,
+        CAST(ROUND(AVG(CASE WHEN ok THEN ms END)) AS INTEGER) AS avg,
         MAX(CASE WHEN ok THEN ms ELSE 0 END) AS worst
       FROM uptime WHERE created > {:f} GROUP BY target`).bind({ f: из }).all(rows);
     rows.forEach((r) => out.push({

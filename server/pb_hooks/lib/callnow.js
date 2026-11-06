@@ -158,34 +158,58 @@ function обработать(app, s, token, upd) {
   if (было.indexOf(чат) >= 0) {
     return shop.tg(token, "sendMessage", { chat_id: чат, text: "Вы уже подключены — сигналы о неоплаченных заказах приходят сюда." });
   }
-  // Первый, кто написал новому боту, подключается сам: ссылка на бота есть
-  // только у владельца, и заставлять его подтверждать самого себя незачем.
-  if (!было.length) {
-    try { app.db().newQuery("UPDATE settings SET call_chats = {:v} WHERE id = {:id}").bind({ v: чат, id: s.id }).execute(); } catch (_) {}
-    return shop.tg(token, "sendMessage", { chat_id: чат,
-      text: "Готово. Сюда будут приходить заказы, не оплаченные пять минут: имя, телефон и кнопки для итога звонка." });
-  }
-  // Остальные ждут подтверждения: в сигнале телефон и имя покупателя, и
-  // случайный человек, нашедший бота по названию, видеть их не должен.
-  const заявки = заявкиСписок(s);
-  if (!заявки.some((z) => z.chat === чат)) {
-    заявки.push({ chat: чат, name: имя.slice(0, 40) });
-    try {
-      app.db().newQuery("UPDATE settings SET call_pending = {:v} WHERE id = {:id}")
-        .bind({ v: JSON.stringify(заявки.slice(-20)), id: s.id }).execute();
-    } catch (_) {}
-    try {
-      shop.adminIds(s).forEach((c) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: c,
-        text: `🔔 ${имя} просит подключить его к сигналам об обзвоне.\nОткройте Настройки → «Бот для обзвона» и нажмите «Добавить».` }));
-    } catch (_) {}
-  }
-  shop.tg(token, "sendMessage", { chat_id: чат, text: `Заявка отправлена, ${имя}. Как только владелец подтвердит, сигналы начнут приходить сюда.` });
+  // Подключаем сразу всех, кто написал (решение владельца 06.11.2026). Раньше
+  // все, кроме первого, ждали подтверждения в админке — и молча не получали
+  // ничего. Ссылку на бота дают только своим, поэтому сторожить вход незачем.
+  было.push(чат);
+  try {
+    app.db().newQuery("UPDATE settings SET call_chats = {:v} WHERE id = {:id}")
+      .bind({ v: было.join(","), id: s.id }).execute();
+  } catch (err) { console.log("бот обзвона: не подключил", чат, err); }
+  // Владельцу всё равно говорим, кто подключился: бот открыт, но знать, кто в
+  // нём сидит, он должен.
+  try {
+    shop.adminIds(s).forEach((c) => shop.tg(s.get("tg_token"), "sendMessage", { chat_id: c,
+      text: `🔔 ${имя} подключился к боту обзвона. Всего получателей: ${было.length}.\nУбрать — Настройки → «Бот для обзвона».` }));
+  } catch (_) {}
+  shop.tg(token, "sendMessage", { chat_id: чат,
+    text: `Готово, ${имя}. Сюда будут приходить заказы, не оплаченные пять минут: имя, телефон и кнопки для итога звонка.` });
 }
 
 const разбор = (v) => String(v || "").split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+
+// Вечером чат на сайте ведут те же люди, что обзванивают неоплаченные заказы, и
+// служебный бот у них не открыт. С 20:00 до полуночи по Москве сообщения из
+// чата дублируются в бот обзвона. Часы правятся в настройках, 20 → 0 значит
+// «с восьми вечера до полуночи»; равные часы выключают пересылку.
+function чатВечером(app, s) {
+  const нас = s || shop.settings(app);
+  const token = String(нас.get("call_token") || "").trim();
+  const кому = разбор(нас.get("call_chats"));
+  if (!token || !кому.length) return null;
+  const с = Math.min(23, Math.max(0, +нас.get("call_chat_from") || 0));
+  const по = Math.min(24, Math.max(0, +нас.get("call_chat_to") || 0));
+  if (с === по) return null;
+  const час = new Date(Date.now() + 3 * 3600 * 1000).getUTCHours();   // Москва
+  const внутри = с < по ? (час >= с && час < по) : (час >= с || час < по);
+  return внутри ? { token, кому } : null;
+}
+
+// Сообщение покупателя в бот обзвона — ровно тем же текстом, что видит
+// служебный бот, но без метки [chat:…]: ответить реплаем через чужой бот нельзя.
+function чатСигнал(app, кто, текст, откуда) {
+  try {
+    const n = чатВечером(app);
+    if (!n) return false;
+    const где = откуда === "tg" ? "Телеграм" : откуда === "max" ? "MAX" : "чат на сайте";
+    const t = `💬 ${где} — ${кто}\n\n«${String(текст || "прислал фото").slice(0, 900)}»\n\nОтвечаем из админки, вкладка «Чат».`;
+    n.кому.forEach((c) => shop.tg(n.token, "sendMessage", { chat_id: c, text: t }));
+    return true;
+  } catch (err) { console.log("чат в бот обзвона", err); return false; }
+}
 function заявкиСписок(s) {
   try { const v = JSON.parse(s.getString("call_pending") || "[]"); return Array.isArray(v) ? v : []; }
   catch (_) { return []; }
 }
 
-module.exports = { проверить, итогЗвонка, опрос, адресаты, заявкиСписок, разбор, ИТОГИ };
+module.exports = { проверить, итогЗвонка, опрос, адресаты, заявкиСписок, разбор, чатВечером, чатСигнал, ИТОГИ };

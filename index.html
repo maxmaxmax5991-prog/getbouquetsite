@@ -1085,7 +1085,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793931048"></script>
+<script src="/data.js?v=1793967597"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2707,12 +2707,27 @@ $('#chips').addEventListener('click', e => {
   if ('favonly' in b.dataset) nav(state.favOnly ? '/catalog/' : '/favorites/');
   else nav(b.dataset.cat === 'all' ? '/catalog/' : '/catalog/' + b.dataset.cat + '/');
 });
+// Что человек ищет на самом деле. По нашему же поиску «пионы» — запрос номер
+// один, около 470 раз в месяц, больше чем «розы». Пионов у нас нет, и люди
+// уходили с пустым экраном. Теперь по таким словам показываем ближайшее из
+// того, что есть: пионовидные розы. Это не подмена — цветок правда похож.
+const СИНОНИМЫ = [
+  { слова: ['пион', 'пиона', 'пионы', 'пионов', 'peony'], раздел: 'kustovye-rozy-pionovidnye',
+    подпись: 'Пионов сейчас нет, но есть пионовидные розы — тот же пышный махровый цветок, круглый год' },
+  { слова: ['куст', 'кустов'], раздел: 'kustovye-rozy', подпись: '' },
+  { слова: ['гортенз'], раздел: 'hydrangea', подпись: '' },
+];
+const поСинониму = (q) => СИНОНИМЫ.find(s => s.слова.some(w => q.startsWith(w) || w.startsWith(q) && q.length >= 3));
+
 function list() {
   const q = state.q.trim().toLowerCase().replace(/ё/g, 'е');
+  const син = q.length >= 3 ? поСинониму(q) : null;
   let r = P.filter(p =>
     (state.favOnly ? favs.has(p.id) : state.cat === 'all' ? !isAddon(p) : p.cat === state.cat) &&
     (!q || p.name.toLowerCase().replace(/ё/g, 'е').includes(q)));
   if (q && !state.favOnly && state.cat === 'all') r = P.filter(p => p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
+  // По названию ничего не нашлось, но мы понимаем, о чём речь, — показываем раздел
+  if (q && !r.length && син) r = P.filter(p => p.cat === син.раздел && !isAddon(p));
   // выбран размер — оставляем только тех, у кого он есть, и сразу открываем именно его:
   // иначе карточка показывала бы цену другой ростовки
   if (отборРазмера()) {
@@ -2751,6 +2766,15 @@ function renderGrid() {
   const размерВыбран = отборРазмера();
   const послеСетки = () => { try { вставитьДроп($('#grid')); } catch (_) {} };
   setTimeout(послеСетки, 0);
+  {
+    // Подсказка, почему человек видит не то, что набрал
+    const q = state.q.trim().toLowerCase().replace(/ё/g, 'е');
+    const син = q.length >= 3 ? поСинониму(q) : null;
+    const нашлось = q && !P.some(p => p.name.toLowerCase().replace(/ё/g, 'е').includes(q));
+    const узел = $('#catNote') || (() => { const d = document.createElement('p'); d.id = 'catNote'; d.className = 'cat-note'; $('#grid').before(d); return d; })();
+    const текст = (син && нашлось && син.подпись) ? син.подпись : '';
+    узел.textContent = текст; узел.hidden = !текст;
+  }
   $('#grid').innerHTML = r.length ? (state.favOnly || state.q ? '' : плиткаКорзины()) + r.map((p, i) => card(p, 'каталог', i)).join('') :
     `<div class="empty"><b>${state.favOnly ? 'В избранном пока пусто' : размерВыбран ? 'В этом размере сейчас ничего нет' : 'Ничего не нашлось'}</b>${
       state.favOnly ? 'Отмечайте букеты сердечком — они соберутся здесь.'

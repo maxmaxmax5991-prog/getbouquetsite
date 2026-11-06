@@ -110,7 +110,9 @@ routerAdd("GET", "/api/shop/daily", (e) => {
 cronAdd("daily-digest", "0 7 * * *", () => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const s = shop.settings($app);
-  if (!s.get("digest_off")) require(`${__hooks}/lib/digest.js`).отправить($app, s);
+  if (s.get("digest_off")) return;
+  const r = require(`${__hooks}/lib/digest.js`).отправить($app, s);
+  console.log("сводка дня: отправлена", r.кому, "получателям");
 });
 
 // Спрос по витринам для порядка плитки. Ночью, после сводки: за день заказы

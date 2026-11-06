@@ -422,6 +422,17 @@ table.t td{padding:4px 6px;vertical-align:middle}
 
     <!-- Разделы -->
     <section id="tab-chat" hidden>
+      <div class="card stack" style="margin-bottom:12px">
+        <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap">
+          <b style="flex:1">Кто отвечает</b>
+          <select class="in sm" id="whoDays" style="width:auto;flex:0 0 auto">
+            <option value="1">за сегодня</option>
+            <option value="7" selected>за 7 дней</option>
+            <option value="30">за 30 дней</option>
+          </select>
+        </div>
+        <div id="whoBox"></div>
+      </div>
       <div class="chat2">
         <div class="chat2-list" id="chatList"></div>
         <div class="chat2-win">
@@ -1005,11 +1016,19 @@ table.t td{padding:4px 6px;vertical-align:middle}
   <p class="hint">Рассылки — на отдельной вкладке «Рассылка»: там же можно подключить другие боты.</p>
   <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
   <h3 style="margin:0 0 4px">Бот для обзвона</h3>
-  <p class="hint">Заказ картой не оплачен пять минут — сюда падает сигнал: имя, телефон и кнопки «обещал оплатить / не берёт / отказался». Отдельный бот нужен, чтобы это не тонуло в общем потоке служебного: звонить надо в ближайшие минуты.<br>Заведите бота у <b>@BotFather</b>, вставьте ключ, потом откройте бота и напишите ему любое слово — первый написавший станет получателем. Остальным бот скажет номер их чата, впишите его сюда через запятую.</p>
+  <p class="hint">Заказ картой не оплачен пять минут — сюда падает сигнал: имя, телефон и кнопки «обещал оплатить / не берёт / отказался». Отдельный бот нужен, чтобы это не тонуло в общем потоке служебного: звонить надо в ближайшие минуты.<br>Заведите бота у <b>@BotFather</b>, вставьте ключ и раздайте ссылку на бота своим. <b>Кто написал боту — тот и подключён</b>, подтверждать никого не нужно; лишнего можно убрать кнопкой ниже.</p>
   <label class="f" for="callTok">Ключ бота для обзвона<input class="in" id="callTok" type="password" autocomplete="off" placeholder="Вставьте ключ из @BotFather"></label>
   <div class="f"><span>Кому приходят сигналы</span><div id="callPeople" class="stack" style="gap:6px;margin-top:4px"></div></div>
   <label class="f" for="callAfter" style="max-width:220px">Звать через, минут<input class="in num" id="callAfter" type="number" min="1" max="120" placeholder="5"></label>
-  <div class="bar"><button class="btn btn-p" id="callSave">Сохранить</button><button class="btn btn-g" id="callTest">Проверить бота</button></div>
+  <div class="f"><span>Сообщения из чата на сайте — тоже сюда</span>
+    <div class="row" style="gap:8px;align-items:center;margin-top:4px">
+      <span class="hint">с</span><input class="in num" id="callChatFrom" type="number" min="0" max="23" style="max-width:80px" placeholder="20">
+      <span class="hint">до</span><input class="in num" id="callChatTo" type="number" min="0" max="24" style="max-width:80px" placeholder="0">
+      <span class="hint">часов по Москве</span>
+    </div>
+    <p class="hint" style="margin:6px 0 0">Вечером служебный бот у смены не открыт, и чат оставался без присмотра. Одинаковые числа выключают пересылку.</p>
+  </div>
+  <div class="bar"><button class="btn btn-p" id="callSave">Сохранить</button><button class="btn btn-g" id="callTest">Проверить связь</button></div>
 </div>
 <div class="card stack" id="brandsCard" hidden>
   <h2>Витрины</h2>
@@ -2551,7 +2570,36 @@ function флагиЧата(c) {
   if (c.no_bot) out.push(`<span class="pill" style="${ФЛАГ}">не в боте</span>`);
   return out.length ? ' ' + out.join(' ') : '';
 }
+// Кто как отвечает. Среднее время портит один ночной ответ, поэтому главный
+// столбец — медиана: половина ответов быстрее неё. «Дольше 3 минут» — тот же
+// порог, по которому ругается сторож.
+const мин = (v) => v >= 60 ? `${Math.round(v / 60 * 10) / 10} ч` : `${v} мин`;
+let whoAt = 0;
+const loadWho = safe(async (force) => {
+  const box = $('#whoBox');
+  if (!box) return;
+  // Список диалогов обновляется каждые семь секунд, а сводка считается по всей
+  // переписке за месяц — её хватит раз в минуту.
+  if (!force && Date.now() - whoAt < 60000) return;
+  whoAt = Date.now();
+  const d = await api(`/api/shop/chat-who?days=${+$('#whoDays').value || 7}`);
+  if (!d.люди || !d.люди.length) { box.innerHTML = '<div class="empty">За этот срок никто не отвечал.</div>'; return; }
+  box.innerHTML = `<div class="scroll"><table class="t"><thead><tr>
+      <th>Кто</th><th class="num">Ответов</th><th class="num">Медиана</th><th class="num">Среднее</th>
+      <th class="num">Дольше 3 мин</th><th class="num">Дольше 15 мин</th><th>Последний ответ</th>
+    </tr></thead><tbody>${d.люди.map(p => `<tr>
+      <td><b>${esc(p.имя)}</b></td>
+      <td class="num">${p.ответов}</td>
+      <td class="num">${p.отвеченных ? мин(p.медиана) : '—'}</td>
+      <td class="num">${p.отвеченных ? мин(p.среднее) : '—'}</td>
+      <td class="num"${p.доля3 >= 30 ? ' style="color:var(--sale);font-weight:700"' : ''}>${p.дольше3}${p.отвеченных ? ` <span class="hint">${p.доля3}%</span>` : ''}</td>
+      <td class="num"${p.дольше15 ? ' style="color:var(--sale);font-weight:700"' : ''}>${p.дольше15}</td>
+      <td>${p.последний ? chatAt(p.последний) : '—'}</td>
+    </tr>`).join('')}</tbody></table></div>
+    <p class="hint" style="margin:8px 0 0">Всего ответов ${d.всегоОтветов}, из них на вопрос покупателя ${d.всегоПар}.${d.ждут ? ` <b style="color:var(--sale)">Без ответа сейчас: ${d.ждут}.</b>` : ''} Время считается от сообщения покупателя до первого ответа.</p>`;
+});
 const loadChats = safe(async () => {
+  loadWho();
   const d = await api('/api/shop/chats');
   CHATS = d.chats || [];
   $('#chatList').innerHTML = CHATS.length ? CHATS.map(c => `
@@ -2559,7 +2607,7 @@ const loadChats = safe(async () => {
       ${c.unread ? `<span class="dot">${c.unread}</span>` : ''}
       <b>${esc(c.name || 'Гость с сайта')}${c.phone ? ' · ' + esc(c.phone) : ''}${c.order ? ' · №' + esc(c.order) : ''}${c.customer ? '' : ' <span class="pill st-new" style="font-size:10px;padding:0 6px;height:17px">гость</span>'}${флагиЧата(c)}</b>
       <span>${esc(c.last_text || '')}</span>
-      <span>${chatAt(c.last_at)} · ${VIA_RU[c.from] || 'сайт'}</span>
+      <span>${chatAt(c.last_at)} · ${VIA_RU[c.from] || 'сайт'}${c.by ? ' · отвечал(а) ' + esc(c.by) : ''}</span>
     </button>`).join('') : '<div class="empty">Пока никто не писал.</div>';
   const un = CHATS.reduce((n, c) => n + (c.unread || 0), 0);
   $('#chatCount').hidden = !un; $('#chatCount').textContent = un;
@@ -2597,6 +2645,7 @@ const openChat = safe(async (id, quiet) => {
   $('#chatReply').hidden = false;
   if (!quiet) $$('.chat2-item').forEach(b => b.setAttribute('aria-current', b.dataset.chat === id));
 });
+$('#whoDays').onchange = () => loadWho(true);
 $('#chatList').addEventListener('click', e => { const b = e.target.closest('[data-chat]'); if (b) { openChat(b.dataset.chat); loadChats(); } });
 $('#chatWho').addEventListener('click', safe(async e => {
   const l = e.target.closest('[data-botlink]');
@@ -5439,6 +5488,8 @@ $('#cTok').value = ''; $('#cTok').placeholder = S.tg_client_token ? 'Ключ с
   $('#callTok').value = '';
   $('#callTok').placeholder = S.call_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ из @BotFather';
   $('#callAfter').value = S.call_after || '';
+  $('#callChatFrom').value = (S.call_chat_from === 0 || S.call_chat_from) ? S.call_chat_from : '';
+  $('#callChatTo').value = (S.call_chat_to === 0 || S.call_chat_to) ? S.call_chat_to : '';
   loadCallPeople();
 renderBrandsCard();
 $('#mxTok').value = ''; $('#mxTok').placeholder = S.max_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ бота MAX';
@@ -5458,21 +5509,20 @@ $('#cSaveBot').onclick = safe(async () => {
   await api('/api/shop/client-bot-check', { method: 'POST' }).catch(() => {});
   loadSettings(); toast('Клиентский бот сохранён');
 });
-// Получатели сигналов и заявки на подключение. Человек пишет боту, владелец
-// нажимает «Добавить» — вводить номера чатов руками не нужно.
+// Получатели сигналов. Подключается каждый, кто написал боту: ссылку дают
+// только своим. Здесь список и кнопка «Убрать».
 const loadCallPeople = safe(async () => {
   const box = $('#callPeople');
   if (!box) return;
   const d = await api('/api/shop/call-people');
   if (!d.есть) { box.innerHTML = '<span class="hint">Сначала вставьте ключ бота.</span>'; return; }
-  const строка = (p, заявка) => `<div class="row" style="align-items:center;gap:8px">`
+  const строка = (p) => `<div class="row" style="align-items:center;gap:8px">`
     + `<b style="flex:1">${esc(p.name || 'без имени')} <span class="hint">${esc(p.chat)}</span></b>`
-    + (заявка
-      ? `<button class="btn btn-p btn-s" data-callon="${esc(p.chat)}">Добавить</button>`
-      : `<button class="btn btn-g btn-s" data-calloff="${esc(p.chat)}">Убрать</button>`)
+    + `<button class="btn btn-g btn-s" data-calloff="${esc(p.chat)}">Убрать</button>`
     + `</div>`;
-  box.innerHTML = (d.получатели.length ? d.получатели.map(p => строка(p, false)).join('') : '<span class="hint">Пока никого. Откройте бота и напишите ему любое слово — первый написавший подключится сам.</span>')
-    + (d.заявки.length ? `<p class="hint" style="margin:8px 0 0"><b>Просятся подключиться:</b></p>` + d.заявки.map(p => строка(p, true)).join('') : '');
+  box.innerHTML = d.получатели.length
+    ? d.получатели.map(строка).join('')
+    : '<span class="hint">Пока никого. Дайте ссылку на бота сотрудникам — кто напишет, тот и подключится.</span>';
 });
 $('#callPeople').addEventListener('click', safe(async e => {
   const on = e.target.closest('[data-callon]'), off = e.target.closest('[data-calloff]');
@@ -5482,7 +5532,9 @@ $('#callPeople').addEventListener('click', safe(async e => {
   loadCallPeople();
 }));
 $('#callSave').onclick = safe(async () => {
-  const body = { call_after: +$('#callAfter').value || 5 };
+  const body = { call_after: +$('#callAfter').value || 5,
+    call_chat_from: Math.min(23, Math.max(0, +$('#callChatFrom').value || 0)),
+    call_chat_to: Math.min(24, Math.max(0, +$('#callChatTo').value || 0)) };
   const raw = $('#callTok').value.trim();
   if (raw) {
     const found = raw.match(/\d{5,}:[A-Za-z0-9_-]{20,}/);
@@ -5494,8 +5546,10 @@ $('#callSave').onclick = safe(async () => {
   toast('Бот обзвона сохранён'); loadSettings();
 });
 $('#callTest').onclick = safe(async () => {
+  if (!confirm('Всем получателям уйдёт сообщение «Проверка связи». Отправить?')) return;
   const r = await api('/api/shop/call-bot-check', { method: 'POST', body: {} });
   toast(r.сообщение);
+  loadCallPeople();
 });
 $('#cTestBot').onclick = safe(async () => {
   const r = await api('/api/shop/client-bot-check', { method: 'POST' });

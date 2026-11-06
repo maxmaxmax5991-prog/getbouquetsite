@@ -94,6 +94,9 @@ routerAdd("POST", "/api/shop/chat/send", (e) => {
       const path = `${$app.dataDir()}/storage/${m.collection().id}/${m.id}/${m.get("photo")}`;
       shop.adminIds(s).forEach((adm) => shop.tgPhoto(s.get("tg_token"), adm, path, `Фото из чата — ${who}`));
     }
+    // Вечером те же сообщения уходят в бот обзвона: служебный бот у вечерней
+    // смены не открыт, и после восьми чат оставался без присмотра.
+    require(`${__hooks}/lib/callnow.js`).чатСигнал($app, who, text || "прислал фото", "site");
   } catch (err) { console.log("chat tg", err); }
 
   return e.json(200, { ok: true });
@@ -117,11 +120,22 @@ routerAdd("GET", "/api/shop/chat", (e) => {
 // Админка: список диалогов
 routerAdd("GET", "/api/shop/chats", (e) => {
   const list = $app.findRecordsByFilter("chats", "id != ''", "-last_at", 100, 0);
+  // Кто ответил последним в каждом диалоге. Одним запросом на весь список:
+  // сто диалогов — сто походов в базу, и вкладка открывалась бы секундами.
+  const ch = require(`${__hooks}/lib/chat.js`);
+  const имена = {}, ответил = {};
+  try {
+    const rows = arrayOf(new DynamicModel({ chat: "", author: "", last: "" }));
+    $app.db().newQuery(`SELECT chat, author, MAX(created) AS last FROM chat_messages
+      WHERE side = 'shop' AND author != '' GROUP BY chat`).all(rows);
+    rows.forEach((r) => { ответил[r.chat] = ch.имяАвтора($app, r.author, имена); });
+  } catch (err) { console.log("чаты: кто отвечал", err); }
   return e.json(200, {
     chats: list.map((c) => ({
       id: c.id, name: c.get("name") || "", phone: c.get("phone") || "",
       last_text: c.get("last_text") || "", last_at: c.get("last_at") || "",
       unread: +c.get("unread") || 0, answered: !!c.get("answered"), customer: c.get("customer") || "", from: c.get("last_from") || "site",
+      by: ответил[c.id] || "",
       ...(() => {
         // Последний заказ этого человека: его номер в списке и красные метки.
         // «Фото без ответа» — букет показали, а покупатель не нажал ни 👍, ни 👎:
@@ -149,6 +163,8 @@ routerAdd("GET", "/api/shop/chat-one", (e) => {
   chat.set("unread", 0);
   $app.save(chat);
   const list = $app.findRecordsByFilter("chat_messages", "chat = {:c}", "created", 200, 0, { c: chat.id });
+  const ch = require(`${__hooks}/lib/chat.js`);
+  const имена = {};
   // Заказы ищем и по связи с кабинетом, и по телефону: покупатель мог заказать без входа.
   // Телефоны сравниваем по последним десяти цифрам — записывают их кто как.
   const seen = {}, orders = [];
@@ -190,7 +206,8 @@ routerAdd("GET", "/api/shop/chat-one", (e) => {
   return e.json(200, {
     name: chat.get("name") || "", phone: chat.get("phone") || "", orders, customer: chat.get("customer") || "",
     channels: куда, last_from: chat.get("last_from") || "site",
-    messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"), author: m.get("author") || "", via: m.get("via") || "site",
+    messages: list.map((m) => ({ side: m.get("side"), text: m.get("text"), at: m.getString("created"),
+      author: ch.имяАвтора($app, m.get("author"), имена), via: m.get("via") || "site",
       sent: m.get("side") === "shop" ? !!m.get("sent") : true, error: m.get("error") || "",
       photo: m.get("photo") ? `/api/files/chat_messages/${m.id}/${m.get("photo")}?thumb=480x0` : undefined,
       big: m.get("photo") ? `/api/files/chat_messages/${m.id}/${m.get("photo")}` : undefined })),
@@ -335,3 +352,72 @@ routerAdd("POST", "/api/shop/chat/link", (e) => {
   $app.delete(chat);
   return e.json(200, { ok: true, merged: true });
 });
+
+// Кто как отвечает в чате. Владелец спросил: «хочу видеть, кто отвечает на
+// сообщения с сайта и кто отвечает плохо». Считаем по парам «вопрос покупателя
+// → первый ответ менеджера» внутри диалога: сколько ответов, как быстро, и
+// сколько раз человек ждал дольше трёх и пятнадцати минут.
+//
+// Среднее время сильно портит один ночной ответ, поэтому рядом медиана — по ней
+// и надо смотреть, а среднее оставлено для сравнения.
+routerAdd("GET", "/api/shop/chat-who", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const ch = require(`${__hooks}/lib/chat.js`);
+  if (!shop.can(e, ["owner", "sales", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const дней = Math.min(90, Math.max(1, +e.request.url.query().get("days") || 7));
+  const от = new Date(Date.now() - дней * 86400000).toISOString().replace("T", " ").slice(0, 19);
+
+  const строки = arrayOf(new DynamicModel({ chat: "", side: "", author: "", created: "" }));
+  try {
+    $app.db().newQuery(`SELECT chat, side, author, created FROM chat_messages
+      WHERE created >= {:f} ORDER BY chat, created`).bind({ f: от }).all(строки);
+  } catch (err) { return e.json(500, { message: String(err) }); }
+
+  const имена = {}, люди = {};
+  const чел = (id) => {
+    const имя = ch.имяАвтора($app, id, имена) || "не подписано";
+    return (люди[имя] = люди[имя] || { имя, ответов: 0, времена: [], дольше3: 0, дольше15: 0, последний: "" });
+  };
+  const мс = (s) => Date.parse(String(s || "").replace(" ", "T").replace(/Z?$/, "Z")) || 0;
+
+  // «Ждут» — только свежие: диалог, в котором покупатель написал позавчера и
+  // ушёл, висит в базе вечно и к работе смены отношения не имеет.
+  const свежо = Date.now() - 24 * 3600 * 1000;
+  let всегоОтветов = 0, всегоПар = 0, ждут = 0;
+  let текущий = "", ждётС = 0;
+  const закрыть = () => { if (ждётС && ждётС > свежо) ждут++; ждётС = 0; };
+  строки.forEach((r) => {
+    if (r.chat !== текущий) { закрыть(); текущий = r.chat; }
+    if (r.side === "client") { if (!ждётС) ждётС = мс(r.created); return; }
+    if (r.side !== "shop") return;
+    всегоОтветов++;
+    const p = чел(r.author);
+    p.ответов++;
+    if (!p.последний || r.created > p.последний) p.последний = r.created;
+    if (ждётС) {
+      const мин = (мс(r.created) - ждётС) / 60000;
+      if (мин >= 0) {
+        p.времена.push(мин);
+        всегоПар++;
+        if (мин > 3) p.дольше3++;
+        if (мин > 15) p.дольше15++;
+      }
+      ждётС = 0;
+    }
+  });
+  закрыть();
+
+  const список = Object.keys(люди).map((k) => {
+    const p = люди[k];
+    const t = p.времена.slice().sort((a, b) => a - b);
+    const медиана = t.length ? (t.length % 2 ? t[(t.length - 1) / 2] : (t[t.length / 2 - 1] + t[t.length / 2]) / 2) : 0;
+    const среднее = t.length ? t.reduce((a, b) => a + b, 0) / t.length : 0;
+    return { имя: p.имя, ответов: p.ответов, отвеченных: t.length,
+      медиана: Math.round(медиана * 10) / 10, среднее: Math.round(среднее * 10) / 10,
+      дольше3: p.дольше3, дольше15: p.дольше15,
+      доля3: t.length ? Math.round((p.дольше3 * 100) / t.length) : 0,
+      последний: p.последний };
+  }).sort((a, b) => b.ответов - a.ответов);
+
+  return e.json(200, { дней, всегоОтветов, всегоПар, ждут, люди: список });
+}, $apis.requireAuth("managers"));
