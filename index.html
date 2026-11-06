@@ -394,6 +394,13 @@ html{overflow-x:clip}
 .pd-info{display:flex;flex-direction:column;gap:18px;position:sticky;top:90px}
 .pd-info h1{font:700 clamp(26px,3.2vw,40px)/1.05 var(--display);letter-spacing:-.05em;margin:6px 0 0;text-wrap:balance}
 .pd-price{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.pd-desc{margin:10px 0 0;color:var(--ink-2);line-height:1.55;max-width:60ch}
+.own-qty{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 0}
+.own-qty label{font-size:14px;color:var(--ink-2)}
+.own-qty input{width:92px;min-width:0}
+.own-qty .hint{margin:0}
+.line-stems{display:flex;gap:12px;margin:4px 0 0}
+.line-stems .link-btn{font-size:13px}
 .pd-price b{font:700 32px var(--display);letter-spacing:-.05em}
 .pd-price .bonus{font-size:13.5px;font-weight:700;color:var(--leaf);background:var(--leaf-soft);padding:4px 10px;border-radius:8px}
 .label{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);margin:0 0 10px}
@@ -1002,7 +1009,14 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
         <p class="price-note" id="pdFresh" hidden style="color:var(--leaf)"><b>🌿 Этот сорт сегодня приехал к нам напрямую с теплицы</b></p>
         <p class="price-note" id="pdOnly" hidden><b>Только на сайте</b> — этих роз нет в рознице, мы держим их под интернет-заказы</p>
         <div class="soon-note" id="pdSoon" hidden></div>
-        <div id="pdOptsWrap"><p class="label" id="pdOptsLabel">Количество цветов</p><div class="opts" id="pdOpts"></div></div>
+        <p class="pd-desc" id="pdDesc" hidden></p>
+        <div id="pdOptsWrap"><p class="label" id="pdOptsLabel">Количество цветов</p><div class="opts" id="pdOpts"></div>
+          <div class="own-qty" id="pdOwn" hidden>
+            <label for="pdOwnN">Или своё количество</label>
+            <input class="in num" id="pdOwnN" type="number" inputmode="numeric" min="1" step="1" placeholder="37">
+            <span class="hint" id="pdOwnHint"></span>
+          </div>
+        </div>
         <div id="pdQtyWrap"><p class="label">Количество</p><div class="qty"><button id="pdMinus" aria-label="Меньше"><svg class="i"><use href="#i-minus"/></svg></button><span class="num" id="pdQty">1</span><button id="pdPlus" aria-label="Больше"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
         <div class="pd-buy">
           <button class="btn btn-primary" id="pdAdd">В корзину · <span class="num" id="pdTotal"></span></button>
@@ -1071,7 +1085,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1793806584"></script>
+<script src="/data.js?v=1793931048"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1190,6 +1204,19 @@ const P = window.PRODUCTS || [];
 // Тасовать ли карточки раз в час — решает выключатель в настройках магазина.
 // Запасная копия сайта (без сервера) порядок не меняет: там и статистики нет.
 const МЕШАТЬ = !!(API && API.mix);
+// Своё правило плитки у каждой витрины: аудитории у сайтов разные. На
+// venikoff.net трафика в 2,3 раза больше, а конверсия в полтора раза ниже и чек
+// меньше — холодная широкая аудитория из рилсов, ей нужен дешёвый вход.
+// ПОРЯДОК: '' перемешивать раз в час (как было) · 'demand' по спросу витрины ·
+// 'cheap' дешёвые вперёд · 'rich' дорогие вперёд.
+// РАЗМЕР: '' из прайса (обычно 51 шт) · 'cheap' самый дешёвый из доступных.
+const ПОРЯДОК = String((API && API.tile && API.tile.order) || '');
+const РАЗМЕР_ПО_УМОЛЧАНИЮ = String((API && API.tile && API.tile.def) || '');
+const ДЕШЁВОЕ_ДО = +((API && API.tile && API.tile.cheap_to) || 0) || 3500;
+// Закреплённые сорта этой витрины: рычаг владельца «поставь вот это первым».
+// Нужен, когда расчёт по спросу ещё не знает про замену: ходовой сорт кончился,
+// и его место должен занять конкретный другой, а не следующий по статистике.
+const ЗАКРЕПЛЕНО = ((API && API.tile && API.tile.pins) || []).map(String);
 // ТАСОВКА РАЗ В ЧАС. Первые карточки собирают кратно больше кликов просто
 // потому, что они первые, — и при постоянном порядке одни и те же сорта всегда
 // наверху. Раз в час порядок меняется, и за день каждый успевает побывать в
@@ -1222,6 +1249,55 @@ function тасовать(список, ключ) {
   return out;
 }
 
+// Порядок плитки по правилу витрины. Наличие всё равно сильнее: его сортировка
+// идёт следом и устойчива, поэтому внутри «есть сейчас» останется этот порядок.
+function порядокВитрины(список, ключ) {
+  // Закреплённые — поверх любого правила, в том порядке, в каком их закрепили.
+  // Кончившиеся всё равно уедут вниз: сортировка по наличию идёт следом.
+  const вперёд = [];
+  if (ЗАКРЕПЛЕНО.length) {
+    const взяты = {};
+    ЗАКРЕПЛЕНО.forEach((id) => {
+      const p = список.find((x) => x.id === id);
+      if (p) { вперёд.push(p); взяты[id] = 1; }
+    });
+    if (вперёд.length) список = список.filter((x) => !взяты[x.id]);
+  }
+  const дальше = порядокОстальных(список, ключ);
+  return вперёд.length ? вперёд.concat(дальше) : дальше;
+}
+function порядокОстальных(список, ключ) {
+  if (ПОРЯДОК === 'demand') {
+    // по спросу этой витрины; у равных — перемешиваем, чтобы сорта без продаж
+    // не стояли вечно в одном и том же хвосте
+    return тасовать(список, ключ).slice().sort((a, b) => (+b.rank || 0) - (+a.rank || 0));
+  }
+  if (ПОРЯДОК === 'cheap_demand') {
+    // Три яруса подряд, как просил владелец:
+    //   1. дешёвое, которое покупают — по спросу этой витрины;
+    //   2. похожее на него по цене, но пока без продаж — по возрастанию цены;
+    //   3. дорогое — тоже по спросу, внутри равных дешёвое выше.
+    // Дешёвым считается цена, которую видно в плитке: с правилом «самый дешёвый
+    // размер» это цена входа, а не 51 роза.
+    const ярус = (p) => (ценаПлитки(p) <= ДЕШЁВОЕ_ДО ? ((+p.rank || 0) > 0 ? 0 : 1) : 2);
+    return тасовать(список, ключ).slice().sort((a, b) => {
+      const я = ярус(a) - ярус(b);
+      if (я) return я;
+      const r = (+b.rank || 0) - (+a.rank || 0);
+      if (r) return r;
+      return ценаПлитки(a) - ценаПлитки(b);
+    });
+  }
+  if (ПОРЯДОК === 'cheap') return список.slice().sort((a, b) => ценаПлитки(a) - ценаПлитки(b));
+  if (ПОРЯДОК === 'rich') return список.slice().sort((a, b) => ценаПлитки(b) - ценаПлитки(a));
+  return тасовать(список, ключ);
+}
+// Цена, которую покупатель видит в плитке: она же и решает, «дешёвый» ли сорт.
+const ценаПлитки = p => {
+  const v = variant(p, curLabel(p));
+  return (v && +v.price) || +p.price || 0;
+};
+
 /* одноголовые розы: цена по прайсу «длина × количество» */
 const RP = window.ROSE_PRICES || {}, COUNTS = [25, 51, 101];
 P.forEach(p => {
@@ -1230,6 +1306,38 @@ P.forEach(p => {
   if (p.variants.length) p.price = Math.min(...p.variants.map(v => v.price)); else delete p.variants;
 });
 const byId = Object.fromEntries(P.map(p => [p.id, p]));
+
+// Цена за любое количество стеблей — теми же правилами, что считает сервер
+// (lib/shop.js, ценаЗаШтуки). В прайсе стоят ступени 25/51/101/201, между
+// ними считаем по прямой и округляем до десяти рублей вверх. Здесь это
+// только для показа: при оформлении цену всё равно пересчитает сервер.
+const PT = (API && API.price_tables) || [];
+function ценаШтук(ptId, len, cnt) {
+  const t = PT.find(x => x.id === ptId) || PT[0];
+  const prices = t && t.prices && t.prices[len];
+  if (!prices) return null;
+  const ст = Object.keys(prices).map(Number).filter(n => n > 0 && +prices[n] > 0).sort((a, b) => a - b);
+  if (!ст.length) return null;
+  const n = Math.round(+cnt || 0);
+  if (n < ст[0] || n > ст[ст.length - 1]) return null;
+  if (prices[n]) return +prices[n];
+  let низ = ст[0], верх = ст[ст.length - 1];
+  ст.forEach(x => { if (x <= n && x > низ) низ = x; if (x >= n && x < верх) верх = x; });
+  if (низ === верх) return +prices[низ];
+  return Math.ceil((+prices[низ] + (n - низ) / (верх - низ) * (+prices[верх] - +prices[низ])) / 10) * 10;
+}
+// Своё количество живёт как обычный размер с меткой «40-37»: так его понимают
+// и корзина, и заказ, и склад — ничего особенного вниз по течению не нужно.
+function своёКоличество(p, len, cnt) {
+  const цена = ценаШтук(p.pt, len, cnt);
+  if (!цена) return null;
+  const label = `${len}-${cnt}`;
+  p.variants = (p.variants || []).filter(v => !v.own || v.label === label);
+  let v = p.variants.find(x => x.label === label);
+  if (!v) { v = { label, price: цена, len: +len, cnt: +cnt, own: true }; p.variants.push(v); }
+  else { v.price = цена; }
+  return v;
+}
 
 // Доставка и правила интервалов нужны уже при отрисовке каталога
 // (в карточке есть пометка «цветы ещё едут»), поэтому объявлены здесь, а не ниже.
@@ -1364,6 +1472,14 @@ const defLabel = p => {
   // Карточка без размеров вообще: такое бывает, когда у ростовки нет цен в
   // прайсе. Раньше здесь читали .label у undefined и падали.
   if (!p.variants || !p.variants.length) return '';
+  // Витрина просит открывать карточку самым дешёвым размером: в плитке видна
+  // цена входа, а не 51 роза за восемь тысяч. Берём из доступных — показывать
+  // дешёвый размер, которого нет, значит обещать и тут же отказывать.
+  if (РАЗМЕР_ПО_УМОЛЧАНИЮ === 'cheap') {
+    const годные = p.variants.filter(v => v.price > 0 && свободен(v));
+    const сп = (годные.length ? годные : p.variants.filter(v => v.price > 0));
+    if (сп.length) return сп.reduce((a, b) => (b.price < a.price ? b : a)).label;
+  }
   const задумано = p.def_label ? p.def_label : p.lengths
     ? ((p.variants.find(v => v.len === p.lengths[0] && v.cnt === 51) || p.variants.find(v => v.len === p.lengths[0]) || p.variants[0]).label)
     : (p.variants.find(v => !v.est) || p.variants[0]).label;
@@ -2374,7 +2490,7 @@ function дропПеререндер() {
   вставитьДроп($('#grid'));
 }
 
-const POPULAR = API ? разнести(тасовать(P.filter(p => !isAddon(p) && !p.off), 'главная')
+const POPULAR = API ? разнести(порядокВитрины(P.filter(p => !isAddon(p) && !p.off), 'главная')
   .slice().sort((a, b) => {
     // Сначала наличие: кончившиеся сорта уходят вниз. На главной они стояли
     // вперемешку, и третьей карточкой на сайте была та, которой нет.
@@ -2607,9 +2723,9 @@ function list() {
       return true;
     });
   }
-  // Тасуем только обычный порядок: когда человек попросил «дешевле» или
-  // «дороже», перемешивать нельзя — он просил конкретное.
-  if (state.sort !== 'asc' && state.sort !== 'desc') r = тасовать(r, 'каталог|' + (state.cat || 'all'));
+  // Порядок, заданный витриной, — только когда покупатель не попросил свой:
+  // «дешевле» и «дороже» всегда сильнее любого правила.
+  if (state.sort !== 'asc' && state.sort !== 'desc') r = порядокВитрины(r, 'каталог|' + (state.cat || 'all'));
   if (state.sort === 'asc') r = [...r].sort((a, b) => a.price - b.price);
   if (state.sort === 'desc') r = [...r].sort((a, b) => b.price - a.price);
   // Наличие важнее всего остального: сначала то, что можно забрать сегодня,
@@ -2667,12 +2783,108 @@ function pdSync() {
   $('#pdCount').hidden = !ct; $('#pdCount').textContent = ct;
   if (p.variants) $('#pdOpts').innerHTML = p.lengths ? sizesHTML(p, 'opts') : p.variants.map(v =>
     `<button class="num${v.out ? ' gone' : ''}" data-size="${esc(v.label)}" data-pid="${p.id}" aria-pressed="${v.label === label}"${v.out ? ` title="${p.express ? 'Этот букет разобрали' : 'Закончились, ждём в следующую срезку'}"` : ''}>${esc(v.label)}</button>`).join('');
+  // Своё количество: от минимальной ступени прайса до максимальной для
+  // выбранной длины. Кому нужно 37 роз, тот раньше уходил ни с чем.
+  {
+    const поле = $('#pdOwn'), вход = $('#pdOwnN'), под = $('#pdOwnHint');
+    const v0 = variant(p, label) || {};
+    const рамка = (p.qty_range || {})[String(v0.len || '')] || null;
+    поле.hidden = !рамка;
+    if (рамка) {
+      вход.min = рамка[0]; вход.max = рамка[1];
+      вход.placeholder = String(рамка[0] + 12);
+      if (v0.own) вход.value = v0.cnt; else вход.value = '';
+      под.textContent = `от ${рамка[0]} до ${рамка[1]} шт`;
+      вход.dataset.len = v0.len;
+      вход.dataset.pid = p.id;
+    }
+  }
   // у экспресса с вариантами остаток свой на каждый букет — обновляем вместе с кнопками
   $('#pdExpress').hidden = !readyNow(p);
   if (readyNow(p)) $('#pdExpress').innerHTML = `<b>⚡ Готов сейчас</b> — букет уже собран, ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)} шт. Везём без времени на сборку.`;
   const f = favs.has(p.id); $('#pdFav').setAttribute('aria-pressed', f); $('#pdFav').dataset.fav = p.id;
   renderAddons(p);
 }
+// Нажали «+5 стеблей» в корзине: это смена размера, то есть другой ключ.
+// Переносим количество букетов на новый ключ и пересчитываем корзину.
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-stems]');
+  if (!b) return;
+  e.preventDefault();
+  const [ключ, сколько] = b.dataset.stems.split(/\|(?=\d+$)/);
+  const { id, label } = parseKey(ключ);
+  const p = byId[id];
+  const m = String(label).match(/^(\d+)-(\d+)$/);
+  if (!p || !m) return;
+  const v = своёКоличество(p, +m[1], +сколько);
+  if (!v) return;
+  const новый = `${id}|${v.label}`;
+  const было = cart[ключ] || 1;
+  delete cart[ключ];
+  cart[новый] = (cart[новый] || 0) + было;
+  store.set('cart', cart); badges(); refreshBuy(id);
+  if (cartDlg.open && view === 'list') renderCart();
+  try { window.ev && window.ev('cart', `стебли ${p.name} ${v.label}`); } catch (_) {}
+});
+
+document.addEventListener('input', e => {
+  if (e.target.id !== 'pdOwnN') return;
+  const вход = e.target, p = byId[вход.dataset.pid], len = +вход.dataset.len;
+  if (!p || !len) return;
+  const рамка = (p.qty_range || {})[String(len)] || null;
+  const n = Math.round(+вход.value || 0);
+  const под = $('#pdOwnHint');
+  if (!вход.value) { под.textContent = `от ${рамка[0]} до ${рамка[1]} шт`; под.style.color = ''; return; }
+  if (!рамка || n < рамка[0] || n > рамка[1]) {
+    под.textContent = `можно от ${рамка[0]} до ${рамка[1]} шт`;
+    под.style.color = 'var(--sale)';
+    return;
+  }
+  const v = своёКоличество(p, len, n);
+  if (!v) return;
+  под.textContent = `${n} шт — ${rub(v.price)}`;
+  под.style.color = '';
+  sel[p.id] = v.label;
+  pdSync();
+  // pdSync перерисовал поле — возвращаем в него курсор и значение
+  const снова = $('#pdOwnN');
+  if (снова) { снова.value = n; снова.focus(); }
+});
+
+// «Можно добавить несколько стеблей» прямо в корзине: человек уже решился,
+// и сделать букет пышнее ему проще, чем возвращаться в карточку. Количество
+// любое в рамках прайса, цена считается по той же кривой, что и на странице
+// товара. Показываем только у сортов с ростовками — у готовых букетов и
+// допов добавлять нечего.
+function стеблиВКорзине(k) {
+  const { id, label } = parseKey(k);
+  const p = byId[id];
+  if (!p || !p.qty_range) return '';
+  const m = String(label).match(/^(\d+)-(\d+)$/);
+  if (!m) return '';
+  const рамка = p.qty_range[m[1]];
+  if (!рамка) return '';
+  const было = +m[2];
+  const шаг = было < 25 ? 2 : было < 51 ? 5 : 10;
+  const больше = Math.min(рамка[1], было + шаг);
+  const меньше = Math.max(рамка[0], было - шаг);
+  const доп = (n) => {
+    const ц = ценаШтук(p.pt, +m[1], n);
+    const было_ц = ценаШтук(p.pt, +m[1], было);
+    return ц && было_ц ? ц - было_ц : null;
+  };
+  const d = доп(больше);
+  if (больше === было && меньше === было) return '';
+  return `<div class="line-stems">`
+    + (больше > было && d
+      ? `<button type="button" class="link-btn" data-stems="${k}|${больше}">+${больше - было} стеблей за ${rub(d)}</button>`
+      : '')
+    + (меньше < было
+      ? `<button type="button" class="link-btn" data-stems="${k}|${меньше}" style="opacity:.75">−${было - меньше}</button>`
+      : '')
+    + `</div>`;
+}
+
 // Блок «Добавить к букету». Рисуется из pdSync, а не один раз при открытии
 // карточки: рекомендованная ваза зависит от ВЫБРАННОГО размера, и при переходе
 // с 40 см на 70 см совет обязан меняться вместе с ценой.
@@ -2701,7 +2913,13 @@ function renderAddons(p) {
 function showProduct(id) {
   const p = byId[id]; if (!p) return go404();
   pd = { id, qty: 1 };
-  document.title = `${p.name} — ${SITE}`;
+  // Тот же заголовок, что отдал сервер: короткий «Кейтлин — venikoff.net»
+  // затирал серверный и уходил в выдачу вместо него.
+  {
+    const vs = (p.variants || []).filter(v => v.price > 0);
+    const от = vs.length ? Math.min.apply(null, vs.map(v => v.price)) : 0;
+    document.title = `${p.name} — купить с доставкой по Москве${от ? ', от ' + rub(от) : ''} | ${SITE}`;
+  }
   $('#pdCrumb').textContent = p.name;
   $('#pdImg').alt = p.name;
   // кнопка конструктора — только у сортов, которым заданы корзины
@@ -2716,6 +2934,9 @@ function showProduct(id) {
   $('#pdExpress').hidden = !readyNow(p);
   if (readyNow(p)) $('#pdExpress').innerHTML = `<b>⚡ Готов сейчас</b> — букет уже собран, ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)} шт. Везём без времени на сборку.`;
   $('#pdCat').textContent = p.badge_text || catName[p.cat] || '';
+  // Описание сорта: цвет, форма бутона, для чего берут. Его же сервер отдаёт
+  // в мета-описание и в разметку товара — текст один, писать его надо один раз.
+  { const d = $('#pdDesc'); if (d) { d.textContent = p.description || ''; d.hidden = !p.description; } }
   const soon = readyNote(p);
   $('#pdSoon').hidden = !soon;
   $('#pdSoon').textContent = soon ? '🚚 ' + soon : '';
@@ -3402,7 +3623,8 @@ function renderCart() {
       return `
       <div class="line${мало ? ' line-short' : ''}"><img src="${keyImg(k)}" alt="">
         <div><div class="line-name">${esc(keyName(k))}</div><div class="line-price num">${rub(keyPrice(k))}${n > 1 ? ` × ${n}` : ''}</div>
-        ${мало ? `<div class="line-warn">${esc(мало.text)} ${мало.fit ? `<button type="button" class="link-btn" data-fit="${k}">Оставить ${мало.fit}</button>` : `<button type="button" class="link-btn" data-drop="${k}">Убрать</button>`}</div>` : ''}</div>
+        ${мало ? `<div class="line-warn">${esc(мало.text)} ${мало.fit ? `<button type="button" class="link-btn" data-fit="${k}">Оставить ${мало.fit}</button>` : `<button type="button" class="link-btn" data-drop="${k}">Убрать</button>`}</div>` : ''}
+        ${стеблиВКорзине(k)}</div>
         <div class="mini"><button data-dec="${k}" aria-label="Меньше">${icon('minus')}</button><span class="num">${n}</span><button data-inc="${k}" aria-label="Больше">${icon('plus')}</button></div>
       </div>`; }).join('') + вазаВКорзину();
     const нехваток = Object.keys(нехватка).filter(k => cart[k]).length;

@@ -128,6 +128,42 @@ function stockOk(p, len, cnt) {
   return availAt(p, len, cnt) !== false;
 }
 
+// Цена за любое количество стеблей, которого нет в прайсе.
+//
+// В прайсе стоят ступени: 25, 51, 101, 201 роза. Кому нужно 37 — уходил ни с
+// чем. Цена за стебель с количеством падает (одноголовые 50 см: 119,6 ₽ за
+// штуку при 25 розах и 92,0 ₽ при 201), поэтому между соседними ступенями
+// считаем по прямой: 37 роз стоят ровно столько, сколько стоили бы по этой
+// кривой. Округляем до десяти рублей вверх — цена должна выглядеть ценой.
+//
+// Возвращает null, если такого количества продавать нельзя: меньше самой
+// маленькой ступени или больше самой большой.
+function ценаЗаШтуки(t, len, cnt) {
+  const prices = (t && t.prices && t.prices[len]) || null;
+  if (!prices) return null;
+  const ступени = Object.keys(prices).map(Number).filter((n) => n > 0 && +prices[n] > 0).sort((a, b) => a - b);
+  if (!ступени.length) return null;
+  const n = Math.round(+cnt || 0);
+  if (n < ступени[0] || n > ступени[ступени.length - 1]) return null;
+  if (prices[n]) return +prices[n];
+  let низ = ступени[0], верх = ступени[ступени.length - 1];
+  ступени.forEach((x) => { if (x <= n && x > низ) низ = x; if (x >= n && x < верх) верх = x; });
+  if (низ === верх) return +prices[низ];
+  const доля = (n - низ) / (верх - низ);
+  const цена = +prices[низ] + доля * (+prices[верх] - +prices[низ]);
+  return Math.ceil(цена / 10) * 10;
+}
+
+// Границы «своего количества» для каждой длины: от самой маленькой ступени
+// прайса до самой большой.
+function рамкиШтук(t, len) {
+  const prices = (t && t.prices && t.prices[len]) || null;
+  if (!prices) return null;
+  const ступени = Object.keys(prices).map(Number).filter((n) => n > 0 && +prices[n] > 0).sort((a, b) => a - b);
+  if (ступени.length < 2) return null;
+  return { min: ступени[0], max: ступени[ступени.length - 1] };
+}
+
 function variantsOf(p, s) {
   const lengths = jget(p, "lengths");
   if (Array.isArray(lengths) && lengths.length) {
@@ -180,6 +216,21 @@ function catalog(app, brand) {
   const cats = app.findRecordsByFilter("categories", "active = true", "sort", 100, 0);
   const catById = {};
   cats.forEach((c) => catById[c.id] = c);
+  // Тексты витрины у записи: {"<id витрины>": {t, m, d, x}}
+  const свойТекст = (rec) => {
+    if (!brand) return null;
+    try { return (jget(rec, "texts_by") || {})[brand.id] || null; } catch (_) { return null; }
+  };
+  // Для каждой длины — от скольких до скольких штук можно заказать своё
+  // количество. Пусто у готовых букетов и у товаров без ростовок.
+  const рамки = (p) => {
+    const lengths = jget(p, "lengths");
+    if (!Array.isArray(lengths) || !lengths.length || p.get("is_express")) return undefined;
+    const t = priceTables(s).find((x) => x.id === p.get("price_table")) || priceTables(s)[0];
+    const out = {};
+    lengths.forEach((L) => { const r = рамкиШтук(t, L); if (r) out[L] = [r.min, r.max]; });
+    return Object.keys(out).length ? out : undefined;
+  };
   const card = (p) => {
       const photos = p.get("photo") || [];
       // сколько цветов на самом снимке — подпись поверх фото берётся отсюда, а не из выбранного размера
@@ -277,13 +328,27 @@ function catalog(app, brand) {
         hit: p.get("badge") === "hit" ? 1 : undefined,
         popular: p.get("popular") || undefined,
         featured: p.get("featured") && cut ? { cut: fileUrl(p, cut), mood: p.get("mood") || "", tint: p.get("tint") || "#E0178A" } : undefined,
-        description: p.get("description") || undefined,
+        // Текст по витрине, если он для неё написан; иначе общий. Один каталог
+        // продают три домена, и одинаковые описания — это дубли в выдаче.
+        description: (function () {
+          const t = свойТекст(p);
+          return (t && t.d) || p.get("description") || undefined;
+        })(),
+        qty_range: рамки(p),
+        seo_t: (function () { const t = свойТекст(p); return (t && t.t) || undefined; })(),
+        seo_m: (function () { const t = свойТекст(p); return (t && t.m) || undefined; })(),
       };
   };
 
+  // Спрос этой витрины: балл кладём в карточку, порядок плитки сайт выстроит сам.
+  // Считает cronAdd("tile-rank") раз в сутки, см. lib/rank.js.
+  const баллВитрины = (p) => {
+    if (!brand) return 0;
+    try { return +(jget(p, "rank_by") || {})[brand.id] || 0; } catch (_) { return 0; }
+  };
   const products = app.findRecordsByFilter("products", "active = true", "sort,-created", 1000, 0)
     .filter((p) => catById[p.get("category")] && mine(p))
-    .map(card);
+    .map((p) => Object.assign(card(p), { rank: баллВитрины(p) || undefined }));
 
   // Выключенные розы тоже показываем в плитке — размытыми и без возможности купить:
   // покупатель видит, что сорт у нас бывает, и вернётся за ним. Только одноголовые и
@@ -303,11 +368,33 @@ function catalog(app, brand) {
   const zones = app.findRecordsByFilter("delivery_zones", "active = true", "sort", 100, 0)
     .map((z) => ({ id: z.id, name: z.get("name"), price: z.get("price"), free_from: z.get("free_from"), radius_km: +z.get("radius_km") || 0 }));
   return {
-    categories: cats.map((c) => ({ slug: c.get("slug"), name: c.get("name"), addon: c.get("addon") })),
+    categories: cats.map((c) => {
+      const t = свойТекст(c) || {};
+      return { slug: c.get("slug"), name: c.get("name"), addon: c.get("addon"),
+        seo_t: t.t || c.get("seo_title") || undefined,
+        seo_m: t.m || c.get("seo_description") || undefined,
+        seo_x: t.x || c.get("seo_text") || undefined };
+    }),
     products,
     // Тасовать ли карточки раз в час (порядок внутри «есть сейчас» и прочих
     // групп наличия). Решает владелец в настройках.
     mix: !!s.get("shuffle_hourly"),
+    // Витрина раскладывает плитку по-своему: аудитории у сайтов разные.
+    // order: '' как раньше · 'demand' по спросу витрины · 'cheap' дешёвые
+    // вперёд · 'rich' дорогие вперёд. def: '' размер из прайса · 'cheap'
+    // карточка открывается самым дешёвым доступным размером.
+    tile: {
+      order: String((brand && brand.get("tile_order")) || ""),
+      def: String((brand && brand.get("tile_default")) || ""),
+      // до какой цены плитка считается «дешёвой» — для правила «сначала дешёвые и ходовые»
+      cheap_to: +((brand && brand.get("tile_cheap_to")) || 0) || 0,
+      // закреплённые сорта этой витрины: идут первыми, в заданном порядке
+      pins: (function () {
+        if (!brand) return [];
+        const v = jget(brand, "tile_pins");
+        return Array.isArray(v) ? v.map(String).slice(0, 20) : [];
+      })(),
+    },
     price_tables: priceTables(s),
     // Сведения о продавце и данные для политики. Отдаём всем: закон требует
     // свободного доступа, прятать тут нечего. Банковский счёт не отдаём —
@@ -597,8 +684,19 @@ function prepareOrder(app, rec) {
     let price = p.get("price"), label = "";
     if (variants.length) {
       const v = variants.find((x) => x.label === String(it.label || ""));
-      if (!v) fail(`Выберите размер для «${p.get("name")}».`);
-      price = v.price; label = v.label;
+      if (v) { price = v.price; label = v.label; }
+      else {
+        // Своё количество: в прайсе стоят ступени 25/51/101/201, а человек
+        // попросил 37. Считаем цену по той же кривой между соседними
+        // ступенями. Браузеру не верим — цену считает сервер, как и всегда.
+        const m = String(it.label || "").match(/^(\d+)-(\d+)$/);
+        const lengths = jget(p, "lengths");
+        const своя = m && Array.isArray(lengths) && lengths.indexOf(+m[1]) >= 0 && !p.get("is_express")
+          ? ценаЗаШтуки(priceTables(s).find((x) => x.id === p.get("price_table")) || priceTables(s)[0], +m[1], +m[2])
+          : null;
+        if (!своя) fail(`Выберите размер для «${p.get("name")}».`);
+        price = своя; label = `${+m[1]}-${+m[2]}`;
+      }
     }
     // цену проверяем здесь: пустое поле в карточке даёт ноль, и букет уходил бы даром
     if (!(+price > 0)) fail(`У «${p.get("name")}» не указана цена. Позвоните нам — оформим вручную.`);
@@ -845,7 +943,15 @@ function tg(token, method, payload) {
         headers: { "content-type": "application/json" },
         timeout: 20,
       });
-      if (res.statusCode !== 200) console.log("telegram", method, res.statusCode, toString(res.body));
+      // В журнал пишем, КТО и КОМУ не смог отправить: «chat not found» без этого
+      // неразличимо — то ли адрес устарел, то ли чужой бот пишет тому, кто его
+      // не запускал. Секрет ключа не пишем, только номер бота до двоеточия.
+      if (res.statusCode !== 200) {
+        console.log("telegram", method, res.statusCode,
+          "бот " + String(token).split(":")[0],
+          "чат " + String((payload && (payload.chat_id || payload.callback_query_id)) || "?"),
+          toString(res.body));
+      }
       return res.json;
     } catch (err) {
       console.log("telegram error", method, attempt, err);
@@ -1043,6 +1149,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, stockOf, stockOk, incomingOf, availAt,
+  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, ценаЗаШтуки, рамкиШтук, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, stockOf, stockOk, incomingOf, availAt,
   tg, tgPhoto, clientToken, markBot, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

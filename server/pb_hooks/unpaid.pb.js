@@ -7,6 +7,22 @@
 
 // Обход раз в пять минут. Внутри часа уходят два напоминания, по истечении —
 // заказ гаснет и стебли возвращаются на склад.
+// Звонок по горячему следу: раз в минуту смотрим, не завис ли свежий заказ.
+// Отдельно от машинки напоминаний: та включается рубильником и шлёт письма
+// покупателю, а этот сигнал нужен всегда и идёт менеджеру.
+cronAdd("call-now", "* * * * *", () => {
+  try {
+    const r = require(`${__hooks}/lib/callnow.js`).проверить($app);
+    if (r.позвали) console.log("звонок по оплате: позвали по", r.позвали, "заказам");
+  } catch (err) { console.log("звонок по оплате", err); }
+});
+
+// Опрос бота обзвона: ловим нажатия кнопок «обещал / не берёт / отказался».
+cronAdd("call-bot", "* * * * *", () => {
+  try { require(`${__hooks}/lib/callnow.js`).опрос($app); }
+  catch (err) { console.log("бот обзвона", err); }
+});
+
 cronAdd("unpaid", "*/5 * * * *", () => {
   try {
     const итог = require(`${__hooks}/lib/unpaid.js`).обход($app);
@@ -47,12 +63,131 @@ routerAdd("GET", "/api/shop/unpaid", (e) => {
       "-created", 50, 0);
   } catch (err) { return e.json(500, { message: String(err) }); }
   const ttl = require(`${__hooks}/lib/unpaid.js`).срок(s);
+  // Старьё в список обзвона не пускаем: звонить человеку про неоплаченный
+  // заказ недельной давности бессмысленно, а 47 таких висяков от прежних
+  // времён забивали бы экран и прятали свежие, по которым ещё можно успеть.
+  const сутки = Date.now() - 24 * 3600e3;
+  список = список.filter((o) => {
+    const t = Date.parse(String(o.getString("created") || "").replace(" ", "T").replace(/Z?$/, "Z"));
+    return !t || t >= сутки;
+  });
+  // Первый ли это заказ у человека. 97% брошенных оплат — именно первые:
+  // такому звонить нужно в первую очередь, повторный почти наверняка доплатит сам.
+  const впервые = (o) => {
+    const хвост = String(o.get("phone") || "").replace(/\D/g, "").slice(-10);
+    if (хвост.length !== 10) return true;
+    try {
+      return !$app.findRecordsByFilter("orders",
+        `payment_status = "paid" && phone ~ {:t} && created < {:c}`, "-created", 1, 0,
+        { t: хвост, c: o.getString("created") }).length;
+    } catch (_) { return true; }
+  };
+  const минут = (o) => {
+    const t = Date.parse(String(o.getString("created") || "").replace(" ", "T").replace(/Z?$/, "Z"));
+    return t ? Math.round((Date.now() - t) / 60000) : 0;
+  };
   return e.json(200, { ttl, items: список.map((o) => ({
     id: o.id, number: o.get("number"), total: o.get("total"), name: o.get("name"), phone: o.get("phone"),
     created: o.get("created"), reminds: +o.get("reminds") || 0, tries: +o.get("pay_tries") || 0,
     error: o.get("pay_error") || "", delivery_type: o.get("delivery_type"), date: o.get("date"), interval: o.get("interval"),
+    first: впервые(o), mins: минут(o),
+    call: o.get("call_result") || "", call_at: o.get("call_at") || "", call_by: o.get("call_by") || "",
   })) });
 });
+
+// Кто получает сигналы и кто просится. Имена спрашиваем у Телеграма, чтобы
+// владелец видел людей, а не числа.
+routerAdd("GET", "/api/shop/call-people", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const cn = require(`${__hooks}/lib/callnow.js`);
+  if (!shop.can(e, ["owner", "sales", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const s = shop.settings($app);
+  const token = String(s.get("call_token") || "").trim();
+  const имя = (чат) => {
+    if (!token) return "";
+    try {
+      const r = shop.tg(token, "getChat", { chat_id: чат });
+      if (r && r.ok && r.result) {
+        return [r.result.first_name, r.result.last_name].filter(Boolean).join(" ") || r.result.username || r.result.title || "";
+      }
+    } catch (_) {}
+    return "";
+  };
+  return e.json(200, {
+    есть: !!token,
+    получатели: cn.разбор(s.get("call_chats")).map((c) => ({ chat: c, name: имя(c) })),
+    заявки: cn.заявкиСписок(s),
+    порог: +s.get("call_after") || 5,
+  });
+}, $apis.requireAuth("managers"));
+
+// Подключить или отключить получателя сигналов
+routerAdd("POST", "/api/shop/call-people", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const cn = require(`${__hooks}/lib/callnow.js`);
+  if (!shop.can(e, ["owner", "sales", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const b = e.requestInfo().body || {};
+  const чат = String(b.chat || "").replace(/[^\d-]/g, "");
+  if (!чат) return e.json(400, { message: "Не указан чат." });
+  const s = shop.settings($app);
+  let кому = cn.разбор(s.get("call_chats"));
+  const заявки = cn.заявкиСписок(s).filter((z) => z.chat !== чат);
+  if (b.off) кому = кому.filter((x) => x !== чат);
+  else if (кому.indexOf(чат) < 0) кому.push(чат);
+  try {
+    $app.db().newQuery("UPDATE settings SET call_chats = {:c}, call_pending = {:p} WHERE id = {:id}")
+      .bind({ c: кому.join(","), p: JSON.stringify(заявки), id: s.id }).execute();
+  } catch (err) { return e.json(500, { message: String(err) }); }
+  // Подключённому говорим об этом сами: человек написал боту и ждёт ответа
+  if (!b.off) {
+    try {
+      shop.tg(s.get("call_token"), "sendMessage", { chat_id: чат,
+        text: "Готово, вас подключили. Сюда будут приходить заказы, не оплаченные пять минут: имя, телефон и кнопки для итога звонка." });
+    } catch (_) {}
+  }
+  return e.json(200, { ok: true, получателей: кому.length });
+}, $apis.requireAuth("managers"));
+
+// Проверка бота для обзвона: кто он и кому сейчас уходят сигналы.
+routerAdd("POST", "/api/shop/call-bot-check", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "sales", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const s = shop.settings($app);
+  const { token, кому, свой } = require(`${__hooks}/lib/callnow.js`).адресаты($app, s);
+  if (!token) return e.json(200, { сообщение: "Ключ не задан — сигналы идут в служебный бот." });
+  const r = shop.tg(token, "getMe", {});
+  const имя = r && r.ok && r.result ? "@" + r.result.username : "ключ не подошёл";
+  return e.json(200, { сообщение: свой
+    ? `Бот обзвона: ${имя}. Получателей: ${кому.length || "ни одного — напишите боту любое слово"}`
+    : `Отдельный бот не задан, сигналы идут в служебный, получателей ${кому.length}` });
+}, $apis.requireAuth("managers"));
+
+// Отметка о звонке по брошенной оплате. Кто позвонил, когда и чем кончилось.
+// «Обещал оплатить» ещё и продлевает жизнь заказу: гасить букет под руками
+// у менеджера, который только что договорился, — худшее, что можно сделать.
+routerAdd("POST", "/api/shop/unpaid-call", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const st = require(`${__hooks}/lib/staff.js`);
+  if (!shop.can(e, ["owner", "sales", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
+  const ИТОГИ = {
+    promised: "обещал оплатить", later: "перезвонить позже", refused: "отказался",
+    noanswer: "не берёт трубку", wrong: "номер не тот",
+  };
+  const b = e.requestInfo().body || {};
+  const итог = String(b.result || "");
+  if (!ИТОГИ[итог]) return e.json(400, { message: "Неизвестный итог звонка." });
+  let o;
+  try { o = $app.findRecordById("orders", String(b.order || "")); } catch (_) { return e.json(404, { message: "Заказ не найден" }); }
+  const я = st.нынешний($app, e);
+  const кто = я ? (я.get("name") || я.get("nick") || "") : "";
+  // запросом, мимо хуков: обычное сохранение заказа будит уведомления и МойСклад
+  try {
+    $app.db().newQuery("UPDATE orders SET call_result = {:r}, call_at = {:a}, call_by = {:b} WHERE id = {:id}")
+      .bind({ r: итог, a: new Date().toISOString(), b: кто, id: o.id }).execute();
+  } catch (err) { return e.json(500, { message: String(err) }); }
+  st.запись($app, o, я, "звонок по оплате", ИТОГИ[итог]);
+  return e.json(200, { ok: true, подпись: ИТОГИ[итог] });
+}, $apis.requireAuth("managers"));
 
 // Разбор старого завала: вернуть цветы с давно брошенных заказов. Без `go`
 // только считает, ничего не трогая, — чтобы владелец сначала увидел цифру.

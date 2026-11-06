@@ -105,9 +105,15 @@ function catalogPage(ctx, brand, slug) {
   const c = ctx.catInfo[slug];
   if (!c) return null;
   const items = ctx.live.filter((p) => p.cat === slug);
-  const title = c.get("seo_title") || `${c.get("name")} с доставкой по Москве — ${name}`;
-  const text = String(c.get("seo_text") || "");
-  const desc = c.get("seo_description") || clip(`${c.get("name")} в ${name}: ${items.length ? items.length + " вариантов, от " + rub(Math.min.apply(null, items.map((p) => p.price))) + "." : ""} Доставка по Москве, фото букета перед отправкой.`, 200);
+  // Тексты этой витрины сильнее общих: у трёх доменов один каталог, и одинаковые
+  // описания означают, что два из них поисковик спрячет как дубли.
+  const свой = (function () {
+    if (!brand) return {};
+    try { return (JSON.parse(c.getString("texts_by") || "{}") || {})[brand.id] || {}; } catch (_) { return {}; }
+  })();
+  const title = свой.t || c.get("seo_title") || `${c.get("name")} с доставкой по Москве — ${name}`;
+  const text = String(свой.x || c.get("seo_text") || "");
+  const desc = свой.m || c.get("seo_description") || clip(`${c.get("name")} в ${name}: ${items.length ? items.length + " вариантов, от " + rub(Math.min.apply(null, items.map((p) => p.price))) + "." : ""} Доставка по Москве, фото букета перед отправкой.`, 200);
   return page({ title, desc, path: `/catalog/${slug}/`, crumbs: [["Каталог", "/catalog/"], [c.get("name"), `/catalog/${slug}/`]] },
     `<h1>${esc(c.get("name"))}</h1>${text ? `<div class="ssr-text">${text.split(/\n{2,}/).map((t) => `<p>${esc(t)}</p>`).join("")}</div>` : ""}${listBody(ctx, items)}`);
 }
@@ -119,8 +125,9 @@ function productPage(ctx, brand, p) {
   const prices = (p.variants || []).filter((v) => !v.out).map((v) => v.price);
   const low = prices.length ? Math.min.apply(null, prices) : p.price;
   const high = prices.length ? Math.max.apply(null, prices) : p.price;
-  const title = `${p.name} — купить с доставкой по Москве, от ${rub(low)} | ${name}`;
-  const desc = clip(p.description ? `${p.name}: ${p.description}` : `${p.name} от ${rub(low)} с доставкой по Москве. ${cname}. Фото букета перед отправкой.`, 200);
+  // seo_t/seo_m подставил каталог: они уже выбраны под эту витрину
+  const title = p.seo_t || `${p.name} — купить с доставкой по Москве, от ${rub(low)} | ${name}`;
+  const desc = clip(p.seo_m || (p.description ? `${p.name}: ${p.description}` : `${p.name} от ${rub(low)} с доставкой по Москве. ${cname}. Фото букета перед отправкой.`), 200);
   const path = productUrl(p);
   const sizes = (p.variants || []).map((v) => `<li>${esc(shop.labelText ? shop.labelText(v.label) : v.label)} — ${v.out ? "нет в наличии" : rub(v.price)}</li>`).join("");
   const ld = {
@@ -179,6 +186,16 @@ function policyPage(ctx, brand) {
      ${org.email ? `<p>Вопросы по персональным данным: ${org.email}</p>` : ""}`);
 }
 
+// Мета-тег подтверждения прав для этого домена, если он задан в настройках
+function метаПодтверждения(app, origin) {
+  try {
+    const host = String(origin || "").replace(/^https?:\/\//, "");
+    const карта = JSON.parse(shop.settings(app).getString("site_verify") || "{}") || {};
+    const t = карта["meta:" + host];
+    return typeof t === "string" && t.indexOf("<meta") === 0 ? t : "";
+  } catch (_) { return ""; }
+}
+
 function head(meta, origin, brand) {
   const url = origin + (meta.path || "/");
   const name = brand ? brand.get("name") : "venikoff.net";
@@ -205,6 +222,7 @@ function head(meta, origin, brand) {
     `<meta property="og:url" content="${esc(url)}">`,
     meta.image ? `<meta property="og:image" content="${esc(origin + meta.image)}">` : "",
     ld.map((x) => `<script type="application/ld+json">${JSON.stringify(x).replace(/</g, "\\u003c")}</script>`).join(""),
+    метаПодтверждения($app, origin),
   ].filter(Boolean).join("\n");
 }
 
@@ -268,11 +286,76 @@ function render(html, meta, body, origin, brand) {
 }
 
 function sitemap(ctx, origin) {
-  const urls = ["/", "/catalog/", "/delivery/", "/price/"]
-    .concat(ctx.cat.categories.filter((c) => !c.addon && ctx.live.some((p) => p.cat === c.slug)).map((c) => `/catalog/${c.slug}/`))
-    .concat(ctx.live.filter((p) => !ctx.cat.categories.find((c) => c.slug === p.cat && c.addon)).map(productUrl));
+  // lastmod обязателен для быстрой переобходки: без него робот не знает, что
+  // страница изменилась, и возвращается по своему расписанию — иногда через месяц.
+  const сегодня = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+  const urls = [["/", "1.0"], ["/catalog/", "0.9"], ["/delivery/", "0.5"], ["/price/", "0.5"]]
+    .concat(ctx.cat.categories.filter((c) => !c.addon && ctx.live.some((p) => p.cat === c.slug)).map((c) => [`/catalog/${c.slug}/`, "0.8"]))
+    .concat(ctx.live.filter((p) => !ctx.cat.categories.find((c) => c.slug === p.cat && c.addon)).map((p) => [productUrl(p), "0.7"]));
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    urls.map((u) => `<url><loc>${esc(origin + u)}</loc></url>`).join("\n") + `\n</urlset>\n`;
+    urls.map(([u, pr]) => `<url><loc>${esc(origin + u)}</loc><lastmod>${сегодня}</lastmod><changefreq>daily</changefreq><priority>${pr}</priority></url>`).join("\n") +
+    `\n</urlset>\n`;
+}
+
+// Товарный фид в формате YML — для Яндекс Бизнеса (карточка организации на
+// Картах), Маркета и рекламы. Живая ссылка, а не выгруженный файл: Яндекс
+// забирает её сам раз в сутки и всегда видит сегодняшние цены и наличие.
+//
+// Одно предложение на РАЗМЕР, а не на сорт: у «Кейтлин» 19 веток и 101 ветка
+// стоят по-разному, а YML требует точную цену, а не «от». Иначе человек увидит
+// 2 990 ₽, придёт за 101 розой и обнаружит 13 990 ₽.
+function yml(ctx, origin, brand) {
+  const имя = brand ? brand.get("name") : "venikoff.net";
+  const now = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 16).replace("T", " ");
+  const esc2 = (x) => esc(String(x == null ? "" : x));
+  // Разделы: только те, где есть товары, и без «Добавить к букету»
+  const cats = ctx.cat.categories.filter((c) => !c.addon && ctx.live.some((p) => p.cat === c.slug));
+  const номер = {};
+  cats.forEach((c, i) => { номер[c.slug] = i + 1; });
+
+  const offers = [];
+  ctx.live.forEach((p) => {
+    if (!номер[p.cat]) return;
+    const url = origin + productUrl(p);
+    // В карточке photos — это объекты со всеми размерами снимка, а не строки.
+    // Яндексу отдаём по одной большой картинке на снимок.
+    const фото = (Array.isArray(p.photos) && p.photos.length
+      ? p.photos.map((f) => f && (f.big || f.img))
+      : [p.big || p.img]).filter(Boolean).slice(0, 10);
+    const текст = String(p.description || "").replace(/\s+/g, " ").trim().slice(0, 2500);
+    const сорта = (p.variants || []).filter((v) => +v.price > 0);
+    const строка = (id, цена, подпись, есть) => {
+      offers.push([
+        `<offer id="${esc2(id)}" available="${есть ? "true" : "false"}">`,
+        `<url>${esc2(url)}</url>`,
+        `<price>${Math.round(цена)}</price>`,
+        `<currencyId>RUB</currencyId>`,
+        `<categoryId>${номер[p.cat]}</categoryId>`,
+        фото.map((f) => `<picture>${esc2(f.indexOf("http") === 0 ? f : origin + f)}</picture>`).join(""),
+        `<name>${esc2(подпись)}</name>`,
+        `<vendor>${esc2(имя)}</vendor>`,
+        текст ? `<description>${esc2(текст)}</description>` : "",
+        `<sales_notes>Доставка по Москве. Фото букета перед отправкой.</sales_notes>`,
+        `</offer>`,
+      ].filter(Boolean).join(""));
+    };
+    if (!сорта.length) {
+      if (+p.price > 0) строка(p.id, p.price, p.name, !p.soldout);
+      return;
+    }
+    сорта.forEach((v) => {
+      const части = [];
+      if (v.cnt) части.push(`${v.cnt} шт`);
+      if (v.len) части.push(`${v.len} см`);
+      строка(`${p.id}-${v.label}`, v.price, части.length ? `${p.name}, ${части.join(", ")}` : p.name, !v.out && !p.soldout);
+    });
+  });
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<yml_catalog date="${now}">\n<shop>\n`
+    + `<name>${esc2(имя)}</name>\n<company>${esc2(имя)}</company>\n<url>${esc2(origin)}/</url>\n`
+    + `<currencies><currency id="RUB" rate="1"/></currencies>\n`
+    + `<categories>\n${cats.map((c) => `<category id="${номер[c.slug]}">${esc2(c.name)}</category>`).join("\n")}\n</categories>\n`
+    + `<offers>\n${offers.join("\n")}\n</offers>\n</shop>\n</yml_catalog>\n`;
 }
 
 function robots(origin) {
@@ -290,10 +373,39 @@ function serve(app, e) {
 
   if (path === "/robots.txt") { e.response.header().set("Content-Type", "text/plain; charset=utf-8"); return e.string(200, robots(origin)); }
 
+  // Подтверждение прав в Вебмастере и Search Console: оба сервиса просят
+  // положить в корень файл с их именем и содержимым. Держим их в настройках,
+  // чтобы добавлять новый домен без выкладки.
+  if (/^\/[A-Za-z0-9_.\-]{4,80}\.(html|txt|xml)$/.test(path)) {
+    try {
+      const карта = JSON.parse(shop.settings(app).getString("site_verify") || "{}") || {};
+      const файл = карта[path.slice(1)];
+      if (typeof файл === "string") {
+        e.response.header().set("Content-Type", path.endsWith(".html") ? "text/html; charset=utf-8" : "text/plain; charset=utf-8");
+        return e.string(200, файл);
+      }
+    } catch (_) {}
+  }
+
+  // Ключ IndexNow: поисковик проверяет его по адресу /<ключ>.txt, прежде чем
+  // поверить нашему сообщению «эти страницы изменились».
+  if (/^\/[a-f0-9]{16,80}\.txt$/.test(path)) {
+    const k = require(`${__hooks}/lib/indexnow.js`).ключ(app);
+    if (path === `/${k}.txt`) {
+      e.response.header().set("Content-Type", "text/plain; charset=utf-8");
+      return e.string(200, k);
+    }
+  }
+
   const moved = redirectFor(app, brand, path);
   if (moved && moved !== path) return e.redirect(301, moved);
 
   const ctx = load(app, brand);
+  if (path === "/yml.xml" || path === "/yandex.yml") {
+    e.response.header().set("Content-Type", "application/xml; charset=utf-8");
+    e.response.header().set("Cache-Control", "public, max-age=1800");
+    return e.string(200, yml(ctx, origin, brand));
+  }
   if (path === "/sitemap.xml") {
     e.response.header().set("Content-Type", "application/xml; charset=utf-8");
     e.response.header().set("Cache-Control", "public, max-age=3600");

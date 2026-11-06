@@ -501,6 +501,16 @@ function handle(app, secret, upd) {
       shop.tg(token, "sendMessage", { chat_id: chat, text: `${title} «${p.get("name")}» ${TAG(p.id)}${hint ? "\n\n" + hint : ""}`, reply_markup: { force_reply: true } });
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
     };
+    // Итог звонка по неоплаченному заказу — кнопки под сигналом «позвоните сейчас»
+    if (kind === "pc") {
+      const r = require(`${__hooks}/lib/callnow.js`).итогЗвонка(app, b, a, cb.from.first_name || cb.from.username || "");
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: r ? r.подпись : "Не записал" });
+      if (r) {
+        shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id,
+          text: `${cb.message.text}\n\n— записано: ${r.подпись}${a === "promised" ? "\nДержим букет ещё 3 часа." : ""}` });
+      }
+      return;
+    }
     if (kind === "t" || kind === "a") {
       const p = app.findRecordById("products", a);
       if (kind === "a") { p.set("active", !p.get("active")); app.save(p); }

@@ -15,6 +15,8 @@ routerAdd("GET", "/api/shop/daily", (e) => {
   const до = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
 
   const карта = {};
+  // Ключи наружу русские — их читает админка. Латиница только в SQL и в
+  // DynamicModel: на кириллических псевдонимах движок уже спотыкался.
   const день = (d) => (карта[d] = карта[d] || { day: d, заказов: 0, отменено: 0, живых: 0, выручка: 0,
     картой: 0, ждут: 0, доставка: 0, ваз: 0, дроп: 0, корзин: 0,
     гостей: 0, карточек: 0, корзина: 0, оформление: 0, фотоЖдёт: 0, фотоПоправить: 0 });
@@ -25,31 +27,31 @@ routerAdd("GET", "/api/shop/daily", (e) => {
 
   // --- заказы: один проход по таблице ---
   try {
-    const rows = arrayOf(new DynamicModel({ day: "", всего: 0, отменено: 0, живых: 0, выручка: 0,
-      картой: 0, ждут: 0, доставка: 0, ваз: 0, дроп: 0, корзин: 0, фотоЖдёт: 0, фотоПоправить: 0 }));
+    const rows = arrayOf(new DynamicModel({ day: "", total_n: 0, cancelled_n: 0, live_n: 0, revenue: 0,
+      by_card: 0, waiting_n: 0, deliv: 0, vases: 0, drop_n: 0, baskets_n: 0, photo_wait: 0, photo_rework: 0 }));
     $app.db().newQuery(`
       SELECT date(created, '+3 hours') AS day,
-        COUNT(*) AS всего,
-        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS отменено,
-        SUM(CASE WHEN status != 'cancelled' THEN 1 ELSE 0 END) AS живых,
-        SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END) AS выручка,
-        SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) AS картой,
-        SUM(CASE WHEN payment_method = 'card' AND payment_status != 'paid' AND status != 'cancelled' THEN 1 ELSE 0 END) AS ждут,
-        SUM(CASE WHEN status != 'cancelled' THEN delivery_price ELSE 0 END) AS доставка,
-        SUM(CASE WHEN status != 'cancelled' AND (items LIKE '%Ваза%' OR items LIKE '%ваза%') THEN 1 ELSE 0 END) AS ваз,
-        SUM(CASE WHEN status != 'cancelled' AND drop_q != '' THEN 1 ELSE 0 END) AS дроп,
-        SUM(CASE WHEN status != 'cancelled' AND items LIKE '%"kind":"basket"%' THEN 1 ELSE 0 END) AS корзин,
-        SUM(CASE WHEN photo_status = 'waiting' THEN 1 ELSE 0 END) AS фотоЖдёт,
-        SUM(CASE WHEN photo_status = 'rework' THEN 1 ELSE 0 END) AS фотоПоправить
+        COUNT(*) AS total_n,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_n,
+        SUM(CASE WHEN status != 'cancelled' THEN 1 ELSE 0 END) AS live_n,
+        SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END) AS revenue,
+        SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) AS by_card,
+        SUM(CASE WHEN payment_method = 'card' AND payment_status != 'paid' AND status != 'cancelled' THEN 1 ELSE 0 END) AS waiting_n,
+        SUM(CASE WHEN status != 'cancelled' THEN delivery_price ELSE 0 END) AS deliv,
+        SUM(CASE WHEN status != 'cancelled' AND (items LIKE '%Ваза%' OR items LIKE '%ваза%') THEN 1 ELSE 0 END) AS vases,
+        SUM(CASE WHEN status != 'cancelled' AND drop_q != '' THEN 1 ELSE 0 END) AS drop_n,
+        SUM(CASE WHEN status != 'cancelled' AND items LIKE '%"kind":"basket"%' THEN 1 ELSE 0 END) AS baskets_n,
+        SUM(CASE WHEN photo_status = 'waiting' THEN 1 ELSE 0 END) AS photo_wait,
+        SUM(CASE WHEN photo_status = 'rework' THEN 1 ELSE 0 END) AS photo_rework
       FROM orders
       WHERE date(created, '+3 hours') >= {:f} AND date(created, '+3 hours') <= {:t}${только}
       GROUP BY day`).bind(арг).all(rows);
     rows.forEach((r) => {
       const d = день(r.day);
-      d.заказов = +r.всего; d.отменено = +r.отменено; d.живых = +r.живых;
-      d.выручка = Math.round(+r.выручка); d.картой = +r.картой; d.ждут = +r.ждут;
-      d.доставка = Math.round(+r.доставка); d.ваз = +r.ваз; d.дроп = +r.дроп; d.корзин = +r.корзин;
-      d.фотоЖдёт = +r.фотоЖдёт; d.фотоПоправить = +r.фотоПоправить;
+      d.заказов = +r.total_n; d.отменено = +r.cancelled_n; d.живых = +r.live_n;
+      d.выручка = Math.round(+r.revenue); d.картой = +r.by_card; d.ждут = +r.waiting_n;
+      d.доставка = Math.round(+r.deliv); d.ваз = +r.vases; d.дроп = +r.drop_n; d.корзин = +r.baskets_n;
+      d.фотоЖдёт = +r.photo_wait; d.фотоПоправить = +r.photo_rework;
     });
   } catch (err) { console.log("сводка по дням: заказы", err); }
 
@@ -80,16 +82,16 @@ routerAdd("GET", "/api/shop/daily", (e) => {
   try {
     const имя = {};
     $app.findRecordsByFilter("brands", "id != ''", "sort", 20, 0).forEach((b) => { имя[b.id] = b.get("name") || b.get("slug"); });
-    const rows = arrayOf(new DynamicModel({ day: "", brand: "", n: 0, сумма: 0 }));
+    const rows = arrayOf(new DynamicModel({ day: "", brand: "", n: 0, amount: 0 }));
     $app.db().newQuery(`
-      SELECT date(created, '+3 hours') AS day, brand, COUNT(*) AS n, SUM(total) AS сумма
+      SELECT date(created, '+3 hours') AS day, brand, COUNT(*) AS n, SUM(total) AS amount
       FROM orders
       WHERE date(created, '+3 hours') >= {:f} AND date(created, '+3 hours') <= {:t} AND status != 'cancelled'
       GROUP BY day, brand`).bind({ f: от, t: до }).all(rows);
     rows.forEach((r) => {
       const k = имя[r.brand] || "без витрины";
       витрины[k] = витрины[k] || {};
-      витрины[k][r.day] = { заказов: +r.n, выручка: Math.round(+r.сумма) };
+      витрины[k][r.day] = { заказов: +r.n, выручка: Math.round(+r.amount) };
     });
   } catch (err) { console.log("сводка по дням: витрины", err); }
 
@@ -110,6 +112,36 @@ cronAdd("daily-digest", "0 7 * * *", () => {
   const s = shop.settings($app);
   if (!s.get("digest_off")) require(`${__hooks}/lib/digest.js`).отправить($app, s);
 });
+
+// Спрос по витринам для порядка плитки. Ночью, после сводки: за день заказы
+// уже все, а до утреннего трафика пересчёт успевает.
+cronAdd("tile-rank", "20 1 * * *", () => {
+  const r = require(`${__hooks}/lib/rank.js`).пересчитать($app);
+  if (r.ok) console.log(`спрос витрин: позиций ${r.позиций}, обновлено товаров ${r.товаров}`);
+});
+
+// Сообщаем Яндексу и Bing, что страницы изменились. Раз в сутки, после
+// пересчёта спроса: к этому времени цены, остатки и порядок плитки уже свежие.
+cronAdd("indexnow", "40 1 * * *", () => {
+  const r = require(`${__hooks}/lib/indexnow.js`).всё($app);
+  console.log("indexnow:", r.join(" · "));
+});
+
+// Сообщить поисковикам сейчас — кнопкой из админки
+routerAdd("POST", "/api/shop/indexnow", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "sales", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const r = require(`${__hooks}/lib/indexnow.js`).всё($app);
+  return e.json(200, { ok: true, строки: r });
+}, $apis.requireAuth("managers"));
+
+// Пересчитать спрос сейчас — кнопкой из админки
+routerAdd("POST", "/api/shop/tile-rank", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "sales", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const r = require(`${__hooks}/lib/rank.js`).пересчитать($app);
+  return e.json(r.ok ? 200 : 500, r);
+}, $apis.requireAuth("managers"));
 
 // Прислать сводку сейчас — кнопкой из админки
 routerAdd("POST", "/api/shop/digest-now", (e) => {

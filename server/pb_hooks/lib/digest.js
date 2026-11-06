@@ -16,23 +16,23 @@ function сутки(app, day) {
   const d = { day, заказов: 0, отменено: 0, живых: 0, выручка: 0, картой: 0, ждут: 0,
     ваз: 0, дроп: 0, корзин: 0, гостей: 0, оформление: 0, фотоЖдёт: 0 };
   try {
-    const row = new DynamicModel({ всего: 0, отменено: 0, живых: 0, выручка: 0, картой: 0, ждут: 0,
-      ваз: 0, дроп: 0, корзин: 0, фотоЖдёт: 0 });
+    const row = new DynamicModel({ total_n: 0, cancelled_n: 0, live_n: 0, revenue: 0, by_card: 0, waiting_n: 0,
+      vases: 0, drop_n: 0, baskets_n: 0, photo_wait: 0 });
     app.db().newQuery(`
-      SELECT COUNT(*) AS всего,
-        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS отменено,
-        SUM(CASE WHEN status != 'cancelled' THEN 1 ELSE 0 END) AS живых,
-        SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END) AS выручка,
-        SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) AS картой,
-        SUM(CASE WHEN payment_method = 'card' AND payment_status != 'paid' AND status != 'cancelled' THEN 1 ELSE 0 END) AS ждут,
-        SUM(CASE WHEN status != 'cancelled' AND (items LIKE '%Ваза%' OR items LIKE '%ваза%') THEN 1 ELSE 0 END) AS ваз,
-        SUM(CASE WHEN status != 'cancelled' AND drop_q != '' THEN 1 ELSE 0 END) AS дроп,
-        SUM(CASE WHEN status != 'cancelled' AND items LIKE '%"kind":"basket"%' THEN 1 ELSE 0 END) AS корзин,
-        SUM(CASE WHEN photo_status = 'waiting' THEN 1 ELSE 0 END) AS фотоЖдёт
+      SELECT COUNT(*) AS total_n,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_n,
+        SUM(CASE WHEN status != 'cancelled' THEN 1 ELSE 0 END) AS live_n,
+        SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END) AS revenue,
+        SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) AS by_card,
+        SUM(CASE WHEN payment_method = 'card' AND payment_status != 'paid' AND status != 'cancelled' THEN 1 ELSE 0 END) AS waiting_n,
+        SUM(CASE WHEN status != 'cancelled' AND (items LIKE '%Ваза%' OR items LIKE '%ваза%') THEN 1 ELSE 0 END) AS vases,
+        SUM(CASE WHEN status != 'cancelled' AND drop_q != '' THEN 1 ELSE 0 END) AS drop_n,
+        SUM(CASE WHEN status != 'cancelled' AND items LIKE '%"kind":"basket"%' THEN 1 ELSE 0 END) AS baskets_n,
+        SUM(CASE WHEN photo_status = 'waiting' THEN 1 ELSE 0 END) AS photo_wait
       FROM orders WHERE date(created, '+3 hours') = {:d}`).bind({ d: day }).one(row);
-    d.заказов = +row.всего; d.отменено = +row.отменено; d.живых = +row.живых;
-    d.выручка = Math.round(+row.выручка); d.картой = +row.картой; d.ждут = +row.ждут;
-    d.ваз = +row.ваз; d.дроп = +row.дроп; d.корзин = +row.корзин; d.фотоЖдёт = +row.фотоЖдёт;
+    d.заказов = +row.total_n; d.отменено = +row.cancelled_n; d.живых = +row.live_n;
+    d.выручка = Math.round(+row.revenue); d.картой = +row.by_card; d.ждут = +row.waiting_n;
+    d.ваз = +row.vases; d.дроп = +row.drop_n; d.корзин = +row.baskets_n; d.фотоЖдёт = +row.photo_wait;
   } catch (err) { console.log("сводка: заказы", err); }
   try {
     const row = new DynamicModel({ n: 0 });

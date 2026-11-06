@@ -2,3 +2,4 @@
 server/pb_data/
 server/pocketbase
 .DS_Store
+venikoff-yml.xml

@@ -300,6 +300,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="prices">Прайс роз</button>
       <button role="tab" data-tab="bc">Рассылка</button>
       <button role="tab" data-tab="care">Забота <span class="dot" id="careCount" hidden>0</span></button>
+      <button role="tab" data-tab="nps">Оценки</button>
       <button role="tab" data-tab="team">Менеджеры</button>
       <button role="tab" data-tab="stats">Статистика</button>
       <button role="tab" data-tab="errors">Ошибки <span class="dot" id="errCount" hidden>0</span></button>
@@ -594,6 +595,26 @@ table.t td{padding:4px 6px;vertical-align:middle}
       </div>
     </section>
 
+    <!-- Индекс рекомендации -->
+    <section id="tab-nps" hidden>
+      <div class="bar" id="npsRange"></div>
+      <p class="hint" style="margin:0 0 12px">Когда заказ становится «Доставлен», покупателю уходит один вопрос: насколько он готов нас порекомендовать, от 1 до 10. <b>Индекс</b> — доля девяток и десяток минус доля шестёрок и ниже, считается только среди ответивших. Выше нуля уже неплохо, выше 50 — отлично. Те, кто поставил 6 и ниже, попадают в «Заботу» на звонок.</p>
+      <div class="tiles4" id="npsTiles"></div>
+      <div class="card" style="margin-top:12px">
+        <h2>По витринам</h2>
+        <p class="hint">Один и тот же букет на разных сайтах получает разные оценки — здесь видно, где именно проседает.</p>
+        <div class="scroll"><table class="t" id="npsBrands"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>По неделям</h2>
+        <div class="scroll"><table class="t" id="npsWeeks"></table></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Что пишут словами</h2>
+        <div class="scroll"><table class="t" id="npsWords"></table></div>
+      </div>
+    </section>
+
     <!-- Отдел заботы -->
     <section id="tab-care" hidden>
       <div class="bar" id="careFilter"></div>
@@ -643,6 +664,18 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div id="statChart"></div>
       </div>
       <div class="card" style="margin-top:12px">
+        <h2>Доступность</h2>
+        <p class="hint">Раз в минуту сайт дёргается теми же путями, какими до него идёт покупатель, и ответ записывается. Три неудачи подряд — сообщение в служебный бот, и отдельное «снова отвечает», когда починилось. Храним две недели.<br><b>Чего это не видит:</b> сломанный маршрут у конкретного покупателя. Наши серверы ходят своими путями, чужую сеть с них не пощупать.</p>
+        <div class="bar">
+          ${''}
+          <button class="btn btn-g btn-s" data-uph="24">Сутки</button>
+          <button class="btn btn-g btn-s" data-uph="168">Неделя</button>
+          <button class="btn btn-g btn-s" id="upNow">Проверить сейчас</button>
+        </div>
+        <div class="scroll" style="margin-top:10px"><table class="t" id="upTable"></table></div>
+        <div id="upFails" style="margin-top:10px"></div>
+      </div>
+      <div class="card" style="margin-top:12px">
         <h2>Сверка кассы</h2>
         <p class="hint">Сравнивает, что сайт посчитал оплаченным, с тем, что реально пришло в банк за этот день. Ловит и обратное: деньги пришли, а заказ висит неоплаченным. Каждое утро в 9:10 приходит в служебный бот, здесь — за любой день.</p>
         <div class="bar">
@@ -674,6 +707,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <button class="btn btn-p" id="unpaidRelease" hidden>Вернуть в продажу</button>
           <span class="hint" id="unpaidNote" style="margin:0;align-self:center"></span>
         </div>
+        <p class="hint" id="unpaidNote" style="margin:10px 0 0"></p>
+        <p class="hint" style="margin:4px 0 0">Красная метка «первый заказ» — человек заказывает у нас впервые. За месяц таких 411 из 422 брошенных оплат на 3,1 млн ₽: платить вперёд незнакомому магазину страшно, а бота у них нет — остаётся позвонить. Телефон кликабельный. После разговора поставьте итог: «обещал оплатить» придержит букет ещё на три часа и остановит напоминания.</p>
         <div class="scroll" style="margin-top:10px"><table class="t" id="unpaidList"></table></div>
       </div>
       <div class="card" style="margin-top:12px">
@@ -968,6 +1003,13 @@ table.t td{padding:4px 6px;vertical-align:middle}
   <label class="f" for="cTok">Ключ клиентского бота<input class="in" id="cTok" type="password" autocomplete="off" placeholder="Вставьте ключ второго бота"></label>
   <div class="bar"><button class="btn btn-p" id="cSaveBot">Сохранить</button><button class="btn btn-g" id="cTestBot">Проверить</button></div>
   <p class="hint">Рассылки — на отдельной вкладке «Рассылка»: там же можно подключить другие боты.</p>
+  <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+  <h3 style="margin:0 0 4px">Бот для обзвона</h3>
+  <p class="hint">Заказ картой не оплачен пять минут — сюда падает сигнал: имя, телефон и кнопки «обещал оплатить / не берёт / отказался». Отдельный бот нужен, чтобы это не тонуло в общем потоке служебного: звонить надо в ближайшие минуты.<br>Заведите бота у <b>@BotFather</b>, вставьте ключ, потом откройте бота и напишите ему любое слово — первый написавший станет получателем. Остальным бот скажет номер их чата, впишите его сюда через запятую.</p>
+  <label class="f" for="callTok">Ключ бота для обзвона<input class="in" id="callTok" type="password" autocomplete="off" placeholder="Вставьте ключ из @BotFather"></label>
+  <div class="f"><span>Кому приходят сигналы</span><div id="callPeople" class="stack" style="gap:6px;margin-top:4px"></div></div>
+  <label class="f" for="callAfter" style="max-width:220px">Звать через, минут<input class="in num" id="callAfter" type="number" min="1" max="120" placeholder="5"></label>
+  <div class="bar"><button class="btn btn-p" id="callSave">Сохранить</button><button class="btn btn-g" id="callTest">Проверить бота</button></div>
 </div>
 <div class="card stack" id="brandsCard" hidden>
   <h2>Витрины</h2>
@@ -1192,7 +1234,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ team: loadTeam, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople })[t]();
+  ({ team: loadTeam, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, nps: loadNps, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
@@ -2858,6 +2900,57 @@ function renderCare() {
   if (dot) { dot.textContent = ждут; dot.hidden = !ждут; }
 }
 
+/* ---------- оценки покупателей ---------- */
+let NPSD = 30;
+const loadNps = safe(async () => {
+  $('#npsRange').innerHTML = [7, 30, 90, 180].map(d =>
+    `<button class="btn btn-${d === NPSD ? 'p' : 'g'} btn-s" data-npsd="${d}">${d} дней</button>`).join('');
+  const d = await api(`/api/shop/nps?days=${NPSD}`);
+  const i = d.итого || {};
+  // Цвет индекса: ниже нуля — недовольных больше, чем довольных, это тревога
+  const цвет = n => n === null ? '' : n >= 50 ? 'var(--leaf)' : n >= 0 ? '' : 'var(--sale)';
+  const tile = (t, v, extra, c) => `<div class="tile"><span>${t}</span><b class="num"${c ? ` style="color:${c}"` : ''}>${v}</b>${extra || ''}</div>`;
+  $('#npsTiles').innerHTML = [
+    tile('Индекс', i.индекс === null ? '—' : i.индекс, `<i class="same">из ${i.ответили} ответов</i>`, цвет(i.индекс)),
+    tile('Средняя оценка', i.средняя || '—', `<i class="same">из 10</i>`),
+    tile('Ответили', i.ответили || 0, `<i class="same">${i.доля || 0}% из ${i.спросили || 0} спрошенных</i>`),
+    tile('Довольны (9–10)', i.промоутеры || 0),
+    tile('Нейтральны (7–8)', i.нейтральные || 0),
+    tile('Недовольны (1–6)', i.критики || 0, '', i.критики ? 'var(--sale)' : ''),
+    tile('Написали словами', i.словами || 0),
+    tile('Ждут звонка', i.звонки || 0, i.звонки ? '<i class="down">не обработаны</i>' : '', i.звонки ? 'var(--sale)' : ''),
+  ].join('');
+
+  const шапка = '<tr><th>Витрина</th><th class="num">Индекс</th><th class="num">Средняя</th><th class="num">Ответили</th><th class="num">9–10</th><th class="num">7–8</th><th class="num">1–6</th><th class="num">Ждут звонка</th></tr>';
+  $('#npsBrands').innerHTML = шапка + (d.витрины || []).map(b =>
+    `<tr><td><b>${esc(b.brand)}</b></td>`
+    + `<td class="num" style="color:${цвет(b.индекс)}"><b>${b.индекс === null ? '—' : b.индекс}</b></td>`
+    + `<td class="num">${b.средняя || '—'}</td>`
+    + `<td class="num">${b.ответили}<span class="hint"> из ${b.спросили}</span></td>`
+    + `<td class="num">${b.промоутеры}</td><td class="num">${b.нейтральные}</td>`
+    + `<td class="num"${b.критики ? ' style="color:var(--sale)"' : ''}>${b.критики}</td>`
+    + `<td class="num">${b.звонки || ''}</td></tr>`).join('');
+
+  const мес = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const неделя = w => { const t = new Date(w + 'T12:00:00Z'); return `с ${t.getUTCDate()} ${мес[t.getUTCMonth()]}`; };
+  $('#npsWeeks').innerHTML = '<tr><th>Неделя</th><th class="num">Индекс</th><th class="num">Средняя</th><th class="num">Ответили</th><th class="num">1–6</th></tr>'
+    + (d.недели || []).slice().reverse().map(w =>
+      `<tr><td>${неделя(w.week)}</td><td class="num" style="color:${цвет(w.индекс)}"><b>${w.индекс === null ? '—' : w.индекс}</b></td>`
+      + `<td class="num">${w.средняя || '—'}</td><td class="num">${w.ответили}</td>`
+      + `<td class="num"${w.критики ? ' style="color:var(--sale)"' : ''}>${w.критики || ''}</td></tr>`).join('');
+
+  $('#npsWords').innerHTML = (d.слова || []).length
+    ? '<tr><th>Когда</th><th class="num">Оценка</th><th>Витрина</th><th>Что написали</th></tr>'
+      + d.слова.map(w => `<tr><td>${esc(w.at)}</td>`
+        + `<td class="num"${w.nps && w.nps <= 6 ? ' style="color:var(--sale)"' : ''}>${w.nps || '—'}</td>`
+        + `<td>${esc(w.brand || '')}</td><td>${esc(w.text)}</td></tr>`).join('')
+    : '<tr><td class="hint">За период словами никто не писал.</td></tr>';
+});
+$('#tab-nps').addEventListener('click', e => {
+  const b = e.target.closest('[data-npsd]');
+  if (b) { NPSD = +b.dataset.npsd; loadNps(); }
+});
+
 const loadCare = safe(async () => {
   const d = await api('/api/shop/care');
   CARE = d.rows || [];
@@ -3582,8 +3675,39 @@ $('#tab-stats').addEventListener('click', safe(async e => {
     toast(r.кому ? `Сводка ушла в бот (${r.кому})` : 'Сводку некому отправить — не настроен служебный бот', !r.кому);
   }
 }));
+/* ---------- доступность ---------- */
+let UPH = 24;
+const loadUptime = safe(async () => {
+  const d = await api(`/api/shop/uptime?hours=${UPH}`);
+  const цвет = p => p === null ? '' : p >= 99.9 ? 'var(--leaf)' : p >= 99 ? '' : 'var(--sale)';
+  $('#upTable').innerHTML = (d.цели || []).length
+    ? '<tr><th>Что проверяем</th><th class="num">Доступность</th><th class="num">Неудач</th><th class="num">Отклик</th><th class="num">Худший</th></tr>'
+      + d.цели.map(c => `<tr><td><b>${esc(c.target)}</b></td>`
+        + `<td class="num" style="color:${цвет(c.доступность)}"><b>${c.доступность === null ? '—' : c.доступность + '%'}</b></td>`
+        + `<td class="num"${c.неудач ? ' style="color:var(--sale)"' : ''}>${c.неудач || ''}</td>`
+        + `<td class="num">${c.средний} мс</td><td class="num">${c.худший} мс</td></tr>`).join('')
+    : '<tr><td class="hint">Замеров пока нет — проверка идёт раз в минуту.</td></tr>';
+  $('#upFails').innerHTML = (d.провалы || []).length
+    ? `<p class="hint" style="margin:0 0 6px"><b>Последние провалы:</b></p>`
+      + '<div class="scroll"><table class="t"><tr><th>Когда</th><th>Что</th><th>Ответ</th></tr>'
+      + d.провалы.map(f => `<tr><td>${new Date(f.at.replace(' ', 'T')).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>`
+        + `<td>${esc(f.target)}</td><td>${f.code ? 'код ' + f.code : esc((f.note || 'нет связи').slice(0, 80))}</td></tr>`).join('')
+      + '</table></div>'
+    : '<p class="hint" style="margin:0">За период ни одного провала.</p>';
+});
+$('#tab-stats').addEventListener('click', safe(async e => {
+  const b = e.target.closest('[data-uph]');
+  if (b) { UPH = +b.dataset.uph; return loadUptime(); }
+  if (e.target.id === 'upNow') {
+    const r = await api('/api/shop/uptime-now', { method: 'POST', body: {} });
+    toast((r.строки || []).join(' · '));
+    return loadUptime();
+  }
+}));
+
 const loadStats = safe(async () => {
   loadDaily();
+  loadUptime();
   await loadSettings0();          // блоку «Брошенная оплата» нужны настройки
   loadUnpaid();
   const p = PERIODS.find(x => x[0] === statPeriod) || PERIODS[0];
@@ -3919,15 +4043,42 @@ async function loadUnpaid() {
       : 'Выключены — покупателям ничего не уходит.';
     const d = await api('/api/shop/unpaid');
     const r = d.items || [];
-    $('#unpaidList').innerHTML = r.length
-      ? `<tr><th>Заказ</th><th>Кто</th><th class="num">Сумма</th><th>Оформлен</th><th>Напоминаний</th><th>Банк</th></tr>`
-        + r.map(o => `<tr><td>№${o.number}</td><td>${esc(o.name || '')}<br><span class="hint">${esc(o.phone || '')}</span></td>`
+    // Список для обзвона. Сначала те, кто заказывает впервые и кому ещё не
+    // звонили: 97% брошенных оплат — именно первые заказы, и телефон у нас
+    // есть у всех, а бот почти ни у кого.
+    const вес = o => (o.call ? 2 : 0) + (o.first ? 0 : 1);
+    const сп = r.slice().sort((a, b) => вес(a) - вес(b) || a.mins - b.mins);
+    const ИТОГ = { promised: '✅ обещал оплатить', later: '⏳ перезвонить позже', refused: '✖ отказался',
+      noanswer: '📵 не берёт трубку', wrong: '❌ номер не тот' };
+    $('#unpaidList').innerHTML = сп.length
+      ? `<tr><th>Заказ</th><th>Кто</th><th class="num">Сумма</th><th>Ждёт</th><th>Банк</th><th>Звонок</th></tr>`
+        + сп.map(o => `<tr${o.call === 'promised' ? ' style="background:color-mix(in srgb,var(--leaf) 10%,transparent)"' : ''}>`
+          + `<td>№${o.number}${o.first ? '<br><span class="pill" style="background:var(--sale);color:#fff;font-size:10px;padding:0 6px;height:17px">первый заказ</span>' : ''}</td>`
+          + `<td>${esc(o.name || '')}<br><a href="tel:${esc(String(o.phone || '').replace(/[^\d+]/g, ''))}"><b>${esc(o.phone || '')}</b></a></td>`
           + `<td class="num">${rub(o.total)}</td>`
-          + `<td>${new Date(o.created).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</td>`
-          + `<td class="num">${o.reminds || '—'}</td><td>${o.error ? esc(o.error) : '—'}</td></tr>`).join('')
+          + `<td class="num">${o.mins < 60 ? o.mins + ' мин' : Math.floor(o.mins / 60) + ' ч'}${o.reminds ? `<br><span class="hint">напомнили ${o.reminds}</span>` : ''}</td>`
+          + `<td>${o.error ? `<span style="color:var(--sale)">${esc(o.error)}</span>` : '—'}</td>`
+          + `<td>${o.call
+              ? `${ИТОГ[o.call] || esc(o.call)}<br><span class="hint">${esc(o.call_by || '')}${o.call_at ? ', ' + new Date(o.call_at).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' }) : ''}</span>`
+              : `<select class="in sm" data-call="${o.id}" style="width:auto"><option value="">итог звонка…</option>`
+                + Object.entries(ИТОГ).map(([k, t]) => `<option value="${k}">${t}</option>`).join('') + '</select>'}</td>`
+          + '</tr>').join('')
       : `<tr><td class="hint">Сейчас неоплаченных нет.</td></tr>`;
+    const первых = сп.filter(o => o.first && !o.call).length;
+    const нота = $('#unpaidNote');
+    if (нота) нота.innerHTML = сп.length
+      ? `Ждут звонка: <b>${сп.filter(o => !o.call).length}</b>, из них впервые у нас — <b>${первых}</b>. `
+        + `Всего зависло <b>${rub(сп.reduce((n, o) => n + (o.total || 0), 0))}</b>.`
+      : '';
   } catch (_) {}
 }
+document.addEventListener('change', safe(async e => {
+  const sel = e.target.closest('[data-call]');
+  if (!sel || !sel.value) return;
+  const r = await api('/api/shop/unpaid-call', { method: 'POST', body: { order: sel.dataset.call, result: sel.value } });
+  toast(`Записал: ${r.подпись}`);
+  loadUnpaid();
+}));
 $('#payTtlSave').onclick = safe(async () => {
   const n = Math.max(10, Math.min(1440, +$('#payTtl').value || 60));
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { pay_ttl_min: n } });
@@ -5268,6 +5419,9 @@ $('#nomSave').onclick = safe(async () => {
 
 /* ---------- настройки ---------- */
 const loadSettings = safe(async () => {
+  // Список сортов нужен для закрепления в плитке. Вкладку «Товары» могли и не
+  // открывать — тогда PRODS пуст и выбирать было бы не из чего.
+  if (!PRODS.length) { try { PRODS = await list('products', '&sort=sort,-created'); } catch (_) {} }
   loadStaff();
   await loadSettings0();
   renderUpload();
@@ -5282,6 +5436,10 @@ msFill(S.ms_org_id, S.ms_org_name, S.ms_store_id, S.ms_store_name);
 sw($('#msOn'), S.ms_enabled);
 $('#msPrefix').value = S.ms_prefix || '';
 $('#cTok').value = ''; $('#cTok').placeholder = S.tg_client_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ второго бота';
+  $('#callTok').value = '';
+  $('#callTok').placeholder = S.call_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ из @BotFather';
+  $('#callAfter').value = S.call_after || '';
+  loadCallPeople();
 renderBrandsCard();
 $('#mxTok').value = ''; $('#mxTok').placeholder = S.max_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ бота MAX';
 $('#mxName').value = S.max_bot || '';
@@ -5299,6 +5457,45 @@ $('#cSaveBot').onclick = safe(async () => {
   $('#cTok').value = '';
   await api('/api/shop/client-bot-check', { method: 'POST' }).catch(() => {});
   loadSettings(); toast('Клиентский бот сохранён');
+});
+// Получатели сигналов и заявки на подключение. Человек пишет боту, владелец
+// нажимает «Добавить» — вводить номера чатов руками не нужно.
+const loadCallPeople = safe(async () => {
+  const box = $('#callPeople');
+  if (!box) return;
+  const d = await api('/api/shop/call-people');
+  if (!d.есть) { box.innerHTML = '<span class="hint">Сначала вставьте ключ бота.</span>'; return; }
+  const строка = (p, заявка) => `<div class="row" style="align-items:center;gap:8px">`
+    + `<b style="flex:1">${esc(p.name || 'без имени')} <span class="hint">${esc(p.chat)}</span></b>`
+    + (заявка
+      ? `<button class="btn btn-p btn-s" data-callon="${esc(p.chat)}">Добавить</button>`
+      : `<button class="btn btn-g btn-s" data-calloff="${esc(p.chat)}">Убрать</button>`)
+    + `</div>`;
+  box.innerHTML = (d.получатели.length ? d.получатели.map(p => строка(p, false)).join('') : '<span class="hint">Пока никого. Откройте бота и напишите ему любое слово — первый написавший подключится сам.</span>')
+    + (d.заявки.length ? `<p class="hint" style="margin:8px 0 0"><b>Просятся подключиться:</b></p>` + d.заявки.map(p => строка(p, true)).join('') : '');
+});
+$('#callPeople').addEventListener('click', safe(async e => {
+  const on = e.target.closest('[data-callon]'), off = e.target.closest('[data-calloff]');
+  if (!on && !off) return;
+  await api('/api/shop/call-people', { method: 'POST', body: { chat: (on || off).dataset.callon || (off && off.dataset.calloff), off: !!off } });
+  toast(on ? 'Подключил' : 'Убрал');
+  loadCallPeople();
+}));
+$('#callSave').onclick = safe(async () => {
+  const body = { call_after: +$('#callAfter').value || 5 };
+  const raw = $('#callTok').value.trim();
+  if (raw) {
+    const found = raw.match(/\d{5,}:[A-Za-z0-9_-]{20,}/);
+    if (!found) return toast('Не нашёл ключ. Скопируйте его из @BotFather целиком', true);
+    body.call_token = found[0];
+  }
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
+  $('#callTok').value = '';
+  toast('Бот обзвона сохранён'); loadSettings();
+});
+$('#callTest').onclick = safe(async () => {
+  const r = await api('/api/shop/call-bot-check', { method: 'POST', body: {} });
+  toast(r.сообщение);
 });
 $('#cTestBot').onclick = safe(async () => {
   const r = await api('/api/shop/client-bot-check', { method: 'POST' });
@@ -5380,9 +5577,32 @@ function renderBrandsCard() {
           <input class="in" type="file" accept="${f === 'touch_icon' ? 'image/png' : f === 'favicon' ? 'image/svg+xml,image/png,image/x-icon' : 'image/svg+xml,image/png,image/webp'}" data-blogo="${f}" data-bid="${b.id}"></label>`).join('')}
       </div>
       <p class="hint">Логотип — SVG или PNG на прозрачном фоне; нет логотипа — в шапке будет название текстом. Иконки: пусто — останется иконка venikoff.</p>
+      <div class="row">
+        <label class="f">Порядок плитки<select class="in" data-bf="tile_order" data-bid="${b.id}">
+          ${[['', 'Как сейчас — перемешивать раз в час'], ['cheap_demand', 'Сначала дешёвые и ходовые, потом дорогое'], ['demand', 'По спросу этой витрины'], ['cheap', 'Дешёвые вперёд'], ['rich', 'Дорогие вперёд']]
+            .map(([v, t]) => `<option value="${v}"${(b.tile_order || '') === v ? ' selected' : ''}>${t}</option>`).join('')}
+        </select></label>
+        <label class="f">Размер в плитке<select class="in" data-bf="tile_default" data-bid="${b.id}">
+          ${[['', 'Как в прайсе — обычно 51 шт'], ['cheap', 'Самый дешёвый из доступных']]
+            .map(([v, t]) => `<option value="${v}"${(b.tile_default || '') === v ? ' selected' : ''}>${t}</option>`).join('')}
+        </select></label>
+        <label class="f" style="max-width:170px">Дешёвым считаем до, ₽<input class="in num" type="number" min="0" step="500" data-bf="tile_cheap_to" data-bid="${b.id}" value="${b.tile_cheap_to || ''}" placeholder="3500"></label>
+      </div>
+      <div class="row" style="align-items:flex-end">
+        <label class="f" style="flex:1">Закрепить сорт первым на этой витрине
+          <select class="in" data-bpinsel="${b.id}"><option value="">выберите сорт…</option>${(PRODS || []).filter(x => x.active).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
+        <button class="btn btn-g" data-bpinadd="${b.id}">Закрепить</button>
+      </div>
+      <div class="bar" data-bpins="${b.id}" style="gap:6px">${(Array.isArray(b.tile_pins) ? b.tile_pins : []).map(id => {
+        const t = (PRODS || []).find(x => x.id === id);
+        return `<span class="pill" style="background:var(--ground)">${esc(t ? t.name : id)} <a href="#" data-bpindel="${b.id}|${id}" style="text-decoration:none">✕</a></span>`;
+      }).join('') || '<span class="hint" style="margin:0">Ничего не закреплено — порядок целиком по правилу выше.</span>'}</div>
+      <p class="hint">Аудитории у сайтов разные: на venikoff.net трафика в 2,3 раза больше, а конверсия в полтора раза ниже и чек меньше — такой аудитории нужен дешёвый вход. «Сначала дешёвые и ходовые» ставит первыми недорогие конфигурации, которые реально покупают, следом похожие на них по цене, и только потом дорогое. «По спросу витрины» — просто по тому, что покупают именно здесь (считается ночью за 30 дней, свежая неделя с тройным весом). «Самый дешёвый размер» меняет только то, с какого размера открывается карточка в плитке, — цену и состав не трогает.<br>Наличие всегда сильнее любого правила: кончившиеся сорта уходят вниз. Если покупатель сам выбрал «дешевле» или «дороже», слушаем его.</p>
       ${brandTextsHTML(b)}
       <div class="bar">
         <button class="btn btn-p" data-bsave="${b.id}">Сохранить</button>
+        <button class="btn btn-g" id="rankNow">Пересчитать спрос</button>
+        <button class="btn btn-g" id="indexNow" title="Сказать Яндексу и Bing, что страницы изменились — переобход в тот же день">Сообщить поисковикам</button>
         <button class="btn btn-g" data-bcheck="tg|${b.id}">Проверить Телеграм</button>
         <button class="btn btn-g" data-bcheck="max|${b.id}">Проверить MAX</button>
         <button class="btn btn-g" data-bcheck="cp|${b.id}">Проверить оплату</button>
@@ -5390,6 +5610,34 @@ function renderBrandsCard() {
     </div>`).join('');
 }
 $('#brandsBox').addEventListener('click', safe(async e => {
+  const доб = e.target.closest('[data-bpinadd]');
+  if (доб) {
+    const id = доб.dataset.bpinadd;
+    const sel = $(`#brandsBox [data-bpinsel="${id}"]`);
+    if (!sel.value) return toast('Сначала выберите сорт', true);
+    const b = BRANDS.find(x => x.id === id) || {};
+    const было = Array.isArray(b.tile_pins) ? b.tile_pins : [];
+    if (было.indexOf(sel.value) >= 0) return toast('Этот сорт уже закреплён', true);
+    await api(`/api/collections/brands/records/${id}`, { method: 'PATCH', body: { tile_pins: было.concat(sel.value) } });
+    toast('Закрепил'); return loadSettings();
+  }
+  const удал = e.target.closest('[data-bpindel]');
+  if (удал) {
+    e.preventDefault();
+    const [id, pid] = удал.dataset.bpindel.split('|');
+    const b = BRANDS.find(x => x.id === id) || {};
+    const было = Array.isArray(b.tile_pins) ? b.tile_pins : [];
+    await api(`/api/collections/brands/records/${id}`, { method: 'PATCH', body: { tile_pins: было.filter(x => x !== pid) } });
+    toast('Снял'); return loadSettings();
+  }
+  if (e.target.id === 'indexNow') {
+    const r = await api('/api/shop/indexnow', { method: 'POST', body: {} });
+    return toast((r.строки || []).join(' · ') || 'Отправлено');
+  }
+  if (e.target.id === 'rankNow') {
+    const r = await api('/api/shop/tile-rank', { method: 'POST', body: {} });
+    return toast(`Спрос пересчитан: позиций ${r.позиций}, сортов ${r.товаров}`);
+  }
   const save = e.target.closest('[data-bsave]');
   if (save) {
     const id = save.dataset.bsave, body = {};
