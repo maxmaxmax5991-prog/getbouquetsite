@@ -176,15 +176,43 @@ routerAdd("GET", "/api/shop/bouquets", (e) => {
   let своиИмена = {};
   try { своиИмена = shop.jget(shop.settings($app), "florist_names") || {}; } catch (_) {}
 
+  // Что в заказе довесок, а не работа флориста: вазы, открытки, игрушки. Их
+  // кладут в пакет, а не собирают. Одним запросом на весь день.
+  const довесок = {};
+  try {
+    const rows = arrayOf(new DynamicModel({ id: "" }));
+    $app.db().newQuery(`SELECT p.id AS id FROM products p
+      JOIN categories c ON c.id = p.category WHERE c.addon = 1`).all(rows);
+    rows.forEach((r) => { довесок[r.id] = 1; });
+  } catch (err) { console.log("букеты: довески", err); }
+
+  // Сколько стоит сам букет. Доставку не считаем — это не работа флориста, и
+  // владелец спросил именно про букет. items_sum у заказа уже без доставки,
+  // но внутри него могут быть вазы, поэтому разбираем состав.
+  const цена = (o) => {
+    let всё = +o.get("items_sum") || 0;
+    if (!всё) всё = Math.max(0, (+o.get("total") || 0) - (+o.get("delivery_price") || 0));
+    let лишнее = 0;
+    try {
+      (shop.jget(o, "items") || []).forEach((it) => {
+        if (довесок[String(it.id || "")]) лишнее += +it.sum || 0;
+      });
+    } catch (_) {}
+    return { букет: Math.max(0, всё - лишнее), довески: лишнее };
+  };
+
   const люди = {};
   список.forEach((o) => {
     const id = String(o.get("photo_by") || "");
     const имя = своиИмена[id] || String(o.get("photo_by_name") || "") || (id ? `id ${id}` : "без подписи");
     const ключ = id || "нет";
-    const p = (люди[ключ] = люди[ключ] || { id, имя, букетов: 0, заказы: [], первое: "", последнее: "" });
+    const p = (люди[ключ] = люди[ключ] || { id, имя, букетов: 0, сумма: 0, довески: 0, заказы: [], первое: "", последнее: "" });
     p.имя = имя;
     p.букетов++;
-    if (p.заказы.length < 60) p.заказы.push(o.get("number"));
+    const c = цена(o);
+    p.сумма += c.букет;
+    p.довески += c.довески;
+    if (p.заказы.length < 60) p.заказы.push({ n: o.get("number"), с: c.букет });
     const t = String(o.get("photo_at") || "");
     if (!p.первое || t < p.первое) p.первое = t;
     if (!p.последнее || t > p.последнее) p.последнее = t;
@@ -203,9 +231,10 @@ routerAdd("GET", "/api/shop/bouquets", (e) => {
     безАвтора = +r.n || 0;
   } catch (_) {}
 
-  const люди2 = Object.keys(люди).map((k) => люди[k]).sort((a, b) => b.букетов - a.букетов);
+  const люди2 = Object.keys(люди).map((k) => люди[k]).sort((a, b) => b.сумма - a.сумма);
+  люди2.forEach((p) => { p.чек = p.букетов ? Math.round(p.сумма / p.букетов) : 0; });
   return e.json(200, { день, безАвтора, всего: список.length,
-    люди: люди2 });
+    сумма: люди2.reduce((n, p) => n + p.сумма, 0), люди: люди2 });
 }, $apis.requireAuth("managers"));
 
 // Переименовать флориста: в Телеграме он «ми», а в отчёте должен быть человеком.

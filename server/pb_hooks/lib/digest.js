@@ -79,7 +79,8 @@ function текст(app, день, вчера, неделя) {
   const б = букеты(app, день.day);
   if (б.length) {
     строки.push("");
-    строки.push("Букеты сняли: " + б.map((p) => `${p.имя} — ${p.сколько}`).join(" · "));
+    строки.push("Букеты собрали:");
+    б.forEach((p) => строки.push(`   ${p.имя} — ${p.сколько} на ${shop.rub(p.сумма)}`));
   }
   return строки.join("\n");
 }
@@ -89,12 +90,19 @@ function текст(app, день, вчера, неделя) {
 // момент съёмки, поэтому отчёт за прошлый месяц читается и без справочника.
 function букеты(app, day) {
   const out = [];
+  // Сумма — цветы без доставки. Вазы и открытки здесь не вычитаем: в сводке
+  // важен порядок величины, а точный разбор состава есть в админке.
+  let имена = {};
+  try { имена = shop.jget(shop.settings(app), "florist_names") || {}; } catch (_) {}
   try {
-    const rows = arrayOf(new DynamicModel({ who: "", n: 0 }));
-    app.db().newQuery(`SELECT coalesce(nullif(photo_by_name,''), 'без имени') AS who, COUNT(*) AS n
+    const rows = arrayOf(new DynamicModel({ who: "", id: "", n: 0, sum: 0 }));
+    app.db().newQuery(`SELECT coalesce(nullif(photo_by_name,''), 'без имени') AS who,
+        coalesce(photo_by,'') AS id, COUNT(*) AS n,
+        SUM(CASE WHEN coalesce(items_sum,0) > 0 THEN items_sum
+                 ELSE max(0, coalesce(total,0) - coalesce(delivery_price,0)) END) AS sum
       FROM orders WHERE date(photo_at, '+3 hours') = {:d} AND coalesce(photo_at,'') != ''
-      GROUP BY who ORDER BY n DESC`).bind({ d: day }).all(rows);
-    rows.forEach((r) => out.push({ имя: r.who, сколько: +r.n || 0 }));
+      GROUP BY id, who ORDER BY sum DESC`).bind({ d: day }).all(rows);
+    rows.forEach((r) => out.push({ имя: имена[r.id] || r.who, сколько: +r.n || 0, сумма: +r.sum || 0 }));
   } catch (err) { console.log("сводка: букеты", err); }
   return out;
 }

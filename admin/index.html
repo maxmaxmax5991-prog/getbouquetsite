@@ -48,8 +48,14 @@ a{color:var(--accent-text)}
 .top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .top .wrap{display:flex;align-items:center;gap:14px;height:60px}
 .top .who{margin-left:auto;font-size:13px;color:var(--ink-2);display:flex;gap:12px;align-items:center}
+/* Вкладок девятнадцать, и полоса с ними ехала вбок без видимой полосы
+   прокрутки: «Менеджеры», «Статистика» и «Настройки» просто уезжали за правый
+   край, и найти их можно было только случайно. На экране пошире переносим их
+   на вторую строку — пусть видно будет всё. На телефоне перенос дал бы четыре
+   строки на пол-экрана, там оставляем прокрутку. */
 .tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-block:10px}
 .tabs::-webkit-scrollbar{display:none}
+@media (min-width:760px){.tabs{flex-wrap:wrap;overflow-x:visible;row-gap:6px}}
 .tabs button{flex:none;height:38px;padding:0 14px;border-radius:10px;font-weight:700;font-size:14px;color:var(--ink-2);display:flex;align-items:center;gap:7px}
 .tabs button[aria-selected="true"]{background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
 .dot{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--accent);color:#fff;font-size:11.5px;display:grid;place-items:center}
@@ -302,6 +308,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="care">Забота <span class="dot" id="careCount" hidden>0</span></button>
       <button role="tab" data-tab="nps">Оценки</button>
       <button role="tab" data-tab="team">Менеджеры</button>
+      <button role="tab" data-tab="florists">Флористы</button>
       <button role="tab" data-tab="stats">Статистика</button>
       <button role="tab" data-tab="errors">Ошибки <span class="dot" id="errCount" hidden>0</span></button>
       <button role="tab" data-tab="settings">Настройки</button>
@@ -394,14 +401,6 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <p class="hint" style="margin:0">Зелёная точка — человек сейчас за экраном (админка отмечается раз в полминуты). «На линии» — готов брать заказы: автоназначение раздаёт только им. Просрочки — сколько раз на сообщение покупателя не ответили за 3 минуты.</p>
         <div class="scroll"><table class="t" id="teamList"></table></div>
       </div>
-      <div class="card stack">
-        <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap">
-          <h2 style="flex:1;margin:0">Букеты</h2>
-          <input class="in" id="buqDay" type="date" style="width:auto">
-        </div>
-        <p class="hint" style="margin:0">Считаем по фото готового букета, которое флорист присылает боту: имя берётся из Телеграма того, кто прислал. Из группы флористов — тоже, там учитывается отправитель, а не чат.</p>
-        <div id="buqBox"></div>
-      </div>
       <div class="card stack" id="teamStaffCard" hidden>
         <h2>Сотрудники</h2>
         <div class="scroll"><table class="t" id="teamStaff"></table></div>
@@ -416,6 +415,18 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <p class="hint">Пароль придумайте сами и передайте сотруднику — на почту он не уходит. Галочка «Диалоги» открывает вкладку «Чат».</p>
       </div>
     </section>
+    <!-- Флористы -->
+    <section id="tab-florists" hidden>
+      <div class="card stack">
+        <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap">
+          <h2 style="flex:1;margin:0">Кто сколько собрал</h2>
+          <input class="in" id="buqDay" type="date" style="width:auto">
+        </div>
+        <p class="hint" style="margin:0">Считаем по фото готового букета, которое флорист присылает боту — другой отметки «собрал» через нас не проходит. Имя берётся из Телеграма отправителя; из группы флористов тоже учитывается человек, а не чат. Если в Телеграме он назван непонятно, нажмите «переименовать».</p>
+        <div id="buqBox"></div>
+      </div>
+    </section>
+
 
     <!-- Товары -->
     <section id="tab-products" hidden>
@@ -1261,7 +1272,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ team: loadTeam, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, nps: loadNps, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople })[t]();
+  ({ team: loadTeam, florists: loadBouquets, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, nps: loadNps, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
@@ -1281,7 +1292,7 @@ function brandPill(id) {
 }
 
 // Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
-const TAB_NEED = { team: 'staff', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all', drop: 'all', dpeople: 'all' };
+const TAB_NEED = { team: 'staff', florists: 'orders', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all', drop: 'all', dpeople: 'all' };
 async function loadRole() {
   try { ME = await api('/api/shop/me-role'); } catch (_) {}
   // витрины нужны всем вкладкам, а не только настройкам: без них заказы
@@ -2459,8 +2470,6 @@ const loadTeam = safe(async () => {
         <td class="num"${(d2.просрочек || 0) > 0 ? ' style="color:#b00020;font-weight:700"' : ''}>${d2.просрочек || 0}</td></tr>`;
     }).join('');
 
-  loadBouquets();
-
   // управление людьми — только владельцу и руководителю продаж
   $('#teamStaffCard').hidden = !d.могуПравить;
   if (d.могуПравить) {
@@ -2492,13 +2501,15 @@ const loadBouquets = safe(async () => {
     return;
   }
   box.innerHTML = `<div class="tiles" style="margin-bottom:10px">`
-    + d.люди.map(p => `<div class="tile"><span>${esc(p.имя)}</span><b>${p.букетов}</b></div>`).join('')
-    + `<div class="tile"><span>Всего</span><b>${d.всего}</b></div></div>`
-    + `<div class="scroll"><table class="t"><thead><tr><th>Кто</th><th class="num">Букетов</th><th>Первый</th><th>Последний</th><th>Заказы</th></tr></thead><tbody>`
-    + d.люди.map(p => `<tr><td><b>${esc(p.имя)}</b>${p.id ? ` <button class="btn btn-g btn-s" data-buqname="${esc(p.id)}" data-was="${esc(p.имя)}">переименовать</button>` : ''}</td><td class="num">${p.букетов}</td>
+    + d.люди.map(p => `<div class="tile"><span>${esc(p.имя)} · ${p.букетов} шт</span><b>${rub(p.сумма)}</b></div>`).join('')
+    + `<div class="tile"><span>Всего ${d.всего} шт</span><b>${rub(d.сумма)}</b></div></div>`
+    + `<div class="scroll"><table class="t"><thead><tr><th>Кто</th><th class="num">Букетов</th><th class="num">На сумму</th><th class="num">Средний букет</th><th>Первый</th><th>Последний</th><th>Заказы</th></tr></thead><tbody>`
+    + d.люди.map(p => `<tr><td><b>${esc(p.имя)}</b>${p.id ? ` <button class="btn btn-g btn-s" data-buqname="${esc(p.id)}" data-was="${esc(p.имя)}">переименовать</button>` : ''}</td>
+        <td class="num">${p.букетов}</td><td class="num"><b>${rub(p.сумма)}</b></td><td class="num">${rub(p.чек)}</td>
         <td>${час(p.первое)}</td><td>${час(p.последнее)}</td>
-        <td class="hint" style="margin:0">${p.заказы.map(n => '№' + n).join(', ')}</td></tr>`).join('')
-    + `</tbody></table></div>` + хвост;
+        <td class="hint" style="margin:0">${p.заказы.map(z => `№${z.n} — ${rub(z.с)}`).join(', ')}</td></tr>`).join('')
+    + `</tbody></table></div>`
+    + `<p class="hint" style="margin:8px 0 0">Сумма — стоимость самих цветов: без доставки и без ваз, открыток и игрушек (их кладут в пакет, а не собирают)${d.люди.some(p => p.довески) ? `. Довесков за день на ${rub(d.люди.reduce((n, p) => n + p.довески, 0))}` : ''}.</p>` + хвост;
 });
 $('#buqDay').onchange = loadBouquets;
 // Имя в Телеграме бывает в одну букву — даём звать человека по-людски.
