@@ -152,13 +152,24 @@ function photoUrl(app, s, token, fileId, orderId) {
 
 // Фото готового букета клиенту. Зовём из двух мест: ответ на сообщение бота
 // и фото с подписью-номером заказа — флористу так быстрее, карточку искать не надо.
-function sendBouquet(app, s, chat, ord, fileId, brief) {
+// кто — msg.from того, кто прислал фото. Именно отправитель, а не чат: в группе
+// флористов чат один на всех, и по нему все букеты оказались бы одного человека.
+function sendBouquet(app, s, chat, ord, fileId, brief, кто) {
   const token = s.get("tg_token");
   // В группе флористов нельзя называть имя и телефон покупателя — там посторонние глаза
   const done = (where) => shop.tg(token, "sendMessage", { chat_id: chat,
     text: brief ? `✅ Фото по заказу №${ord.get("number")} отправлено клиенту${where}.`
                 : `Фото отправлено клиенту${where}: ${ord.get("name")}, ${ord.get("phone")}.` });
     ord.set("photo_file_id", fileId);
+    if (кто && кто.id) {
+      ord.set("photo_by", String(кто.id));
+      // Имя в Телеграме бывает в одну букву («ми»), поэтому рядом @ник: по нему
+      // человека всегда можно опознать, а переименовать его можно в админке.
+      const имя = [кто.first_name, кто.last_name].filter(Boolean).join(" ");
+      ord.set("photo_by_name", (имя && кто.username ? `${имя} (@${кто.username})`
+        : имя || (кто.username ? "@" + кто.username : "")).slice(0, 80));
+      ord.set("photo_at", new Date().toISOString());
+    }
     // Статус меняет только МойСклад. Раньше отправка фото сама ставила «Фото отправлено»,
     // и покупатель получал «букет собран, фото отправим следом», а следом — то же самое фото.
     const st = ord.get("status");
@@ -767,7 +778,7 @@ function handle(app, secret, upd) {
       return shop.tg(token, "sendMessage", { chat_id: chat, reply_to_message_id: msg.message_id,
         text: `По заказу №${gnum} фото клиенту уже отправляли. Если нужно заменить — напишите мне в личку.` });
     }
-    sendBouquet(app, s, chat, gord, msg.photo[msg.photo.length - 1].file_id, true);
+    sendBouquet(app, s, chat, gord, msg.photo[msg.photo.length - 1].file_id, true, msg.from);
     return;
   }
 
@@ -813,7 +824,7 @@ function handle(app, secret, upd) {
           reply_markup: shop.floristKeyboard(app) });
       }
       setPending("");
-      sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
+      sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id, false, msg.from);
       return shop.tg(token, "sendMessage", { chat_id: chat, text: "Ждут фото — нажмите номер:", reply_markup: shop.floristKeyboard(app) });
     }
 
@@ -900,7 +911,7 @@ function handle(app, secret, upd) {
     if (!msg.photo || !msg.photo.length) return shop.tg(token, "sendMessage", { chat_id: chat, text: "Пришлите именно фотографию в ответ на то сообщение." });
     let ord;
     try { ord = app.findRecordById("orders", ordId); } catch (_) { return shop.tg(token, "sendMessage", { chat_id: chat, text: "Заказ не найден." }); }
-    return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
+    return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id, false, msg.from);
   }
 
   // ответ на вопрос бота: новая цена, название или фото
@@ -935,7 +946,7 @@ function handle(app, secret, upd) {
       let ord = null;
       try { ord = app.findFirstRecordByFilter("orders", "number = {:n}", { n: +num }); } catch (_) {}
       if (!ord) return shop.tg(token, "sendMessage", { chat_id: chat, text: `Заказа №${num} не нашёл. Проверьте номер.` });
-      return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id);
+      return sendBouquet(app, s, chat, ord, msg.photo[msg.photo.length - 1].file_id, false, msg.from);
     }
     return addProduct(app, s, chat, msg);
   }

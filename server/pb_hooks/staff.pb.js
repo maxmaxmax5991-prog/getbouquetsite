@@ -150,3 +150,80 @@ routerAdd("POST", "/api/shop/team-day", (e) => {
     просрочекВсего, поЛюдям,
   });
 }, $apis.requireAuth("managers"));
+
+// Сколько букетов снял каждый за день. Фото готового букета — единственная
+// отметка «букет собран», которая проходит через нас, поэтому считаем по ней.
+//
+// День берём по photo_at, а не по created заказа: заказ могли оформить вчера
+// вечером, а собрать сегодня утром — и в отчёт он должен попасть сегодня.
+routerAdd("GET", "/api/shop/bouquets", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  const st = require(`${__hooks}/lib/staff.js`);
+  if (!shop.can(e, st.ЗАКАЗЫ)) return e.json(403, { message: "Недостаточно прав." });
+  const день = String(e.request.url.query().get("day") || shop.moscowToday());
+  // сутки по Москве: в базе время по Гринвичу
+  const с = new Date(`${день}T00:00:00+03:00`).toISOString();
+  const по = new Date(`${день}T23:59:59+03:00`).toISOString();
+
+  let список = [];
+  try {
+    список = $app.findRecordsByFilter("orders",
+      `photo_at >= {:a} && photo_at <= {:b}`, "photo_at", 1000, 0, { a: с, b: по });
+  } catch (err) { return e.json(500, { message: String(err) }); }
+
+  // Имя из Телеграма бывает в одну букву — владелец может переименовать человека,
+  // и это имя сильнее телеграмного.
+  let своиИмена = {};
+  try { своиИмена = shop.jget(shop.settings($app), "florist_names") || {}; } catch (_) {}
+
+  const люди = {};
+  список.forEach((o) => {
+    const id = String(o.get("photo_by") || "");
+    const имя = своиИмена[id] || String(o.get("photo_by_name") || "") || (id ? `id ${id}` : "без подписи");
+    const ключ = id || "нет";
+    const p = (люди[ключ] = люди[ключ] || { id, имя, букетов: 0, заказы: [], первое: "", последнее: "" });
+    p.имя = имя;
+    p.букетов++;
+    if (p.заказы.length < 60) p.заказы.push(o.get("number"));
+    const t = String(o.get("photo_at") || "");
+    if (!p.первое || t < p.первое) p.первое = t;
+    if (!p.последнее || t > p.последнее) p.последнее = t;
+  });
+
+  // Фото, снятые до того, как мы начали записывать автора. Без этой строки
+  // «0 букетов» читалось бы как «никто не работал», а это дырка в данных, и
+  // только за переходный день. Точного времени съёмки у них нет, поэтому
+  // ориентируемся на последнюю правку заказа.
+  let безАвтора = 0;
+  try {
+    const r = new DynamicModel({ n: 0 });
+    $app.db().newQuery(`SELECT count(*) AS n FROM orders
+      WHERE photo_file_id != '' AND coalesce(photo_at,'') = '' AND date(updated, '+3 hours') = {:d}`)
+      .bind({ d: день }).one(r);
+    безАвтора = +r.n || 0;
+  } catch (_) {}
+
+  const люди2 = Object.keys(люди).map((k) => люди[k]).sort((a, b) => b.букетов - a.букетов);
+  return e.json(200, { день, безАвтора, всего: список.length,
+    люди: люди2 });
+}, $apis.requireAuth("managers"));
+
+// Переименовать флориста: в Телеграме он «ми», а в отчёте должен быть человеком.
+routerAdd("POST", "/api/shop/florist-name", (e) => {
+  const shop = require(`${__hooks}/lib/shop.js`);
+  if (!shop.can(e, ["owner", "sales", "head"])) return e.json(403, { message: "Недостаточно прав." });
+  const b = e.requestInfo().body || {};
+  const id = String(b.id || "").replace(/[^\d-]/g, "");
+  if (!id) return e.json(400, { message: "Не указан человек." });
+  const s = shop.settings($app);
+  let карта = {};
+  try { карта = shop.jget(s, "florist_names") || {}; } catch (_) {}
+  const имя = String(b.name || "").trim().slice(0, 80);
+  if (имя) карта[id] = имя; else delete карта[id];
+  // запросом, мимо хуков: сохранение настроек целиком будит setup бота
+  try {
+    $app.db().newQuery("UPDATE settings SET florist_names = {:v} WHERE id = {:id}")
+      .bind({ v: JSON.stringify(карта), id: s.id }).execute();
+  } catch (err) { return e.json(500, { message: String(err) }); }
+  return e.json(200, { ok: true, имя });
+}, $apis.requireAuth("managers"));

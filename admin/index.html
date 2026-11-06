@@ -394,6 +394,14 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <p class="hint" style="margin:0">Зелёная точка — человек сейчас за экраном (админка отмечается раз в полминуты). «На линии» — готов брать заказы: автоназначение раздаёт только им. Просрочки — сколько раз на сообщение покупателя не ответили за 3 минуты.</p>
         <div class="scroll"><table class="t" id="teamList"></table></div>
       </div>
+      <div class="card stack">
+        <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap">
+          <h2 style="flex:1;margin:0">Букеты</h2>
+          <input class="in" id="buqDay" type="date" style="width:auto">
+        </div>
+        <p class="hint" style="margin:0">Считаем по фото готового букета, которое флорист присылает боту: имя берётся из Телеграма того, кто прислал. Из группы флористов — тоже, там учитывается отправитель, а не чат.</p>
+        <div id="buqBox"></div>
+      </div>
       <div class="card stack" id="teamStaffCard" hidden>
         <h2>Сотрудники</h2>
         <div class="scroll"><table class="t" id="teamStaff"></table></div>
@@ -2451,6 +2459,8 @@ const loadTeam = safe(async () => {
         <td class="num"${(d2.просрочек || 0) > 0 ? ' style="color:#b00020;font-weight:700"' : ''}>${d2.просрочек || 0}</td></tr>`;
     }).join('');
 
+  loadBouquets();
+
   // управление людьми — только владельцу и руководителю продаж
   $('#teamStaffCard').hidden = !d.могуПравить;
   if (d.могуПравить) {
@@ -2468,6 +2478,38 @@ const loadTeam = safe(async () => {
       </tr>`).join('');
   }
 });
+// Кто сколько букетов снял. Считается по фото, которое флорист шлёт боту, —
+// другой отметки «букет собран» через нас не проходит.
+const loadBouquets = safe(async () => {
+  const box = $('#buqBox'); if (!box) return;
+  if (!$('#buqDay').value) $('#buqDay').value = mskDate(0);   // mskDate объявлен ниже, но зовут его только по клику
+  const d = await api(`/api/shop/bouquets?day=${encodeURIComponent($('#buqDay').value)}`);
+  const час = (t) => { const x = new Date(String(t).replace(' ', 'T') + (String(t).endsWith('Z') ? '' : 'Z')); return isNaN(x) ? '' : x.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' }); };
+  const хвост = d.безАвтора
+    ? `<p class="hint" style="margin:8px 0 0">Ещё ${d.безАвтора} фото без имени — их прислали до того, как бот начал записывать автора.</p>` : '';
+  if (!d.люди.length) {
+    box.innerHTML = `<div class="empty">За этот день букетов не отмечено.</div>` + хвост;
+    return;
+  }
+  box.innerHTML = `<div class="tiles" style="margin-bottom:10px">`
+    + d.люди.map(p => `<div class="tile"><span>${esc(p.имя)}</span><b>${p.букетов}</b></div>`).join('')
+    + `<div class="tile"><span>Всего</span><b>${d.всего}</b></div></div>`
+    + `<div class="scroll"><table class="t"><thead><tr><th>Кто</th><th class="num">Букетов</th><th>Первый</th><th>Последний</th><th>Заказы</th></tr></thead><tbody>`
+    + d.люди.map(p => `<tr><td><b>${esc(p.имя)}</b>${p.id ? ` <button class="btn btn-g btn-s" data-buqname="${esc(p.id)}" data-was="${esc(p.имя)}">переименовать</button>` : ''}</td><td class="num">${p.букетов}</td>
+        <td>${час(p.первое)}</td><td>${час(p.последнее)}</td>
+        <td class="hint" style="margin:0">${p.заказы.map(n => '№' + n).join(', ')}</td></tr>`).join('')
+    + `</tbody></table></div>` + хвост;
+});
+$('#buqDay').onchange = loadBouquets;
+// Имя в Телеграме бывает в одну букву — даём звать человека по-людски.
+$('#buqBox').addEventListener('click', safe(async e => {
+  const b = e.target.closest('[data-buqname]'); if (!b) return;
+  const имя = prompt('Как зовут этого человека?', b.dataset.was);
+  if (имя === null) return;
+  await api('/api/shop/florist-name', { method: 'POST', body: { id: b.dataset.buqname, name: имя.trim() } });
+  toast(имя.trim() ? 'Переименовал' : 'Вернул имя из Телеграма');
+  loadBouquets();
+}));
 $('#teamStaff').addEventListener('change', safe(async e => {
   const row = e.target.closest('[data-ts]'); if (!row) return;
   const id = row.dataset.ts;

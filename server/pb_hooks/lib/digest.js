@@ -76,7 +76,27 @@ function текст(app, день, вчера, неделя) {
   if (день.дроп) мелочь.push(`дроп ${день.дроп}`);
   if (мелочь.length) строки.push("Докупили: " + мелочь.join(" · "));
   if (день.фотоЖдёт) { строки.push(""); строки.push(`⚠️ Фото без ответа покупателя: ${день.фотоЖдёт}`); }
+  const б = букеты(app, день.day);
+  if (б.length) {
+    строки.push("");
+    строки.push("Букеты сняли: " + б.map((p) => `${p.имя} — ${p.сколько}`).join(" · "));
+  }
   return строки.join("\n");
+}
+
+// Кто сколько букетов снял за день. Считаем по фото готового букета: другой
+// отметки «собрал» через нас не проходит. Имя — то, что было в Телеграме в
+// момент съёмки, поэтому отчёт за прошлый месяц читается и без справочника.
+function букеты(app, day) {
+  const out = [];
+  try {
+    const rows = arrayOf(new DynamicModel({ who: "", n: 0 }));
+    app.db().newQuery(`SELECT coalesce(nullif(photo_by_name,''), 'без имени') AS who, COUNT(*) AS n
+      FROM orders WHERE date(photo_at, '+3 hours') = {:d} AND coalesce(photo_at,'') != ''
+      GROUP BY who ORDER BY n DESC`).bind({ d: day }).all(rows);
+    rows.forEach((r) => out.push({ имя: r.who, сколько: +r.n || 0 }));
+  } catch (err) { console.log("сводка: букеты", err); }
+  return out;
 }
 
 // Сводка за вчера — её и шлём утром. Сегодняшний день ещё не кончился, сравнивать
