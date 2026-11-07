@@ -146,13 +146,14 @@ routerAdd("POST", "/api/shop/tile-rank", (e) => {
 }, $apis.requireAuth("managers"));
 
 // Прислать сводку сейчас — кнопкой из админки
-// Темп дня: оплаты и деньги к этой минуте против той же минуты вчера.
-// Ничего не отправляет — тот же текст, что уходит в бот под каждой оплатой.
+// Темп дня для «Статистики»: сколько оплат и денег пришло к этой минуте,
+// и столько же к этой же минуте вчера и в этот день неделю назад. Неделя
+// нужна потому, что суббота против пятницы всегда «рост», и наоборот.
 routerAdd("GET", "/api/shop/pace", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   if (!shop.can(e, ["owner", "sales", "head"])) return e.json(403, { message: "Недостаточно прав." });
-  const d = require(`${__hooks}/lib/digest.js`);
-  return e.json(200, Object.assign({ текст: d.темпТекст($app) }, d.темп($app)));
+  const brand = String(e.request.url.query().get("brand") || "").slice(0, 20);
+  return e.json(200, require(`${__hooks}/lib/digest.js`).темп($app, brand));
 }, $apis.requireAuth("managers"));
 
 routerAdd("POST", "/api/shop/digest-now", (e) => {

@@ -123,13 +123,9 @@ function checkOrder(app, o) {
   app.save(o);
   // Полную карточку заказа флорист получает именно сейчас: до оплаты заказа как бы и нет
   const token = s.get("tg_token");
-  // Рядом с оплатой — темп дня против того же часа вчера. Одна цифра в
-  // вакууме ничего не значит: 370 тысяч к обеду это хорошо или плохо, видно
-  // только в сравнении с вчерашним обедом (просьба владельца 07.11.2026).
-  let темп = "";
-  try { темп = require(`${__hooks}/lib/digest.js`).темпТекст(app); } catch (err) { console.log("темп к оплате", err); }
-  const текст = `💳 Оплачено картой — ${shop.rub(o.get("total"))}` + (темп ? `\n\n${темп}` : "");
-  shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", { chat_id: chat, text: текст }));
+  shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", {
+    chat_id: chat, text: `💳 Оплачено картой — ${shop.rub(o.get("total"))}`,
+  }));
   try { shop.notifyOrder(app, o); } catch (err) { console.log("notify after pay", err); }
   try {
     const msl = require(`${__hooks}/lib/ms.js`);

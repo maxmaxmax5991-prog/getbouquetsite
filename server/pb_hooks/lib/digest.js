@@ -113,20 +113,22 @@ function букеты(app, day) {
 //
 // Считаем по `paid_at`, то есть по пришедшим деньгам, а не по заказам: отменённые
 // потом заказы здесь остаются с обеих сторон, поэтому сравнение честное.
-function темп(app) {
+function темп(app, brand) {
   const мск = new Date(Date.now() + 3 * 3600e3);
   const минута = мск.toISOString().slice(11, 19);
+  const витрина = brand ? " AND brand = {:b}" : "";
   const взять = (day) => {
     try {
       const row = new DynamicModel({ n: 0, s: 0 });
-      app.db().newQuery(`SELECT COUNT(*) AS n, coalesce(SUM(total), 0) AS s FROM orders
+      const q = app.db().newQuery(`SELECT COUNT(*) AS n, coalesce(SUM(total), 0) AS s FROM orders
         WHERE payment_status = 'paid' AND coalesce(paid_at, '') != ''
-          AND date(paid_at, '+3 hours') = {:d} AND time(paid_at, '+3 hours') <= {:t}`)
-        .bind({ d: day, t: минута }).one(row);
+          AND date(paid_at, '+3 hours') = {:d} AND time(paid_at, '+3 hours') <= {:t}${витрина}`);
+      q.bind(brand ? { d: day, t: минута, b: String(brand) } : { d: day, t: минута }).one(row);
       return { оплат: +row.n || 0, сумма: Math.round(+row.s || 0) };
     } catch (err) { console.log("темп дня", err); return { оплат: 0, сумма: 0 }; }
   };
-  return { час: минута.slice(0, 5), сегодня: взять(мскДень(0)), вчера: взять(мскДень(-1)) };
+  return { час: минута.slice(0, 5), сегодня: взять(мскДень(0)),
+    вчера: взять(мскДень(-1)), неделя: взять(мскДень(-7)) };
 }
 
 const слово = (n, одна, две, много) => {
