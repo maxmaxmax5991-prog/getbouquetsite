@@ -3903,6 +3903,32 @@ const loadStats = safe(async () => {
   live.forEach(o => { const t = String(o.phone || '').replace(/\D/g, '').slice(-10); if (t) phones[t] = (phones[t] || 0) + 1; });
   const repeat = Object.values(phones).filter(n => n > 1).length;
 
+  // Вазы: какую долю оборота приносит докупка к букету. Считаем по id товара,
+  // а не по названию: «ваза» может попасться и в имени букета, а категория
+  // «Вазы» — ровно то, что имеется в виду. Карточки товаров подгружаем лениво:
+  // на вкладке «Статистика» их иначе нет, её открывают, не заходя в «Товары».
+  if (!PRODS.length) { try { PRODS = await list('products', '&sort=sort,-created'); } catch (_) {} }
+  const катВаз = (CATS || []).filter(c => /^ваз/i.test(c.name || '')).map(c => c.id);
+  const вазныеId = {};
+  (PRODS || []).forEach(p => {
+    if (катВаз.indexOf(p.category) >= 0 || /^ваза\b/i.test(String(p.name || ''))) вазныеId[p.id] = 1;
+  });
+  const деньгиВаз = (заказы) => {
+    let сумма = 0, штук = 0;
+    заказы.forEach(o => (o.items || []).forEach(it => {
+      if (!вазныеId[it.id]) return;
+      сумма += +it.sum || 0;
+      штук += +it.qty || 0;
+    }));
+    return { сумма, штук };
+  };
+  const вазы = деньгиВаз(live), вазыПр = деньгиВаз(prevLive);
+  // Доля считается от выручки живых заказов — от того же числа, что в плашке
+  // «Выручка», иначе проценты не сойдутся с соседней цифрой.
+  const доля1 = (n) => n.toFixed(1).replace('.', ',') + '%';
+  const доляВаз = sum ? вазы.сумма * 100 / sum : 0;
+  const доляВазПр = prevSum ? вазыПр.сумма * 100 / prevSum : 0;
+
   const tile = (t, v, extra) => `<div class="tile"><span>${t}</span><b class="num">${v}</b>${extra || ''}</div>`;
   loadPace(tile);
   $('#statTiles').innerHTML = [
@@ -3912,6 +3938,9 @@ const loadStats = safe(async () => {
     tile('Доставок', `${dl.length}`, `<i class="same">${live.length ? Math.round(dl.length * 100 / live.length) : 0}% заказов</i>`),
     tile('Самовывозов', `${pk.length}`, `<i class="same">${live.length ? Math.round(pk.length * 100 / live.length) : 0}% заказов</i>`),
     tile('Выручка с доставки', rub(delivMoney)),
+    tile('Доля ваз в обороте', доля1(доляВаз),
+      `<i class="same">${вазы.штук} шт на ${rub(вазы.сумма)}</i>`
+      + (доляВазПр ? `<i class="${доляВаз >= доляВазПр ? 'up' : 'down'}">было ${доля1(доляВазПр)}</i>` : '')),
     tile('Оплачено картой', `${paid.length}`, `<i class="same">из ${byCard.length} выбравших карту</i>`),
     tile('Отменено', cancelled, cancelled ? `<i class="down">${all.length ? Math.round(cancelled * 100 / all.length) : 0}% от всех</i>` : ''),
     tile('Посетителей', guests, pct(guests, 0)),
