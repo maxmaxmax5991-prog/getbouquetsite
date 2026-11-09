@@ -69,7 +69,17 @@ routerAdd("GET", "/api/shop/basket-setup", (e) => {
   let цены = {};
   try { цены = JSON.parse(s.getString("basket_prices") || "{}") || {}; } catch (_) { цены = {}; }
 
+  // Без заголовка кэша браузер держит этот ответ «на глазок» часами: правка
+  // порогов или цен в админке доходила бы до покупателя через полдня. Тот же
+  // срок, что у каталога.
+  e.response.header().set("Cache-Control", "public, max-age=30");
+
+  // Формы (сердце, буквы) — те же правила, что проверяет сервер при заказе.
+  // Отдаём их целиком, чтобы сайт считал цену и пороги теми же числами.
+  const формы = require(`${__hooks}/lib/basket.js`).формы(s);
+
   return e.json(200, {
+    формы,
     основы: основы.map((b) => ({
       id: b.id, name: b.get("name"), kind: b.get("kind") || "корзина",
       capacity: +b.get("capacity") || 0, price: +b.get("price") || 0,

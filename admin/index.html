@@ -557,6 +557,21 @@ table.t td{padding:4px 6px;vertical-align:middle}
         </div>
       </div>
       <div class="card" style="margin-top:12px">
+        <h2>Сердце и буквы из цветов</h2>
+        <p class="hint" style="margin-bottom:12px">Каркас вместо корзины: цветы те же и берутся из того же количества. Покупатель видит форму в конструкторе только тогда, когда набрал нужное число цветов.<br>Цена каркаса прибавляется к цветам. У букв она берётся <b>за каждую букву</b>: три буквы по 1 000 ₽ — это 3 000 ₽.</p>
+        <div class="row">
+          <label class="f">Сердце — от скольких цветов<input class="in num" id="shHeartFrom" type="number" min="0"></label>
+          <label class="f">Каркас сердца, ₽<input class="in num" id="shHeartPrice" type="number" min="0"></label>
+          <label class="f">Каркас буквы, ₽<input class="in num" id="shLetterPrice" type="number" min="0"></label>
+        </div>
+        <div class="row">
+          <label class="f">1 буква — от<input class="in num" id="shL1" type="number" min="0"></label>
+          <label class="f">3 буквы — от<input class="in num" id="shL3" type="number" min="0"></label>
+          <label class="f">5 букв — от<input class="in num" id="shL5" type="number" min="0"></label>
+        </div>
+        <div class="bar" style="margin-top:10px"><span class="sp"></span><button class="btn btn-p" id="shSave">Сохранить</button></div>
+      </div>
+      <div class="card" style="margin-top:12px">
         <h2>Сколько места занимает цветок</h2>
         <p class="hint" style="margin-bottom:12px">Вместимость корзины меряется одноголовыми розами. Кустовая и французская занимают места двух одноголовых, гортензия — трёх: в корзину «до 251» войдёт 251 одноголовая, 125 кустовых или 83 гортензии.<br><b>Отметки на бегунке</b> — те круглые числа, между которыми выбирает покупатель. У одноголовых 101/151/251, у кустовых 51/75/101 — делением вместимости такие не получить, поэтому задаются руками.<br>Смешивать категории в одной корзине нельзя — сайт не даст.</p>
         <div class="scroll"><table class="t" id="bunList"></table></div>
@@ -3199,6 +3214,7 @@ const loadBaskets = safe(async () => {
   } catch (_) { OASIS = []; }
   if (!S) await loadSettings0();
   BPRICE = (S && S.basket_prices && typeof S.basket_prices === 'object') ? JSON.parse(JSON.stringify(S.basket_prices)) : {};
+  try { формыИзНастроек(); } catch (_) {}
   try { BSAMP = await list('basket_samples', '&sort=sort'); } catch (_) { BSAMP = []; }
   // состав: старые примеры хранили один сорт в product/qty — переносим в строку
   BSAMP.forEach(x => {
@@ -3649,6 +3665,28 @@ $('#bprList').addEventListener('input', e => {
   if (+el.value > 0) BPRICE[BPRGROUP][n][L] = Math.round(+el.value * 100) / 100; else delete BPRICE[BPRGROUP][n][L];
   if (!Object.keys(BPRICE[BPRGROUP][n]).length) delete BPRICE[BPRGROUP][n];
 });
+// Формы из цветов. Пороги хранятся списком «сколько букв — от скольких
+// цветов»; в админке это три строки, потому что больше пяти букв мы не кладём.
+function формыИзНастроек() {
+  const f = (S && S.basket_shapes && typeof S.basket_shapes === 'object') ? S.basket_shapes : {};
+  const л = Array.isArray(f.letters) ? f.letters : [];
+  const от = (n) => (л.find(x => +x.max === n) || {}).from || '';
+  $('#shHeartFrom').value = (f.heart && f.heart.from) || '';
+  $('#shHeartPrice').value = (f.heart && f.heart.price) || '';
+  $('#shLetterPrice').value = f.letter_price || '';
+  $('#shL1').value = от(1); $('#shL3').value = от(3); $('#shL5').value = от(5);
+}
+$('#shSave').onclick = safe(async () => {
+  const ч = (id) => Math.max(0, Math.round(+$(id).value || 0));
+  const letters = [[1, ч('#shL1')], [3, ч('#shL3')], [5, ч('#shL5')]]
+    .filter(([, от]) => от > 0).map(([max, from]) => ({ max, from }));
+  const body = { basket_shapes: {
+    heart: { name: 'Сердце', price: ч('#shHeartPrice'), from: ч('#shHeartFrom') },
+    letter_price: ч('#shLetterPrice'), letters } };
+  S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body });
+  toast('Сохранено'); формыИзНастроек();
+});
+
 $('#bprSave').onclick = safe(async () => {
   S = await api(`/api/collections/settings/records/${S.id}`, { method: 'PATCH', body: { basket_prices: BPRICE } });
   toast('Сохранено'); renderBasketPrices();

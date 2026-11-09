@@ -780,6 +780,11 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .bk-sort b{font:600 13px Manrope,sans-serif;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .bk-sort small{font-size:11.5px;color:var(--ink-2)}
 .bk-sort[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.bk-chips button[disabled]{opacity:.5;cursor:default}
+.bk-chips button small{font-weight:500;opacity:.8}
+.bk-text{width:100%;margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  font:700 18px Unbounded,Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--paper);color:var(--ink)}
 .bk-add{width:100%;border:1px dashed var(--line);background:var(--paper);border-radius:14px;padding:13px;font:600 15px Manrope,sans-serif;color:var(--accent);cursor:pointer}
 .bk-add[disabled]{color:var(--ink-3);cursor:default}
 /* Итог — одна строка внизу: сумма слева, действие справа. Прежний блок на
@@ -956,6 +961,15 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
       <div class="bk-ticks" id="bkTicks"></div>
       <div class="bk-base" id="bkBase"></div>
       <div id="bkFill"></div>
+    </div>
+    <div class="bk-card" id="bkShapeCard" hidden>
+      <h2 class="bk-h">Форма</h2>
+      <div class="bk-chips" id="bkShapes"></div>
+      <div id="bkLetters" hidden>
+        <input class="bk-text" id="bkText" maxlength="10" placeholder="МАМА" autocomplete="off"
+          aria-label="Какие буквы выложить">
+        <p class="hint" id="bkTextHint" style="margin:6px 0 0"></p>
+      </div>
     </div>
     <div class="bk-card" id="bkPicked" hidden>
       <h2 class="bk-h">Ваша корзина</h2>
@@ -1649,7 +1663,7 @@ function renderShots(p, label) {
    Порядок как у покупателя в голове: какие цветы → сколько → какие сорта.
    Вид выбираем первым, потому что смешивать нельзя и от вида зависит всё
    остальное: отметки на бегунке, вместимость в «местах» и цена стебля. */
-let БК = { cat: '', всего: 0, слоты: [] };
+let БК = { cat: '', всего: 0, слоты: [], форма: '', текст: '' };
 const бкСорта = () => (P || []).filter(p => Array.isArray(p.basket) && p.basket.length && !p.off
   && (p.variants || []).some(v => !v.out));
 const бкРазделы = () => {
@@ -1743,6 +1757,52 @@ function бкРисоватьРазделы() {
 // вопрос «какие цветы» со списком видов, а сами цветы прятались за кнопкой
 // «Выбрать сорт» на третьем шаге: из 2 565 открывших конструктор до выбора
 // вида доходили 883. Теперь человек сразу видит, из чего собирает.
+// Формы из цветов: сердце и буквы. Каркас заменяет корзину, цветы берутся из
+// того же количества. Пороги и цены приходят с сервера теми же числами, по
+// которым он потом проверит заказ, — выдумывать их на клиенте нельзя.
+const бкФормы = () => (BSET && BSET.формы) || null;
+const бкБуквДоступно = (n) => {
+  const f = бкФормы(); if (!f) return 0;
+  let m = 0; (f.letters || []).forEach(x => { if (n >= x.from) m = Math.max(m, x.max); });
+  return m;
+};
+const бкБукв = () => String(БК.текст || '').replace(/ /g, '').length;
+const бкКаркас = () => {
+  const f = бкФормы(); if (!f || !БК.форма) return 0;
+  if (БК.форма === 'heart') return +f.heart.price || 0;
+  return (+f.letter_price || 0) * бкБукв();
+};
+function бкРисоватьФормы() {
+  const f = бкФормы(), бокс = $('#bkShapes'), карта = $('#bkShapeCard');
+  if (!бокс || !карта) return;
+  const есть = f && ((+f.heart.price >= 0 && +f.heart.from > 0) || (f.letters || []).length);
+  карта.hidden = !есть;
+  if (!есть) { БК.форма = ''; return; }
+  const буквДо = бкБуквДоступно(БК.всего);
+  const минБукв = ((f.letters || [])[0] || {}).from || 0;
+  // количество упало ниже порога — молча возвращаемся к корзине
+  if (БК.форма === 'heart' && БК.всего < f.heart.from) БК.форма = '';
+  if (БК.форма === 'letters' && !буквДо) БК.форма = '';
+  const вар = [
+    { k: '', имя: 'Корзина', ок: true, от: 0 },
+    { k: 'heart', имя: '❤️ Сердце', ок: БК.всего >= f.heart.from, от: f.heart.from },
+    { k: 'letters', имя: '🔤 Буквы', ок: буквДо > 0, от: минБукв },
+  ];
+  бокс.innerHTML = вар.map(v => `<button type="button" data-bkshape="${v.k}" aria-pressed="${v.k === БК.форма}"${
+    v.ок ? '' : ' disabled'}>${v.имя}${v.ок ? '' : ` <small>от ${v.от}</small>`}</button>`).join('');
+  const поле = $('#bkLetters');
+  поле.hidden = БК.форма !== 'letters';
+  if (БК.форма === 'letters') {
+    const вход = $('#bkText');
+    if (вход.value !== БК.текст) вход.value = БК.текст;
+    вход.maxLength = Math.max(1, буквДо);
+    const цена = +(f.letter_price || 0);
+    // «При 301 цветах» — падеж не тот; пишем числом и словом в именительном
+    $('#bkTextHint').textContent = `${БК.всего} ${бкСлово(БК.всего, true)} — до ${буквДо} ${
+      буквДо === 1 ? 'буквы' : 'букв'}${цена ? ` · каркас ${rub(цена)} за букву` : ''}.`;
+  }
+}
+
 function бкРисоватьСорта() {
   const бокс = $('#bkSorts'); if (!бокс) return;
   const c = бкРаздел();
@@ -1772,6 +1832,16 @@ function бкРисоватьШкалу() {
   // плюс корзина. Человек видит, с чего начинается цена, ещё до выбора сорта.
   const откуда = бкОткуда(БК.всего);
   const вмещает = основа ? Math.floor(основа.capacity / (c.units || 1)) : 0;
+  if (БК.форма) {
+    const f = бкФормы() || {};
+    const имя = БК.форма === 'heart' ? ((f.heart || {}).name || 'Сердце')
+      : `Буквы${БК.текст ? ' «' + esc(БК.текст) + '»' : ''}`;
+    const каркас = бкКаркас();
+    $('#bkBase').innerHTML = `<div><b>${имя}</b><small>${БК.всего} ${бкСлово(БК.всего, true)} на каркасе${
+      каркас ? ' · каркас ' + rub(каркас) : ''}</small></div>`;
+    $('#bkFill').innerHTML = '';
+    return;
+  }
   $('#bkBase').innerHTML = основа
     ? `${основа.img ? `<img src="${основа.img}" alt="">` : ''}<div><b>${esc(основа.name.replace('ЛФ-', ''))}</b>
         <small>вмещает до ${вмещает} ${бкСлово(вмещает)} · корзина ${rub(основа.price)}</small></div>
@@ -1833,13 +1903,17 @@ function бкПоказатьШаг() {
 }
 function бкПересчёт() {
   бкРисоватьШкалу();
+  бкРисоватьФормы();
   const набрано = бкНабрано();
   const основа = бкОснова();
   let цветы = 0;
   БК.слоты.forEach(s => { const p = byId[s.id]; if (p) цветы += ценаСтебляКорзины(p, s.len, БК.всего) * (+s.n || 0); });
   цветы = Math.round(цветы);
-  const итог = цветы + (основа ? основа.price : 0);
-  const готово = основа && набрано === БК.всего && набрано > 0;
+  const каркас = бкКаркас();
+  const итог = цветы + (БК.форма ? каркас : (основа ? основа.price : 0));
+  // У формы корзина не нужна, зато нужны буквы: пустое поле — не заказ.
+  const формаОк = !БК.форма || (БК.форма === 'heart' ? true : бкБукв() > 0);
+  const готово = (БК.форма ? формаОк : !!основа) && набрано === БК.всего && набрано > 0;
   // На первых шагах показывать сумму нельзя: цена пустой корзины — не цена
   // корзины, владелец справедливо поймал меня на этом же на плитке.
   let слева, кнопка, действие, примечание = '';
@@ -1853,7 +1927,8 @@ function бкПересчёт() {
     // В строке итога — только цена и кнопка. Доплату за доставку выносим
     // отдельной строкой и объясняем: такую корзину в руках не донести.
     слева = `<b class="big">${rub(итог)}</b>`;
-    кнопка = 'В корзину'; действие = 'add';
+    кнопка = БК.форма === 'letters' && !бкБукв() ? 'Напишите буквы' : 'В корзину';
+    действие = 'add';
     if (бкНадбавка() > 0) примечание = `Стоимость доставки увеличится на ${rub(бкНадбавка())} — для такой корзины потребуются грузчики.`;
   }
   $('#bkTotal').innerHTML = `<div class="sum">${слева}</div>
@@ -1917,7 +1992,7 @@ function renderBasketPage() {
     $('#bkLead').textContent = 'Конструктор корзин сейчас недоступен. Позвоните нам — соберём вручную.';
     return;
   }
-  бкРисоватьРазделы(); бкРисоватьСорта(); бкПримеры(); бкРисоватьСлоты(); бкПересчёт();
+  бкРисоватьРазделы(); бкРисоватьСорта(); бкПримеры(); бкРисоватьСлоты(); бкРисоватьФормы(); бкПересчёт();
 }
 // выбор сорта: показываем только те, что того же вида
 function бкОткрытьВыбор() {
@@ -1961,6 +2036,12 @@ document.addEventListener('click', e => {
     БК.cat = cat.dataset.bkcat; БК.слоты = []; БК.всего = 0;
     window.шаг && window.шаг('bk_cat', (бкРаздел() || {}).name || БК.cat);
     бкРисоватьРазделы(); бкРисоватьСорта(); бкРисоватьСлоты(); бкПересчёт(); return;
+  }
+  const форма = t2.closest && t2.closest('[data-bkshape]');
+  if (форма && !форма.disabled) {
+    БК.форма = форма.dataset.bkshape || '';
+    if (БК.форма !== 'letters') БК.текст = '';
+    бкРисоватьФормы(); бкПересчёт(); return;
   }
   const сорт = t2.closest && t2.closest('[data-bksort]');
   if (сорт) {
@@ -2036,14 +2117,24 @@ document.addEventListener('click', e => {
   }
   if (go && !go.disabled) {
     const основа = бкОснова();
-    корзины.push({ basket: основа.id, cat: БК.cat, parts: БК.слоты.map(s => ({ id: s.id, len: s.len, n: s.n })) });
+    корзины.push({ basket: БК.форма ? '' : основа.id, shape: БК.форма, text: БК.текст,
+      cat: БК.cat, parts: БК.слоты.map(s => ({ id: s.id, len: s.len, n: s.n })) });
     window.шаг && window.шаг('bk_add', `${БК.всего} ${бкСлово(БК.всего)} · ${БК.слоты.length} сорт.`);
     сохрКорзины(); badges(); openCart();
-    БК.слоты = []; бкРисоватьСорта(); бкРисоватьСлоты(); бкПересчёт();
+    БК.слоты = []; БК.форма = ''; БК.текст = '';
+    бкРисоватьФормы(); бкРисоватьСорта(); бкРисоватьСлоты(); бкПересчёт();
     toast('Корзина собрана и добавлена');
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.id === 'bkText') {
+    const буквДо = бкБуквДоступно(БК.всего);
+    БК.текст = String(e.target.value || '').toUpperCase().replace(/[^0-9A-ZА-ЯЁ ]/g, '');
+    // Режем по числу букв, а не знаков: пробел в «С 8 МАРТА» каркаса не требует
+    while (БК.текст.replace(/ /g, '').length > буквДо) БК.текст = БК.текст.slice(0, -1);
+    if (e.target.value !== БК.текст) e.target.value = БК.текст;
+    бкРисоватьШкалу(); бкПересчёт(); return;
+  }
   if (e.target.id === 'bkRange') {
     const c = бкРаздел(); const marks = ((c && c.marks) || []).slice().sort((a, b) => a - b);
     БК.всего = marks[+e.target.value] || marks[0];
@@ -2235,13 +2326,22 @@ function счётКорзины(к) {
     const p = byId[x.id];
     if (p) цветы += ценаСтебляКорзины(p, x.len, стеблей) * (+x.n || 0);
   });
-  const сумма = Math.round(цветы) + (основа ? +основа.price || 0 : 0);
-  return { основа, стеблей, цветы: Math.round(цветы), сумма };
+  // Форма вместо корзины: платим за каркас, а не за основу
+  let каркас = 0;
+  const f = (BSET && BSET.формы) || null;
+  if (f && к.shape === 'heart') каркас = +f.heart.price || 0;
+  if (f && к.shape === 'letters') каркас = (+f.letter_price || 0) * String(к.text || '').replace(/ /g, '').length;
+  const сумма = Math.round(цветы) + (к.shape ? каркас : (основа ? +основа.price || 0 : 0));
+  return { основа, стеблей, цветы: Math.round(цветы), каркас, сумма };
 }
 const имяКорзины = к => {
   const c = счётКорзины(к);
   const сорта = (к.parts || []).map(x => `${(byId[x.id] || {}).name || '?'} ${x.len}см ×${x.n}`).join(', ');
-  return `Корзина ${c.стеблей} шт: ${сорта}`;
+  const f = (BSET && BSET.формы) || null;
+  const что = к.shape === 'heart' ? `${(f && f.heart.name) || 'Сердце'} из ${c.стеблей} шт`
+    : к.shape === 'letters' ? `Буквы «${к.text || ''}» из ${c.стеблей} шт`
+    : `Корзина ${c.стеблей} шт`;
+  return `${что}: ${сорта}`;
 };
 let favs = new Set(store.get('favs', []));
 const parseKey = k => { const [id, label = ''] = k.split('|'); return { id, label }; };
@@ -4453,7 +4553,8 @@ cartDlg.addEventListener('submit', async e => {
         // собранные корзины идут теми же позициями, но со своим составом:
         // сервер разберёт их сам и пересчитает цену
         items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { id, label, qty }; })
-          .concat(корзины.map(к => ({ kind: 'basket', basket: к.basket, qty: 1,
+          .concat(корзины.map(к => ({ kind: 'basket', basket: к.basket || '', qty: 1,
+            shape: к.shape || '', text: к.text || '',
             parts: (к.parts || []).map(x => ({ id: x.id, len: x.len, n: x.n })) })))
           // букет из дропа: шлём только сорт, цену и право на покупку проверит сервер
           .concat(дропБукет ? [{ kind: 'drop', id: дропБукет, qty: 1 }] : []) }) });
