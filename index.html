@@ -782,6 +782,16 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .bk-sort[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .bk-chips button[disabled]{opacity:.5;cursor:default}
 .bk-chips button small{font-weight:500;opacity:.8}
+/* Снимки форм: человек не обязан представлять, как выглядит «буква из роз» */
+.bk-shapes-pics{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:10px}
+.bk-shapes-pics:empty{display:none}
+.bk-shapes-pics button{border:1px solid var(--line);background:var(--paper);border-radius:14px;padding:6px;
+  cursor:pointer;color:var(--ink);text-align:center;min-width:0}
+.bk-shapes-pics img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}
+.bk-shapes-pics b{display:block;font:600 13px Manrope,sans-serif;margin-top:5px}
+.bk-shapes-pics small{display:block;font-size:11.5px;color:var(--ink-2)}
+.bk-shapes-pics button[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.bk-shapes-pics button[disabled]{opacity:.5;cursor:default}
 .bk-text{width:100%;margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;
   font:700 17px Unbounded,Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;
   background:var(--paper);color:var(--ink);min-width:0}
@@ -965,6 +975,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
     <div class="bk-card" id="bkShapeCard" hidden>
       <h2 class="bk-h">Форма</h2>
       <div class="bk-chips" id="bkShapes"></div>
+      <div class="bk-shapes-pics" id="bkShapePics"></div>
       <div id="bkLetters" hidden>
         <input class="bk-text" id="bkText" maxlength="24" placeholder="МАМА" autocomplete="off"
           aria-label="Какие буквы выложить">
@@ -1791,6 +1802,26 @@ function бкРисоватьФормы() {
   ];
   бокс.innerHTML = вар.map(v => `<button type="button" data-bkshape="${v.k}" aria-pressed="${v.k === БК.форма}"${
     v.ок ? '' : ' disabled'}>${v.имя}${v.ок ? '' : ` <small>от ${v.от}</small>`}</button>`).join('');
+  // Снимки: «Сердце» ставит форму heart, «Буква» и «Слово» — letters, разница
+  // между ними только в количестве букв, и она видна по подсказке под полем.
+  const пики = $('#bkShapePics');
+  if (пики) {
+    const подпись = { heart: ['Сердце', f.heart.from, 'heart'],
+      letter: ['Буква', ((f.letters || []).find(x => +x.max === 1) || {}).from || минБукв, 'letters'],
+      word: ['Слово', ((f.letters || []).filter(x => +x.max > 1).sort((a, b) => a.from - b.from)[0] || {}).from || 0, 'letters'] };
+    const снимки = ((BSET && BSET.примеры) || []).filter(x => x.img && подпись[x.shape]);
+    // «Буква» и «Слово» — одна и та же форма, и обе подсвечивались разом.
+    // Подсвечиваем ту, что отвечает набранному: одна буква или больше.
+    const видСейчас = БК.форма === 'heart' ? 'heart'
+      : БК.форма === 'letters' ? (бкБукв() > 1 ? 'word' : 'letter') : '';
+    пики.innerHTML = снимки.map(x => {
+      const [имя, от, форма] = подпись[x.shape];
+      const ок = от > 0 && БК.всего >= от;
+      return `<button type="button" data-bkshape="${форма}" aria-pressed="${x.shape === видСейчас}"${ок ? '' : ' disabled'}>
+        <img src="${x.img}" alt="${esc(имя)} из цветов" loading="lazy">
+        <b>${esc(x.name || имя)}</b><small>${ок ? 'выбрать' : 'от ' + от}</small></button>`;
+    }).join('');
+  }
   const поле = $('#bkLetters');
   поле.hidden = БК.форма !== 'letters';
   if (БК.форма === 'letters') {
@@ -1971,7 +2002,10 @@ function бкЦенаПримера(x) {
   return Math.round(цветы) + (основа ? +основа.price || 0 : 0);
 }
 function бкПримеры() {
-  const сп = ((BSET && BSET.примеры) || []).filter(x => x.img);
+  // Снимки форм (сердце, буква, слово) живут в тех же примерах, но показываются
+  // не здесь, а рядом с выбором формы — иначе человек нажмёт «повторить» и
+  // получит корзину вместо сердца.
+  const сп = ((BSET && BSET.примеры) || []).filter(x => x.img && !x.shape);
   const box = $('#bkSamples');
   box.hidden = !сп.length;
   if (!сп.length) return;

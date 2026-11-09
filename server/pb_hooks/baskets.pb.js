@@ -88,6 +88,7 @@ routerAdd("GET", "/api/shop/basket-setup", (e) => {
     })),
     примеры: примеры.map((x) => ({
       id: x.id, qty: +x.get("qty") || 0, product: x.get("product") || "", name: x.get("name") || "",
+      shape: x.get("shape") || "",
       parts: x.get("parts") || [],
       img: x.get("photo") ? shop.fileUrl(x, x.get("photo"), "560x0") : "",
       big: x.get("photo") ? shop.fileUrl(x, x.get("photo"), "1120x0") : "",

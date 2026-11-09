@@ -549,7 +549,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       </div>
       <div class="card" style="margin-top:12px">
         <h2>Примеры корзин</h2>
-        <p class="hint" style="margin-bottom:12px">Фотографии ваших собранных корзин. Покупатель видит их в конструкторе и может ткнуть в понравившуюся — количество и сорт выставятся сами. Загрузите снимок, укажите, сколько роз и какой сорт.<br>Рубильник <b>«Плиткой»</b> — этот снимок встанет карточкой в каталоге с кнопкой «Собрать корзину». Включается у одного примера.</p>
+        <p class="hint" style="margin-bottom:12px"><b>Форма</b> — что на снимке. «Корзина» работает как раньше: покупатель жмёт и повторяет состав. «Сердце», «Буква» и «Слово» показываются в конструкторе рядом с выбором формы, чтобы было видно, как это выглядит — состав у них можно не заполнять.<br>Фотографии ваших собранных корзин. Покупатель видит их в конструкторе и может ткнуть в понравившуюся — количество и сорт выставятся сами. Загрузите снимок, укажите, сколько роз и какой сорт.<br>Рубильник <b>«Плиткой»</b> — этот снимок встанет карточкой в каталоге с кнопкой «Собрать корзину». Включается у одного примера.</p>
         <div class="scroll"><table class="t" id="bsmList"></table></div>
         <div class="bar" style="margin-top:10px">
           <button class="btn btn-g btn-s" id="bsmAdd">+ Пример</button>
@@ -3495,12 +3495,16 @@ function renderBasketSamples() {
     </div>`;
   }).join('') + ((x.parts || []).length < 3
     ? `<button class="btn btn-g btn-s" data-bspadd="${i}">+ сорт</button>` : '');
-  $('#bsmList').innerHTML = `<tr><th>Фото</th><th>Что в корзине</th><th>Всего</th><th>Подпись</th><th>Плиткой</th><th>На сайте</th><th></th></tr>`
+  const формаЯчейка = (x, i) => `<select class="in sm" data-bsm="${i}" data-f="shape" style="min-width:110px">${
+    [['', 'Корзина'], ['heart', 'Сердце'], ['letter', 'Буква'], ['word', 'Слово']]
+      .map(([v, t]) => `<option value="${v}"${(x.shape || '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
+  $('#bsmList').innerHTML = `<tr><th>Фото</th><th>Форма</th><th>Что в корзине</th><th>Всего</th><th>Подпись</th><th>Плиткой</th><th>На сайте</th><th></th></tr>`
     + (BSAMP.length ? BSAMP.map((x, i) => `<tr>
         <td>${x.photo
           ? `<img src="/api/files/basket_samples/${x.id}/${x.photo}?thumb=100x100" alt="" style="width:54px;height:54px;border-radius:9px;object-fit:cover">`
           : '<i class="same">нет</i>'}
           ${x.id ? `<label class="btn btn-g btn-s" style="margin-left:6px">Загрузить<input type="file" accept="image/*" data-bsimg="${x.id}" hidden></label>` : '<i class="same">сначала сохраните</i>'}</td>
+        <td>${формаЯчейка(x, i)}</td>
         <td>${состав(x, i)}</td>
         <td class="num">${(x.parts || []).reduce((n, y) => n + (+y.n || 0), 0) || '—'} шт</td>
         <td><input class="in sm" data-bsm="${i}" data-f="name" value="${esc(x.name || '')}" placeholder="необязательно" style="min-width:150px"></td>
