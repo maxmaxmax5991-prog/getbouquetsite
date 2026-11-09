@@ -567,7 +567,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div class="row">
           <label class="f">1 буква — от<input class="in num" id="shL1" type="number" min="0"></label>
           <label class="f">3 буквы — от<input class="in num" id="shL3" type="number" min="0"></label>
-          <label class="f">5 букв — от<input class="in num" id="shL5" type="number" min="0"></label>
+          <label class="f">10 букв — от<input class="in num" id="shL5" type="number" min="0"></label>
         </div>
         <div class="bar" style="margin-top:10px"><span class="sp"></span><button class="btn btn-p" id="shSave">Сохранить</button></div>
       </div>
@@ -3674,11 +3674,11 @@ function формыИзНастроек() {
   $('#shHeartFrom').value = (f.heart && f.heart.from) || '';
   $('#shHeartPrice').value = (f.heart && f.heart.price) || '';
   $('#shLetterPrice').value = f.letter_price || '';
-  $('#shL1').value = от(1); $('#shL3').value = от(3); $('#shL5').value = от(5);
+  $('#shL1').value = от(1); $('#shL3').value = от(3); $('#shL5').value = от(10);
 }
 $('#shSave').onclick = safe(async () => {
   const ч = (id) => Math.max(0, Math.round(+$(id).value || 0));
-  const letters = [[1, ч('#shL1')], [3, ч('#shL3')], [5, ч('#shL5')]]
+  const letters = [[1, ч('#shL1')], [3, ч('#shL3')], [10, ч('#shL5')]]
     .filter(([, от]) => от > 0).map(([max, from]) => ({ max, from }));
   const body = { basket_shapes: {
     heart: { name: 'Сердце', price: ч('#shHeartPrice'), from: ч('#shHeartFrom') },

@@ -783,8 +783,8 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .bk-chips button[disabled]{opacity:.5;cursor:default}
 .bk-chips button small{font-weight:500;opacity:.8}
 .bk-text{width:100%;margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;
-  font:700 18px Unbounded,Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;
-  background:var(--paper);color:var(--ink)}
+  font:700 17px Unbounded,Manrope,sans-serif;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--paper);color:var(--ink);min-width:0}
 .bk-add{width:100%;border:1px dashed var(--line);background:var(--paper);border-radius:14px;padding:13px;font:600 15px Manrope,sans-serif;color:var(--accent);cursor:pointer}
 .bk-add[disabled]{color:var(--ink-3);cursor:default}
 /* Итог — одна строка внизу: сумма слева, действие справа. Прежний блок на
@@ -966,7 +966,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
       <h2 class="bk-h">Форма</h2>
       <div class="bk-chips" id="bkShapes"></div>
       <div id="bkLetters" hidden>
-        <input class="bk-text" id="bkText" maxlength="10" placeholder="МАМА" autocomplete="off"
+        <input class="bk-text" id="bkText" maxlength="24" placeholder="МАМА" autocomplete="off"
           aria-label="Какие буквы выложить">
         <p class="hint" id="bkTextHint" style="margin:6px 0 0"></p>
       </div>
