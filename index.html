@@ -1770,7 +1770,8 @@ const бкБукв = () => String(БК.текст || '').replace(/ /g, '').lengt
 const бкКаркас = () => {
   const f = бкФормы(); if (!f || !БК.форма) return 0;
   if (БК.форма === 'heart') return +f.heart.price || 0;
-  return (+f.letter_price || 0) * бкБукв();
+  // За выкладку целиком, сколько бы букв ни было
+  return бкБукв() ? (+f.letter_price || 0) : 0;
 };
 function бкРисоватьФормы() {
   const f = бкФормы(), бокс = $('#bkShapes'), карта = $('#bkShapeCard');
@@ -1799,7 +1800,7 @@ function бкРисоватьФормы() {
     const цена = +(f.letter_price || 0);
     // «При 301 цветах» — падеж не тот; пишем числом и словом в именительном
     $('#bkTextHint').textContent = `${БК.всего} ${бкСлово(БК.всего, true)} — до ${буквДо} ${
-      буквДо === 1 ? 'буквы' : 'букв'}${цена ? ` · каркас ${rub(цена)} за букву` : ''}.`;
+      буквДо === 1 ? 'буквы' : 'букв'}${цена ? ` · выкладка ${rub(цена)}` : ''}.`;
   }
 }
 
@@ -2330,7 +2331,7 @@ function счётКорзины(к) {
   let каркас = 0;
   const f = (BSET && BSET.формы) || null;
   if (f && к.shape === 'heart') каркас = +f.heart.price || 0;
-  if (f && к.shape === 'letters') каркас = (+f.letter_price || 0) * String(к.text || '').replace(/ /g, '').length;
+  if (f && к.shape === 'letters') каркас = String(к.text || '').trim() ? (+f.letter_price || 0) : 0;
   const сумма = Math.round(цветы) + (к.shape ? каркас : (основа ? +основа.price || 0 : 0));
   return { основа, стеблей, цветы: Math.round(цветы), каркас, сумма };
 }
