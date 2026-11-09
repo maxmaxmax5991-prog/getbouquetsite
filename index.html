@@ -734,7 +734,10 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 /* конструктор корзин */
 .bk-card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 14px}
 .bk-h{font:700 16px/1.2 Unbounded,sans-serif;margin:0 0 10px}
-.bk-chips{display:flex;gap:8px;flex-wrap:wrap}
+.bk-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  margin:0 -16px;padding:0 16px}
+.bk-chips::-webkit-scrollbar{display:none}
+.bk-chips button{flex:0 0 auto;white-space:nowrap}
 .bk-chips button{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:9px 16px;font:600 14px Manrope,sans-serif;cursor:pointer;color:var(--ink)}
 .bk-chips button[aria-pressed=true]{border-color:var(--accent);background:var(--accent);color:#fff}
 .bk-qty{font:800 34px/1 Unbounded,sans-serif;color:var(--accent)}
@@ -768,6 +771,15 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 .bk-sval b{font:800 20px/1 Unbounded,sans-serif}
 .bk-sval small{color:var(--ink-2);margin-left:4px}
 .bk-sval.one{min-width:0;text-align:left}
+/* Сорта плитками: первое, что видно в конструкторе. Три колонки на телефоне —
+   чтобы в первый экран помещался хотя бы ряд с фотографиями, а не один сорт. */
+.bk-sorts{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:12px}
+.bk-sort{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);background:var(--paper);
+  border-radius:14px;padding:8px;cursor:pointer;text-align:left;color:var(--ink);min-width:0}
+.bk-sort img,.bk-sort .ph{display:block;width:100%;aspect-ratio:1;border-radius:10px;object-fit:cover;background:var(--line);margin-bottom:4px}
+.bk-sort b{font:600 13px Manrope,sans-serif;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bk-sort small{font-size:11.5px;color:var(--ink-2)}
+.bk-sort[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .bk-add{width:100%;border:1px dashed var(--line);background:var(--paper);border-radius:14px;padding:13px;font:600 15px Manrope,sans-serif;color:var(--accent);cursor:pointer}
 .bk-add[disabled]{color:var(--ink-3);cursor:default}
 /* Итог — одна строка внизу: сумма слева, действие справа. Прежний блок на
@@ -931,18 +943,13 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигация"><a href="/">Главная</a><span>Корзина цветов</span></nav>
     <h1 class="h1">Соберите корзину</h1>
-    <p class="lede" id="bkLead">Выберите цветы и количество — корзина подберётся сама.</p>
-    <div id="bkSamples" class="bk-samples" hidden></div>
-    <div class="bk-steps" id="bkSteps">
-      <button type="button" data-step="1"><i>1</i> Цветы</button>
-      <button type="button" data-step="2"><i>2</i> Сколько</button>
-      <button type="button" data-step="3"><i>3</i> Сорта</button>
-    </div>
-    <div class="bk-card" data-s="1">
-      <h2 class="bk-h">Какие цветы</h2>
+    <p class="lede" id="bkLead">Выберите цветок и количество — корзина подберётся сама.</p>
+    <div class="bk-card">
+      <h2 class="bk-h">Цветы</h2>
       <div class="bk-chips" id="bkCats"></div>
+      <div class="bk-sorts" id="bkSorts"></div>
     </div>
-    <div class="bk-card" data-s="2" hidden>
+    <div class="bk-card">
       <h2 class="bk-h">Сколько</h2>
       <div class="bk-qty num" id="bkQty">—</div>
       <input type="range" id="bkRange" class="bk-range" min="0" max="1" step="1" value="0" aria-label="Количество цветов">
@@ -950,12 +957,12 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
       <div class="bk-base" id="bkBase"></div>
       <div id="bkFill"></div>
     </div>
-    <div class="bk-card" data-s="3" hidden>
-      <h2 class="bk-h">Сорта</h2>
+    <div class="bk-card" id="bkPicked" hidden>
+      <h2 class="bk-h">Ваша корзина</h2>
       <div id="bkSlots"></div>
-      <button class="bk-add" id="bkAdd" type="button">Выбрать сорт</button>
-      <p class="hint" style="margin:8px 0 0">В одной корзине до трёх сортов, и только одного вида.</p>
+      <button class="bk-add" id="bkAdd" type="button">+ ещё сорт</button>
     </div>
+    <div id="bkSamples" class="bk-samples" hidden></div>
     <div class="bk-total" id="bkTotal"></div>
   </div>
 </div>
@@ -1642,7 +1649,7 @@ function renderShots(p, label) {
    Порядок как у покупателя в голове: какие цветы → сколько → какие сорта.
    Вид выбираем первым, потому что смешивать нельзя и от вида зависит всё
    остальное: отметки на бегунке, вместимость в «местах» и цена стебля. */
-let БК = { cat: '', всего: 0, слоты: [], шаг: 1 };
+let БК = { cat: '', всего: 0, слоты: [] };
 const бкСорта = () => (P || []).filter(p => Array.isArray(p.basket) && p.basket.length && !p.off
   && (p.variants || []).some(v => !v.out));
 const бкРазделы = () => {
@@ -1668,11 +1675,15 @@ const бкОснова = () => бкОсноваПод(БК.всего)
   || ((BSET && BSET.основы) || []).slice().sort((a, b) => b.capacity - a.capacity)[0] || null;
 // «вмещает до 251 розы», «до 83 гортензий» — вид называем словом, а не
 // «цветком»: в корзине с гортензиями счёт идёт совсем другой.
-function бкСлово(n) {
+// Две формы, а не одна: «вмещает до 251 розы» — родительный, «201 роза
+// с корзиной» — именительный. С одной формой получалось «201 розы».
+function бкСлово(n, им) {
   const имя = String((бкРаздел() || {}).name || '').toLowerCase();
-  const пара = имя.indexOf('гортенз') >= 0 ? ['гортензии', 'гортензий']
-    : имя.indexOf('роз') >= 0 ? ['розы', 'роз'] : ['цветка', 'цветов'];
-  return (n % 10 === 1 && n % 100 !== 11) ? пара[0] : пара[1];
+  const гортензия = имя.indexOf('гортенз') >= 0, роза = имя.indexOf('роз') >= 0;
+  const одна = им ? (гортензия ? 'гортензия' : роза ? 'роза' : 'цветок')
+                  : (гортензия ? 'гортензии' : роза ? 'розы' : 'цветка');
+  const много = гортензия ? 'гортензий' : роза ? 'роз' : 'цветов';
+  return (n % 10 === 1 && n % 100 !== 11) ? одна : много;
 }
 // самый дешёвый возможный набор выбранного вида в этом количестве + корзина
 function бкОткуда(n) {
@@ -1728,6 +1739,24 @@ function бкРисоватьРазделы() {
   $('#bkCats').innerHTML = сп.map(c =>
     `<button type="button" data-bkcat="${c.slug}" aria-pressed="${c.slug === БК.cat}">${esc(c.name)}</button>`).join('');
 }
+// Сорта плитками прямо на странице. Раньше первым экраном был отвлечённый
+// вопрос «какие цветы» со списком видов, а сами цветы прятались за кнопкой
+// «Выбрать сорт» на третьем шаге: из 2 565 открывших конструктор до выбора
+// вида доходили 883. Теперь человек сразу видит, из чего собирает.
+function бкРисоватьСорта() {
+  const бокс = $('#bkSorts'); if (!бокс) return;
+  const c = бкРаздел();
+  const сп = бкСорта().filter(p => !c || p.cat === c.slug);
+  const выбран = (БК.слоты[0] || {}).id;
+  бокс.innerHTML = сп.length ? сп.map(p => {
+    const р = бкРостовки(p)[0];
+    return `<button type="button" class="bk-sort" data-bksort="${p.id}" aria-pressed="${p.id === выбран}">
+      ${p.img ? `<img src="${p.img}" alt="" loading="lazy">` : '<span class="ph"></span>'}
+      <b>${esc(p.name)}</b>
+      <small>${р ? rub(Math.round(р.цена)) + ' за стебель' : ''}</small></button>`;
+  }).join('') : '<p class="hint" style="margin:0">Сортов этого вида сейчас нет в наличии.</p>';
+}
+
 function бкРисоватьШкалу() {
   const c = бкРаздел(); if (!c) return;
   const marks = (c.marks || []).slice().sort((a, b) => a - b);
@@ -1797,13 +1826,10 @@ function бкРисоватьСлоты() {
   b.textContent = БК.слоты.length >= 3 ? 'Больше трёх сортов в корзину не ставим'
     : (БК.слоты.length ? '+ Добавить ещё сорт' : 'Выбрать сорт');
 }
+// Шагов больше нет — всё на одном экране. Прячем только блок «Ваша корзина»,
+// пока сорт не выбран: пустая рамка с надписью «ещё сорт» ничего не объясняет.
 function бкПоказатьШаг() {
-  document.querySelectorAll('#viewBasket [data-s]').forEach(el => { el.hidden = +el.dataset.s !== БК.шаг; });
-  document.querySelectorAll('#bkSteps button').forEach(b => {
-    const n = +b.dataset.step;
-    b.setAttribute('aria-current', n === БК.шаг);
-    b.dataset.done = n < БК.шаг ? 'true' : 'false';
-  });
+  const b = $('#bkPicked'); if (b) b.hidden = !БК.слоты.length;
 }
 function бкПересчёт() {
   бкРисоватьШкалу();
@@ -1817,15 +1843,12 @@ function бкПересчёт() {
   // На первых шагах показывать сумму нельзя: цена пустой корзины — не цена
   // корзины, владелец справедливо поймал меня на этом же на плитке.
   let слева, кнопка, действие, примечание = '';
-  if (БК.шаг === 1) {
-    слева = `<b>${esc((бкРаздел() || {}).name || 'Выберите цветы')}</b><small>шаг 1 из 3</small>`;
-    кнопка = 'Дальше'; действие = 'next';
-  } else if (БК.шаг === 2) {
-    слева = `<b>${БК.всего} шт</b><small>${основа ? esc(основа.name.replace('ЛФ-Корзина ', 'корзина ')) : 'подбираем корзину'}</small>`;
-    кнопка = 'Выбрать цветы'; действие = 'next';
-  } else if (!БК.слоты.length) {
-    слева = `<b>${БК.всего} шт</b><small>выберите сорт — посчитаем цену</small>`;
-    кнопка = 'Выбрать сорт'; действие = 'pick';
+  if (!БК.слоты.length) {
+    // Цена «от» видна с первой секунды: иначе человек крутит бегунок вслепую
+    const откуда = бкОткуда(БК.всего);
+    слева = откуда ? `<b class="big">от ${rub(откуда)}</b><small>${БК.всего} ${бкСлово(БК.всего, true)} с корзиной</small>`
+      : `<b>${БК.всего} ${бкСлово(БК.всего, true)}</b><small>выберите цветок</small>`;
+    кнопка = 'Выберите цветок'; действие = 'pick';
   } else {
     // В строке итога — только цена и кнопка. Доплату за доставку выносим
     // отдельной строкой и объясняем: такую корзину в руках не донести.
@@ -1894,7 +1917,7 @@ function renderBasketPage() {
     $('#bkLead').textContent = 'Конструктор корзин сейчас недоступен. Позвоните нам — соберём вручную.';
     return;
   }
-  бкРисоватьРазделы(); бкПримеры(); бкРисоватьСлоты(); бкПересчёт();
+  бкРисоватьРазделы(); бкРисоватьСорта(); бкПримеры(); бкРисоватьСлоты(); бкПересчёт();
 }
 // выбор сорта: показываем только те, что того же вида
 function бкОткрытьВыбор() {
@@ -1925,7 +1948,7 @@ function бкОткрытьВыбор() {
       БК.слоты.forEach(s => { s.n = доля; });
       БК.слоты.push({ id: p.id, len: r ? r.len : 0, n: БК.всего - доля * БК.слоты.length });
       window.шаг && window.шаг('bk_pick', p.name || '');
-      бкРисоватьСлоты(); бкПересчёт();
+      бкРисоватьСорта(); бкРисоватьСлоты(); бкПересчёт();
     }
     if (b || e.target.closest('[data-pickclose]')) { d.close(); d.remove(); }
   });
@@ -1935,9 +1958,23 @@ document.addEventListener('click', e => {
   const cat = t2.closest && t2.closest('[data-bkcat]');
   if (cat) {
     // другой вид — набор начинаем заново: сорта из прошлого вида сюда нельзя
-    БК.cat = cat.dataset.bkcat; БК.слоты = []; БК.всего = 0; БК.шаг = 2;
+    БК.cat = cat.dataset.bkcat; БК.слоты = []; БК.всего = 0;
     window.шаг && window.шаг('bk_cat', (бкРаздел() || {}).name || БК.cat);
-    бкРисоватьРазделы(); бкРисоватьСлоты(); бкПересчёт(); return;
+    бкРисоватьРазделы(); бкРисоватьСорта(); бкРисоватьСлоты(); бкПересчёт(); return;
+  }
+  const сорт = t2.closest && t2.closest('[data-bksort]');
+  if (сорт) {
+    const p = byId[сорт.dataset.bksort];
+    if (p) {
+      // Плитка задаёт один сорт на всю корзину — так собирают 21 корзину из 23.
+      // Второй и третий добавляются отдельной кнопкой «+ ещё сорт».
+      БК.cat = p.cat;
+      const r = бкРостовки(p)[0];
+      БК.слоты = [{ id: p.id, len: r ? r.len : 0, n: БК.всего }];
+      window.шаг && window.шаг('bk_pick', p.name || '');
+      бкРисоватьРазделы(); бкРисоватьСорта(); бкРисоватьСлоты(); бкПересчёт();
+    }
+    return;
   }
   const del = t2.closest && t2.closest('[data-bkdel]');
   if (del) { БК.слоты.splice(+del.dataset.bkdel, 1); бкРисоватьСлоты(); бкПересчёт(); return; }
@@ -1975,31 +2012,34 @@ document.addEventListener('click', e => {
     const x = ((BSET && BSET.примеры) || []).find(y => y.id === smp.dataset.bksample);
     const состав = x ? бкСоставПримера(x) : [];
     if (состав.length) {
-      БК.cat = (byId[состав[0].id] || {}).cat; БК.шаг = 3;
+      БК.cat = (byId[состав[0].id] || {}).cat;
       БК.всего = состав.reduce((n, y) => n + y.n, 0);
       БК.слоты = состав.slice(0, 3).map(y => {
         const ростовки = бкРостовки(byId[y.id]);
         const r = ростовки.find(z => z.len === y.len) || ростовки[0];
         return { id: y.id, len: r ? r.len : y.len, n: y.n };
       });
-      бкРисоватьРазделы(); бкРисоватьСлоты(); бкПересчёт();
+      бкРисоватьРазделы(); бкРисоватьСорта(); бкРисоватьСлоты(); бкПересчёт();
+      $('#bkPicked').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     return;
   }
   // Переменную звали «шаг» — тем же словом, что и общую запись событий, и
   // внутри этого обработчика она её перекрывала: вызов шаг('ready_basket')
   // падал бы с ошибкой «до объявления». Переименовано.
-  const кнопкаШага = t2.closest && t2.closest('#bkSteps button');
-  if (кнопкаШага) { БК.шаг = +кнопкаШага.dataset.step; бкПересчёт(); return; }
+
   const go = t2.closest && t2.closest('#bkGo');
-  if (go && !go.disabled && go.dataset.act === 'next') { БК.шаг = Math.min(3, БК.шаг + 1); бкПересчёт(); return; }
-  if (go && !go.disabled && go.dataset.act === 'pick') { бкОткрытьВыбор(); return; }
+  if (go && !go.disabled && go.dataset.act === 'pick') {
+    const б = $('#bkSorts');
+    if (б) б.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   if (go && !go.disabled) {
     const основа = бкОснова();
     корзины.push({ basket: основа.id, cat: БК.cat, parts: БК.слоты.map(s => ({ id: s.id, len: s.len, n: s.n })) });
     window.шаг && window.шаг('bk_add', `${БК.всего} ${бкСлово(БК.всего)} · ${БК.слоты.length} сорт.`);
     сохрКорзины(); badges(); openCart();
-    БК.слоты = []; бкРисоватьСлоты(); бкПересчёт();
+    БК.слоты = []; бкРисоватьСорта(); бкРисоватьСлоты(); бкПересчёт();
     toast('Корзина собрана и добавлена');
   }
 });
