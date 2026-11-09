@@ -76,6 +76,15 @@ function load(app, brand) {
 
 function page(meta, body) { return { meta, body }; }
 
+// «1 роза / 2 розы / 5 роз» — для заголовка и описания страницы дропа
+function скл(n, одна, две, много) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return много;
+  if (b === 1) return одна;
+  if (b >= 2 && b <= 4) return две;
+  return много;
+}
+
 function homePage(ctx, brand) {
   const name = brand ? brand.get("name") : "venikoff.net";
   const title = (brand && brand.get("seo_title")) || `${name} — доставка цветов и букетов по Москве`;
@@ -169,6 +178,48 @@ function pricePage(brand) {
       desc: `Цены ${name}: сорт, длина стебля и количество цветов в букете. Доставка по Москве.`,
       path: "/price/", crumbs: [["Прайс-лист", "/price/"]] },
     `<h1>Прайс-лист</h1><p>Цена за собранный букет: выберите сорт, длину стебля и количество цветов. Доставка по Москве считается по адресу.</p>
+     <p><a href="/catalog/">Перейти в каталог</a></p>`);
+}
+
+// Страница дропа. Её ссылку дают в рекламе и в Reels, поэтому она должна
+// открываться с живыми числами и с нормальным превью в мессенджере: цена,
+// сколько осталось и во сколько старт — всё из записи дропа, а не из текста.
+function dropPage(ctx, brand, path) {
+  const name = brand ? brand.get("name") : "venikoff.net";
+  let d = null;
+  try {
+    const dr = require(`${__hooks}/lib/drop.js`);
+    d = dr.текущий($app);
+  } catch (_) {}
+  if (!d) {
+    return page({ title: `Дроп дня — ${name}`,
+      desc: `Каждый день в 12:00 — букет по цене ниже каталога. Доставка по Москве.`,
+      path, crumbs: [["Дроп дня", "/drop/"]] },
+      `<h1>Дроп дня</h1><p>Каждый день в 12:00 мы выкладываем несколько букетов по цене ниже каталога. Сегодняшний пока не назначен — загляните к полудню.</p>
+       <p><a href="/catalog/">Перейти в каталог</a></p>`);
+  }
+  const цена = +d.get("price") || 0;
+  const старая = Math.max(0, Math.round(+d.get("old_price") || 0));
+  const штук = +d.get("cnt") || 0, длина = +d.get("len") || 0;
+  const старт = String(d.get("start_at") || "").slice(11);
+  const подпись = d.get("note") || "Дроп дня";
+  const фото = (() => {
+    try {
+      const л = require(`${__hooks}/lib/drop.js`).лоты(d);
+      for (const x of л) {
+        const p = ctx.cat.products.find((y) => y.id === x.product);
+        if (p && (p.big || p.img)) return p.big || p.img;
+      }
+    } catch (_) {}
+    return "";
+  })();
+  const title = `${подпись} — ${штук} ${скл(штук, "роза", "розы", "роз")} за ${rub(цена)} | ${name}`;
+  const desc = `Дроп дня в ${name}: ${штук} ${скл(штук, "роза", "розы", "роз")} ${длина} см за ${rub(цена)}`
+    + (старая > цена ? ` вместо ${rub(старая)}` : "") + `. Старт в ${старт}, доставка по Москве в тот же день.`;
+  return page({ title, desc, path, image: фото || undefined, crumbs: [["Дроп дня", "/drop/"]] },
+    `<h1>${esc(подпись)}</h1>
+     <p>${штук} ${скл(штук, "роза", "розы", "роз")} ${длина} см за ${rub(цена)}${старая > цена ? ` вместо ${rub(старая)}` : ""}. Старт в ${esc(старт)}.</p>
+     <p>Каждый день мы выкладываем несколько букетов по цене ниже каталога. Сорт объявляем в момент дропа — это то, что утром приехало с теплицы.</p>
      <p><a href="/catalog/">Перейти в каталог</a></p>`);
 }
 
@@ -289,7 +340,7 @@ function sitemap(ctx, origin) {
   // lastmod обязателен для быстрой переобходки: без него робот не знает, что
   // страница изменилась, и возвращается по своему расписанию — иногда через месяц.
   const сегодня = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
-  const urls = [["/", "1.0"], ["/catalog/", "0.9"], ["/delivery/", "0.5"], ["/price/", "0.5"]]
+  const urls = [["/", "1.0"], ["/catalog/", "0.9"], ["/drop/", "0.8"], ["/delivery/", "0.5"], ["/price/", "0.5"]]
     .concat(ctx.cat.categories.filter((c) => !c.addon && ctx.live.some((p) => p.cat === c.slug)).map((c) => [`/catalog/${c.slug}/`, "0.8"]))
     .concat(ctx.live.filter((p) => !ctx.cat.categories.find((c) => c.slug === p.cat && c.addon)).map((p) => [productUrl(p), "0.7"]));
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
@@ -442,12 +493,7 @@ function serve(app, e) {
       desc: "Корзина цветов на заказ: выберите количество и сорта, корзина подберётся сама. Доставка по Москве.",
       path }, "<h1>Соберите корзину</h1><p>Выберите цветы и количество — корзина подберётся сама.</p>");
   }
-  else if (parts[0] === "drop" && parts.length === 1) {
-    const name = brand ? brand.get("name") : "venikoff.net";
-    out = page({ title: "Дроп дня — " + name,
-      desc: "Ежедневный дроп — тот самый букет за 5 990 ₽.",
-      path }, "<h1>Дроп дня</h1><p>101 роза из Reels по особой цене. Встаньте в очередь — позовём, когда подойдёт.</p>");
-  }
+  else if (parts[0] === "drop" && parts.length === 1) out = dropPage(ctx, brand, path);
   else if (["me", "favorites", "order", "studio"].indexOf(parts[0]) >= 0) {
     const name = brand ? brand.get("name") : "venikoff.net";
     out = page({ title: name, desc: "", path, noindex: true }, "");

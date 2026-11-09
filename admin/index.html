@@ -514,6 +514,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <label class="f">Роз в букете<input class="in num" id="drCnt" type="number" value="101"></label>
           <label class="f">Ростовка, см<input class="in num" id="drLen" type="number" value="40"></label>
           <label class="f">Цена букета, ₽<input class="in num" id="drPrice" type="number" value="5990"></label>
+          <label class="f">Зачёркнутая цена, ₽<input class="in num" id="drOld" type="number" placeholder="из прайса"></label>
         </div>
         <label class="f">Подпись на сайте<input class="in" id="drNote" maxlength="300" placeholder="Тот самый букет из Reels"></label>
         <div class="scroll" style="margin-top:12px"><table class="t" id="drLots"></table></div>
@@ -3373,6 +3374,8 @@ function fillDrop(d) {
   $('#drCnt').value = (d && d.cnt) || 101;
   $('#drLen').value = (d && d.len) || 40;
   $('#drPrice').value = (d && d.price) || 5990;
+  // пусто — зачёркнутая цена считается по прайсу, как было раньше
+  $('#drOld').value = (d && d.old_price) || '';
   $('#drNote').value = (d && d.note) || 'Тот самый букет из Reels';
   $('#drActive').checked = !!(d && d.active);
   DRLOTS = d ? d.lots.map((l) => ({ product: l.product, qty: l.qty, left: l.left })) : [];
@@ -3404,6 +3407,7 @@ $('#drSave').onclick = safe(async () => {
   await api('/api/shop/drop-save', { method: 'POST', body: {
     date: $('#drDate').value, start_at: $('#drStart').value, ready_at: $('#drReady').value,
     len: +$('#drLen').value, cnt: +$('#drCnt').value, price: +$('#drPrice').value,
+    old_price: +$('#drOld').value || 0,
     note: $('#drNote').value, active: $('#drActive').checked, lots } });
   toast('Дроп сохранён'); loadDrop();
 });

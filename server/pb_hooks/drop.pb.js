@@ -45,8 +45,12 @@ routerAdd("GET", "/api/shop/drop", (e) => {
     сейчас: dr.мск().полное,
     старт: d.get("start_at"), доставка_с: d.get("ready_at"),
     цена: +d.get("price") || 0, штук: +d.get("cnt") || 0, длина: +d.get("len") || 0,
-    // обычная цена того же количества в каталоге — чтобы было видно выгоду
+    // Зачёркнутая цена. Назначенная владельцем (`old_price`) сильнее: в дроп
+    // идёт букет, который в каталоге по этой цене не продаётся вовсе, и
+    // автоподбор по прайсу показывал не ту выгоду. Пусто — считаем по прайсу.
     обычная: (() => {
+      const своя = Math.max(0, Math.round(+d.get("old_price") || 0));
+      if (своя) return своя;
       try {
         const т = shop.priceTables(shop.settings($app)).find((x) => x.id === "single");
         const строка = т && (т.prices || {})[String(+d.get("len") || 40)];
@@ -224,6 +228,7 @@ routerAdd("POST", "/api/shop/drop-save", (e) => {
   d.set("len", Math.max(1, +b.len || 40));
   d.set("cnt", Math.max(1, +b.cnt || 101));
   d.set("price", Math.max(0, Math.round(+b.price || 0)));
+  d.set("old_price", Math.max(0, Math.round(+b.old_price || 0)));
   d.set("note", String(b.note || "").slice(0, 300));
   d.set("active", !!b.active);
   d.set("lots", (Array.isArray(b.lots) ? b.lots : []).map((l) => {
