@@ -186,6 +186,21 @@ function pricePage(brand) {
 // сколько осталось и во сколько старт — всё из записи дропа, а не из текста.
 function dropPage(ctx, brand, path) {
   const name = brand ? brand.get("name") : "venikoff.net";
+  // Партия сильнее дропа дня: пока она не разошлась, /drop/ рассказывает о ней.
+  const партия = (ctx.live || []).find((x) => x.batch && x.batch.total > 0 && x.batch.left > 0);
+  if (партия) {
+    const б = партия.batch;
+    const от = (партия.variants || []).filter((v) => v.price > 0 && !v.out).map((v) => v.price);
+    const цена = от.length ? Math.min.apply(null, от) : 0;
+    const заголовок = б.note || `Привезли для вас ${б.total} роз`;
+    return page({ title: `${заголовок} — ${name}`,
+        desc: `${заголовок} по оптовой цене${цена ? `, от ${rub(цена)}` : ""}. Свободно ${б.left} ${
+          скл(б.left, "стебель", "стебля", "стеблей")} из ${б.total}. Доставка по Москве.`,
+        path, image: партия.big || партия.img || undefined, crumbs: [["Дроп дня", "/drop/"]] },
+      `<h1>${esc(заголовок)}</h1>
+       <p>${esc(партия.name)} по оптовой цене${цена ? `, от ${rub(цена)}` : ""}. Свободно ${б.left} из ${б.total} стеблей — продаём, пока партия не разойдётся.</p>
+       <p><a href="${productUrl(партия)}">Выбрать количество</a></p>`);
+  }
   let d = null;
   try {
     const dr = require(`${__hooks}/lib/drop.js`);

@@ -310,6 +310,17 @@ function catalog(app, brand) {
         // состав готового букета показываем прямо в карточке: по нему и выбирают
         made: p.get("is_express") ? String(p.get("description") || "").replace(/\s+/g, " ").trim().slice(0, 90) || undefined : undefined,
         badge_text: String(p.get("badge_text") || "").trim() || undefined,
+        // Партия: сколько привезли и сколько ещё свободно. Свободное считаем
+        // из настоящего остатка, поэтому счётчик не соврёт и партия кончится
+        // сама. Пусто — обычный товар, блока на карточке нет.
+        batch: (function () {
+          const всего = Math.max(0, Math.round(+p.get("batch_total") || 0));
+          if (!всего) return undefined;
+          const ост = stockOf(p);
+          const свободно = Object.keys(ост).reduce((n, k) => n + Math.max(0, +ост[k] || 0), 0);
+          return { total: всего, left: Math.min(всего, свободно),
+            note: String(p.get("batch_note") || "").trim() || undefined };
+        })(),
         // «сегодня с теплицы» — только в день завоза, назавтра само пропадёт
         fresh: String(p.get("fresh_date") || "") === moscowNow().date ? true : undefined,
         // «цветы ещё в пути»: сайт покажет предупреждение и не даст ранний интервал
