@@ -1449,6 +1449,9 @@ const img = id => `/img/p/${id}.jpg`;
 // постоянный адрес страницы товара — его же отдаёт сервер поисковикам
 const purl = p => `/catalog/${p.cat}/${p.slug || p.id}/`;
 const icon = n => `<svg class="i"><use href="#i-${n}"/></svg>`;
+// «6 000» с неразрывными пробелами. Объявлять только здесь: вставитьДроп
+// зовут из верхнеуровневого кода, и объявление ниже него уронит страницу.
+const число = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store = {
   get(k, d) { try { const v = JSON.parse(localStorage.getItem('vk.' + k)); return v ?? d; } catch { return d; } },
@@ -2635,6 +2638,10 @@ const отборРазмера = () => !!(state.len || state.cnt || state.min ||
    кабинету — meToken и прочее трогаем только внутри функций, которые
    вызываются уже после загрузки страницы (на этом мы один раз уронили сайт). */
 let DROP = null, DROPсдвиг = 0, DROPтик = 0, DROPоткрыт = true;
+// Партия как дроп: привезли N роз, продаём обычной карточкой, счётчик
+// свободных стеблей живой. Партия сильнее дропа дня — пока она есть,
+// её показывают и полоска на главной, и страница /drop/.
+const партияДропа = () => (P || []).find(x => !x.off && x.batch && x.batch.total > 0 && x.batch.left > 0) || null;
 const дропЧас = (мс) => {
   const вс = Math.max(0, Math.floor(мс / 1000));
   const ч = Math.floor(вс / 3600), м = Math.floor((вс % 3600) / 60), с = вс % 60;
@@ -2731,16 +2738,31 @@ function дропКарточка() {
 }
 // вставляем после первого ряда плиток: человек листает каталог и натыкается
 let дропПоказан = false;
+// Полоска партии вместо полоски дропа дня. Без неё партия жила бы только на
+// своей странице, а на главную и в каталог люди приходят первым делом: именно
+// полоса дропа давала 9 725 показов за две недели, и терять её нельзя.
+function полоскаПартии(пар) {
+  const б = пар.batch;
+  const от = (пар.variants || []).filter(v => v.price > 0 && !v.out).map(v => v.price);
+  return `<a class="dline live" href="/drop/" data-nav>
+    <span class="em">🔥</span>
+    <span class="tx"><b>${esc(б.note || пар.name)}</b><small>по лучшей цене${
+      от.length ? ' · от ' + rub(Math.min.apply(null, от)) : ''}</small></span>
+    <span class="tm"><small>свободно</small><b>${число(б.left)} шт</b></span><span class="ch">▸</span></a>`;
+}
+
 function вставитьДроп(куда) {
-  if (!DROP || !DROP.есть || !куда) return;
+  if (!куда) return;
+  const пар = партияДропа();
+  if (!пар && (!DROP || !DROP.есть)) return;
   // один раз за загрузку: полоска рисуется и на главной, и в каталоге,
   // а событие должно отвечать на вопрос «сколько людей её увидели»
-  if (!дропПоказан) { дропПоказан = true; window.шаг && window.шаг('drop_show', DROP.состояние || ''); }
+  if (!дропПоказан) { дропПоказан = true; window.шаг && window.шаг('drop_show', пар ? 'партия' : (DROP.состояние || '')); }
   куда.querySelectorAll('[data-dropbox]').forEach(x => x.remove());
   const box = document.createElement('div');
   box.dataset.dropbox = '1';
   box.style.display = 'contents';
-  box.innerHTML = DROPоткрыт ? дропКарточка() : дропПолоска();
+  box.innerHTML = пар ? полоскаПартии(пар) : (DROPоткрыт ? дропКарточка() : дропПолоска());
   // Полоска занимает ВСЮ ширину ряда, поэтому вставлять её надо после целого
   // ряда карточек, а не после второй. На телефоне колонок две и всё сходилось,
   // а на компьютере их четыре: полоска не влезала в остаток ряда, уезжала на
@@ -2755,11 +2777,6 @@ function вставитьДроп(куда) {
 // Вокруг неё — заголовок с ценой и три объяснения, потому что человек приходит
 // сюда с рекламы и про дроп ещё ничего не знает.
 const сБольшой = (t) => String(t || '').charAt(0).toUpperCase() + String(t || '').slice(1);
-// Партия как дроп: привезли N роз, продаём обычной карточкой, счётчик
-// свободных стеблей живой. Партия сильнее дропа дня — пока она есть,
-// страница /drop/ показывает её (решение владельца 10.11.2026).
-const партияДропа = () => (P || []).find(x => !x.off && x.batch && x.batch.total > 0 && x.batch.left > 0) || null;
-
 function renderDropPage() {
   const бокс = $('#dropPage'); if (!бокс) return;
   const под = $('#drpSub'), как = $('#drpHow'), h1 = $('#drpH1');
@@ -3289,7 +3306,6 @@ function рисоватьПартию(p) {
       <div class="took">${взяли ? `разобрали ${число(взяли)} из ${число(б.total)} · ` : ''}дроп до конца партии</div>
     </div>`;
 }
-const число = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
 
 function showProduct(id) {
   const p = byId[id]; if (!p) return go404();
