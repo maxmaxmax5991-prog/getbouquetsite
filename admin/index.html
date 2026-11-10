@@ -4450,7 +4450,7 @@ async function loadUnpaid() {
     const вес = o => (o.call ? 2 : 0) + (o.first ? 0 : 1);
     const сп = r.slice().sort((a, b) => вес(a) - вес(b) || a.mins - b.mins);
     const ИТОГ = { promised: '✅ обещал оплатить', later: '⏳ перезвонить позже', refused: '✖ отказался',
-      noanswer: '📵 не берёт трубку', wrong: '❌ номер не тот' };
+      noanswer: '📵 не берёт трубку', wrong: '❌ номер не тот', double: '🧩 дубль, не звоним' };
     $('#unpaidList').innerHTML = сп.length
       ? `<tr><th>Заказ</th><th>Кто</th><th class="num">Сумма</th><th>Ждёт</th><th>Банк</th><th>Звонок</th></tr>`
         + сп.map(o => `<tr${o.call === 'promised' ? ' style="background:color-mix(in srgb,var(--leaf) 10%,transparent)"' : ''}>`

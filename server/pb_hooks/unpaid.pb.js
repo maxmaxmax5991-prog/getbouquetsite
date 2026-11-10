@@ -201,24 +201,22 @@ routerAdd("POST", "/api/shop/unpaid-call", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const st = require(`${__hooks}/lib/staff.js`);
   if (!shop.can(e, ["owner", "sales", "head", "manager", "care"])) return e.json(403, { message: "Недостаточно прав." });
-  const ИТОГИ = {
-    promised: "обещал оплатить", later: "перезвонить позже", refused: "отказался",
-    noanswer: "не берёт трубку", wrong: "номер не тот",
-  };
+  // Список итогов один на всё — в lib/callnow.js. Свою копию здесь уже
+  // заводили, и она разошлась с ботом: «дубль» в боте был, а в админке нет.
+  const cn = require(`${__hooks}/lib/callnow.js`);
   const b = e.requestInfo().body || {};
   const итог = String(b.result || "");
-  if (!ИТОГИ[итог]) return e.json(400, { message: "Неизвестный итог звонка." });
+  if (!cn.ИТОГИ[итог]) return e.json(400, { message: "Неизвестный итог звонка." });
   let o;
   try { o = $app.findRecordById("orders", String(b.order || "")); } catch (_) { return e.json(404, { message: "Заказ не найден" }); }
   const я = st.нынешний($app, e);
   const кто = я ? (я.get("name") || я.get("nick") || "") : "";
-  // запросом, мимо хуков: обычное сохранение заказа будит уведомления и МойСклад
-  try {
-    $app.db().newQuery("UPDATE orders SET call_result = {:r}, call_at = {:a}, call_by = {:b} WHERE id = {:id}")
-      .bind({ r: итог, a: new Date().toISOString(), b: кто, id: o.id }).execute();
-  } catch (err) { return e.json(500, { message: String(err) }); }
-  st.запись($app, o, я, "звонок по оплате", ИТОГИ[итог]);
-  return e.json(200, { ok: true, подпись: ИТОГИ[итог] });
+  const r = cn.итогЗвонка($app, o.id, итог, кто);
+  if (!r) return e.json(500, { message: "Не записал итог звонка." });
+  // Отметили в админке — карточка в боте тоже должна погаснуть, иначе тот,
+  // кто сидит в боте, позвонит по уже закрытому заказу.
+  try { cn.погасить($app, r, итог, кто, null); } catch (err) { console.log("звонок: не погасил карточки", err); }
+  return e.json(200, { ok: true, подпись: r.подпись });
 }, $apis.requireAuth("managers"));
 
 // Разбор старого завала: вернуть цветы с давно брошенных заказов. Без `go`
