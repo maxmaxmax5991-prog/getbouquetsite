@@ -63,6 +63,10 @@ function ужеБили(app, id) {
   } catch (_) { return true; }
 }
 
+const снять = (app, id) => {
+  try { app.db().newQuery("DELETE FROM order_notified WHERE order_id = {:id} AND status = 'receipt'").bind({ id }).execute(); } catch (_) {}
+};
+
 function пробить(app, s, o, brand) {
   const н = настройки(s);
   if (!н.on) return { ok: false, выкл: true };
@@ -89,7 +93,7 @@ function пробить(app, s, o, brand) {
   }, brand);
   if (!r.ok || !r.data || r.data.Success === false) {
     // Отметку снимаем: беда могла быть разовой, и чек надо будет добить.
-    try { app.db().newQuery("DELETE FROM order_notified WHERE order_id = {:id} AND status = 'receipt'").bind({ id: o.id }).execute(); } catch (_) {}
+    снять(app, o.id);
     const текст = (r.data && r.data.Message) || r.error || "касса не ответила";
     return { ok: false, error: String(текст) };
   }
@@ -100,4 +104,61 @@ function пробить(app, s, o, brand) {
   return { ok: true, позиций: items.length, сумма: итого };
 }
 
-module.exports = { пробить, позиции, настройки };
+// Чек на доплату. Состава у доплаты нет — только сумма, — поэтому в чеке она
+// идёт одной строкой-услугой «Доплата по заказу №N». Касса требует позицию,
+// придумывать за менеджера состав мы не вправе.
+function доплата(app, s, o, ex, brand) {
+  const н = настройки(s);
+  if (!н.on) return { ok: false, выкл: true };
+  const тел = телефон(o);
+  const сумма = Math.round((+ex.get("sum") || 0) * 100) / 100;
+  if (!н.inn || !тел || !(сумма > 0)) return { ok: false, error: "Нет ИНН, телефона или суммы." };
+  const ключ = "receipt-ex-" + ex.id;
+  if (ужеБили(app, ключ)) return { ok: false, повтор: true };
+  const r = require(`${__hooks}/lib/pay.js`).cp(s, "/kkt/receipt", {
+    Inn: +н.inn, Type: "Income",
+    InvoiceId: String(ex.get("invoice") || ""), AccountId: тел,
+    CustomerReceipt: {
+      Items: [{ label: `Доплата по заказу №${o.get("number")}`, price: сумма, quantity: 1,
+        amount: сумма, vat: н.vat, method: 4, object: 4 }],
+      taxationSystem: н.tax, phone: тел, email: "",
+      amounts: { electronic: сумма },
+    },
+  }, brand);
+  if (!r.ok || !r.data || r.data.Success === false) {
+    снять(app, ключ);
+    return { ok: false, error: String((r.data && r.data.Message) || r.error || "касса не ответила") };
+  }
+  return { ok: true, сумма };
+}
+
+// Чек возврата. Бьём только когда деньги ДЕЙСТВИТЕЛЬНО вернули: фискальный
+// возврат по деньгам, оставшимся у нас, — враньё в отчётности. Поэтому вызов
+// идёт не из отмены заказа, а из ответа «вернули» (кнопка в боте).
+function возврат(app, s, o, brand) {
+  const н = настройки(s);
+  if (!н.on) return { ok: false, выкл: true };
+  const тел = телефон(o);
+  if (!н.inn || !тел) return { ok: false, error: "Нет ИНН или телефона." };
+  const items = позиции(o, н.vat);
+  const сумма = Math.round(items.reduce((n, x) => n + x.amount, 0) * 100) / 100;
+  const итого = Math.round((+o.get("total") || 0) * 100) / 100;
+  if (!items.length || Math.abs(сумма - итого) > 0.009) {
+    return { ok: false, error: `Возврат не сходится: позиции ${сумма} ₽, оплачено ${итого} ₽.` };
+  }
+  const ключ = "receipt-back-" + o.id;
+  if (ужеБили(app, ключ)) return { ok: false, повтор: true };
+  const r = require(`${__hooks}/lib/pay.js`).cp(s, "/kkt/receipt", {
+    Inn: +н.inn, Type: "IncomeReturn",
+    InvoiceId: shop.invoiceOf(o), AccountId: тел,
+    CustomerReceipt: { Items: items, taxationSystem: н.tax, phone: тел, email: "",
+      amounts: { electronic: итого } },
+  }, brand);
+  if (!r.ok || !r.data || r.data.Success === false) {
+    снять(app, ключ);
+    return { ok: false, error: String((r.data && r.data.Message) || r.error || "касса не ответила") };
+  }
+  return { ok: true, сумма: итого };
+}
+
+module.exports = { пробить, доплата, возврат, позиции, настройки };

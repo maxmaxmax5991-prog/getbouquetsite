@@ -283,6 +283,12 @@ routerAdd("POST", "/api/cloudpayments/callback", (e) => {
           const s = shop.settings($app);
           const token = s.get("tg_token");
           shop.adminIds(s).forEach((c) => shop.tg(token, "sendMessage", { chat_id: c, text: `💰 Доплата ${shop.rub(ex.get("sum"))} по заказу №${o.get("number")} пришла.` }));
+          // Чек на доплату: это отдельный расчёт, и чек по нему тоже отдельный
+          const чек = require(`${__hooks}/lib/receipt.js`).доплата($app, s, o, ex, shop.brandOfOrder($app, o));
+          if (!чек.ok && !чек.выкл && !чек.повтор) {
+            shop.adminIds(s).forEach((c) => shop.tg(token, "sendMessage", { chat_id: c,
+              text: `🧾 Чек на доплату по заказу №${o.get("number")} не пробился: ${чек.error}` }));
+          }
         } catch (_) {}
       }
       return принято();

@@ -512,6 +512,33 @@ function handle(app, secret, upd) {
       shop.tg(token, "sendMessage", { chat_id: chat, text: `${title} «${p.get("name")}» ${TAG(p.id)}${hint ? "\n\n" + hint : ""}`, reply_markup: { force_reply: true } });
       shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
     };
+    // Судьба денег по отменённому оплаченному заказу: a — id заказа, b — что
+    // с деньгами. Чек возврата бьём ТОЛЬКО на «вернули»: фискальный возврат
+    // по деньгам, оставшимся у нас, — враньё в отчётности.
+    if (kind === "rf") {
+      let ord = null;
+      try { ord = app.findRecordById("orders", a); } catch (_) {}
+      if (!ord) return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id });
+      if (String(ord.get("refund") || "")) {
+        return shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: "Уже записано" });
+      }
+      const вернули = b === "back";
+      try {
+        app.db().newQuery("UPDATE orders SET refund = {:r}, refund_at = {:t} WHERE id = {:id}")
+          .bind({ r: вернули ? "returned" : "kept", t: new Date().toISOString(), id: ord.id }).execute();
+      } catch (err) { console.log("судьба денег", err); }
+      let хвост = вернули ? "деньги вернули" : "деньги остались у нас";
+      if (вернули) {
+        try {
+          const ч = require(`${__hooks}/lib/receipt.js`).возврат(app, s, ord, shop.brandOfOrder(app, ord));
+          хвост += ч.ok ? ", чек возврата пробит" : (ч.выкл ? "" : `, но чек возврата не пробился: ${ч.error}`);
+        } catch (err) { console.log("чек возврата", err); }
+      }
+      shop.tg(token, "answerCallbackQuery", { callback_query_id: cb.id, text: вернули ? "Записал: вернули" : "Записал: остались" });
+      shop.tg(token, "editMessageText", { chat_id: chat, message_id: cb.message.message_id,
+        text: `${cb.message.text}\n\n— ${хвост}` });
+      return;
+    }
     // Итог звонка по неоплаченному заказу — кнопки под сигналом «позвоните сейчас»
     if (kind === "pc") {
       const r = require(`${__hooks}/lib/callnow.js`).итогЗвонка(app, b, a, cb.from.first_name || cb.from.username || "");

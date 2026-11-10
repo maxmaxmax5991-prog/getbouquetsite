@@ -45,6 +45,24 @@ onRecordAfterUpdateSuccess((e) => {
       if (!было || String(было.get("status")) !== "cancelled") {
         const n = require(`${__hooks}/lib/unpaid.js`).вернутьОстатки($app, e.record);
         if (n) console.log(`unpaid: заказ №${e.record.get("number")} отменён, вернули ${n} стеблей`);
+        // Отменили УЖЕ ОПЛАЧЕННЫЙ заказ — надо решить судьбу денег. Без ответа
+        // нельзя ни чек возврата пробить, ни кассу свести: за месяц так
+        // накопилось 23 заказа на 204 778 ₽, по которым никто не знает, вернули
+        // мы деньги или нет. Спрашиваем сразу, кнопками, пока помнят.
+        if (e.record.get("payment_status") === "paid" && !String(e.record.get("refund") || "")) {
+          try {
+            const shop = require(`${__hooks}/lib/shop.js`);
+            const s = shop.settings($app);
+            shop.adminIds(s).forEach((c) => shop.tg(s.get("tg_token"), "sendMessage", {
+              chat_id: c,
+              text: `↩️ Отменён оплаченный заказ №${e.record.get("number")} на ${shop.rub(e.record.get("total"))}.\n\nЧто с деньгами?`,
+              reply_markup: { inline_keyboard: [[
+                { text: "💸 Вернули покупателю", callback_data: `rf:${e.record.id}:back` },
+                { text: "Остались у нас", callback_data: `rf:${e.record.id}:keep` },
+              ]] },
+            }));
+          } catch (err) { console.log("отмена: спросить про деньги", err); }
+        }
       }
     }
   } catch (err) { console.log("unpaid cancel", err); }
