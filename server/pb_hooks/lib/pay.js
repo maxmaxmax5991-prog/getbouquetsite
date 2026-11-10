@@ -127,23 +127,24 @@ function checkOrder(app, o) {
     chat_id: chat, text: `💳 Оплачено картой — ${shop.rub(o.get("total"))}`,
   }));
   try { shop.notifyOrder(app, o); } catch (err) { console.log("notify after pay", err); }
-  // Онлайн-чек по 54-ФЗ — сразу после подтверждения оплаты. Отдельным
-  // запросом к кассе: ошибка в чеке не должна ронять саму оплату.
-  try {
-    const чек = require(`${__hooks}/lib/receipt.js`).пробить(app, s, o, shop.brandOfOrder(app, o));
-    if (чек.ok) console.log("чек пробит:", o.get("number"), чек.сумма, "₽");
-    else if (!чек.выкл && !чек.повтор) {
-      console.log("чек НЕ пробит:", o.get("number"), чек.error);
-      shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", { chat_id: chat,
-        text: `🧾 Чек по заказу №${o.get("number")} не пробился: ${чек.error}\nОплата прошла, но фискальный чек покупателю не ушёл.` }));
-    }
-  } catch (err) { console.log("чек после оплаты", err); }
   try {
     const msl = require(`${__hooks}/lib/ms.js`);
     if (o.get("ms_id")) msl.markPaid(app, o);   // уже там — просто меняем статус
     else msl.pushOrder(app, o);                 // доставку создаём только сейчас, после оплаты
     msl.addPayment(app, o);                     // и входящий платёж, привязанный к заказу
   } catch (err) { console.log("ms after pay", err); }
+  // Онлайн-чек по 54-ФЗ. Отдельным запросом к кассе: ошибка в чеке не должна
+  // ронять оплату. И в самом конце, после МоегоСклада: pushOrder сохраняет
+  // заказ из копии, снятой раньше, и затирал отметку о чеке обратно в пустоту.
+  try {
+    const чек = require(`${__hooks}/lib/receipt.js`).пробить(app, s, o, shop.brandOfOrder(app, o));
+    if (чек.ok) console.log("чек пробит:", o.get("number"), чек.сумма, "₽, id", чек.id || "—");
+    else if (!чек.выкл && !чек.повтор) {
+      console.log("чек НЕ пробит:", o.get("number"), чек.error);
+      shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", { chat_id: chat,
+        text: `🧾 Чек по заказу №${o.get("number")} не пробился: ${чек.error}\nОплата прошла, но фискальный чек покупателю не ушёл.` }));
+    }
+  } catch (err) { console.log("чек после оплаты", err); }
   return true;
 }
 

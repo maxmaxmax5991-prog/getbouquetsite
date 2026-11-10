@@ -101,11 +101,14 @@ function пробить(app, s, o, brand) {
     const текст = (r.data && r.data.Message) || r.error || "касса не ответила";
     return { ok: false, error: String(текст) };
   }
+  // Номер чека в кассе: по InvoiceId чек потом не находится (проверено), а по
+  // этому Id состояние чека можно спросить в любой момент.
+  const id = String((r.data.Model && r.data.Model.Id) || "");
   try {
     app.db().newQuery("UPDATE orders SET receipt_at = {:t} WHERE id = {:id}")
-      .bind({ t: new Date().toISOString(), id: o.id }).execute();
+      .bind({ t: new Date().toISOString() + (id ? " " + id : ""), id: o.id }).execute();
   } catch (_) {}
-  return { ok: true, позиций: items.length, сумма: итого };
+  return { ok: true, позиций: items.length, сумма: итого, id };
 }
 
 // Чек на доплату. Состава у доплаты нет — только сумма, — поэтому в чеке она
