@@ -678,6 +678,12 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
   text-decoration:none;-webkit-tap-highlight-color:transparent}
 .dline .em{font-size:20px;line-height:1;flex:none}
 .dline .tx{flex:1;min-width:0;line-height:1.25}
+/* «Супер выгода» — почему на полоску вообще стоит нажать: цена за штуку
+   у партии ниже обычной, и это главный аргумент, а не сам факт привоза.
+   Класс НЕ .tag: глобальный .tag — абсолютный ярлык на фото карточки
+   (position:absolute;left:10;top:10), и плашку уносило за пределы экрана. */
+.dline .deal{display:inline-block;margin-bottom:5px;padding:3px 8px;border-radius:999px;
+  background:#2DD47A;color:#07210F;font:900 10px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
 /* Заголовок партии длинный («Привезли для вас 6 000 роз Фридом») и в одну строку
    на телефоне обрезался многоточием на полуслове. Две строки читаются целиком. */
 .dline .tx b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
@@ -686,10 +692,16 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dline .tm{flex:none;text-align:right;white-space:nowrap;line-height:1.15}
 .dline .tm small{display:block;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.5)}
-.dline .tm b{font:800 14px/1.15 var(--display);font-variant-numeric:tabular-nums}
+.dline .tm b{font:800 14px/1.15 var(--display);font-variant-numeric:tabular-nums;color:#2DD47A}
 .dline .ch{flex:none;opacity:.45;font-size:12px}
-.dline.live{box-shadow:0 0 0 0 rgba(224,23,138,.38);animation:dpPulse 2.6s infinite}
-@keyframes dpPulse{70%{box-shadow:0 0 0 10px rgba(224,23,138,0)}100%{box-shadow:0 0 0 0 rgba(224,23,138,0)}}
+/* Пульсация зелёная и заметная: полоска стоит посреди витрины и должна
+   выбиваться из ряда карточек, иначе её просто пролистывают. */
+.dline.live{outline:1px solid rgba(45,212,122,.45);outline-offset:0;animation:dpPulse 1.5s infinite}
+@keyframes dpPulse{
+  0%{box-shadow:0 0 0 0 rgba(45,212,122,.8)}
+  70%{box-shadow:0 0 0 16px rgba(45,212,122,0)}
+  100%{box-shadow:0 0 0 0 rgba(45,212,122,0)}}
+@media (prefers-reduced-motion:reduce){.dline.live{animation:none;box-shadow:0 0 0 3px rgba(45,212,122,.35)}}
 .dp{grid-column:1 / -1;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;
   box-shadow:0 1px 2px rgba(20,30,20,.05),0 14px 32px -26px rgba(20,40,30,.5)}
 .dp-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#14171A;color:#fff;min-height:44px}
@@ -865,9 +877,21 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
 #viewDrop .dp{margin:0}
 #viewDrop .dp-head .x{display:none}
 #viewDrop .drp-how{margin-top:22px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-#viewDrop .drp-how section{background:var(--card,#fff);border:1px solid var(--line,#e6e6e6);border-radius:16px;padding:16px 18px;min-width:0}
-#viewDrop .drp-how h2{font-size:16px;margin:0 0 6px}
-#viewDrop .drp-how p{margin:0;font-size:14px;color:var(--ink-2,#666);line-height:1.55}
+/* Было var(--card,#fff) — такого токена в проекте нет, и в тёмной теме
+   карточки выходили белыми со светлым текстом: читать нечего. Токен — --paper. */
+#viewDrop .drp-how section{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px 18px;min-width:0}
+#viewDrop .drp-how h2{font-size:16px;margin:0 0 6px;color:var(--ink)}
+#viewDrop .drp-how p{margin:0;font-size:14px;color:var(--ink-2);line-height:1.55}
+/* Количества — тремя кнопками, а не строкой текста: строка «25 шт — 4 990 ₽ ·
+   51 шт — 8 990 ₽ · 101 шт — 15 990 ₽» на телефоне уезжала за край экрана. */
+.pd-batch .sizes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.pd-batch .sizes a{display:block;text-align:center;text-decoration:none;padding:10px 4px;border-radius:12px;
+  border:1.5px solid var(--line-2);background:var(--soft);color:var(--ink);transition:border-color .15s,transform .1s}
+.pd-batch .sizes a:hover{border-color:var(--accent)}
+.pd-batch .sizes a:active{transform:scale(.97)}
+.pd-batch .sizes b{display:block;font:800 15px/1.1 var(--display)}
+.pd-batch .sizes span{display:block;margin-top:5px;font-size:14px;font-weight:800;color:var(--accent-text)}
+.pd-batch .sizes small{display:block;margin-top:2px;font-size:11px;color:var(--ink-3)}
 #viewDrop .drp-share{margin-top:18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 </style>
 </head>
@@ -2748,11 +2772,14 @@ let дропПоказан = false;
 // полоса дропа давала 9 725 показов за две недели, и терять её нельзя.
 function полоскаПартии(пар) {
   const б = пар.batch;
-  const от = (пар.variants || []).filter(v => v.price > 0 && !v.out).map(v => v.price);
+  // Цена за штуку, а не за букет: 15 990 ₽ пугает, 159 ₽ за розу — продаёт.
+  // Округляем вверх, чтобы в полоске не стояла цена ниже настоящей.
+  const зашт = (пар.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out)
+    .map(v => Math.ceil(v.price / v.cnt));
   return `<a class="dline live" href="/drop/" data-nav>
     <span class="em">🔥</span>
-    <span class="tx"><b>${esc(б.note || пар.name)}</b><small>по лучшей цене${
-      от.length ? ' · от ' + rub(Math.min.apply(null, от)) : ''}</small></span>
+    <span class="tx"><span class="deal">супер выгода</span><b>${esc(б.note || пар.name)}</b><small>по лучшей цене${
+      зашт.length ? ' · от ' + rub(Math.min.apply(null, зашт)) + '/шт' : ''}</small></span>
     <span class="tm"><small>свободно</small><b>${число(б.left)} шт</b></span><span class="ch">▸</span></a>`;
 }
 
@@ -2792,6 +2819,9 @@ function вставитьДроп(куда) {
 // Вокруг неё — заголовок с ценой и три объяснения, потому что человек приходит
 // сюда с рекламы и про дроп ещё ничего не знает.
 const сБольшой = (t) => String(t || '').charAt(0).toUpperCase() + String(t || '').slice(1);
+function привязатьВыбор(кн, пар) {
+  кн.addEventListener('click', () => { sel[пар.id] = кн.dataset.drpq; });
+}
 function renderDropPage() {
   const бокс = $('#dropPage'); if (!бокс) return;
   const под = $('#drpSub'), как = $('#drpHow'), h1 = $('#drpH1');
@@ -2801,19 +2831,27 @@ function renderDropPage() {
     const доля = Math.max(2, Math.round(б.left * 100 / б.total));
     const от = (пар.variants || []).filter(v => v.price > 0 && !v.out).map(v => v.price);
     if (h1) h1.textContent = б.note || `Привезли для вас ${число(б.total)} роз`;
+    // Та же цена за штуку, что и в полоске: человек переходит сюда по ней,
+    // и увидеть другую цифру на странице — прямой повод закрыть вкладку.
+    const зашт = (пар.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out)
+      .map(v => Math.ceil(v.price / v.cnt));
     if (под) под.innerHTML = `по лучшей цене${пар.lengths && пар.lengths.length === 1 ? ' · ' + пар.lengths[0] + ' см' : ''}` +
-      (от.length ? ` · от <b>${rub(Math.min.apply(null, от))}</b>` : '');
+      (зашт.length ? ` · от <b>${rub(Math.min.apply(null, зашт))}/шт</b>` : '');
     бокс.innerHTML = `<div class="pd-batch">
       <div class="head"><div><span class="tag">ДРОП ИДЁТ</span><small>свободно стеблей</small></div>
         <div class="num">${число(б.left)}</div></div>
       <div class="body">
         ${пар.img ? `<img src="${пар.img}" alt="${esc(пар.name)}" loading="lazy" style="width:100%;border-radius:12px;display:block;margin-bottom:10px">` : ''}
         <div class="ttl">${esc(пар.name)}</div>
-        <div class="sub">${(пар.variants || []).filter(v => !v.out).map(v => `${v.cnt} шт — ${rub(v.price)}`).join(' · ')}</div>
+        <div class="sub">${пар.lengths && пар.lengths.length === 1 ? пар.lengths[0] + ' см · ' : ''}выберите количество</div>
+        <div class="sizes">${(пар.variants || []).filter(v => !v.out && v.cnt > 0).map(v =>
+          `<a href="${purl(пар)}" data-nav data-drpq="${esc(v.label)}"><b>${v.cnt} шт</b><span>${rub(v.price)}</span><small>${rub(Math.ceil(v.price / v.cnt))}/шт</small></a>`).join('')}</div>
         <div class="bar"><i style="width:${доля}%"></i></div>
         <div class="took">${взяли ? `разобрали ${число(взяли)} из ${число(б.total)} · ` : ''}дроп до конца партии</div>
-        <a class="btn btn-primary btn-wide" href="${purl(пар)}" data-nav style="margin-top:12px">Выбрать количество</a>
       </div></div>`;
+    // Нажали «51 шт» — карточка должна открыться сразу на 51, а не на размере
+    // по умолчанию. Свой обработчик на кнопке срабатывает раньше общего data-nav.
+    бокс.querySelectorAll('[data-drpq]').forEach((кн) => привязатьВыбор(кн, пар));
     if (как) как.innerHTML = `
       <section><h2>🔥 Что это</h2><p>Партия ${число(б.total)} роз, привезённая напрямую. Продаём по оптовой цене, пока она не разойдётся.</p></section>
       <section><h2>⚡ Как забрать</h2><p>Выбираете количество и оформляете как обычный букет. Очереди нет.</p></section>
