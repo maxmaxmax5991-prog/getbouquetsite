@@ -127,8 +127,21 @@ function темп(app, brand) {
       return { оплат: +row.n || 0, сумма: Math.round(+row.s || 0) };
     } catch (err) { console.log("темп дня", err); return { оплат: 0, сумма: 0 }; }
   };
+  // Разница между «Поступило» и «Выручкой» — это почти всегда заказы, по
+  // которым ещё не заплатили. Показываем их отдельной плашкой, чтобы цифры
+  // не выглядели противоречивыми, а расхождение само стало полезным.
+  let ждут = { оплат: 0, сумма: 0 };
+  try {
+    const row = new DynamicModel({ n: 0, s: 0 });
+    const q = app.db().newQuery(`SELECT COUNT(*) AS n, coalesce(SUM(total), 0) AS s FROM orders
+      WHERE status != 'cancelled' AND payment_status != 'paid'
+        AND date(created, '+3 hours') = {:d}${витрина}`);
+    q.bind(brand ? { d: мскДень(0), b: String(brand) } : { d: мскДень(0) }).one(row);
+    ждут = { оплат: +row.n || 0, сумма: Math.round(+row.s || 0) };
+  } catch (err) { console.log("темп дня: ждут оплаты", err); }
+
   return { час: минута.slice(0, 5), сегодня: взять(мскДень(0)),
-    вчера: взять(мскДень(-1)), неделя: взять(мскДень(-7)) };
+    вчера: взять(мскДень(-1)), неделя: взять(мскДень(-7)), ждут };
 }
 
 const слово = (n, одна, две, много) => {
