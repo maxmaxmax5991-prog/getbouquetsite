@@ -674,17 +674,22 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
 [data-brand="lasflore"] .hero > .wrap{position:relative;z-index:1}
 /* ——— дроп дня: полоска между плитками, раскрывается в карточку ——— */
 .dline{grid-column:1 / -1;border:0;width:100%;text-align:left;cursor:pointer;background:#14171A;color:#fff;
-  border-radius:14px;padding:14px;display:flex;align-items:center;gap:11px;font:inherit}
+  border-radius:14px;padding:13px 14px;display:flex;align-items:center;gap:11px;font:inherit;
+  text-decoration:none;-webkit-tap-highlight-color:transparent}
 .dline .em{font-size:20px;line-height:1;flex:none}
 .dline .tx{flex:1;min-width:0;line-height:1.25}
-.dline .tx b{display:block;font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dline .tx small{display:block;color:rgba(255,255,255,.72);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dline .tm{text-align:right;white-space:nowrap;line-height:1.2}
-.dline .tm small{display:block;font-size:10px;color:rgba(255,255,255,.6)}
-.dline .tm b{font:800 15px/1 var(--display);font-variant-numeric:tabular-nums}
-.dline .ch{opacity:.6;font-size:13px}
-.dline.live{box-shadow:0 0 0 0 rgba(224,23,138,.5);animation:dpPulse 2.2s infinite}
-@keyframes dpPulse{70%{box-shadow:0 0 0 12px rgba(224,23,138,0)}100%{box-shadow:0 0 0 0 rgba(224,23,138,0)}}
+/* Заголовок партии длинный («Привезли для вас 6 000 роз Фридом») и в одну строку
+   на телефоне обрезался многоточием на полуслове. Две строки читаются целиком. */
+.dline .tx b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  font-size:14px;font-weight:800;text-decoration:none}
+.dline .tx small{display:block;color:rgba(255,255,255,.66);font-size:11.5px;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dline .tm{flex:none;text-align:right;white-space:nowrap;line-height:1.15}
+.dline .tm small{display:block;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.dline .tm b{font:800 14px/1.15 var(--display);font-variant-numeric:tabular-nums}
+.dline .ch{flex:none;opacity:.45;font-size:12px}
+.dline.live{box-shadow:0 0 0 0 rgba(224,23,138,.38);animation:dpPulse 2.6s infinite}
+@keyframes dpPulse{70%{box-shadow:0 0 0 10px rgba(224,23,138,0)}100%{box-shadow:0 0 0 0 rgba(224,23,138,0)}}
 .dp{grid-column:1 / -1;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;
   box-shadow:0 1px 2px rgba(20,30,20,.05),0 14px 32px -26px rgba(20,40,30,.5)}
 .dp-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#14171A;color:#fff;min-height:44px}
@@ -2769,7 +2774,17 @@ function вставитьДроп(куда) {
   // следующий, и два места справа оставались пустыми — дыра посреди главной.
   const колонок = Math.max(1, (getComputedStyle(куда).gridTemplateColumns.match(/px|fr|%/g) || ['']).length);
   const карточки = куда.children;
-  if (карточки.length > колонок) куда.insertBefore(box, карточки[колонок]);
+  // Сама карточка партии закреплена наверху, и полоска вставала ровно под ней:
+  // один и тот же товар и одна и та же цена два раза подряд — выглядело как
+  // ошибка вёрстки. Ставим полоску после того ряда, где эта карточка лежит.
+  let ряд = 1;
+  if (пар) {
+    for (let i = 0; i < карточки.length; i++) {
+      if (карточки[i].dataset && карточки[i].dataset.id === пар.id) { ряд = Math.floor(i / колонок) + 2; break; }
+    }
+  }
+  const место = Math.min(ряд * колонок, карточки.length);
+  if (карточки.length > место) куда.insertBefore(box, карточки[место]);
   else куда.appendChild(box);
 }
 // Страница /drop/ — своя ссылка, которую можно давать в рекламе и в Reels.
