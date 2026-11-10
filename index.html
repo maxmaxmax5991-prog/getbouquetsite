@@ -410,9 +410,18 @@ html{overflow-x:clip}
 .qty{display:inline-flex;align-items:center;border:1px solid var(--line-2);border-radius:12px;height:44px;background:var(--paper)}
 .qty button{width:42px;height:42px;display:grid;place-items:center;color:var(--ink-2)}
 .qty span{min-width:26px;text-align:center;font-weight:700}
-.pd-buy{display:flex;gap:10px}
-.pd-buy .btn{flex:1;height:56px;font-size:15.5px;letter-spacing:.02em}
+.pd-buy{display:flex;gap:10px;flex-wrap:wrap}
+.pd-buy .btn{flex:1;min-width:0;height:56px;font-size:15.5px;letter-spacing:.02em}
 .pd-buy .icon-btn{width:56px;height:56px;border-radius:14px;flex:none}
+/* На телефоне «В корзину · 15 990 ₽» + «Собрать корзину» + сердце в один ряд
+   не влезали: у .btn padding 0 24px и white-space:nowrap, а flex-элемент по
+   умолчанию не ужимается уже содержимого. Ряд уезжал на 105 px за правый край
+   вместе с сердцем, и вся страница прокручивалась вбок. Корзину уводим на
+   свою строку: сердце остаётся рядом с главной кнопкой. */
+@media (max-width:560px){
+  .pd-buy .btn{padding:0 14px}
+  .pd-buy #pdBasket{order:3;flex-basis:100%}
+}
 .pd-buy .icon-btn[aria-pressed="true"]{color:var(--accent)}
 .pd-buy .icon-btn[aria-pressed="true"] .i{fill:currentColor}
 .pd-notes{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--ink-2)}
@@ -794,7 +803,9 @@ ul.perks b{font-size:15.5px;color:var(--ink);font-weight:700}
    свободных стеблей и полоса расхода. Продаётся при этом обычной карточкой. */
 .pd-batch{border:1px solid var(--line);border-radius:16px;overflow:hidden;margin:0 0 14px}
 .pd-batch .head{background:#1d2520;color:#fff;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
-.pd-batch .tag{display:inline-block;background:var(--accent);color:#fff;font:600 11px Manrope,sans-serif;letter-spacing:.06em;padding:3px 9px;border-radius:999px}
+/* position:static обязателен: глобальный .tag — абсолютный ярлык поверх фото
+   карточки, и «ДРОП ИДЁТ» улетал за пределы блока (y=-78), оставаясь в DOM. */
+.pd-batch .tag{display:inline-block;position:static;background:var(--accent);color:#fff;font:600 11px Manrope,sans-serif;letter-spacing:.06em;padding:3px 9px;border-radius:999px}
 .pd-batch .head small{display:block;font-size:11px;opacity:.7;margin-top:5px}
 .pd-batch .num{font:700 24px Unbounded,Manrope,sans-serif;line-height:1;white-space:nowrap}
 .pd-batch .body{padding:12px 14px}
@@ -1118,7 +1129,10 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
             <span class="hint" id="pdOwnHint"></span>
           </div>
         </div>
-        <div id="pdQtyWrap"><p class="label">Количество</p><div class="qty"><button id="pdMinus" aria-label="Меньше"><svg class="i"><use href="#i-minus"/></svg></button><span class="num" id="pdQty">1</span><button id="pdPlus" aria-label="Больше"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
+        <!-- «Сколько букетов», а не «Количество»: прямо над этим блоком стоит
+           «Длина и количество» — два поля подряд с одним словом читались как
+           одно и то же, и было непонятно, где розы, а где букеты. -->
+        <div id="pdQtyWrap"><p class="label">Сколько букетов</p><div class="qty"><button id="pdMinus" aria-label="Меньше"><svg class="i"><use href="#i-minus"/></svg></button><span class="num" id="pdQty">1</span><button id="pdPlus" aria-label="Больше"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
         <div class="pd-buy">
           <button class="btn btn-primary" id="pdAdd">В корзину · <span class="num" id="pdTotal"></span></button>
           <button class="btn btn-ghost" id="pdBasket" hidden>Собрать корзину</button>
@@ -1186,7 +1200,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1794324406"></script>
+<script src="/data.js?v=1794325054"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -3361,8 +3375,13 @@ function рисоватьПартию(p) {
       <div class="num">${число(б.left)}</div>
     </div>
     <div class="body">
-      <div class="ttl">${esc(б.note || `Привезли для вас ${число(б.total)} роз`)}</div>
-      <div class="sub">по лучшей цене${p.lengths && p.lengths.length === 1 ? ' · ' + p.lengths[0] + ' см' : ''}</div>
+      <div class="ttl">${esc(нбп(б.note) || `Привезли для вас ${число(б.total)} роз`)}</div>
+      <div class="sub">по лучшей цене${p.lengths && p.lengths.length === 1 ? ' · ' + p.lengths[0] + ' см' : ''}${
+        (() => {   // та же цена за штуку, что в полоске и на /drop/
+          const зашт = (p.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out)
+            .map(v => Math.ceil(v.price / v.cnt));
+          return зашт.length ? ` · от <b>${rub(Math.min.apply(null, зашт))}/шт</b>` : '';
+        })()}</div>
       <div class="bar"><i style="width:${доля}%"></i></div>
       <div class="took">${взяли ? `разобрали ${число(взяли)} из ${число(б.total)} · ` : ''}дроп до конца партии</div>
     </div>`;
