@@ -297,6 +297,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <button role="tab" data-tab="nom">Номенклатура</button>
       <button role="tab" data-tab="baskets">Корзины</button>
       <button role="tab" data-tab="drop">Дроп</button>
+      <button role="tab" data-tab="batch">Партии</button>
       <button role="tab" data-tab="dpeople">Участники дропа</button>
       <button role="tab" data-tab="stock">Остатки</button>
       <button role="tab" data-tab="chat">Чат <span class="dot" id="chatCount" hidden>0</span></button>
@@ -498,6 +499,33 @@ table.t td{padding:4px 6px;vertical-align:middle}
           <button class="btn btn-g btn-s" id="dpCsv">Скачать списком</button>
         </div>
         <div class="scroll"><table class="t" id="dpList"></table></div>
+      </div>
+    </section>
+
+    <!-- Партии: «привезли для вас N роз по лучшей цене». Владелец заводит сам -->
+    <section id="tab-batch" hidden>
+      <div class="card">
+        <h2>Запустить партию</h2>
+        <p class="hint" style="margin-bottom:12px">Привезли большой объём одного сорта и хотите продать его быстро. Карточка остаётся обычной — человек так же выбирает 25/51/101, — но сверху появляется счётчик «свободно N стеблей», на главной и в каталоге встаёт зелёная полоска «супер выгода», а по ссылке <b>venikoff.net/drop/</b> открывается отдельная страница, которую можно давать в рекламе и в Reels.<br>Партия кончается сама: счётчик считает настоящий остаток и, когда он дойдёт до нуля, всё пропадёт без вашего участия.</p>
+        <div class="row">
+          <label class="f">Сорт<select class="in" id="btProd"></select></label>
+          <label class="f">Ростовка, см<select class="in" id="btLen" style="max-width:140px"></select></label>
+          <label class="f">Привезли, стеблей<input class="in num" id="btQty" type="number" min="1" step="1" placeholder="6000"></label>
+        </div>
+        <div class="row">
+          <label class="f">Прайс на время партии<select class="in" id="btTable"></select></label>
+          <label class="f" style="flex:2">Подпись на сайте<input class="in" id="btNote" maxlength="120" placeholder="Привезли для вас 6 000 роз Фридом"></label>
+        </div>
+        <p class="hint" id="btPrices" style="margin:4px 0 0"></p>
+        <div class="bar" style="margin-top:12px">
+          <button class="btn btn-p" id="btStart">Запустить партию</button>
+          <span class="hint" id="btNote2" style="margin:0;align-self:center"></span>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h2>Идут сейчас</h2>
+        <p class="hint" style="margin-bottom:12px">«Остановить» вернёт карточке прежний прайс и уберёт счётчик с сайта. Остаток стеблей при этом сохранится — карточка продолжит продаваться как обычная, по тому, что реально лежит в холодильнике.</p>
+        <div class="scroll"><table class="t" id="btList"></table></div>
       </div>
     </section>
 
@@ -1315,7 +1343,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ team: loadTeam, florists: loadBouquets, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, nps: loadNps, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople })[t]();
+  ({ team: loadTeam, florists: loadBouquets, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, nps: loadNps, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople, batch: loadBatch })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
@@ -1335,7 +1363,7 @@ function brandPill(id) {
 }
 
 // Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
-const TAB_NEED = { team: 'staff', florists: 'orders', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all', drop: 'all', dpeople: 'all' };
+const TAB_NEED = { team: 'staff', florists: 'orders', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all', drop: 'all', dpeople: 'all', batch: 'all' };
 async function loadRole() {
   try { ME = await api('/api/shop/me-role'); } catch (_) {}
   // витрины нужны всем вкладкам, а не только настройкам: без них заказы
@@ -5600,6 +5628,148 @@ $('#stSave').onclick = safe(async () => {
    Все сорта одним списком: видно, у кого нет фото, и сразу правятся раздел
    и прайс. Раньше это приходилось делать по одной карточке во вкладке
    «Товары», и при заведении партии новых позиций уходила уйма времени. */
+/* ---------- Партии: «привезли для вас N роз по лучшей цене» ----------
+   Раньше партию заводили миграцией — то есть только я и только руками.
+   Здесь то же самое делает владелец: выбрал сорт, вписал сколько привезли,
+   выбрал прайс — и партия на сайте. Останавливается тоже отсюда, с возвратом
+   прежнего прайса: именно на этом проще всего обжечься и оставить оптовую
+   цену навсегда, поэтому прежний прайс запоминается на самом товаре. */
+let BT = [];
+const btШт = (n) => (Math.round(+n || 0)).toLocaleString('ru-RU');
+// Сумма реальных остатков по всем ростовкам. Пустой остаток — это «продаём без
+// ограничения», а не ноль, поэтому партия без остатка просто не считается идущей.
+const btСвободно = (p) => Object.values(p.stock || {}).reduce((n, v) => n + Math.max(0, +v || 0), 0);
+const btИдёт = (p) => Math.round(+p.batch_total || 0) > 0 && btСвободно(p) > 0;
+
+const loadBatch = safe(async () => {
+  await loadSettings0();                      // нужны прайсы
+  BT = await list('products', '&fields=id,name,active,lengths,stock,price_table,batch_total,batch_note,batch_prev_table&sort=name');
+  btФорма();
+  btСписок();
+});
+
+function btФорма() {
+  const сорта = BT.filter(p => p.active && !btИдёт(p));
+  $('#btProd').innerHTML = `<option value="">— выберите сорт —</option>`
+    + сорта.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  $('#btTable').innerHTML = `<option value="">оставить прайс как есть</option>`
+    + tablesOf(S).map(t => `<option value="${esc(t.id)}">${esc(t.name || t.id)}</option>`).join('');
+  btРостовки();
+}
+
+const btТовар = () => BT.find(p => p.id === $('#btProd').value) || null;
+
+function btРостовки() {
+  const p = btТовар();
+  const L = (p && Array.isArray(p.lengths) ? p.lengths : []).filter(x => +x > 0);
+  $('#btLen').innerHTML = L.length
+    ? L.map(x => `<option value="${x}">${x} см</option>`).join('')
+    : `<option value="0">без длины</option>`;
+  if (p && p.price_table) $('#btTable').value = p.price_table;
+  btПодпись();
+  btЦены();
+}
+
+// Подпись подставляем сами, но перестаём, как только владелец её правил:
+// иначе он напишет своё, сменит количество — и текст подменится под ним.
+let btСвояПодпись = false;
+function btПодпись() {
+  if (btСвояПодпись) return;
+  const p = btТовар(), n = Math.round(+$('#btQty').value || 0);
+  if (!p || !n) { $('#btNote').value = ''; return; }
+  // «Роза Фридом» → «роз Фридом»: в подписи уже есть слово «роз».
+  const имя = String(p.name).replace(/^роз[аы]\s+/i, '').trim();
+  $('#btNote').value = `Привезли для вас ${btШт(n)} роз ${имя}`;
+}
+
+// Показываем, почём это будет стоить покупателю: партию запускают ради цены,
+// и ошибиться прайсом здесь дороже всего.
+function btЦены() {
+  const эл = $('#btPrices'); эл.textContent = '';
+  const p = btТовар(); if (!p) return;
+  const id = $('#btTable').value || p.price_table || '';
+  const т = tablesOf(S).find(x => x.id === id); if (!т) return;
+  const строка = (т.prices || {})[String(+$('#btLen').value || 0)];
+  if (!строка) { эл.innerHTML = `<b style="color:var(--sale)">В прайсе «${esc(т.name || т.id)}» нет такой ростовки</b>`; return; }
+  const части = Object.keys(строка).map(k => +k).filter(k => k > 0).sort((a, b) => a - b)
+    .map(k => `${k} шт — ${rub(строка[k])} <span style="opacity:.6">(${rub(Math.ceil(+строка[k] / k))}/шт)</span>`);
+  эл.innerHTML = части.length ? 'Покупатель увидит: ' + части.join(' · ') : '';
+}
+
+['btProd', 'btLen', 'btTable', 'btQty'].forEach(id => $('#' + id).addEventListener(id === 'btQty' ? 'input' : 'change', () => {
+  if (id === 'btProd') { btСвояПодпись = false; btРостовки(); return; }
+  if (id === 'btQty') btПодпись();
+  btЦены();
+}));
+$('#btNote').addEventListener('input', () => { btСвояПодпись = true; });
+
+$('#btStart').onclick = safe(async () => {
+  const p = btТовар();
+  if (!p) throw new Error('Выберите сорт');
+  const n = Math.round(+$('#btQty').value || 0);
+  if (n < 1) throw new Error('Сколько стеблей привезли?');
+  const len = String(+$('#btLen').value || 0);
+  const прайс = $('#btTable').value || p.price_table || '';
+  const подпись = ($('#btNote').value || '').trim();
+  if (!подпись) throw new Error('Напишите подпись — её видят на сайте');
+  const смена = прайс && прайс !== p.price_table;
+  if (!confirm(`Запустить партию: ${p.name}, ${btШт(n)} стеблей ${len === '0' ? '' : len + ' см'}.\n`
+    + (смена ? `Прайс карточки поменяется на «${(tablesOf(S).find(x => x.id === прайс) || {}).name || прайс}».\n` : '')
+    + `Остаток карточки станет ${btШт(n)} — то, что стояло там раньше, перезапишется.`)) return;
+  await api(`/api/collections/products/records/${p.id}`, { method: 'PATCH', body: {
+    batch_total: n,
+    batch_note: подпись,
+    // Остаток обязателен: счётчик «свободно» и сама партия считаются по нему,
+    // а пустой остаток означал бы «продаём без ограничения» и никогда не кончился бы.
+    stock: { [len]: n },
+    price_table: прайс,
+    // куда вернуть карточку, когда партия кончится
+    batch_prev_table: смена ? (p.price_table || '') : (p.batch_prev_table || ''),
+  } });
+  toast(`Партия запущена: ${p.name}`);
+  $('#btQty').value = ''; $('#btNote').value = ''; btСвояПодпись = false;
+  await loadBatch();
+});
+
+function btСписок() {
+  const идут = BT.filter(btИдёт);
+  $('#btList').innerHTML = `<tr><th>Сорт</th><th>Подпись</th><th>Привезли</th><th>Свободно</th><th>Разобрали</th><th>Прайс</th><th></th></tr>`
+    + (идут.length ? идут.map(p => {
+        const всего = Math.round(+p.batch_total || 0), ост = btСвободно(p);
+        const взяли = Math.max(0, всего - ост);
+        const доля = Math.max(2, Math.round(ост * 100 / Math.max(1, всего)));
+        const т = tablesOf(S).find(x => x.id === p.price_table);
+        return `<tr>
+          <td><b>${esc(p.name)}</b></td>
+          <td style="min-width:200px">${esc(p.batch_note || '')}
+            <div class="bar" style="height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px">
+              <i style="display:block;height:6px;width:${доля}%;background:var(--accent)"></i></div></td>
+          <td class="num">${btШт(всего)}</td>
+          <td class="num"><b>${btШт(ост)}</b></td>
+          <td class="num">${btШт(взяли)}</td>
+          <td>${esc((т && (т.name || т.id)) || p.price_table || '—')}</td>
+          <td><button class="btn btn-g btn-s" data-btstop="${esc(p.id)}">Остановить</button></td>
+        </tr>`;
+      }).join('')
+      : `<tr><td class="hint">Сейчас партий нет. На сайте полоска и страница /drop/ не показываются.</td></tr>`);
+}
+
+$('#btList').addEventListener('click', safe(async (e) => {
+  const кн = e.target.closest('[data-btstop]'); if (!кн) return;
+  const p = BT.find(x => x.id === кн.dataset.btstop); if (!p) return;
+  const назад = p.batch_prev_table || '';
+  const т = tablesOf(S).find(x => x.id === назад);
+  if (!confirm(`Остановить партию «${p.name}»?\n`
+    + (назад ? `Карточка вернётся на прайс «${(т && (т.name || т.id)) || назад}».\n` : 'Прайс останется прежним.\n')
+    + `Остаток ${btШт(btСвободно(p))} стеблей сохранится — карточка продолжит продаваться как обычная.`)) return;
+  await api(`/api/collections/products/records/${p.id}`, { method: 'PATCH', body: {
+    batch_total: 0, batch_note: '', batch_prev_table: '',
+    ...(назад ? { price_table: назад } : {}),
+  } });
+  toast(`Партия остановлена: ${p.name}`);
+  await loadBatch();
+}));
+
 let NOM = [];
 const loadNom = safe(async () => {
   await loadSettings0();                       // нужны прайсы и разделы
