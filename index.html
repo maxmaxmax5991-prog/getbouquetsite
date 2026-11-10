@@ -268,10 +268,14 @@ html{overflow-x:clip}
 /* Прайс-лист. Таблица шире телефона, поэтому крутится вбок, а столбец с сортом
    прилипает к левому краю — иначе, уехав к «101 шт», не поймёшь, чья это цена. */
 .prc h2{font:700 20px/1.2 var(--display);margin:26px 0 10px}
-.prc-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:var(--tile);margin-bottom:10px}
+/* --paper, а НЕ --tile: --tile в тёмной теме намеренно светлый (это подложка
+   под фото товаров), а текст таблицы идёт по теме — прайс выходил белым
+   по белому, пустым полотном на весь экран. Та же подмена токена, что
+   была у карточек «Что это» на /drop/. В светлой теме оба токена белые. */
+.prc-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:var(--paper);margin-bottom:10px}
 .prc table{border-collapse:collapse;width:100%;font-size:15px}
 .prc th,.prc td{padding:10px 14px;text-align:right;white-space:nowrap}
-.prc th:first-child,.prc td:first-child{text-align:left;position:sticky;left:0;background:var(--tile)}
+.prc th:first-child,.prc td:first-child{text-align:left;position:sticky;left:0;background:var(--paper)}
 .prc thead th{font:600 12px/1 var(--body);color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
 .prc tbody tr+tr td{border-top:1px solid var(--line)}
 .prc td a{text-decoration:none;color:inherit}
@@ -1200,7 +1204,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1794325054"></script>
+<script src="/data.js?v=1794325534"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
