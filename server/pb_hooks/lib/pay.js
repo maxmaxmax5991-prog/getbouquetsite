@@ -127,6 +127,17 @@ function checkOrder(app, o) {
     chat_id: chat, text: `💳 Оплачено картой — ${shop.rub(o.get("total"))}`,
   }));
   try { shop.notifyOrder(app, o); } catch (err) { console.log("notify after pay", err); }
+  // Онлайн-чек по 54-ФЗ — сразу после подтверждения оплаты. Отдельным
+  // запросом к кассе: ошибка в чеке не должна ронять саму оплату.
+  try {
+    const чек = require(`${__hooks}/lib/receipt.js`).пробить(app, s, o, shop.brandOfOrder(app, o));
+    if (чек.ok) console.log("чек пробит:", o.get("number"), чек.сумма, "₽");
+    else if (!чек.выкл && !чек.повтор) {
+      console.log("чек НЕ пробит:", o.get("number"), чек.error);
+      shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", { chat_id: chat,
+        text: `🧾 Чек по заказу №${o.get("number")} не пробился: ${чек.error}\nОплата прошла, но фискальный чек покупателю не ушёл.` }));
+    }
+  } catch (err) { console.log("чек после оплаты", err); }
   try {
     const msl = require(`${__hooks}/lib/ms.js`);
     if (o.get("ms_id")) msl.markPaid(app, o);   // уже там — просто меняем статус

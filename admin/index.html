@@ -1021,6 +1021,28 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <div class="swl"><button class="sw" id="pDeliv" role="switch" aria-checked="true" aria-label="Оплата при получении"></button>Разрешить оплату при получении</div>
   </div>
   <p class="hint">Если включить только оплату картой, заказ можно будет оформить лишь с оплатой сразу.</p>
+  <h3 style="margin:16px 0 6px;font-size:15px">Онлайн-чек (54-ФЗ)</h3>
+  <p class="hint" style="margin-bottom:10px">Чек пробивается кассой CloudPayments сразу после оплаты картой и уходит покупателю на телефон из заказа. Позиции берутся из самого заказа, доставка идёт отдельной строкой как услуга.<br>Если чек не пробьётся, оплата всё равно пройдёт, а в служебный бот придёт сообщение с причиной.</p>
+  <div class="row">
+    <label class="f" for="kTax">Система налогообложения<select class="in" id="kTax">
+      <option value="0">Общая (ОСН)</option>
+      <option value="1">УСН «доходы»</option>
+      <option value="2">УСН «доходы минус расходы»</option>
+      <option value="3">ЕНВД</option>
+      <option value="4">ЕСХН</option>
+      <option value="5">Патент</option>
+    </select></label>
+    <label class="f" for="kVat">НДС<select class="in" id="kVat">
+      <option value="">Без НДС</option>
+      <option value="0">0%</option>
+      <option value="10">10%</option>
+      <option value="20">20%</option>
+    </select></label>
+  </div>
+  <div class="bar" style="gap:18px">
+    <div class="swl"><button class="sw" id="kOn" role="switch" aria-checked="false" aria-label="Пробивать чеки"></button>Пробивать чеки при оплате картой</div>
+  </div>
+  <p class="hint" id="kInn"></p>
   <div class="bar"><button class="btn btn-p" id="pSave">Сохранить</button><button class="btn btn-g" id="pTest">Проверить оплату</button></div>
 </div>
 <div class="card stack">
@@ -5686,6 +5708,12 @@ $('#mxTok').value = ''; $('#mxTok').placeholder = S.max_token ? 'Ключ сох
 $('#mxName').value = S.max_bot || '';
 $('#msDeliv').value = S.ms_delivery_name || '';
 $('#pPub').value = S.cp_public_id || '';
+  $('#kTax').value = String(S.kkt_tax ?? 2);
+  $('#kVat').value = S.kkt_vat == null ? '' : String(S.kkt_vat);
+  $('#kOn').setAttribute('aria-checked', S.kkt_on ? 'true' : 'false');
+  $('#kInn').textContent = S.org_inn
+    ? `Чеки уходят от ИНН ${S.org_inn}. Касса должна быть подключена в кабинете CloudPayments.`
+    : 'В реквизитах не указан ИНН — без него чек пробить нельзя.';
 $('#pSec').value = ''; $('#pSec').placeholder = S.cp_secret ? 'Секрет сохранён. Вставьте новый, чтобы заменить' : 'Вставьте секрет';
 sw($('#pCard'), S.pay_card); sw($('#pDeliv'), S.pay_on_delivery);
 });
@@ -5990,7 +6018,8 @@ $('#msSave').onclick = safe(async () => {
   $('#msTok').value = ''; loadSettings(); toast('Сохранено');
 });
 $('#pSave').onclick = safe(async () => {
-  const body = { cp_public_id: $('#pPub').value.trim(), pay_card: sw($('#pCard')), pay_on_delivery: sw($('#pDeliv')) };
+  const body = { cp_public_id: $('#pPub').value.trim(), pay_card: sw($('#pCard')), pay_on_delivery: sw($('#pDeliv')),
+    kkt_on: sw($('#kOn')), kkt_tax: +$('#kTax').value || 0, kkt_vat: $('#kVat').value };
   const sec = $('#pSec').value.trim();
   if (sec) body.cp_secret = sec;
   if (body.pay_card && !body.cp_public_id) return toast('Для оплаты картой нужен Public ID', true);
