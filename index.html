@@ -1204,7 +1204,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1794396817"></script>
+<script src="/data.js?v=1794398108"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1594,6 +1594,13 @@ function вазаДля(p, len, cnt) {
   return ВАЗЫ.find(v => v.д === диаметр && v.в === высота) || null;
 }
 const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
+// Разделы без товаров ни в плитки на главной, ни в кнопки каталога не ставим.
+// «Кенийские розы — скоро подвезём» месяцами висели пустыми вторым разделом
+// и отжимали живые вправо: на телефоне до пионовидных надо было листать ряд.
+// Появится товар — раздел вернётся сам, никакого рубильника для этого нет.
+// `кроме` оставляет на месте тот раздел, который сейчас открыт: иначе кнопка
+// исчезала бы прямо под пальцем у того, кто пришёл по ссылке на пустой раздел.
+const разделыСТоваром = (кроме) => CATS.filter(([k]) => (count[k] || 0) > 0 || k === кроме);
 
 /* ---------- sizes: every bouquet has variants [{label, price, photo?}] ---------- */
 const sel = {};   // product id -> chosen label
@@ -2998,7 +3005,7 @@ $('#popular').innerHTML = POPULAR.map((id, i) => card(byId[id], 'главная'
 }
 вставитьДроп($('#popular'));
 const TILE_IMG = { single: 'sweet-avalanche', kenya: '3159', french: '3173', hydrangea: '3035' };
-$('#tiles').innerHTML = CATS.map(([k, label]) => {
+$('#tiles').innerHTML = разделыСТоваром().map(([k, label]) => {
   const pic = (!API && TILE_IMG[k]) || (P.find(p => p.cat === k && !p.off) || P.find(p => p.cat === k) || {}).id;
   // считаем то, что есть в наличии; пусто — обещаем привезти, а не пишем «0 позиций»
   const n = count[k] || 0;
@@ -3009,7 +3016,7 @@ $('#tiles').innerHTML = CATS.map(([k, label]) => {
 /* ---------- catalog ---------- */
 function renderChips() {
   let html = `<button class="chip" data-cat="all" aria-pressed="${!state.favOnly && state.cat === 'all'}">Все <small class="num">${P.length - ADDONS.length}</small></button>`;
-  html += CATS.map(([k, label]) => `<button class="chip" data-cat="${k}" aria-pressed="${!state.favOnly && state.cat === k}">${label} <small class="num">${count[k] || 0}</small></button>`).join('');
+  html += разделыСТоваром(state.cat).map(([k, label]) => `<button class="chip" data-cat="${k}" aria-pressed="${!state.favOnly && state.cat === k}">${label} <small class="num">${count[k] || 0}</small></button>`).join('');
   if (favs.size) html += `<button class="chip" data-favonly aria-pressed="${state.favOnly}">${icon('heart')}Избранное <small class="num">${favs.size}</small></button>`;
   $('#chips').innerHTML = html;
   renderSizeChips();
