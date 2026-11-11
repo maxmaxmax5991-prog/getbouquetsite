@@ -1204,7 +1204,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1794327188"></script>
+<script src="/data.js?v=1794395796"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -2501,10 +2501,22 @@ for (const k of Object.keys(cart)) {
   const { id, label } = parseKey(k), p = byId[id];
   if (!p || p.off || (p.variants ? !variant(p, label) : label)) delete cart[k];
 }
-const keyPrice = k => { const { id, label } = parseKey(k), p = byId[id]; return label ? variant(p, label).price : p.price; };
-const keyBonus = k => byId[parseKey(k).id].bonus || 0;
-const keyName = k => { const { id, label } = parseKey(k); return byId[id].name + (label ? ` · ${labelText(label)}` : ''); };
-const keyImg = k => { const { id, label } = parseKey(k); return photoOf(byId[id], label); };
+// Цена нуль — это не «бесплатно»: buyHTML на такую цену рисует «Цену уточняем».
+// Лучше честная заглушка на одной кнопке, чем упавшая отрисовка всей страницы.
+const keyPrice = (k) => {
+  const { id, label } = parseKey(k), p = byId[id];
+  if (!p) return 0;
+  if (!label) return +p.price || 0;
+  const v = variant(p, label);
+  return v ? (+v.price || 0) : 0;
+};
+const keyBonus = k => (byId[parseKey(k).id] || {}).bonus || 0;
+const keyName = k => {
+  const { id, label } = parseKey(k), p = byId[id];
+  if (!p) return 'Товар снят с продажи';
+  return p.name + (label ? ` · ${labelText(label)}` : '');
+};
+const keyImg = k => { const { id, label } = parseKey(k); const p = byId[id]; return p ? photoOf(p, label) : ''; };
 
 function setQty(k, n) {
   if (n <= 0) delete cart[k]; else cart[k] = n;
@@ -2648,6 +2660,20 @@ function card(p, место, и) {
   </article>`;
 }
 function refreshBuy(id) { const p = byId[id]; $$(`[data-id="${id}"] .buy-slot`).forEach(el => el.innerHTML = buyHTML(p)); if (route.name === 'product' && route.id === id) pdSync(); }
+// Вернуть кнопкам «В корзину» их обычный вид после того, как корзину опустошили.
+// Пройти ВСЕ .buy-slot подряд нельзя: готовая корзина, плитка «Собрать корзину»
+// и вазы рисуют свой .buy-slot без [data-id], closest() возвращает там null, и
+// чтение .dataset роняло весь обработчик заказа — уже ПОСЛЕ создания и оплаты.
+// Покупатель видел зависшую корзину с заблокированной кнопкой и не знал,
+// прошла оплата или нет (456 падений с 19.10.2026). Чужие плитки пропускаем:
+// их кнопки и так рисует не buyHTML.
+function обновитьКнопкиПокупки() {
+  $$('.buy-slot').forEach((el) => {
+    const карточка = el.closest('[data-id]');
+    const p = карточка && byId[карточка.dataset.id];
+    if (p) el.innerHTML = buyHTML(p);
+  });
+}
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.size && t.dataset.pid) {
@@ -4848,7 +4874,7 @@ cartDlg.addEventListener('submit', async e => {
         lastOrder.payError = res.error;
         if (res.paid) { try { await fetch('/api/shop/pay-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order: data.id }) }); } catch (_) {} }
         cart = {}; store.set('cart', cart); корзины = []; сохрКорзины(); badges();
-        $$('.buy-slot').forEach(el => { const id = el.closest('[data-id]').dataset.id; el.innerHTML = buyHTML(byId[id]); });
+        обновитьКнопкиПокупки();
         view = 'done'; renderCart();
         if (!cartDlg.open) cartDlg.showModal();   // окно «Готово» с кнопкой «Открыть бота»
         return;
@@ -4858,7 +4884,7 @@ cartDlg.addEventListener('submit', async e => {
     lastOrder = { name: v('name').trim(), sum: totals().sum, when };
   }
   cart = {}; store.set('cart', cart); корзины = []; сохрКорзины(); badges();
-  $$('.buy-slot').forEach(el => { const id = el.closest('[data-id]').dataset.id; el.innerHTML = buyHTML(byId[id]); });
+  обновитьКнопкиПокупки();
   view = 'done'; renderCart();
 });
 
