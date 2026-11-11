@@ -1204,7 +1204,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1794395796"></script>
+<script src="/data.js?v=1794396817"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1610,7 +1610,12 @@ const defLabel = p => {
   // дешёвый размер, которого нет, значит обещать и тут же отказывать.
   if (РАЗМЕР_ПО_УМОЛЧАНИЮ === 'cheap') {
     const годные = p.variants.filter(v => v.price > 0 && свободен(v));
-    const сп = (годные.length ? годные : p.variants.filter(v => v.price > 0));
+    // Ничего нет в холодильнике — открываем на том, что ЕДЕТ, и только если
+    // не едет ничего, на мёртвом. Иначе Эльторо, у которого все 1 080 стеблей
+    // 40 см приедут в 16:30, открывался на 50 см с «Закончились»: размер
+    // дешевле, но его нет и не будет, и карточка выглядела наглухо пустой.
+    const едут = p.variants.filter(v => v.price > 0 && !v.out && v.wait_at);
+    const сп = годные.length ? годные : (едут.length ? едут : p.variants.filter(v => v.price > 0));
     if (сп.length) return сп.reduce((a, b) => (b.price < a.price ? b : a)).label;
   }
   const задумано = p.def_label ? p.def_label : p.lengths
