@@ -1209,7 +1209,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1794649388"></script>
+<script src="/data.js?v=1794654324"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -5244,7 +5244,14 @@ if (API && API.phone) $('.foot .wrap').insertAdjacentHTML('beforeend', `<a href=
 function откудаЗашёл() {
   const p = location.pathname;
   if (p === '/' || p === '') return 'главная';
-  if (p.startsWith('/catalog/')) return p.split('/').filter(Boolean).length > 1 ? 'товар' : 'каталог';
+  // Три разных случая, а не два. Раньше «/catalog/<раздел>/» попадал в «товар»,
+  // потому что в пути два куска, — и страница раздела пионовидных (2 054 входа
+  // за неделю, третья по популярности) пряталась внутри карточек товара.
+  // Разбор воронки по странице входа из-за этого врал.
+  if (p.startsWith('/catalog/')) {
+    const n = p.split('/').filter(Boolean).length;
+    return n > 2 ? 'товар' : n === 2 ? 'раздел' : 'каталог';
+  }
   if (p.startsWith('/korzina')) return 'корзины';
   if (p.startsWith('/price')) return 'прайс';
   if (p.startsWith('/delivery')) return 'доставка';
