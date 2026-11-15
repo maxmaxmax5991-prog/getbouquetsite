@@ -1,0 +1,85 @@
+# Выкладка на сервер venikoff (147.45.141.23) прямо с GitHub.
+#
+# Зачем: правки делает Claude в облаке, а оттуда до сервера соединения нет.
+# GitHub до сервера доходит, поэтому выкладывает он.
+#
+# Когда срабатывает:
+#   - отправка на ветку claude/... или main, если в тексте последней правки
+#     есть метка [выложить] — так ни одна правка не уедет на сервер случайно;
+#   - кнопка «Run workflow» на вкладке Actions (выкладывает выбранную ветку).
+#
+# Что нужно один раз: секреты DEPLOY_SSH_KEY и DEPLOY_KNOWN_HOSTS
+# (Settings → Secrets and variables → Actions). Их печатает server/github-key.sh.
+name: Выкладка на сервер
+
+on:
+  push:
+    branches: ['main', 'claude/**']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-venikoff
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[выложить]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HOST: root@147.45.141.23
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверка кода перед выкладкой
+        run: |
+          set -e
+          # серверный код: синтаксис каждого файла
+          for f in $(find server/pb_hooks -name '*.js'); do node --check "$f" >/dev/null || { echo "ОШИБКА В $f"; exit 1; }; done
+          # скрипты сайта и админки: синтаксис встроенных <script>
+          for page in index.html admin/index.html add/index.html; do
+            node -e '
+              const fs=require("fs"), html=fs.readFileSync(process.argv[1],"utf8");
+              const re=/<script(?![^>]*\bsrc=)(?![^>]*type="application\/ld\+json")[^>]*>([\s\S]*?)<\/script>/g;
+              let m,i=0; while((m=re.exec(html))){ i++; try{ new Function(m[1].replace(/^\s*import\s.*$/mg,"")); }catch(e){ if(!/await|import|export/.test(String(e))){ console.error(process.argv[1]+" скрипт №"+i+": "+e); process.exit(1);} } }
+            ' "$page"
+          done
+          # функции, которые уже однажды пропадали при правке (см. CLAUDE.md)
+          for f in дропПеререндер рисоватьПартию дропКарточка дропПолоска полоскаПартии \
+                   вставитьДроп партияДропа привязатьВыбор renderDropPage блокПартии; do
+            n=$(grep -c "function $f\|const $f" index.html || true); [ "$n" = 1 ] || { echo "ПРОПАЛА: $f"; exit 1; }
+          done
+          echo "код в порядке"
+
+      - name: Ключ для сервера
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          test -s ~/.ssh/id_ed25519 || { echo "Нет секрета DEPLOY_SSH_KEY — см. server/github-key.sh"; exit 1; }
+
+      - name: Копия того, что сейчас на сервере (для отката)
+        run: |
+          ssh "$HOST" 'set -e; d=/opt/venikoff/rollback; mkdir -p $d; cd /opt/venikoff
+            tar czf $d/$(date +%Y%m%d-%H%M%S).tgz pb/pb_hooks pb/pb_migrations site/index.html site/admin site/add site/data.js
+            ls -1t $d/*.tgz | tail -n +11 | xargs -r rm -f'
+
+      - name: Выкладка
+        run: |
+          set -e
+          # номер версии каталога — чтобы браузеры не показывали старый data.js
+          perl -pi -e "s#data\.js\?v=\d+#data.js?v=$(date +%s)#" index.html
+          rsync -az --delete server/pb_hooks/ "$HOST:/opt/venikoff/pb/pb_hooks/"
+          rsync -az --delete server/pb_migrations/ "$HOST:/opt/venikoff/pb/pb_migrations/"
+          rsync -az server/bin/ "$HOST:/opt/venikoff/bin/"
+          rsync -az --delete --include='index.html' --include='data.js' --include='img/***' --include='admin/***' --include='add/***' --include='fonts/***' --exclude='*' ./ "$HOST:/opt/venikoff/site/"
+          ssh "$HOST" 'chown -R venikoff:venikoff /opt/venikoff/pb && chmod -R u=rwX,go=rX /opt/venikoff/site && systemctl restart venikoff-pb && sleep 3 && systemctl is-active venikoff-pb'
+
+      - name: Сайт отвечает
+        run: |
+          ssh "$HOST" 'set -e
+            for u in / /catalog/ /api/shop/catalog /admin/; do
+              c=$(curl -s -o /dev/null -w "%{http_code}" --resolve venikoff.net:443:127.0.0.1 https://venikoff.net$u)
+              echo "$u → $c"; [ "$c" = 200 ] || exit 1
+            done'
