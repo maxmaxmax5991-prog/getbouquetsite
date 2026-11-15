@@ -1209,7 +1209,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1794654324"></script>
+<script src="/data.js?v=1794727877"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -4537,6 +4537,9 @@ function slotList(date, sum) {
     if (date < rd.date) return [];
     if (date === rd.date) first = Math.max(first, rd.min + prepMin(sum));
   }
+  // «доставляем не раньше»: сборку не прибавляем — к этому часу букет уже готов
+  const пол = cartFrom();
+  if (пол > 0) first = Math.max(first, пол);
   const start0 = Math.ceil(first / SLOTS.step) * SLOTS.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
   const full = getType === 'pickup' ? SLOTS.step : SLOTS.hours * 60;
@@ -4577,6 +4580,19 @@ function readyPick(p, label) {
   const v = ((p && p.variants) || []).find(x => x.label === (label || curLabel(p)));
   return когдаПривоз(v && v.wait_at) || readyOf(p);
 }
+// «Доставляем не раньше» — час суток с карточки (`deliver_from`), не дата.
+// Работает в любой день, пока стоит: букет со Стичем собирают с игрушкой во
+// второй половине дня, и 12:00 выбрать нельзя ни сегодня, ни через неделю.
+function fromMin(p) {
+  const m = String((p && p.deliver_from) || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+  return m ? +m[1] * 60 + +m[2] : 0;
+}
+// Самый поздний такой час среди того, что в корзине
+function cartFrom() {
+  let best = 0;
+  Object.keys(cart).forEach(k => { best = Math.max(best, fromMin(byId[parseKey(k).id])); });
+  return best;
+}
 // самый поздний срок среди того, что лежит в корзине
 function cartReady() {
   let best = null;
@@ -4609,7 +4625,7 @@ function деньПривоза(r) {
 }
 function readyNote(p) {
   const r = readyPick(p);
-  if (!r) return '';
+  if (!r) return fromMin(p) ? `Этот букет доставляем с ${String((p && p.deliver_from) || '').trim()} — раньше этого времени выбрать нельзя.` : '';
   const from = hhmm(readyStart(r, p.price || 0));
   const день = деньПривоза(r);
   return `Цветы ещё едут ${откуда(p)} — будут у нас ${день} к ${r.text}. Доставим ${день === 'сегодня' ? '' : день + ' '}с ${from}.`;
@@ -4620,7 +4636,7 @@ function readyNote(p) {
 // чего сегодня нет, и узнаёт об этом только на оформлении.
 function readyShort(p) {
   const r = readyPick(p);
-  if (!r) return '';
+  if (!r) return fromMin(p) ? `Доставляем с ${String((p && p.deliver_from) || '').trim()}` : '';
   const день = деньПривоза(r);
   return `В пути ${откуда(p)} — доставим ${день === 'сегодня' ? '' : день + ' '}с ${hhmm(readyStart(r, p.price || 0))}`;
 }
@@ -4647,8 +4663,11 @@ function fillIntervals() {
     note.hidden = !list.length || !today;
     const rd = cartReady();
     note.hidden = !list.length || (!today && !rd);
+    const пол = cartFrom();
+    if (пол > 0) note.hidden = !list.length;
     note.textContent = !list.length ? ''
       : rd ? `Цветы в заказе ещё в пути — будут у нас ${деньПривоза(rd)} к ${rd.text}, поэтому везём с ${list[0].slice(0, 5)}.`
+      : пол > 0 ? `В заказе букет, который доставляем с ${hhmm(пол)} — поэтому везём с ${list[0].slice(0, 5)}.`
       : today ? (loadExtra() > 0
           ? `Сегодня много заказов, собираем дольше обычного — поэтому везём с ${list[0].slice(0, 5)}.`
           : `Букет собираем ${prepMin(sum)} минут, поэтому сегодня везём с ${list[0].slice(0, 5)}.`)

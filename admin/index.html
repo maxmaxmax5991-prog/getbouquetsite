@@ -1280,8 +1280,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <div class="row">
       <label class="f" for="eReadyDate">Цветы приедут (если ещё в пути)<input class="in" id="eReadyDate" type="date"></label>
       <label class="f" for="eReadyTime">во сколько<input class="in" id="eReadyTime" type="time" step="300"></label>
+      <label class="f" for="eFromTime">Доставляем не раньше<input class="in" id="eFromTime" type="time" step="300"></label>
     </div>
-    <p class="hint" style="margin-top:-6px">Пока не приехали, в карточке будет «цветы ещё едут с теплицы», а доставку раньше этого времени плюс сборку сайт не предложит. Пусто — цветы уже у нас. «Популярные» заполняются сами: туда попадают все букеты, кроме открыток и игрушек.</p>
+    <p class="hint" style="margin-top:-6px">Пока не приехали, в карточке будет «цветы ещё едут с теплицы», а доставку раньше этого времени плюс сборку сайт не предложит. Пусто — цветы уже у нас. «Доставляем не раньше» — это не дата, а час суток: действует каждый день, пока стоит. Для букетов, которые собирают во второй половине дня: раньше этого часа интервал не выбрать ни сегодня, ни на неделю вперёд. «Популярные» заполняются сами: туда попадают все букеты, кроме открыток и игрушек.</p>
     <div id="featBox" class="card stack" style="background:var(--ground)">
       <div class="row">
         <label class="f" for="eMood">Подпись в карусели<input class="in" id="eMood" placeholder="Нежность в каждом лепестке"></label>
@@ -1867,6 +1868,7 @@ function openEditor(p) {
   const rd = String((p && p.ready_at) || '').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
   $('#eReadyDate').value = rd ? rd[1] : '';
   $('#eReadyTime').value = rd ? rd[2] : '';
+  $('#eFromTime').value = String((p && p.deliver_from) || '').trim();
   $('#featBox').hidden = !(p && p.featured);
   $('#eDel').hidden = !p;
   renderPhotos(); renderCut(); renderMode(); expressMode();
@@ -2186,6 +2188,7 @@ $('#eSave').onclick = safe(async () => {
   fd.append('fresh_date', sw($('#eFresh')) ? new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10) : '');
   const rdD = $('#eReadyDate').value, rdT = $('#eReadyTime').value;
   fd.append('ready_at', rdD && rdT ? `${rdD} ${rdT}` : '');
+  fd.append('deliver_from', $('#eFromTime').value || '');
   fd.append('featured', sw($('#eFeatured')));
   if (E.mode === 'lengths') {
     if (!E.lengths.length) return toast('Выбран режим «Длина × количество»: отметьте хотя бы одну длину или переключитесь на «Одна цена»', true);

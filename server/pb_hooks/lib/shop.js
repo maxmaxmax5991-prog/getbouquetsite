@@ -333,6 +333,8 @@ function catalog(app, brand) {
           if (m[1] < now.date || (m[1] === now.date && +m[2] * 60 + +m[3] <= now.minutes)) return undefined;
           return `${m[1]} ${m[2].padStart(2, "0")}:${m[3]}`;
         })(),
+        // «доставляем не раньше» — час суток, действует в любой день
+        deliver_from: String(p.get("deliver_from") || "").trim() || undefined,
         lengths: Array.isArray(lengths) && lengths.length ? lengths : undefined,
         sale: p.get("badge") === "sale" ? 1 : undefined,
         author: p.get("badge") === "author" ? 1 : undefined,
@@ -494,6 +496,22 @@ function readyOf(app, items) {
   return best;
 }
 
+// «Доставляем не раньше» — час суток, а не дата. У букета со Стичем игрушку
+// вкладывают в собранный букет во второй половине дня, и так каждый день,
+// поэтому `ready_at` с его одной датой здесь не годится. Берём самый поздний
+// час среди того, что в корзине; пусто — ограничения нет.
+function fromMinOf(app, items) {
+  let best = 0;
+  (items || []).forEach((it) => {
+    let p = null;
+    try { p = app.findRecordById("products", String(it.id || "")); } catch (_) {}
+    if (!p) return;
+    const m = String(p.get("deliver_from") || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (m) best = Math.max(best, +m[1] * 60 + +m[2]);
+  });
+  return best;
+}
+
 // Режим «высокая нагрузка»: лишние минуты на сборку, пока не отпустит.
 // Возвращаем 0, когда срок вышел — чтобы забытый на ночь режим не портил утро.
 // Самовывозу можно задать свою прибавку: курьера там ждать не надо.
@@ -539,7 +557,7 @@ function prepFor(r, sum, express, pickup) {
 // Все интервалы, которые ещё можно выбрать на эту дату.
 // graceMin — небольшая поблажка при проверке заказа: пока покупатель заполнял форму,
 // время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
-function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express) {
+function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin) {
   const r = slotRules(s);
   const open = toMin(r.from), send = toMin(r.to);
   // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
@@ -553,6 +571,9 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express) {
     if (dateIso < ready.date) return [];
     if (dateIso === ready.date) first = Math.max(first, ready.minutes + prepFor(r, sum, express, pickup) - (graceMin || 0));
   }
+  // «доставляем не раньше»: час суток, одинаковый в любой день. Сборку сюда не
+  // добавляем — букет к этому часу уже готов, его можно везти.
+  if (fromMin > 0) first = Math.max(first, fromMin);
   const start0 = Math.ceil(first / r.step) * r.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
   const full = pickup ? r.step : r.hours * 60;
@@ -567,7 +588,7 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express) {
 }
 
 // Что не так с выбранным интервалом: пустая строка — всё в порядке.
-function slotProblem(s, dateIso, sum, label, pickup, ready, express) {
+function slotProblem(s, dateIso, sum, label, pickup, ready, express, fromMin) {
   const r = slotRules(s);
   const m = String(label).match(/^(\d{1,2}):(\d{2})[–-](\d{1,2}):(\d{2})$/);
   const late = pickup ? "Выберите время, когда заберёте букет." : "На этот интервал уже не успеем. Выберите более поздний.";
@@ -589,6 +610,9 @@ function slotProblem(s, dateIso, sum, label, pickup, ready, express) {
     const wait = "Эти цветы ещё едут к нам — выберите время позже.";
     if (dateIso < ready.date) return wait;
     if (dateIso === ready.date && st < ready.minutes + prepFor(r, sum, express, pickup) - 20) return wait;
+  }
+  if (fromMin > 0 && st < fromMin) {
+    return `Этот букет доставляем с ${hhmm(fromMin)} — выберите время позже.`;
   }
   if (dateIso === now.date) {
     const ready = now.minutes + prepFor(r, sum, express, pickup) - 20;   // 20 минут поблажки: пока заполняли форму, время ушло
@@ -836,7 +860,7 @@ function prepareOrder(app, rec) {
   const allExpress = items.length > 0 && items.every((it) => {
     try { return !!app.findRecordById("products", String(it.id)).get("is_express"); } catch (_) { return false; }
   });
-  const bad = slotProblem(s, date, sum, interval, pickup, readyOf(app, items), allExpress);
+  const bad = slotProblem(s, date, sum, interval, pickup, readyOf(app, items), allExpress, fromMinOf(app, items));
   if (bad) fail(bad);
 
 const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret"));
@@ -1160,6 +1184,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, ценаЗаШтуки, рамкиШтук, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, stockOf, stockOk, incomingOf, availAt,
+  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, ценаЗаШтуки, рамкиШтук, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, fromMinOf, stockOf, stockOk, incomingOf, availAt,
   tg, tgPhoto, clientToken, markBot, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };
