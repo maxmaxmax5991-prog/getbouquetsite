@@ -49,6 +49,12 @@ jobs:
                    вставитьДроп партияДропа привязатьВыбор renderDropPage блокПартии; do
             n=$(grep -c "function $f\|const $f" index.html || true); [ "$n" = 1 ] || { echo "ПРОПАЛА: $f"; exit 1; }
           done
+          # одинаковое имя функции: нижняя молча подменяет верхнюю. Так с 07.11 редактор
+          # карточки звал renderStock вкладки «Остатки» и стирал остатки при сохранении.
+          for page in index.html admin/index.html add/index.html; do
+            d=$( { grep -oP '^(async )?function \K[^\s(]+' "$page"; grep -oP '^(const|let) \K[^\s=]+' "$page"; } | sort | uniq -d)
+            [ -z "$d" ] || { echo "$page: имя объявлено дважды: $d"; exit 1; }
+          done
           echo "код в порядке"
 
       - name: Ключ для сервера

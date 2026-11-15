@@ -89,7 +89,13 @@ function priceTables(s) {
 }
 
 // Итоговые варианты товара: по прайсу (если заданы длины) или сохранённые размеры
-// Остаток стеблей по длинам: {"40": 360}. Нет ключа — учёта нет, продаём свободно.
+// Остаток стеблей по длинам: {"40": 360}. Нет ключа — ноль (с 15.11.2026).
+// Продавать без ограничения — только переключателем `no_stock` на товаре:
+// раньше «без учёта» значило «нет ключа», а пустое поле в админке ключ не
+// пишет, и после любого сохранения карточки сорт продавался без потолка.
+function безУчёта(p) {
+  try { return !!p.get("no_stock"); } catch (_) { return false; }
+}
 function stockOf(p) {
   const v = jget(p, "stock");
   return (v && typeof v === "object") ? v : {};
@@ -109,12 +115,12 @@ const ужеПрошло = (t) => {
 };
 
 // Когда размер можно отдать покупателю:
-//   null  — уже сейчас (хватает остатка или учёта нет)
+//   null  — уже сейчас (хватает остатка или товар «без учёта остатков»)
 //   {date, minutes} — только с этого времени, ждём привоз
 //   false — не хватит даже с привозом
 function availAt(p, len, cnt) {
-  const have = stockOf(p)[String(len)];
-  if (have === undefined || have === null) return null;      // учёта по этой длине нет
+  if (безУчёта(p)) return null;                              // остатки не ведём
+  const have = +stockOf(p)[String(len)] || 0;                 // нет числа — ноль
   // Остаток бывает отрицательным: столько стеблей уже обещано из привоза.
   if (+have >= +cnt) return null;
   const inc = incomingOf(p)[String(len)];
@@ -917,8 +923,8 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
       return;
     }
     if (!t.len || !t.stems) return;
+    if (безУчёта(t.p)) return;                                  // остатки не ведём
     const st = stockOf(t.p);
-    if (st[t.len] === undefined || st[t.len] === null) return;   // по этой длине учёта нет
     // Списываем из остатка и даём ему уйти в минус. Минус — это стебли, уже
     // обещанные покупателям из машины, которая ещё едет: когда она придёт и
     // привоз прибавится, всё сойдётся само.
@@ -1184,6 +1190,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, ценаЗаШтуки, рамкиШтук, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, fromMinOf, stockOf, stockOk, incomingOf, availAt,
+  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, ценаЗаШтуки, рамкиШтук, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, fromMinOf, безУчёта, stockOf, stockOk, incomingOf, availAt,
   tg, tgPhoto, clientToken, markBot, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };

@@ -35,9 +35,9 @@ function вернутьОстатки(app, o) {
     const надо = +m[2] * (+it.qty || 1);
     let p;
     try { p = app.findRecordById("products", String(it.id)); } catch (_) { return; }
+    // остатки не ведём — возвращать некуда
+    if (shop.безУчёта(p)) return;
     const st = shop.stockOf(p);
-    // учёта по этой длине нет — возвращать некуда, и заводить его задним числом нельзя
-    if (st[m[1]] === undefined || st[m[1]] === null) return;
     st[m[1]] = (+st[m[1]] || 0) + надо;
     try {
       app.db().newQuery("UPDATE products SET stock = {:v} WHERE id = {:id}")

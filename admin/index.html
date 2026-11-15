@@ -1249,8 +1249,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <datalist id="msList"></datalist>
         <div id="eStockBox" style="margin-top:12px">
           <p class="label">Остаток, стеблей</p>
+          <div class="swl" style="margin-bottom:8px"><button class="sw" id="eNoStock" role="switch" aria-checked="false" aria-label="Продавать без учёта остатков"></button>Продавать без учёта остатков</div>
           <div class="bar" id="eStock"></div>
-          <p class="hint">Сколько цветов забронировано под сайт. Пусто — без учёта, продаём без ограничений. Размер скрывается сам, когда стеблей не хватает; при заказе остаток списывается.</p>
+          <p class="hint" id="eStockHint"></p>
         </div>
       </div>
       <div id="mSingle"><input class="in num" id="ePrice" type="number" min="0" step="10" style="max-width:200px"></div>
@@ -1860,6 +1861,7 @@ function openEditor(p) {
   sw($('#eActive'), p ? p.active : true); sw($('#eOnly'), p && p.site_only);
   renderBrandBoxes(p);
   sw($('#eExpress'), !!(p && p.is_express));
+  sw($('#eNoStock'), !!(p && p.no_stock));
   $('#eExpPrice').value = p && p.is_express ? (p.price || '') : '';
   $('#eReady').value = p && p.ready_qty != null ? p.ready_qty : '';
   $('#eMsName').value = (p && p.ms_name) || '';
@@ -1925,6 +1927,11 @@ function expressMode() {
   renderMode(); if (on) renderParts();
 }
 $('#eExpress').addEventListener('click', () => setTimeout(expressMode, 0));
+$('#eNoStock').addEventListener('click', () => setTimeout(() => {
+  // включили «без учёта» — сперва запомнить вписанное, чтобы при выключении оно вернулось
+  if (sw($('#eNoStock'))) $$('#eStock [data-stock]').forEach(el => { if (el.value !== '') E.stock[el.dataset.stock] = Math.max(0, Math.round(+el.value || 0)); });
+  renderStock();
+}, 0));
 $('#eExpPrice').addEventListener('input', () => { $('#ePrice').value = $('#eExpPrice').value; });
 function renderMode() {
   $$('#eMode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === E.mode));
@@ -2061,20 +2068,32 @@ $('#eParts').addEventListener('click', e => {
   renderParts();
 });
 
+// Остатки в карточке. С 15.11.2026 пустое поле — это НОЛЬ, а не «без ограничения»:
+// раньше пустое поле не записывалось вовсе, и после любого сохранения карточки
+// сорт продавался без потолка (так 15.11 продавалась 21 ростовка). Продавать
+// без учёта можно только переключателем — его видно, случайно его не включишь.
 function renderStock() {
   const box = $('#eStock');
   if (!box) return;
+  const без = sw($('#eNoStock'));
+  $('#eStockHint').textContent = без
+    ? 'Остатки не считаются: сорт продаётся в любом количестве. Так у кенийских и французских роз, гортензий — их нет в утренней диктовке.'
+    : 'Сколько цветов забронировано под сайт. Пустое поле — ноль: размер покажется закончившимся. При заказе остаток списывается.';
   box.innerHTML = E.lengths.length
     ? E.lengths.map(L => `<div class="row" style="align-items:flex-end;gap:8px;width:100%">
-        <label class="f" style="max-width:150px;margin:0">${L ? L + ' см' : 'без длины'}<input class="in num" data-stock="${L}" type="number" min="0" step="1" placeholder="без учёта" value="${E.stock[L] ?? ''}"></label>
+        <label class="f" style="max-width:150px;margin:0">${L ? L + ' см' : 'без длины'}<input class="in num" data-stock="${L}" type="number" min="0" step="1" placeholder="${без ? 'без учёта' : '0'}"${без ? ' disabled' : ''} value="${без ? '' : (E.stock[L] ?? '')}"></label>
         <label class="f" style="flex:1;margin:0">Номенклатура в МоёмСкладе<input class="in" data-ms="${L}" list="msList" placeholder="подбирается по названию" value="${esc((E.pick[L] || {}).name || '')}"></label>
       </div>`).join('')
     : '<span class="hint">Сначала отметьте длины</span>';
 }
 function readStock() {
   const out = {};
-  $$('#eStock [data-stock]').forEach(el => { if (el.value !== '') out[el.dataset.stock] = Math.max(0, +el.value || 0); });
-  E.stock = out;
+  if (!sw($('#eNoStock'))) {
+    // полная карта: каждая ростовка явно, пустое поле — ноль.
+    // Без учёта поля выключены — прежние числа лежат нетронутыми до возврата учёта.
+    $$('#eStock [data-stock]').forEach(el => { out[el.dataset.stock] = el.value === '' ? 0 : Math.max(0, Math.round(+el.value || 0)); });
+    E.stock = out;
+  }
   // У товара без ростовок полей привязки на экране нет вообще — и пустой разбор
   // затирал ms_pick, заданный руками. Так «Стич» терял привязку к комплекту.
   const поля = $$('#eStock [data-ms]');
@@ -2193,8 +2212,15 @@ $('#eSave').onclick = safe(async () => {
   if (E.mode === 'lengths') {
     if (!E.lengths.length) return toast('Выбран режим «Длина × количество»: отметьте хотя бы одну длину или переключитесь на «Одна цена»', true);
     readStock();
+    // Пустое поле теперь ноль. Сорт на витрине, учёт включён, а везде нули и ничего
+    // не едет — на сайте он встанет закончившимся. Чаще всего это забытый остаток.
+    const пусто = !sw($('#eNoStock')) && E.lengths.every(L => !(+E.stock[L] > 0));
+    const едет = Object.values((E.rec && E.rec.incoming) || {}).some(x => x && +x.qty > 0);
+    if (sw($('#eActive')) && пусто && !едет
+      && !confirm('Остаток по всем ростовкам — ноль, и ничего не едет: на сайте сорт покажется закончившимся.\n\nЕсли его не считают по утрам (как кенийские или французские розы) — включите «Продавать без учёта остатков».\n\nСохранить с нулями?')) return;
     fd.append('lengths', JSON.stringify(E.lengths)); fd.append('variants', 'null'); fd.append('price', 0); fd.append('price_table', E.table);
     fd.append('stock', JSON.stringify(E.stock));
+    fd.append('no_stock', sw($('#eNoStock')));
     fd.append('ms_pick', JSON.stringify(E.pick));
     fd.append('ms_name', $('#eMsName').value.trim());
   } else if (E.mode === 'variants') {
@@ -5646,13 +5672,13 @@ $('#rpSave').onclick = safe(async () => {
    сохранил. Правки копятся в полях и уходят одним махом. */
 let STOCK = [];
 const loadStock = safe(async () => {
-  STOCK = await list('products', '&fields=id,name,active,lengths,stock,incoming&sort=name');
-  renderStock();
+  STOCK = await list('products', '&fields=id,name,active,lengths,stock,incoming,no_stock&sort=name');
+  renderStockTab();
 });
 
 const стебли = (p) => Object.values(p.stock || {}).reduce((n, v) => n + (+v || 0), 0);
 
-function renderStock() {
+function renderStockTab() {
   const q = ($('#stQ').value || '').trim().toLowerCase().replace(/ё/g, 'е');
   const тольк = $('#stOnly').checked, скрытые = $('#stOff').checked;
 
@@ -5673,7 +5699,9 @@ function renderStock() {
         // Минус — это стебли, уже обещанные покупателям из непринятого привоза.
         // Сохранение поднимет их до нуля (так устроен сервер), и обещанное
         // потеряется. Поэтому минус подсвечиваем и прямо об этом пишем.
-        const поля = (p.lengths || []).map(L => {
+        const поля = p.no_stock
+          ? '<span class="hint">без учёта остатков — продаётся без ограничения</span>'
+          : (p.lengths || []).map(L => {
           const v = (p.stock || {})[L];
           const минус = +v < 0;
           return `<span class="stl${минус ? ' minus' : ''}"${минус ? ' title="Столько стеблей уже обещано из привоза. Нажмёте «Сохранить» — станет 0, и обещание потеряется: сначала отметьте привоз кнопкой «Приехало»"' : ''}>`
@@ -5703,7 +5731,7 @@ $('#stList').addEventListener('input', e => {
 });
 ['stQ', 'stOnly', 'stOff'].forEach(id => {
   const el = $('#' + id);
-  el.addEventListener(id === 'stQ' ? 'input' : 'change', renderStock);
+  el.addEventListener(id === 'stQ' ? 'input' : 'change', renderStockTab);
 });
 $('#stZero').onclick = () => {
   // Обнуляем только то, что сейчас на экране: иначе отбор «только с остатком»
@@ -5837,6 +5865,7 @@ $('#btStart').onclick = safe(async () => {
     // Остаток обязателен: счётчик «свободно» и сама партия считаются по нему,
     // а пустой остаток означал бы «продаём без ограничения» и никогда не кончился бы.
     stock: { [len]: n },
+    no_stock: false,          // партия без учёта никогда бы не кончилась
     price_table: прайс,
     // куда вернуть карточку, когда партия кончится
     batch_prev_table: смена ? (p.price_table || '') : (p.batch_prev_table || ''),
