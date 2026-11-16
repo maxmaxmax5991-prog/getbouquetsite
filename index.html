@@ -2237,7 +2237,7 @@ document.addEventListener('click', e => {
     return;
   }
   if (t2.closest && t2.closest('[data-dropdel]')) {
-    дропБукет = ''; store.set('dropTake', ''); badges(); renderCart(); загрузитьДроп();
+    дропБукет = ''; store.set('dropTake', ''); store.set('dropTakeD', ''); badges(); renderCart(); загрузитьДроп();
     return;
   }
   const готовая = t2.closest && t2.closest('[data-takebasket]');
@@ -2331,26 +2331,38 @@ document.addEventListener('input', e => {
    когда бросать дела. Поэтому один раз считаем поправку и дальше тикаем от неё,
    а на нуле переспрашиваем сервер — состояние меняет он, не браузер. */
 let дропБукет = store.get('dropTake', '');
+// Из какого дропа букет в корзине. Старые корзины его не помнят — тогда ищем
+// дроп, где есть этот сорт.
+const дропПо = (id) => (id && DROPS.find(x => x.id === id)) || null;
+function дропКорзины() {
+  if (!дропБукет) return null;
+  return дропПо(store.get('dropTakeD', '')) || DROPS.find(x => (x.лоты || []).some(l => l.id === дропБукет)) || DROP;
+}
 async function загрузитьДроп() {
   try {
     const r = await fetch('/api/shop/drop', { headers: meHeaders() });
     if (!r.ok) return;
     const d = await r.json();
     DROPсдвиг = дропМс(d.сейчас) ? дропМс(d.сейчас) - Date.now() : 0;
-    DROP = d && d.есть ? d : null;
-    if (DROP && DROP.я && DROP.я.статус === 'invited') DROPоткрыт = true;   // своё окно не прячем
+    const был = DROP && DROP.id;
+    DROPS = d && d.есть ? [d].concat(d.ещё || []) : [];
+    DROP = дропПо(был) || DROPS.find(x => x.я && x.я.статус === 'invited') || DROPS[0] || null;
+    if (DROPS.some(x => x.я && x.я.статус === 'invited')) DROPоткрыт = true;   // своё окно не прячем
     дропПеререндер();
   } catch (_) {}
 }
+// Часы у каждого дропа свои: до старта — у одного, до конца брони — у другого.
 function дропЧасы() {
   clearInterval(DROPтик);
   DROPтик = setInterval(() => {
-    if (!DROP) return;
-    const до = DROP.состояние === 'soon' ? дропМс(DROP.старт) - дропСейчас()
-      : (DROP.я && DROP.я.статус === 'invited' ? Date.parse(String(DROP.я.до).replace(' ', 'T')) - дропСейчас() : 0);
-    if (!до) return;
-    if (до <= 0) { загрузитьДроп(); return; }                 // ноль — спрашиваем сервер заново
-    $$('.dp-t, .dp-mine-t').forEach(el => { el.textContent = дропЧас(до); });
+    let заново = false;
+    DROPS.forEach((x) => {
+      const доСтарта = x.состояние === 'soon' ? дропМс(x.старт) - дропСейчас() : 0;
+      const доБрони = x.я && x.я.статус === 'invited' ? Date.parse(String(x.я.до).replace(' ', 'T')) - дропСейчас() : 0;
+      if (доСтарта) { if (доСтарта <= 0) заново = true; else $$(`[data-dpt="${x.id}"]`).forEach(el => { el.textContent = дропЧас(доСтарта); }); }
+      if (доБрони) { if (доБрони <= 0) заново = true; else $$(`[data-dpm="${x.id}"]`).forEach(el => { el.textContent = дропЧас(доБрони); }); }
+    });
+    if (заново) загрузитьДроп();                 // ноль — спрашиваем сервер заново
   }, 1000);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) загрузитьДроп(); });
@@ -2409,7 +2421,7 @@ function дропФорма() {
     try {
       const r = await fetch('/api/shop/drop-queue', { method: 'POST',
         headers: Object.assign({ 'content-type': 'application/json' }, meHeaders()),
-        body: JSON.stringify({ name: имяЗн, phone: телЗн }) });
+        body: JSON.stringify({ name: имяЗн, phone: телЗн, drop: (DROP && DROP.id) || '' }) });
       const данные = await r.json().catch(() => ({}));
       if (!r.ok) return toast(данные.message || 'Не получилось встать в очередь', true);
       toast(сразу ? 'Готово — бот напишет в течение минуты' : данные.место ? `Вы в очереди, ${данные.место}-й` : 'Вы в очереди');
@@ -2442,13 +2454,14 @@ function дропВыбрать() {
   });
 }
 function дропВзять(pid) {
-  дропБукет = pid; store.set('dropTake', pid);
+  дропБукет = pid; store.set('dropTake', pid); store.set('dropTakeD', (DROP && DROP.id) || '');
   badges(); openCart();
   шаг('drop_take', (DROP.лоты.find(l => l.id === pid) || {}).name || '');
 }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-drop]');
   if (!b || !DROP) return;
+  if (b.dataset.dpid) DROP = дропПо(b.dataset.dpid) || DROP;   // кнопка своего дропа
   const что = b.dataset.drop;
   if (что === 'open') { DROPоткрыт = true; store.set('dropOpen', '1'); window.шаг && window.шаг('drop_open', DROP.состояние || ''); дропПеререндер(); }
   else if (что === 'close') { DROPоткрыт = false; store.set('dropOpen', '0'); дропПеререндер(); }
@@ -2731,7 +2744,9 @@ const отборРазмера = () => !!(state.len || state.cnt || state.min ||
    бросать дела и бежать за букетом. Объявление живёт выше любых обращений к
    кабинету — meToken и прочее трогаем только внутри функций, которые
    вызываются уже после загрузки страницы (на этом мы один раз уронили сайт). */
-let DROP = null, DROPсдвиг = 0, DROPтик = 0, DROPоткрыт = true;
+// DROPS — все сегодняшние дропы (с 16.11.2026 их бывает несколько), DROP —
+// тот, с которым человек сейчас работает: кнопки карточки ставят его сами.
+let DROP = null, DROPS = [], DROPсдвиг = 0, DROPтик = 0, DROPоткрыт = true;
 // Партия как дроп: привезли N роз, продаём обычной карточкой, счётчик
 // свободных стеблей живой. Партия сильнее дропа дня — пока она есть,
 // её показывают и полоска на главной, и страница /drop/.
@@ -2755,23 +2770,26 @@ const дропДень = (строка) => {
   const зав = new Date(дропСейчас() + 3 * 3600 * 1000 + 86400000).toISOString().slice(0, 10);
   return д === зав ? 'завтра' : д.slice(8, 10) + '.' + д.slice(5, 7);
 };
-function дропПолоска() {
-  const d = DROP, идёт = d.состояние === 'live';
+function дропПолоска(d = DROP) {
+  const идёт = d.состояние === 'live';
   const доСтарта = дропМс(d.старт) - дропСейчас();
   const справа = идёт
     ? `<small>осталось</small><b>${d.свободно} шт</b>`
     : d.состояние === 'over' ? `<small>следующий</small><b>завтра</b>`
-    : `<small>старт через</small><b class="dp-t">${дропЧас(доСтарта)}</b>`;
+    : `<small>старт через</small><b class="dp-t" data-dpt="${d.id}">${дропЧас(доСтарта)}</b>`;
   const низ = идёт ? `Дроп начался · ${d.всего} ${plural(d.всего, 'букет', 'букета', 'букетов')} по спеццене`
     : d.состояние === 'over' ? 'Сегодня разобрали · каждый день в 12:00'
     : `Каждый день в ${String(d.старт).slice(11)} · ${d.всего} ${plural(d.всего, 'букет', 'букета', 'букетов')} по спеццене`;
-  return `<button class="dline${идёт ? ' live' : ''}" data-drop="open">
+  return `<button class="dline${идёт ? ' live' : ''}" data-dpid="${d.id}" data-drop="open">
     <span class="em">🔥</span>
     <span class="tx"><b>${d.штук} ${plural(d.штук, 'роза', 'розы', 'роз')} за ${rub(d.цена)}</b><small>${esc(низ)}</small></span>
     <span class="tm">${справа}</span><span class="ch">▾</span></button>`;
 }
-function дропКарточка() {
-  const d = DROP, идёт = d.состояние === 'live', конец = d.состояние === 'over';
+function дропКарточка(d = DROP) {
+  const идёт = d.состояние === 'live', конец = d.состояние === 'over';
+  // Главный дроп — ежедневный, «дроп дня»; второй в тот же день — разовый,
+  // и обещать про него «каждый день в 12:00» нельзя.
+  const главный = !DROPS.length || d === DROPS[0];
   // Пока дроп идёт и букеты есть, очередь — наше внутреннее устройство, а не то,
   // что человек должен читать: раздача идёт раз в минуту, и он получает букет
   // почти сразу. Слово «очередь» тут только отпугивает, поэтому на всей карточке
@@ -2791,9 +2809,9 @@ function дропКарточка() {
   const очередь = !сразу && d.очередь >= 10 ? `<div class="q"><b>${d.очередь}</b>в очереди</div>` : '';
   const я = d.я;
   const моё = я && я.статус === 'invited'
-    ? `<div class="dp-mine"><div><div class="tm dp-mine-t">${дропЧас(Date.parse(String(я.до).replace(' ', 'T')) - дропСейчас())}</div>
+    ? `<div class="dp-mine"><div><div class="tm dp-mine-t" data-dpm="${d.id}">${дропЧас(Date.parse(String(я.до).replace(' ', 'T')) - дропСейчас())}</div>
         <small>${esc(я.сорт || 'ваш букет')} · держим за вами</small></div>
-        <button class="btn btn-primary" style="margin-left:auto" data-drop="take">Забрать за ${rub(d.цена)}</button></div>` : '';
+        <button class="btn btn-primary" style="margin-left:auto" data-dpid="${d.id}" data-drop="take">Забрать за ${rub(d.цена)}</button></div>` : '';
   let кнопка;
   if (я && я.статус === 'invited') кнопка = '';
   else if (я && я.статус === 'waiting') кнопка = сразу
@@ -2803,14 +2821,14 @@ function дропКарточка() {
   // Пока букеты свободны, кнопка ведёт прямо в оформление: выбор сорта и
   // корзина, без бота и без очереди. Очередь включается только когда разобрали.
   else кнопка = сразу
-    ? `<button class="btn" data-drop="take">Забрать букет</button>`
-    : `<button class="btn" data-drop="queue">${конец ? 'Встать в очередь на завтра' : 'Встать в очередь'}</button>`;
+    ? `<button class="btn" data-dpid="${d.id}" data-drop="take">Забрать букет</button>`
+    : `<button class="btn" data-dpid="${d.id}" data-drop="queue">${конец ? 'Встать в очередь на завтра' : 'Встать в очередь'}</button>`;
   return `<div class="dp${конец ? ' done' : ''}">
     <div class="dp-head">
-      <span class="tag${идёт ? ' live' : конец ? ' out' : ''}">${идёт ? 'Дроп начался' : конец ? 'Разобрали' : 'Дроп дня'}</span>
-      <small>${идёт ? 'свободно букетов' : конец ? 'следующий завтра в 12:00' : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}</small>
-      <span class="t dp-t">${конец ? '' : идёт ? `${d.свободно} шт` : дропЧас(доСтарта)}</span>
-      <button class="x" data-drop="close" aria-label="Свернуть">✕</button>
+      <span class="tag${идёт ? ' live' : конец ? ' out' : ''}">${идёт ? 'Дроп начался' : конец ? 'Разобрали' : главный ? 'Дроп дня' : 'Дроп'}</span>
+      <small>${идёт ? 'свободно букетов' : конец ? (главный ? 'следующий завтра в 12:00' : 'букеты разобрали') : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}</small>
+      <span class="t dp-t"${идёт || конец ? '' : ` data-dpt="${d.id}"`}>${конец ? '' : идёт ? `${d.свободно} шт` : дропЧас(доСтарта)}</span>
+      <button class="x" data-dpid="${d.id}" data-drop="close" aria-label="Свернуть">✕</button>
     </div>
     ${моё}
     <div class="dp-body">${лента}
@@ -2818,12 +2836,13 @@ function дропКарточка() {
         <h3>${esc(d.подпись || 'Тот самый букет из Reels')}</h3>
         <div class="pr">${d.штук} ${plural(d.штук, 'роза', 'розы', 'роз')} · ${rub(d.цена)}${
           d.обычная && d.обычная > d.цена ? ` <s>${rub(d.обычная)}</s> <i>−${rub(d.обычная - d.цена)}</i>` : ''}</div>
-        <div class="sub">Одноголовые ${d.длина} см · ${доставка}</div>
+        <div class="sub">${esc(d.вид || 'Одноголовые')} ${d.длина} см · ${доставка}</div>
         ${сорта}
       </div>
     </div>
     ${конец || я ? '' : сразу
-      ? `<div class="how"><b>Ежедневный дроп начался.</b> Каждый день в ${String(d.старт).slice(11)} выкладываем от 20 до 50 букетов по ${d.штук} ${plural(d.штук, 'розе', 'розы', 'роз')} ${d.длина} см по цене ${rub(d.цена)}.</div>`
+      ? главный ? `<div class="how"><b>Ежедневный дроп начался.</b> Каждый день в ${String(d.старт).slice(11)} выкладываем от 20 до 50 букетов по ${d.штук} ${plural(d.штук, 'розе', 'розы', 'роз')} ${d.длина} см по цене ${rub(d.цена)}.</div>`
+        : `<div class="how"><b>Дроп начался.</b> ${d.всего} ${plural(d.всего, 'букет', 'букета', 'букетов')} по ${d.штук} ${plural(d.штук, 'розе', 'розы', 'роз')} ${d.длина} см по цене ${rub(d.цена)}. Разберут — следующего такого может не быть.</div>`
       : идёт
       ? `<div class="how"><i>1.</i> встаёте в очередь &nbsp;<i>2.</i> зовём по порядку, как освободится букет &nbsp;<i>3.</i> 15 минут на выбор и оплату</div>`
       : `<div class="how"><i>1.</i> встаёте в очередь &nbsp;<i>2.</i> в ${String(d.старт).slice(11)} зовём по порядку &nbsp;<i>3.</i> 15 минут на выбор и оплату</div>`}
@@ -2851,7 +2870,7 @@ function полоскаПартии(пар) {
 function вставитьДроп(куда) {
   if (!куда) return;
   const партия = партияДропа();
-  const d = (DROP && DROP.есть) ? DROP : null;
+  const d = DROPS[0] || null;
   if (!партия && !d) return;
   // Один раз за загрузку: полоска рисуется и на главной, и в каталоге,
   // а событие должно отвечать на вопрос «сколько людей её увидели».
@@ -2888,7 +2907,8 @@ function вставитьДроп(куда) {
   // плиток (решение владельца 14.11). Так они не спорят друг с другом: сверху
   // срочное предложение со стартом и очередью, ниже спокойная оптовая партия.
   const планы = [];
-  if (d) планы.push({ html: DROPоткрыт ? дропКарточка() : дропПолоска(), ряд: 1 });
+  // все сегодняшние дропы подряд, после первого ряда, в порядке старта
+  DROPS.forEach((x) => планы.push({ html: DROPоткрыт ? дропКарточка(x) : дропПолоска(x), ряд: 1 }));
   if (партия) планы.push({ html: полоскаПартии(партия), ряд: Math.max(рядПартии, d ? 3 : 1) });
 
   // Опорные узлы берём ДО вставки: после первой вставки индексы съезжают,
@@ -2941,8 +2961,10 @@ function renderDropPage() {
   const бокс = $('#dropPage'); if (!бокс) return;
   const под = $('#drpSub'), как = $('#drpHow'), h1 = $('#drpH1');
   const пар = партияДропа();
-  const d = (DROP && DROP.есть) ? DROP : null;
+  const d = DROPS[0] || null;
   const оба = !!(пар && d);
+  // подзаголовки над блоками нужны, только когда блоков больше одного
+  const много = DROPS.length + (пар ? 1 : 0) > 1;
 
   if (!пар && !d) {
     бокс.innerHTML = `<div class="notice">Дроп на сегодня ещё не назначили. Он бывает каждый день в 12:00 — загляните к полудню или подпишитесь на наш Телеграм.</div>`;
@@ -2961,6 +2983,7 @@ function renderDropPage() {
       под.innerHTML = `${d.штук} ${plural(d.штук, 'роза', 'розы', 'роз')} ${d.длина} см за <b>${rub(d.цена)}</b>`
         + (d.обычная && d.обычная > d.цена ? ` вместо <s>${rub(d.обычная)}</s>` : '')
         + ` · ${идёт ? `🔥 свободно ${d.свободно} из ${d.всего}` : конец ? 'сегодня разобрали' : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}`
+        + DROPS.slice(1).map(x => `<br>Ещё дроп: ${esc(x.подпись || '')}${x.подпись ? ' — ' : ''}${x.штук} ${plural(x.штук, 'роза', 'розы', 'роз')} ${x.длина} см за <b>${rub(x.цена)}</b>`).join('')
         + (оба ? `<br>Ниже — партия: ${esc(пар.name)}, ${число(пар.batch.left)} ${plural(пар.batch.left, 'стебель', 'стебля', 'стеблей')} по оптовой цене` : '');
     } else {
       const зашт = заШтукуПартии(пар);
@@ -2969,8 +2992,8 @@ function renderDropPage() {
     }
   }
 
-  бокс.innerHTML = (d ? (оба ? `<p class="drp-part">Букет дня</p>` : '') + дропКарточка() : '')
-    + (пар ? (оба ? `<p class="drp-part">Партия · ${esc(пар.name)}</p>` : '') + блокПартии(пар) : '');
+  бокс.innerHTML = DROPS.map((x, i) => (много ? `<p class="drp-part">${i ? esc(x.подпись || 'Ещё дроп') : 'Букет дня'}</p>` : '') + дропКарточка(x)).join('')
+    + (пар ? (много ? `<p class="drp-part">Партия · ${esc(пар.name)}</p>` : '') + блокПартии(пар) : '');
 
   // Нажали «51 шт» — карточка должна открыться сразу на 51, а не на размере по
   // умолчанию. Свой обработчик на кнопке срабатывает раньше общего data-nav.
@@ -4137,7 +4160,8 @@ function totals() {
   // собранные корзины считаются там же: для покупателя это такие же позиции
   корзины.forEach(к => { t.sum += счётКорзины(к).сумма; t.n += 1; });
   // букет из дропа: цену держит сервер, здесь показываем ту, что он прислал
-  if (дропБукет && DROP && DROP.есть) { t.sum += +DROP.цена || 0; t.n += 1; }
+  const дк = дропКорзины();
+  if (дк && дк.есть) { t.sum += +дк.цена || 0; t.n += 1; }
   return t;
 }
 /* Вазу предлагаем второй раз — уже в корзине.
@@ -4178,11 +4202,12 @@ function renderCart() {
       body.innerHTML = `<div class="cart-empty"><h3>Здесь пока пусто.</h3><p>Найдите букет, который скажет всё за вас.</p><button class="btn btn-primary" data-close data-go="/catalog/">Перейти в каталог</button></div>`;
       foot.hidden = true; return;
     }
-    const лотДропа = дропБукет && DROP ? (DROP.лоты || []).find(l => l.id === дропБукет) : null;
+    const дк = дропКорзины();
+    const лотДропа = дк ? (дк.лоты || []).find(l => l.id === дропБукет) : null;
     const строкаДропа = лотДропа ? `<div class="line"><img src="${лотДропа.img || ''}" alt="">
-        <div><div class="line-name">🔥 ${esc(лотДропа.name)} ${DROP.длина} см, ${DROP.штук} шт</div>
-          <div class="line-price num">${rub(DROP.цена)}</div>
-          <div class="hint" style="margin:2px 0 0;font-size:12.5px">Дроп дня · доставим ${esc(дропДень(DROP.доставка_с) || 'сегодня')}${DROP.доставка_с ? ' с ' + String(DROP.доставка_с).slice(11) : ''}</div></div>
+        <div><div class="line-name">🔥 ${esc(лотДропа.name)} ${дк.длина} см, ${дк.штук} шт</div>
+          <div class="line-price num">${rub(дк.цена)}</div>
+          <div class="hint" style="margin:2px 0 0;font-size:12.5px">Дроп дня · доставим ${esc(дропДень(дк.доставка_с) || 'сегодня')}${дк.доставка_с ? ' с ' + String(дк.доставка_с).slice(11) : ''}</div></div>
         <div class="mini"><button data-dropdel aria-label="Убрать">${icon('minus')}</button></div>
       </div>` : '';
     const строкиКорзин = строкаДропа + корзины.map((к, i) => {
@@ -4915,7 +4940,7 @@ cartDlg.addEventListener('submit', async e => {
             shape: к.shape || '', text: к.text || '',
             parts: (к.parts || []).map(x => ({ id: x.id, len: x.len, n: x.n })) })))
           // букет из дропа: шлём только сорт, цену и право на покупку проверит сервер
-          .concat(дропБукет ? [{ kind: 'drop', id: дропБукет, qty: 1 }] : []) }) });
+          .concat(дропБукет ? [{ kind: 'drop', id: дропБукет, drop: (дропКорзины() || {}).id || '', qty: 1 }] : []) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         // Отказ не должен превращаться в долбёжку кнопкой: каждое нажатие тратит
@@ -4944,7 +4969,7 @@ cartDlg.addEventListener('submit', async e => {
       lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code, order: data, name: v('name').trim(), phone: v('phone').trim() };
       saveLastOrder();
       забытьЧерновик();   // заказ принят — хранить введённое больше незачем
-      if (дропБукет) { дропБукет = ''; store.set('dropTake', ''); загрузитьДроп(); }
+      if (дропБукет) { дропБукет = ''; store.set('dropTake', ''); store.set('dropTakeD', ''); загрузитьДроп(); }
       шаг('order', `${Math.round((data.total || 0) / 1000)} тыс · ${getType === 'pickup' ? 'самовывоз' : 'доставка'}`);
       if (payMethod === 'card') {
         шаг('pay_go', '');

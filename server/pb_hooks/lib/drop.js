@@ -20,12 +20,26 @@ const вМс = (строка) => {
   return Date.parse(t.replace(" ", "T") + ":00Z") - 3 * 3600 * 1000;   // из московского в настоящее
 };
 
-// Дроп, который сейчас показываем: сегодняшний, а если его нет — ближайший
-function текущий(app) {
+// Дропы, которые сейчас показываем: все включённые на ближайший день —
+// сегодняшние, а если их нет, завтрашние. С 16.11.2026 их может быть
+// несколько в один день (решение владельца: второй дроп на кустовых
+// «Фрутти Баблз»), у каждого свои сорта, цена, длина и очередь.
+// Порядок — по времени старта: первый и есть «главный» дроп дня.
+function текущие(app) {
   const сег = мск().день;
+  let все = [];
   try {
-    return app.findFirstRecordByFilter("drops", "active = true && date >= {:d}", { d: сег });
-  } catch (_) { return null; }
+    все = app.findRecordsByFilter("drops", "active = true && date >= {:d}", "date,start_at,created", 20, 0, { d: сег });
+  } catch (_) { return []; }
+  if (!все.length) return [];
+  const день = все[0].get("date");
+  return все.filter((d) => d.get("date") === день);
+}
+// Один дроп: названный по id (если он среди текущих), иначе главный.
+function текущий(app, id) {
+  const сп = текущие(app);
+  if (id) return сп.find((d) => d.id === String(id)) || null;
+  return сп[0] || null;
 }
 
 const лоты = (d) => (shop.jget(d, "lots") || []).filter((l) => l && l.product);
@@ -48,14 +62,21 @@ function очередь(app, drop, статус) {
   } catch (_) { return []; }
 }
 
-// Брал ли человек букет за последние сутки — один в руки
-function ужеБрал(app, customer, phone) {
+// Брал ли человек букет за последние сутки — один в руки.
+// Параллельные дропы того же дня не в счёт: забрал Эльторо в дропе дня —
+// может забрать и Фрутти Баблз во втором дропе, это разные предложения.
+// `drop` — для какого дропа спрашиваем; не передан — считаем все, как раньше.
+function ужеБрал(app, customer, phone, drop) {
   const порог = new Date(Date.now() - СУТКИ).toISOString().replace("T", " ").slice(0, 19);
   const хвост = String(phone || "").replace(/\D/g, "").slice(-10);
+  const соседи = drop ? текущие(app).filter((x) => x.id !== drop.id).map((x) => x.id) : [];
+  const мимо = соседи.map((_, i) => ` && drop != {:n${i}}`).join("");
+  const пар = { t: порог, c: String(customer || "-"), p: хвост };
+  соседи.forEach((id, i) => { пар["n" + i] = id; });
   try {
     const по = app.findRecordsByFilter("drop_queue",
-      `status = "paid" && updated > {:t} && (customer = {:c}${хвост.length === 10 ? " || phone ~ {:p}" : ""})`,
-      "-updated", 1, 0, { t: порог, c: String(customer || "-"), p: хвост });
+      `status = "paid" && updated > {:t}${мимо} && (customer = {:c}${хвост.length === 10 ? " || phone ~ {:p}" : ""})`,
+      "-updated", 1, 0, пар);
     return !!по.length;
   } catch (_) { return false; }
 }
@@ -110,9 +131,13 @@ function сохранитьЛоты(app, d, сп) {
 // Выдать букет тому, кого позвали. Проверяем всё заново: приглашение живое,
 // срок не вышел, сорт ещё остался. Браузеру верить нельзя — он мог пролежать
 // в кармане полчаса и прислать свою картину мира.
-function взять(app, cust, pid, phone) {
+function взять(app, cust, pid, phone, dropId) {
   const беда = (m) => { throw new BadRequestError(m); };
-  const d = текущий(app);
+  // Какой из сегодняшних дропов: названный браузером, иначе тот, где есть
+  // этот сорт (старая вкладка дроп не присылает), иначе главный.
+  const дропы = текущие(app);
+  const d = dropId ? (дропы.find((x) => x.id === String(dropId)) || null)
+    : (дропы.find((x) => лоты(x).some((l) => String(l.product) === String(pid))) || дропы[0] || null);
   if (!d) беда("Дроп уже закончился.");
   if (Date.now() < вМс(d.get("start_at"))) беда("Дроп ещё не начался.");
   let q = null;
@@ -189,4 +214,4 @@ function отметитьВзятие(app, q, orderId, pid) {
   } catch (err) { console.log("дроп: отметка взятия", err); }
 }
 
-module.exports = { ОКНО, взять, отметитьВзятие, мск, вМс, текущий, лоты, свободно, всего, состояние, очередь, ужеБрал, встать, щедрыйЛот, занятьЛот, вернутьЛот };
+module.exports = { ОКНО, взять, отметитьВзятие, мск, вМс, текущий, текущие, лоты, свободно, всего, состояние, очередь, ужеБрал, встать, щедрыйЛот, занятьЛот, вернутьЛот };

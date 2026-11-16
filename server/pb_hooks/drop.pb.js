@@ -9,38 +9,51 @@
 routerAdd("GET", "/api/shop/drop", (e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const dr = require(`${__hooks}/lib/drop.js`);
-  const d = dr.текущий($app);
-  if (!d) return e.json(200, { есть: false, сейчас: dr.мск().полное });
+  // С 16.11.2026 дропов в день может быть несколько. Главный (раньше всех по
+  // старту) отдаём, как раньше, верхним уровнем — старые вкладки его понимают;
+  // остальные лежат в `ещё` той же формы. У каждого свой `id`.
+  const дропы = dr.текущие($app);
+  if (!дропы.length) return e.json(200, { есть: false, сейчас: dr.мск().полное });
 
   const имена = {};
   const фото = {};
+  const карточки = {};
   try {
     $app.findRecordsByFilter("products", "id != ''", "", 500, 0).forEach((p) => {
       имена[p.id] = p.get("name");
+      карточки[p.id] = p;
       const ф = p.get("photo") || [];
       if (ф.length) фото[p.id] = shop.fileUrl(p, ф[0], "560x0");
     });
   } catch (_) {}
+  const разделы = {};
+  try { $app.findRecordsByFilter("categories", "id != ''", "", 200, 0).forEach((c) => { разделы[c.id] = c.get("name"); }); } catch (_) {}
 
   // кто спрашивает: по ключу покупателя узнаём его место в очереди
-  let я = null;
+  let кто = null;
   try {
     const t = e.requestInfo().headers.x_customer_token || e.request.header.get("X-Customer-Token");
-    if (t) {
-      const c = require(`${__hooks}/lib/account.js`).byToken($app, String(t));
-      if (c) {
-        let q = null;
-        try { q = $app.findFirstRecordByFilter("drop_queue", "drop = {:d} && customer = {:c}", { d: d.id, c: c.id }); } catch (_) {}
-        if (q) я = {
-          место: +q.get("place") || 0, статус: q.get("status"),
-          сорт: имена[q.get("product")] || "", до: q.get("expires_at") || "", заказ: q.get("order") || "",
-        };
-      }
-    }
+    if (t) кто = require(`${__hooks}/lib/account.js`).byToken($app, String(t)) || null;
   } catch (_) {}
 
-  return e.json(200, {
+  const собрать = (d) => {
+  let я = null;
+  if (кто) {
+    let q = null;
+    try { q = $app.findFirstRecordByFilter("drop_queue", "drop = {:d} && customer = {:c}", { d: d.id, c: кто.id }); } catch (_) {}
+    if (q) я = {
+      место: +q.get("place") || 0, статус: q.get("status"),
+      сорт: имена[q.get("product")] || "", до: q.get("expires_at") || "", заказ: q.get("order") || "",
+    };
+  }
+  // Сорт для подписи «Кустовые розы 50 см» и для зачёркнутой цены — первый
+  // из лотов. Раньше всё было прибито к одноголовым и прайсу «single».
+  const первый = (() => { const л = dr.лоты(d)[0]; return л ? карточки[String(л.product)] || null : null; })();
+
+  return {
+    id: d.id,
     есть: true,
+    вид: первый ? (разделы[первый.get("category")] || "") : "",
     состояние: dr.состояние(d),
     сейчас: dr.мск().полное,
     старт: d.get("start_at"), доставка_с: d.get("ready_at"),
@@ -52,7 +65,8 @@ routerAdd("GET", "/api/shop/drop", (e) => {
       const своя = Math.max(0, Math.round(+d.get("old_price") || 0));
       if (своя) return своя;
       try {
-        const т = shop.priceTables(shop.settings($app)).find((x) => x.id === "single");
+        const прайс = (первый && первый.get("price_table")) || "single";
+        const т = shop.priceTables(shop.settings($app)).find((x) => x.id === прайс);
         const строка = т && (т.prices || {})[String(+d.get("len") || 40)];
         return строка ? +строка[String(+d.get("cnt") || 101)] || 0 : 0;
       } catch (_) { return 0; }
@@ -97,14 +111,20 @@ routerAdd("GET", "/api/shop/drop", (e) => {
     })(),
     очередь: dr.очередь($app, d, "waiting").length,
     я,
-  });
+  };
+  };
+  const главный = собрать(дропы[0]);
+  главный.ещё = дропы.slice(1).map(собрать);
+  return e.json(200, главный);
 });
 
 // Встать в очередь. Нужен вход через бота: иначе некуда прислать «ваша очередь».
 routerAdd("POST", "/api/shop/drop-queue", (e) => {
   const dr = require(`${__hooks}/lib/drop.js`);
   const acc = require(`${__hooks}/lib/account.js`);
-  const d = dr.текущий($app);
+  // какой из сегодняшних дропов — браузер называет; старая вкладка не называет,
+  // тогда главный
+  const d = dr.текущий($app, String((e.requestInfo().body || {}).drop || "") || undefined);
   if (!d) return e.json(400, { message: "Сейчас дропа нет." });
   let c = null;
   try {
@@ -113,7 +133,7 @@ routerAdd("POST", "/api/shop/drop-queue", (e) => {
   } catch (_) {}
   if (!c) return e.json(401, { message: "Войдите через бота — иначе мы не сможем позвать вас, когда подойдёт очередь." });
   if (!c.get("tg_chat") && !c.get("max_chat")) return e.json(400, { message: "Подпишитесь на бота: туда придёт сообщение, когда подойдёт очередь." });
-  if (dr.ужеБрал($app, c.id, c.get("phone_ok") || c.get("phone")))
+  if (dr.ужеБрал($app, c.id, c.get("phone_ok") || c.get("phone"), d))
     return e.json(400, { message: "Один букет в руки за сутки. Приходите на завтрашний дроп." });
 
   // Имя и телефон берём при записи в очередь. Это не каприз: кому букета не
@@ -155,23 +175,21 @@ routerAdd("GET", "/api/shop/drops", (e) => {
   const dr = require(`${__hooks}/lib/drop.js`);
   if (!shop.can(e, ["owner", "head"])) return e.json(403, { message: "Недостаточно прав." });
 
-  // Сорта для дропа берём ВСЕ нужной ростовки, включая скрытые с витрины:
-  // Эльторо, лицо дропа, как раз выключена в каталоге, и без этого её нельзя
-  // было выбрать. Скрытые помечаем, чтобы владелец видел, что они не в продаже.
-  const длина = 40;
+  // Сорта для дропа — ВСЕ с ростовками, включая скрытые с витрины: Эльторо,
+  // лицо дропа, как раз выключена в каталоге, и без этого её нельзя было
+  // выбрать. Скрытые помечаем. До 16.11.2026 список был прибит к одноголовым
+  // 40 см, и кустовые («Фрутти Баблз») выбрать было нельзя. Теперь отдаём
+  // ростовки и раздел, а админка сама отбирает подходящие под длину дропа.
   const сорта = [];
   try {
-    let раздел = null;
-    try { раздел = $app.findFirstRecordByFilter("categories", "slug = 'single'"); } catch (_) {}
-    if (раздел) {
-      $app.findRecordsByFilter("products", "category = {:c}", "name", 500, 0, { c: раздел.id }).forEach((p) => {
-        const L = (shop.jget(p, "lengths") || []).map(Number);
-        if (L.indexOf(длина) < 0) return;
-        const ст = shop.stockOf(p);
-        сорта.push({ id: p.id, name: p.get("name") + (p.get("active") ? "" : " (скрыт)"),
-          stock: +ст[String(длина)] || 0 });
-      });
-    }
+    const разд = {};
+    try { $app.findRecordsByFilter("categories", "id != ''", "", 200, 0).forEach((c) => { разд[c.id] = c.get("name"); }); } catch (_) {}
+    $app.findRecordsByFilter("products", "id != ''", "name", 1000, 0).forEach((p) => {
+      const L = (shop.jget(p, "lengths") || []).map(Number).filter((x) => x > 0);
+      if (!L.length) return;
+      сорта.push({ id: p.id, name: p.get("name") + (p.get("active") ? "" : " (скрыт)"),
+        lengths: L, cat: разд[p.get("category")] || "" });
+    });
   } catch (_) {}
 
   let список = [];
@@ -179,7 +197,8 @@ routerAdd("GET", "/api/shop/drops", (e) => {
   const имена = {};
   try { $app.findRecordsByFilter("products", "id != ''", "", 500, 0).forEach((p) => { имена[p.id] = p.get("name"); }); } catch (_) {}
 
-  const текущий = dr.текущий($app);
+  // очередь показываем у того дропа, что открыт в админке (?id=), иначе у главного
+  const текущий = dr.текущий($app, String(e.request.url.query().get("id") || "") || undefined) || dr.текущий($app);
   let очередь = [];
   if (текущий) {
     очередь = dr.очередь($app, текущий).map((q) => ({
@@ -193,11 +212,15 @@ routerAdd("GET", "/api/shop/drops", (e) => {
     дропы: список.map((d) => ({
       id: d.id, date: d.get("date"), start_at: d.get("start_at"), ready_at: d.get("ready_at"),
       len: +d.get("len") || 40, cnt: +d.get("cnt") || 101, price: +d.get("price") || 0,
+      // без этого поле «Зачёркнутая цена» в админке открывалось пустым, и
+      // любое сохранение дропа молча стирало цену, назначенную владельцем
+      old_price: +d.get("old_price") || 0,
       note: d.get("note") || "", active: !!d.get("active"),
       lots: dr.лоты(d).map((l) => ({ product: l.product, name: имена[l.product] || "", qty: +l.qty || 0, left: +l.left || 0 })),
       состояние: dr.состояние(d),
     })),
     очередь,
+    очередь_дропа: текущий ? текущий.id : "",
   });
 }, $apis.requireAuth("managers"));
 
@@ -215,8 +238,15 @@ routerAdd("POST", "/api/shop/drop-save", (e) => {
     if (!/^\d{2}:\d{2}$/.test(t)) throw new BadRequestError(`${имя}: нужно ЧЧ:ММ`);
     return `${день} ${t}`;
   };
+  // Ищем по id: дропов в один день может быть несколько, и поиск по дате
+  // перезаписал бы чужой дроп вместе с его очередью. Без id — новый дроп.
+  // Старая админка id не присылает — для неё прежнее поведение (по дате).
   let d = null;
-  try { d = $app.findFirstRecordByFilter("drops", "date = {:d}", { d: день }); } catch (_) {}
+  if (b.id) {
+    try { d = $app.findRecordById("drops", String(b.id)); } catch (_) { return e.json(404, { message: "Дроп не найден — обновите страницу." }); }
+  } else if (!b.new) {
+    try { d = $app.findFirstRecordByFilter("drops", "date = {:d}", { d: день }); } catch (_) {}
+  }
   const новый = !d;
   if (!d) d = new Record($app.findCollectionByNameOrId("drops"));
   const старые = {};
@@ -238,6 +268,17 @@ routerAdd("POST", "/api/shop/drop-save", (e) => {
     const left = было && +было.qty === qty ? Math.max(0, +было.left || 0) : qty;
     return { product: pid, qty, left };
   }).filter((l) => l.product && l.qty));
+  // Длина дропа должна быть у каждого сорта: иначе букет уйдёт в МойСклад
+  // ростовкой, которой у сорта нет, и заказ встанет.
+  const нетДлины = [];
+  dr.лоты(d).forEach((l) => {
+    try {
+      const p = $app.findRecordById("products", String(l.product));
+      const L = (shop.jget(p, "lengths") || []).map(Number);
+      if (L.indexOf(+d.get("len")) < 0) нетДлины.push(p.get("name"));
+    } catch (_) {}
+  });
+  if (нетДлины.length) return e.json(400, { message: `У сорта нет ростовки ${+d.get("len")} см: ${нетДлины.join(", ")}` });
   $app.save(d);
   return e.json(200, { ok: true, id: d.id });
 }, $apis.requireAuth("managers"));
@@ -305,8 +346,10 @@ onRecordAfterCreateSuccess((e) => {
 cronAdd("drop-run", "* * * * *", () => {
   const shop = require(`${__hooks}/lib/shop.js`);
   const dr = require(`${__hooks}/lib/drop.js`);
-  const d = dr.текущий($app);
-  if (!d) return;
+  // Каждый сегодняшний дроп раздаёт своё: свои лоты, своя очередь.
+  dr.текущие($app).forEach((d) => { try { раздать(d); } catch (err) { console.log("дроп: раздача", d.id, err); } });
+
+  function раздать(d) {
   const старт = dr.вМс(d.get("start_at"));
   if (!старт || Date.now() < старт) return;
 
@@ -376,5 +419,6 @@ cronAdd("drop-run", "* * * * *", () => {
       + `🚚 Доставим ${деньДоставки} с ${String(d.get("ready_at") || "").slice(11)}.\n\n`
       + `Держим за вами ${dr.ОКНО} минут. Не успеете — букет уйдёт следующему в очереди.`,
       `Забрать за ${shop.rub(+d.get("price") || 0)}`, ссылка(q, br));
+  }
   }
 });

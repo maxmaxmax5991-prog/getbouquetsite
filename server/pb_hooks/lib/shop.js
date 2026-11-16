@@ -692,7 +692,7 @@ function prepareOrder(app, rec) {
     // выдумать, а тут дешевле обычного каталога на тысячу рублей.
     if (it && it.kind === "drop") {
       const dr = require(`${__hooks}/lib/drop.js`);
-      const выдача = dr.взять(app, rec.get("customer"), it.id, rec.get("phone"));
+      const выдача = dr.взять(app, rec.get("customer"), it.id, rec.get("phone"), it.drop ? String(it.drop) : "");
       let p;
       try { p = app.findRecordById("products", String(it.id)); } catch (_) { fail("Сорт из дропа больше недоступен."); }
       items.push({ id: p.id, kind: "drop", name: `${p.get("name")} ${выдача.len} см, ${выдача.cnt} шт (дроп)`,

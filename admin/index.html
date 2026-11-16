@@ -542,7 +542,12 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <section id="tab-drop" hidden>
       <div class="card">
         <h2>Дроп дня</h2>
-        <p class="hint" style="margin-bottom:12px">Каждое утро назначаете, что сегодня уходит в дроп: сорта и сколько букетов. В 12:00 сервер сам позовёт людей из очереди — столько человек, сколько букетов, каждому 15 минут на оплату. Не успел — букет уходит следующему, а он ждёт завтрашнего дропа. Один букет в руки за сутки.</p>
+        <p class="hint" style="margin-bottom:12px">Каждое утро назначаете, что сегодня уходит в дроп: сорта и сколько букетов. В момент старта сервер сам позовёт людей из очереди — столько человек, сколько букетов, каждому 15 минут на оплату. Не успел — букет уходит следующему, а он ждёт завтрашнего дропа. Один букет в руки за сутки в каждом дропе.</p>
+        <p class="hint" style="margin-bottom:12px">В один день можно завести <b>несколько дропов</b> — у каждого свои сорта, длина, цена, время старта и очередь. На сайте они стоят рядом.</p>
+        <div class="bar" style="margin-bottom:12px">
+          <label class="f" style="margin:0;min-width:260px">Какой дроп правим<select class="in" id="drPick"></select></label>
+          <button class="btn btn-g btn-s" id="drNew" style="align-self:flex-end">+ Новый дроп</button>
+        </div>
         <div class="row">
           <label class="f">День<input class="in" id="drDate" type="date"></label>
           <label class="f">Старт продаж<input class="in" id="drStart" value="12:00" placeholder="12:00"></label>
@@ -3538,7 +3543,11 @@ const DR_ST = { soon: ['Ждёт старта', 'st-new'], live: ['Идёт', 's
 const QST = { waiting: 'ждёт', invited: 'позвали', paid: 'оплатил', missed: 'не успел', out: 'не хватило' };
 
 function renderDrLots() {
-  const сорта = DROP.сорта || [];
+  // В список идут только сорта, у которых есть ростовка дропа: иначе букет
+  // уйдёт в МойСклад длиной, которой у сорта нет. Уже выбранный — всегда.
+  const длина = +$('#drLen').value || 0;
+  const выбраны = new Set(DRLOTS.map(l => l.product));
+  const сорта = (DROP.сорта || []).filter(p => выбраны.has(p.id) || !длина || (p.lengths || []).includes(длина));
   // Остатки склада здесь не показываем: раз владелец заводит дроп, цветы уже
   // отложены под него, и продажа дропа остаток каталога не трогает.
   $('#drLots').innerHTML = `<tr><th>Сорт</th><th>Букетов</th><th>Осталось</th><th></th></tr>`
@@ -3546,7 +3555,7 @@ function renderDrLots() {
         return `<tr>
           <td><select class="in sm" data-drl="${i}" data-f="product" style="min-width:200px">
             <option value="">— сорт —</option>
-            ${сорта.map((p) => `<option value="${p.id}"${p.id === l.product ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
+            ${сорта.map((p) => `<option value="${p.id}"${p.id === l.product ? ' selected' : ''}>${esc(p.name)}${p.cat ? ' · ' + esc(p.cat) : ''}</option>`).join('')}
           </select></td>
           <td><input class="in sm num" type="number" min="0" step="1" data-drl="${i}" data-f="qty" value="${l.qty || ''}" style="width:90px"></td>
           <td class="num">${l.left === undefined ? '—' : l.left}</td>
@@ -3563,7 +3572,7 @@ function renderDrQueue() {
       : '<tr><td class="hint">В очереди пока никого.</td></tr>');
 }
 function renderDrPast() {
-  const сп = (DROP.дропы || []).slice(1);
+  const сп = (DROP.дропы || []).filter(d => d.id !== DRID);
   $('#drPast').innerHTML = `<tr><th>День</th><th>Старт</th><th>Букетов</th><th>Осталось</th><th>Состояние</th></tr>`
     + (сп.length ? сп.map((d) => {
         const [st, cls] = DR_ST[d.состояние] || [d.состояние, ''];
@@ -3573,8 +3582,21 @@ function renderDrPast() {
       }).join('')
       : '<tr><td class="hint">Прошлых дропов нет.</td></tr>');
 }
+// Какой дроп открыт в форме. Пусто — новый: сохранение создаст его, а не
+// перезапишет сегодняшний (раньше дроп искался по дате, и второй дроп того
+// же дня молча затёр бы первый вместе с очередью).
+let DRID = '';
+function renderDrPick() {
+  const сег = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  // Сегодняшние и будущие — их правят; прошлые смотрят в таблице ниже.
+  const сп = (DROP.дропы || []).filter(d => d.date >= сег).sort((a, b) => (a.date + a.start_at).localeCompare(b.date + b.start_at));
+  const имя = d => `${d.date.slice(8, 10)}.${d.date.slice(5, 7)} ${(d.start_at || '').slice(11)} · ${d.note || (d.lots[0] && d.lots[0].name) || 'дроп'} · ${d.cnt} шт ${d.len} см${d.active ? '' : ' (выключен)'}`;
+  $('#drPick').innerHTML = сп.map(d => `<option value="${d.id}"${d.id === DRID ? ' selected' : ''}>${esc(имя(d))}</option>`).join('')
+    + `<option value=""${DRID ? '' : ' selected'}>— новый дроп —</option>`;
+}
 function fillDrop(d) {
   const сег = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  DRID = d ? d.id : '';
   $('#drDate').value = (d && d.date) || сег;
   $('#drStart').value = d ? (d.start_at || '').slice(11) || '12:00' : '12:00';
   $('#drReady').value = d ? (d.ready_at || '').slice(11) || '15:00' : '15:00';
@@ -3589,14 +3611,29 @@ function fillDrop(d) {
   const [st] = d ? (DR_ST[d.состояние] || ['', '']) : ['', ''];
   $('#drState').textContent = d
     ? `Сейчас: ${st.toLowerCase()}. Разобрано ${d.lots.reduce((n, l) => n + (l.qty - l.left), 0)} из ${d.lots.reduce((n, l) => n + l.qty, 0)}.`
-    : 'Дроп на сегодня ещё не заведён.';
+    : 'Новый дроп: заполните и нажмите «Сохранить». Сегодняшние дропы он не тронет.';
 }
-const loadDrop = safe(async () => {
-  DROP = await api('/api/shop/drops');
+const loadDrop = safe(async (id) => {
+  const нужен = id !== undefined ? id : DRID;
+  DROP = await api('/api/shop/drops' + (нужен ? '?id=' + encodeURIComponent(нужен) : ''));
   const сег = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
-  fillDrop((DROP.дропы || []).find((d) => d.date === сег) || null);
-  renderDrLots(); renderDrQueue(); renderDrPast();
+  const дропы = DROP.дропы || [];
+  // открыт был конкретный — его и показываем; иначе первый сегодняшний
+  const d = (нужен && дропы.find(x => x.id === нужен))
+    || дропы.filter(x => x.date === сег).sort((a, b) => (a.start_at || '').localeCompare(b.start_at || ''))[0] || null;
+  fillDrop(d);
+  // очередь сервер отдал для запрошенного дропа; открыли другой — перечитываем
+  if (d && DROP.очередь_дропа && DROP.очередь_дропа !== d.id) return loadDrop(d.id);
+  renderDrPick(); renderDrLots(); renderDrQueue(); renderDrPast();
 });
+$('#drPick').addEventListener('change', () => {
+  const id = $('#drPick').value;
+  if (!id) { fillDrop(null); DROP.очередь = []; renderDrPick(); renderDrLots(); renderDrQueue(); renderDrPast(); return; }
+  loadDrop(id);
+});
+$('#drNew').onclick = () => { fillDrop(null); DROP.очередь = []; renderDrPick(); renderDrLots(); renderDrQueue(); renderDrPast(); };
+// сменили длину — список сортов перестраивается под неё
+$('#drLen').addEventListener('change', renderDrLots);
 $('#drLots').addEventListener('input', e => {
   const el = e.target.closest('[data-drl]'); if (!el) return;
   const l = DRLOTS[+el.dataset.drl]; if (!l) return;
@@ -3611,12 +3648,13 @@ $('#drAdd').onclick = () => { DRLOTS.push({ product: '', qty: 0 }); renderDrLots
 $('#drSave').onclick = safe(async () => {
   const lots = DRLOTS.filter((l) => l.product && +l.qty > 0).map((l) => ({ product: l.product, qty: +l.qty }));
   if (!lots.length) throw new Error('Добавьте хотя бы один сорт с количеством');
-  await api('/api/shop/drop-save', { method: 'POST', body: {
+  const r = await api('/api/shop/drop-save', { method: 'POST', body: {
+    id: DRID || undefined, new: !DRID,
     date: $('#drDate').value, start_at: $('#drStart').value, ready_at: $('#drReady').value,
     len: +$('#drLen').value, cnt: +$('#drCnt').value, price: +$('#drPrice').value,
     old_price: +$('#drOld').value || 0,
     note: $('#drNote').value, active: $('#drActive').checked, lots } });
-  toast('Дроп сохранён'); loadDrop();
+  toast(DRID ? 'Дроп сохранён' : 'Новый дроп заведён'); loadDrop(r && r.id ? r.id : DRID);
 });
 
 /* ---------- участники дропа ----------
