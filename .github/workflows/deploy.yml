@@ -1,0 +1,83 @@
+# Выкладка на сервер venikoff при каждом попадании кода в main.
+# Тот же server/deploy.sh, что и с мака, только запускает его GitHub.
+# Нужны секреты репозитория (Settings → Secrets and variables → Actions):
+#   VENIKOFF_SSH_KEY     — закрытый ключ, чья открытая часть стоит у root на сервере
+#   VENIKOFF_KNOWN_HOSTS — строка «147.45.141.23 ssh-ed25519 AAAA…» (необязательно:
+#                          без неё отпечаток сервера берётся при запуске и печатается в журнал)
+name: Выкладка на сервер
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Две выкладки одновременно не идут: вторая ждёт первую.
+concurrency:
+  group: deploy-venikoff
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверка кода перед выкладкой
+        run: |
+          set -e
+          # Синтаксис серверных обработчиков
+          find server/pb_hooks server/pb_migrations -name '*.js' -print0 | xargs -0 -n1 node --check
+          # Синтаксис встроенных скриптов сайта, админки и страницы загрузки
+          node server/ci/check-html.js index.html admin/index.html add/index.html
+          # Функции, которые уже раз пропадали при правке (CLAUDE.md, 14.11.2026)
+          for f in дропПеререндер рисоватьПартию дропКарточка дропПолоска полоскаПартии \
+                   вставитьДроп партияДропа привязатьВыбор renderDropPage блокПартии; do
+            n=$(grep -c "function $f\|const $f" index.html || true)
+            [ "$n" = 1 ] || { echo "ПРОПАЛА или задвоилась функция: $f ($n)"; exit 1; }
+          done
+
+      - name: Ключ к серверу
+        env:
+          SSH_KEY: ${{ secrets.VENIKOFF_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VENIKOFF_KNOWN_HOSTS }}
+        run: |
+          set -e
+          [ -n "$SSH_KEY" ] || { echo "Нет секрета VENIKOFF_SSH_KEY — см. CLAUDE.md, «Выкладка»"; exit 1; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/venikoff_ed25519
+          chmod 600 ~/.ssh/venikoff_ed25519
+          if [ -n "$KNOWN_HOSTS" ]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -t ed25519 147.45.141.23 > ~/.ssh/known_hosts
+            echo "Отпечаток сервера (сверить и положить в секрет VENIKOFF_KNOWN_HOSTS):"
+            cat ~/.ssh/known_hosts
+          fi
+          # deploy.sh ходит на имя «venikoff» — объявляем его здесь, напрямую на сервер
+          cat > ~/.ssh/config <<'EOF'
+          Host venikoff
+            HostName 147.45.141.23
+            User root
+            IdentityFile ~/.ssh/venikoff_ed25519
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 15
+          EOF
+          chmod 600 ~/.ssh/config
+          ssh venikoff 'echo "связь с сервером есть: $(hostname)"'
+
+      - name: Выкладка
+        run: sh server/deploy.sh
+
+      - name: Проверка снаружи
+        run: |
+          fail=0
+          for u in https://venikoff.net/ https://venikoff.net/catalog/ https://venikoff.net/drop/ \
+                   https://venikoff.net/api/shop/catalog https://venikoff.net/admin/ \
+                   https://getbouquet.moscow/; do
+            c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$u")
+            echo "$c  $u"
+            [ "$c" = 200 ] || fail=1
+          done
+          exit $fail
