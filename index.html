@@ -308,6 +308,9 @@ html{overflow-x:clip}
 .offer-deadline{display:flex;flex-direction:column;gap:3px;margin:8px 0 0;padding:9px 10px;border-radius:10px;background:var(--accent);color:var(--accent-ink);line-height:1.3}
 .offer-deadline span{font-size:11px;font-weight:600}
 .offer-deadline strong{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.card-img .offer-deadline{position:absolute;left:8px;right:8px;bottom:8px;z-index:1;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;margin:0;padding:7px 6px;border-radius:8px;white-space:nowrap;box-sizing:border-box}
+.card-img .offer-deadline span{font-size:10px}
+.card-img .offer-deadline strong{font-size:13px}
 
 .card-img{position:relative;display:block;aspect-ratio:4/5;border-radius:16px;overflow:hidden;background:var(--tile);max-width:100%}
 .card-img img{width:100%;height:100%;object-fit:cover;transition:transform .5s ease-out}
@@ -2660,16 +2663,15 @@ const МИСТИ_ДО = '2026-11-18T18:00:00+03:00';
 function остатокПредложения(дедлайн, сейчас = Date.now()) {
   const секунд = Math.max(0, Math.ceil((Date.parse(дедлайн) - сейчас) / 1000));
   if (!секунд) return 'Время вышло';
-  const дней = Math.floor(секунд / 86400);
-  const час = Math.floor(секунд % 86400 / 3600);
+  const час = Math.floor(секунд / 3600);
   const мин = Math.floor(секунд % 3600 / 60);
   const сек = секунд % 60;
   const два = n => String(n).padStart(2, '0');
-  return (дней ? дней + ' д ' : '') + [час, мин, сек].map(два).join(':');
+  return [час, мин, сек].map(два).join(':');
 }
 function таймерПредложения(p) {
   if (!p || p.id !== 'oghyzgr5n0kdnc1' || !p.batch || !(p.batch.left > 0)) return '';
-  return `<div class="offer-deadline" title="До 18 ноября, 18:00 по Москве"><span>До конца предложения</span><strong data-offer-until="${МИСТИ_ДО}" role="timer" aria-live="off">${остатокПредложения(МИСТИ_ДО)}</strong></div>`;
+  return `<div class="offer-deadline" title="До 18 ноября, 18:00 по Москве"><span>До конца</span><strong data-offer-until="${МИСТИ_ДО}" role="timer" aria-live="off">${остатокПредложения(МИСТИ_ДО)}</strong></div>`;
 }
 function обновитьТаймерыПредложения() {
   document.querySelectorAll('[data-offer-until]').forEach(el => {
@@ -2690,14 +2692,13 @@ function card(p, место, и) {
     : p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
   return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}"${место ? ` data-pos="${место}#${(+и || 0) + 1}"` : ''}>
-    <a class="card-img" href="${purl(p)}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}"${наборШирин(photoOf(p, curLabel(p)), photoOf2(p, curLabel(p)), 560, 1120, КАРТОЧКА_SIZES)} alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}</a>
+    <a class="card-img" href="${purl(p)}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}"${наборШирин(photoOf(p, curLabel(p)), photoOf2(p, curLabel(p)), 560, 1120, КАРТОЧКА_SIZES)} alt="" loading="lazy" width="560" height="560">${tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}${таймерПредложения(p)}</a>
     <div class="card-note${акция ? ' sale' : readyNow(p) ? ' express' : readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${
       акция ? акция :
       readyNow(p) ? `⚡ Готов сейчас — ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)}` :
       readyShort(p) ? `🚚 ${esc(readyShort(p))}` :
       p.fresh ? `🌿 <b class="wide">Этот сорт сегодня приехал к нам напрямую ${откуда(p)}</b><b class="slim">Сегодня ${откуда(p)}</b>` : ''}</div>
     <button class="fav" data-fav="${p.id}" aria-pressed="${f}" aria-label="${f ? 'Убрать из избранного' : 'В избранное'}">${icon('heart')}</button>
-    ${таймерПредложения(p)}
     <h3><a href="${purl(p)}">${esc(p.name)}</a></h3>
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : p.made ? `<div class="sub made" title="${esc(p.made)}">${esc(p.made)}</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
     ${sizesHTML(p)}
