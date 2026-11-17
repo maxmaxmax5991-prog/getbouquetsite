@@ -192,7 +192,7 @@ function dropPage(ctx, brand, path) {
 
   // Одна ссылка на два предложения (решение владельца 14.11): дроп дня и
   // партия живут на /drop/ вместе. Раньше партия вытесняла дроп целиком.
-  const партия = (ctx.live || []).find((x) => x.batch && x.batch.total > 0 && x.batch.left > 0);
+  const партия = (ctx.live || []).filter((x) => x.batch && x.batch.total > 0 && x.batch.left > 0).sort((a, b) => Number(b.id === 'oghyzgr5n0kdnc1') - Number(a.id === 'oghyzgr5n0kdnc1'))[0];
   let пЗаголовок = "", пЦена = 0, пТекст = "";
   if (партия) {
     const б = партия.batch;
