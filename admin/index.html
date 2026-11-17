@@ -1250,7 +1250,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <div id="eStockBox" style="margin-top:12px">
           <p class="label">Остаток, стеблей</p>
           <div class="bar" id="eStock"></div>
-          <p class="hint">Сколько цветов забронировано под сайт. Пусто — без учёта, продаём без ограничений. Размер скрывается сам, когда стеблей не хватает; при заказе остаток списывается.</p>
+          <p class="hint">Сколько цветов забронировано под сайт. <b>Пустое поле — это ноль:</b> ростовка не продаётся, пока в неё не поставят число. Размер скрывается сам, когда стеблей не хватает; при заказе остаток списывается.</p>
+          <div class="swl" style="margin-top:10px"><button class="sw" id="eNoStock" role="switch" aria-checked="false" aria-label="Без учёта остатков"></button>Продавать без учёта остатков</div>
+          <p class="hint">Для сортов, которые считают на складе, а не в карточке: французские розы, гортензии, эквадорский премиум. Сайт перестанет проверять остаток и будет продавать любое количество — числа выше станут не нужны.</p>
         </div>
       </div>
       <div id="mSingle"><input class="in num" id="ePrice" type="number" min="0" step="10" style="max-width:200px"></div>
@@ -1858,6 +1860,7 @@ function openEditor(p) {
   $('#eTint').value = p && /^#[0-9a-f]{6}$/i.test(p.tint || '') ? p.tint : '#E0178A';
   $('#eDesc').value = p ? p.description || '' : '';
   sw($('#eActive'), p ? p.active : true); sw($('#eOnly'), p && p.site_only);
+  sw($('#eNoStock'), p && p.no_stock);
   renderBrandBoxes(p);
   sw($('#eExpress'), !!(p && p.is_express));
   $('#eExpPrice').value = p && p.is_express ? (p.price || '') : '';
@@ -2066,14 +2069,18 @@ function renderStock() {
   if (!box) return;
   box.innerHTML = E.lengths.length
     ? E.lengths.map(L => `<div class="row" style="align-items:flex-end;gap:8px;width:100%">
-        <label class="f" style="max-width:150px;margin:0">${L ? L + ' см' : 'без длины'}<input class="in num" data-stock="${L}" type="number" min="0" step="1" placeholder="без учёта" value="${E.stock[L] ?? ''}"></label>
+        <label class="f" style="max-width:150px;margin:0">${L ? L + ' см' : 'без длины'}<input class="in num" data-stock="${L}" type="number" min="0" step="1" placeholder="0" value="${E.stock[L] ?? ''}"></label>
         <label class="f" style="flex:1;margin:0">Номенклатура в МоёмСкладе<input class="in" data-ms="${L}" list="msList" placeholder="подбирается по названию" value="${esc((E.pick[L] || {}).name || '')}"></label>
       </div>`).join('')
     : '<span class="hint">Сначала отметьте длины</span>';
 }
 function readStock() {
   const out = {};
-  $$('#eStock [data-stock]').forEach(el => { if (el.value !== '') out[el.dataset.stock] = Math.max(0, +el.value || 0); });
+  // Пустое поле — ноль. Раньше его просто не писали в карту, а отсутствие
+  // ключа сайт понимал как «учёта нет» и продавал без ограничений: так 16.11
+  // сохранение «Фрутти Баблз» сняло ограничение по количеству на сутки.
+  // Продавать без учёта теперь можно только переключателем ниже.
+  $$('#eStock [data-stock]').forEach(el => { out[el.dataset.stock] = el.value === '' ? 0 : Math.max(0, +el.value || 0); });
   E.stock = out;
   // У товара без ростовок полей привязки на экране нет вообще — и пустой разбор
   // затирал ms_pick, заданный руками. Так «Стич» терял привязку к комплекту.
@@ -2195,6 +2202,7 @@ $('#eSave').onclick = safe(async () => {
     readStock();
     fd.append('lengths', JSON.stringify(E.lengths)); fd.append('variants', 'null'); fd.append('price', 0); fd.append('price_table', E.table);
     fd.append('stock', JSON.stringify(E.stock));
+    fd.append('no_stock', sw($('#eNoStock')));
     fd.append('ms_pick', JSON.stringify(E.pick));
     fd.append('ms_name', $('#eMsName').value.trim());
   } else if (E.mode === 'variants') {
@@ -5646,7 +5654,7 @@ $('#rpSave').onclick = safe(async () => {
    сохранил. Правки копятся в полях и уходят одним махом. */
 let STOCK = [];
 const loadStock = safe(async () => {
-  STOCK = await list('products', '&fields=id,name,active,lengths,stock,incoming&sort=name');
+  STOCK = await list('products', '&fields=id,name,active,lengths,stock,incoming,no_stock&sort=name');
   renderStock();
 });
 
@@ -5685,7 +5693,8 @@ function renderStock() {
           .filter(([, x]) => x && +x.qty > 0)
           .map(([L, x]) => `${L}см ${x.qty}${x.at ? ' к ' + String(x.at).slice(11, 16) : ''}`)
           .join(', ');
-        return `<tr><td><b>${esc(p.name)}</b>${p.active ? '' : ' <i class="same">скрыт</i>'}</td>`
+        return `<tr><td><b>${esc(p.name)}</b>${p.active ? '' : ' <i class="same">скрыт</i>'}`
+          + `${p.no_stock ? ' <i class="same" title="В карточке включено «продавать без учёта остатков» — эти числа сайт не смотрит">без учёта</i>' : ''}</td>`
           + `<td><div class="stlens">${поля}</div></td>`
           + `<td class="hint" style="white-space:nowrap">${едет || '—'}</td></tr>`;
       }).join('')
