@@ -24,3 +24,6 @@ curl -s -o /dev/null -w "каталог: %{http_code}\n" --resolve venikoff.net:
 
 # Диагностика восстановления Мисти: только stock/время, без клиентских данных.
 ssh "$HOST" 'journalctl -u venikoff-pb --since "10 minutes ago" --no-pager -o cat | grep "misti-stock-audit" | tail -20' || true
+
+# Итог прихода: только номенклатура, длины и количества, без реквизитов счёта.
+ssh "$HOST" 'journalctl -u venikoff-pb --since "10 minutes ago" --no-pager -o cat | grep "receipt-6571" | tail -20' || true
