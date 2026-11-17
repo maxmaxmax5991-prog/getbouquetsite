@@ -2696,7 +2696,7 @@ function card(p, место, и) {
     : p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
   return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}"${место ? ` data-pos="${место}#${(+и || 0) + 1}"` : ''}>
-    <a class="card-img" href="${purl(p)}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}"${наборШирин(photoOf(p, curLabel(p)), photoOf2(p, curLabel(p)), 560, 1120, КАРТОЧКА_SIZES)} alt="" loading="lazy" width="560" height="560">${лучшаяЦена ? '<span class="offer-best-price">Лучшая цена в Москве</span>' : tag}${countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}${таймерПредложения(p)}</a>
+    <a class="card-img" href="${purl(p)}" aria-label="${esc(p.name)}"><img src="${photoOf(p, curLabel(p))}"${наборШирин(photoOf(p, curLabel(p)), photoOf2(p, curLabel(p)), 560, 1120, КАРТОЧКА_SIZES)} alt="" loading="lazy" width="560" height="560">${лучшаяЦена ? '<span class="offer-best-price">Лучшая цена в Москве</span>' : tag}${!лучшаяЦена && countText(p, curLabel(p)) ? `<span class="count-tag">${countText(p, curLabel(p))}</span>` : ''}${таймерПредложения(p)}</a>
     <div class="card-note${акция ? ' sale' : readyNow(p) ? ' express' : readyShort(p) ? ' way' : p.fresh ? ' fresh' : ' none'}">${
       акция ? акция :
       readyNow(p) ? `⚡ Готов сейчас — ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)}` :
