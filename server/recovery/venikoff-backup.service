@@ -1,0 +1,24 @@
+[Unit]
+Description=Export validated Venikoff backups to independent encrypted storage
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/venikoff/backup.env
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/venikoff/backup.env
+ExecStart=/bin/sh /opt/venikoff/recovery/export-backup.sh
+TimeoutStartSec=2h
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/lock
+Environment=RESTIC_CACHE_DIR=/var/cache/venikoff-backup
+CacheDirectory=venikoff-backup
+CacheDirectoryMode=0700
