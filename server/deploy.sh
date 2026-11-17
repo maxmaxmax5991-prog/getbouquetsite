@@ -21,3 +21,6 @@ ssh "$HOST" 'chown -R venikoff:venikoff /opt/venikoff/pb && chmod -R u=rwX,go=rX
 # отсюда всегда возвращал бы 000 — выкладка выглядела бы сломанной.
 ssh "$HOST" 'curl -s -o /dev/null -w "сайт: %{http_code}\n" --resolve venikoff.net:443:127.0.0.1 https://venikoff.net/
 curl -s -o /dev/null -w "каталог: %{http_code}\n" --resolve venikoff.net:443:127.0.0.1 https://venikoff.net/api/shop/catalog' 
+
+# Диагностика восстановления Мисти: только stock/время, без клиентских данных.
+ssh "$HOST" 'journalctl -u venikoff-pb --since "10 minutes ago" --no-pager -o cat | grep "misti-stock-audit" | tail -20' || true
