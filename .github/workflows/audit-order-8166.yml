@@ -52,16 +52,16 @@ jobs:
           emit({'event':'site','number':o['number'],'created':o['created'],'updated':o['updated'],'total':o['total'],'payment_status':o['payment_status'],'gateway_payment_present':bool(o['payment_id']),'ms_id':o['ms_id'],'saved_ms_payment_id':o['ms_payment_id']})
           if not o['ms_id']:raise SystemExit(0)
           r=api('/entity/customerorder/'+o['ms_id']+'?expand=payments,state')
-          refs=r.get('payments') or []
-          if not isinstance(refs,list): refs=refs.get('rows',[])
-          emit({'event':'moysklad','name':r.get('name'),'sum':r.get('sum'),'payedSum':r.get('payedSum'),'applicable':r.get('applicable'),'state':(r.get('state')or{}).get('name'),'payment_count':len(refs)})
-          purposes=[]
-          for ref in refs:
-           meta=ref.get('meta')or{};href=meta.get('href','')
-           if not href.startswith(BASE+'/entity/'): emit({'event':'unexpected-ref'});continue
-           p=api(href[len(BASE):]);purpose=str(p.get('paymentPurpose')or'');purposes.append(purpose)
-           ops=p.get('operations')or[]
-           emit({'event':'payment','id':p.get('id'),'name':p.get('name'),'type':meta.get('type'),'created':p.get('created'),'updated':p.get('updated'),'moment':p.get('moment'),'sum':p.get('sum'),'applicable':p.get('applicable'),'linkedSum':ref.get('linkedSum'),'saved_on_site':p.get('id')==o['ms_payment_id'],'purpose_is_site_auto':purpose.startswith('Оплата заказа №8166 на сайте'),'purpose_mentions_cloudpayments':'CloudPayments' in purpose,'purpose_matches_site_gateway_payment':bool(o['payment_id']) and str(o['payment_id']) in purpose,'purpose_fingerprint':hashlib.sha256(purpose.encode()).hexdigest()[:16],'bank_reference_present':bool(p.get('incomingNumber')or p.get('bankInNumber')),'operation_count':len(ops),'order_links':[{'type':(x.get('meta')or{}).get('type'),'is_this_order':(x.get('meta')or{}).get('href','').split('?')[0].endswith('/'+o['ms_id']),'linkedSum':x.get('linkedSum')}for x in ops]})
-          emit({'event':'summary','identical_payment_purposes':len(set(purposes))==1 if len(purposes)>1 else None})
+          import urllib.parse
+          agent=(r.get('agent')or{}).get('meta',{}).get('href')
+          if not agent: emit({'event':'no-agent'});raise SystemExit(0)
+          for typ in ['paymentin','cashin']:
+           query=urllib.parse.urlencode({'filter':'agent='+agent+';sum='+str(round(float(r['sum'])))+';moment>=2026-11-16 00:00:00;moment<=2026-11-18 23:59:59','limit':100})
+           found=api('/entity/'+typ+'?'+query)
+           emit({'event':'search-count','type':typ,'count':len(found.get('rows',[])),'total':found.get('meta',{}).get('size')})
+           for p in found.get('rows',[]):
+            purpose=str(p.get('paymentPurpose')or'')
+            ops=p.get('operations')or[]
+            emit({'event':'matching-payment','id':p.get('id'),'type':typ,'created':p.get('created'),'updated':p.get('updated'),'moment':p.get('moment'),'sum':p.get('sum'),'applicable':p.get('applicable'),'saved_on_site':p.get('id')==o['ms_payment_id'],'purpose_is_site_auto':purpose.startswith('Оплата заказа №8166 на сайте'),'purpose_mentions_order8166':'8166' in purpose,'purpose_mentions_cloudpayments':'CloudPayments' in purpose,'purpose_matches_site_gateway_payment':bool(o['payment_id']) and str(o['payment_id']) in purpose,'purpose_fingerprint':hashlib.sha256(purpose.encode()).hexdigest()[:16],'bank_reference_present':bool(p.get('incomingNumber')or p.get('bankInNumber')),'operation_count':len(ops),'order_links':[{'type':(x.get('meta')or{}).get('type'),'is_this_order':(x.get('meta')or{}).get('href','').split('?')[0].endswith('/'+o['ms_id']),'id':(x.get('meta')or{}).get('href','').split('?')[0].split('/')[-1],'linkedSum':x.get('linkedSum')}for x in ops]})
           
           PY
