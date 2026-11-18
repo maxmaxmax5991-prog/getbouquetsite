@@ -2875,7 +2875,7 @@ function дропКарточка(d = DROP) {
   const доСтарта = дропМс(d.старт) - дропСейчас();
   const фото = (d.лоты || []).filter(l => l.img).length ? (d.лоты || []).filter(l => l.img) : (d.анонс || []);
   const лента = фото.length ? `<div class="ph-wrap"><div class="ph-rail">${
-      фото.filter((l,i,a)=>a.findIndex(x=>x.img===l.img)===i).map(l => `<img src="${l.img}" alt="${esc(l.name)}" loading="lazy">`).join('')}</div>${d.group ? `<div class="drop-photo-timer" title="До 19 ноября, 18:00 по Москве"><span>До конца предложения</span><strong role="timer" aria-live="off" data-offer-until="2026-11-19T18:00:00+03:00">${остатокПредложения('2026-11-19T18:00:00+03:00')}</strong></div>` : ''}${
+      фото.filter((l,i,a)=>a.findIndex(x=>x.img===l.img)===i).map(l => `<img src="${l.img}" alt="${esc(l.name)}" loading="lazy">`).join('')}</div>${d.group && фрутти ? `<div class="drop-photo-timer" title="До 19 ноября, 18:00 по Москве"><span>До конца предложения</span><strong role="timer" aria-live="off" data-offer-until="2026-11-19T18:00:00+03:00">${остатокПредложения('2026-11-19T18:00:00+03:00')}</strong></div>` : ''}${
       фото.length > 1 && !d.group ? `<div class="dots">${фото.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}</div>` : '';
   const сорта = d.варианты ? `<div class="drop-size-options">${d.варианты.map(l=>`<button type="button" data-drop-size="${l.cnt}" class="${+l.cnt===+d.штук?'on':''}" aria-pressed="${+l.cnt===+d.штук}"><b>${l.cnt} шт</b><span>${rub(l.price)}</span><small>осталось ${l.left} букетов</small></button>`).join('')}</div>` : (d.лоты || []).length
     ? `<div class="sorts">${d.лоты.map(l => l.left > 0
