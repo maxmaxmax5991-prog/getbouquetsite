@@ -27,3 +27,5 @@ ssh "$HOST" 'journalctl -u venikoff-pb --since "10 minutes ago" --no-pager -o ca
 
 # Итог прихода: только номенклатура, длины и количества, без реквизитов счёта.
 ssh "$HOST" 'journalctl -u venikoff-pb --since "10 minutes ago" --no-pager -o cat | grep "receipt-6571" | tail -20' || true
+
+ssh "$HOST" 'journalctl -u venikoff-pb --since "10 minutes ago" --no-pager -o cat | grep "stock-20261118" | tail -90' || true
