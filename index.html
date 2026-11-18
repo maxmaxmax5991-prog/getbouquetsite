@@ -956,6 +956,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
 .drop-photo-timer span{display:block;font-size:8px;margin-bottom:3px}.drop-photo-timer strong{display:block;font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .dp-single .ph-wrap{padding-bottom:0}.dp-single .ph-rail img{height:150px}.dp-single .drop-photo-timer{bottom:0}
 
+.party-photo{position:relative;margin-bottom:10px;border-radius:12px;overflow:hidden}.party-photo>img{width:100%;display:block}.party-photo>.offer-deadline{position:absolute;left:0;right:0;bottom:0;margin:0;border-radius:0}.party-photo>.offer-best-price{position:absolute;left:0;right:0;top:0}
 </style>
 </head>
 <body>
@@ -2381,6 +2382,11 @@ async function загрузитьДроп() {
     const d = await r.json();
     DROPсдвиг = дропМс(d.сейчас) ? дропМс(d.сейчас) - Date.now() : 0;
     DROP = d && d.есть ? d : null;
+    if (/^fruttibablz001(?::101)?$/.test(дропБукет) && byId.fruttibablz001 && byId.fruttibablz001.batch) {
+      const k='fruttibablz001|40-'+(дропБукет.endsWith(':101')?101:51);
+      cart[k]=Math.max(1,cart[k]||0);store.set('cart',cart);
+      дропБукет='';store.set('dropTake','');badges();renderCart();
+    }
     if (DROP && DROP.я && DROP.я.статус === 'invited') DROPоткрыт = true;   // своё окно не прячем
     дропПеререндер();
   } catch (_) {}
@@ -2710,8 +2716,9 @@ function остатокПредложения(дедлайн, сейчас = Dat
   return `${два(час)} ч ${два(мин)} мин ${два(сек)} с`;
 }
 function таймерПредложения(p) {
-  if (!p || p.id !== 'oghyzgr5n0kdnc1' || !p.batch || !(p.batch.left > 0)) return '';
-  return `<div class="offer-deadline" title="До 18 ноября, 18:00 по Москве"><span>До конца</span><strong data-offer-until="${МИСТИ_ДО}" role="timer" aria-live="off">${остатокПредложения(МИСТИ_ДО)}</strong></div>`;
+  if (!p || !['oghyzgr5n0kdnc1','fruttibablz001'].includes(p.id) || !p.batch || !(p.batch.left > 0)) return '';
+  const until=p.id==='fruttibablz001'?'2026-11-19T18:00:00+03:00':МИСТИ_ДО;
+  return `<div class="offer-deadline" title="До ${p.id==='fruttibablz001'?'19':'18'} ноября, 18:00 по Москве"><span>До конца</span><strong data-offer-until="${until}" role="timer" aria-live="off">${остатокПредложения(until)}</strong></div>`;
 }
 function обновитьТаймерыПредложения() {
   document.querySelectorAll('[data-offer-until]').forEach(el => {
@@ -2723,7 +2730,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) об
 
 function card(p, место, и) {
   const f = favs.has(p.id);
-  const лучшаяЦена = p.id === 'oghyzgr5n0kdnc1' && p.batch && p.batch.left > 0;
+  const лучшаяЦена = ['oghyzgr5n0kdnc1','fruttibablz001'].includes(p.id) && p.batch && p.batch.left > 0;
   // «Акция» + своя надпись = полоса под фотографией: на карточке шириной
   // 164 px длинный текст меткой не помещается — уезжает под сердечко.
   const акция = p.sale && p.badge_text ? esc(p.badge_text) : '';
@@ -2806,7 +2813,7 @@ let DROP = null, DROPсдвиг = 0, DROPтик = 0, DROPоткрыт = true;
 // свободных стеблей живой. Партия сильнее дропа дня — пока она есть,
 // её показывают и полоска на главной, и страница /drop/.
 const партииДропа = () => (P || []).filter(x => !x.off && x.batch && x.batch.total > 0 && x.batch.left > 0)
-  .sort((a, b) => Number(b.id === 'oghyzgr5n0kdnc1') - Number(a.id === 'oghyzgr5n0kdnc1'));
+  .sort((a,b)=>({fruttibablz001:0,oghyzgr5n0kdnc1:1}[a.id]??2)-({fruttibablz001:0,oghyzgr5n0kdnc1:1}[b.id]??2));
 const партияДропа = () => партииДропа()[0] || null;
 const дропЧас = (мс) => {
   const вс = Math.max(0, Math.floor(мс / 1000));
@@ -2929,7 +2936,7 @@ function полоскаПартии(пар) {
   const б = пар.batch;
   // Цена за штуку, а не за букет: 15 990 ₽ пугает, 159 ₽ за розу — продаёт.
   // Округляем вверх, чтобы в полоске не стояла цена ниже настоящей.
-  const зашт = (пар.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out)
+  const зашт = (пар.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out && (!пар.batch.len || +v.len===+пар.batch.len))
     .map(v => Math.ceil(v.price / v.cnt));
   return `<a class="dline live" href="/drop/" data-nav>
     <span class="em">🔥</span>
@@ -3009,10 +3016,10 @@ function блокПартии(пар) {
       <div class="head"><div><span class="tag">ПАРТИЯ</span><small>свободно стеблей</small></div>
         <div class="num">${число(б.left)}</div></div>
       <div class="body">
-        ${пар.img ? `<img src="${пар.img}" alt="${esc(пар.name)}" loading="lazy" style="width:100%;border-radius:12px;display:block;margin-bottom:10px">` : ''}
+        ${пар.img ? `<div class="party-photo"><img src="${пар.img}" alt="${esc(пар.name)}" loading="lazy">${['fruttibablz001','oghyzgr5n0kdnc1'].includes(пар.id)?'<span class="offer-best-price">Лучшая цена в Москве</span>':''}${таймерПредложения(пар)}</div>` : ''}
         <div class="ttl">${esc(пар.name)}</div>
-        <div class="sub">${пар.id === 'oghyzgr5n0kdnc1' ? '40 см · ' : пар.lengths && пар.lengths.length === 1 ? пар.lengths[0] + ' см · ' : ''}выберите количество</div>
-        <div class="sizes">${(пар.variants || []).filter(v => !v.out && v.cnt > 0).map(v =>
+        <div class="sub">${пар.batch.len ? пар.batch.len+' см · ' : пар.id === 'oghyzgr5n0kdnc1' ? '40 см · ' : пар.lengths && пар.lengths.length === 1 ? пар.lengths[0] + ' см · ' : ''}выберите количество</div>
+        <div class="sizes">${(пар.variants || []).filter(v => !v.out && v.cnt > 0 && (!пар.batch.len || +v.len===+пар.batch.len)).map(v =>
           `<a href="${purl(пар)}" data-nav data-drpq="${esc(v.label)}"><b>${v.cnt} шт</b><span>${rub(v.price)}</span><small>${rub(Math.ceil(v.price / v.cnt))}/шт</small></a>`).join('')}</div>
         <div class="bar"><i style="width:${доля}%"></i></div>
         <div class="took">${взяли ? `разобрали ${число(взяли)} из ${число(б.total)} · ` : ''}продаём, пока не разойдётся</div>
@@ -3020,7 +3027,7 @@ function блокПартии(пар) {
 }
 // Цена за штуку у партии — одна цифра в полоске, в заголовке и в выдаче.
 function заШтукуПартии(пар) {
-  const зашт = (пар.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out)
+  const зашт = (пар.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out && (!пар.batch.len || +v.len===+пар.batch.len))
     .map(v => Math.ceil(v.price / v.cnt));
   return зашт.length ? Math.min.apply(null, зашт) : 0;
 }
@@ -3048,10 +3055,10 @@ function renderDropPage() {
     : (нбп(пар.batch.note) || `Привезли для вас ${число(пар.batch.total)} роз`);
   if (под) {
     if (d) {
-      под.innerHTML = `Два предложения: 51 или 101 Фрутти Баблз и 101 одноголовая роза 40 см`
+      под.innerHTML = `${d.штук} одноголовая роза ${d.длина} см за ${rub(d.цена)}`
         + (d.обычная && d.обычная > d.цена ? ` вместо <s>${rub(d.обычная)}</s>` : '')
         + ` · ${идёт ? `🔥 свободно ${d.свободно} из ${d.всего}` : конец ? 'сегодня разобрали' : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}`
-        + (оба ? `<br>Ниже — ${партии.length > 1 ? 'партии' : 'партия'}: ${партии.map(x => `${esc(x.name)}, ${число(x.batch.left)} ${plural(x.batch.left, 'стебель', 'стебля', 'стеблей')}`).join(' · ')} по оптовой цене` : '');
+        + (оба ? `<br>Партии — ${партии.length > 1 ? 'партии' : 'партия'}: ${партии.map(x => `${esc(x.name)}, ${число(x.batch.left)} ${plural(x.batch.left, 'стебель', 'стебля', 'стеблей')}`).join(' · ')} по оптовой цене` : '');
     } else {
       const зашт = заШтукуПартии(пар);
       под.innerHTML = `по лучшей цене${пар.lengths && пар.lengths.length === 1 ? ' · ' + пар.lengths[0] + ' см' : ''}`
@@ -3059,8 +3066,8 @@ function renderDropPage() {
     }
   }
 
-  бокс.innerHTML = (d ? (оба ? `<p class="drp-part">Букет дня</p>` : '') + дропБлоки() : '')
-    + партии.map(x => ((d || партии.length > 1) ? `<p class="drp-part">Партия · ${esc(x.name)}</p>` : '') + блокПартии(x)).join('');
+  бокс.innerHTML = партии.map(x=>`<p class="drp-part">Партия · ${esc(x.name)}</p>`+блокПартии(x)).join('')
+    + (d ? '<p class="drp-part">Дроп · Одноголовые розы</p>'+дропБлоки() : '');
 
   // Нажали «51 шт» — карточка должна открыться сразу на 51, а не на размере по
   // умолчанию. Свой обработчик на кнопке срабатывает раньше общего data-nav.
@@ -3560,7 +3567,7 @@ function рисоватьПартию(p) {
     <div class="body">
       ${таймерПредложения(p)}
       <div class="ttl">${esc(нбп(б.note) || `Привезли для вас ${число(б.total)} роз`)}</div>
-      <div class="sub">по лучшей цене${p.lengths && p.lengths.length === 1 ? ' · ' + p.lengths[0] + ' см' : ''}${
+      <div class="sub">по лучшей цене${б.len ? ' · '+б.len+' см' : p.lengths && p.lengths.length === 1 ? ' · ' + p.lengths[0] + ' см' : ''}${
         (() => {   // та же цена за штуку, что в полоске и на /drop/
           const зашт = (p.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out)
             .map(v => Math.ceil(v.price / v.cnt));

@@ -29,8 +29,8 @@ function текущий(app) {
 }
 
 const лоты = (d) => (shop.jget(d, "lots") || []).filter((l) => l && l.product);
-const свободно = (d) => лоты(d).reduce((n, l) => n + Math.max(0, +l.left || 0), 0);
-const всего = (d) => лоты(d).reduce((n, l) => n + Math.max(0, +l.qty || 0), 0);
+const свободно = (d) => лоты(d).filter(l=>!l.retired).reduce((n, l) => n + Math.max(0, +l.left || 0), 0);
+const всего = (d) => лоты(d).filter(l=>!l.retired).reduce((n, l) => n + Math.max(0, +l.qty || 0), 0);
 
 function состояние(d) {
   if (!d) return "none";
@@ -85,7 +85,7 @@ function щедрыйЛот(d) {
 function занятьЛот(app, d, pid) {
   const сп = лоты(d);
   const i = сп.findIndex((l) => String(l.key || l.product) === String(pid));
-  if (i < 0 || +сп[i].left <= 0) return false;
+  if (i < 0 || сп[i].retired || +сп[i].left <= 0) return false;
   сп[i].left = +сп[i].left - 1;
   сохранитьЛоты(app, d, сп);
   return true;
@@ -93,7 +93,7 @@ function занятьЛот(app, d, pid) {
 function вернутьЛот(app, d, pid) {
   const сп = лоты(d);
   const i = сп.findIndex((l) => String(l.key || l.product) === String(pid));
-  if (i < 0) return;
+  if (i < 0 || сп[i].retired) return;
   сп[i].left = Math.min(+сп[i].qty || 0, (+сп[i].left || 0) + 1);
   сохранитьЛоты(app, d, сп);
 }

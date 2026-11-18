@@ -325,8 +325,9 @@ function catalog(app, brand) {
           const всего = Math.max(0, Math.round(+p.get("batch_total") || 0));
           if (!всего) return undefined;
           const ост = stockOf(p);
-          const свободно = Object.keys(ост).reduce((n, k) => n + Math.max(0, +ост[k] || 0), 0);
-          return { total: всего, left: Math.min(всего, свободно),
+          const длина=+p.get("batch_len") || 0;
+          const свободно = Object.keys(ост).filter(k=>!длина || +k===длина).reduce((n, k) => n + Math.max(0, +ост[k] || 0), 0);
+          return { total: всего, left: Math.min(всего, свободно), len: длина || undefined,
             note: String(p.get("batch_note") || "").trim() || undefined };
         })(),
         // «сегодня с теплицы» — только в день завоза, назавтра само пропадёт

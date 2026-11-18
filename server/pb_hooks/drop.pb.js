@@ -60,7 +60,7 @@ routerAdd("GET", "/api/shop/drop", (e) => {
     подпись: d.get("note") || "",
     всего: dr.всего(d), свободно: dr.свободно(d),
     окно: dr.ОКНО,
-    лоты: dr.лоты(d).map((l) => ({ id: l.key || l.product, product: l.product, cnt: +l.cnt || +d.get("cnt"), len: +l.len || +d.get("len"), price: +l.price || +d.get("price"), name: имена[l.product] || "", img: фото[l.product] || "",
+    лоты: dr.лоты(d).filter(l=>!l.retired).map((l) => ({ id: l.key || l.product, product: l.product, cnt: +l.cnt || +d.get("cnt"), len: +l.len || +d.get("len"), price: +l.price || +d.get("price"), name: имена[l.product] || "", img: фото[l.product] || "",
       qty: +l.qty || 0, left: Math.max(0, +l.left || 0) })),
     // Анонс: сортов ещё нет, но карточка не должна быть пустой — показываем
     // снимки прошлых дропов. Эльторо всегда первой, так просил владелец.
