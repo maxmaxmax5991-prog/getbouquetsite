@@ -1,0 +1,67 @@
+name: Read-only audit order 8166
+on:
+  push:
+    branches: [ops/order-8166-20261118]
+    paths: [.github/workflows/audit-order-8166.yml]
+permissions:
+  contents: read
+concurrency:
+  group: audit-order-8166
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Prepare existing SSH access
+        env:
+          SSH_KEY: ${{ secrets.VENIKOFF_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VENIKOFF_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          test -n "$SSH_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/venikoff_ed25519
+          chmod 600 ~/.ssh/venikoff_ed25519
+          if [ -n "$KNOWN_HOSTS" ]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            printf '%s\n' '147.45.141.23 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICVdX3l1FxkilvbNmru/Bq2ZD0ibtQwDLDpNi3bFhLT+' > ~/.ssh/known_hosts
+          fi
+      - name: Read order and linked payments only
+        run: |
+          ssh -T -i ~/.ssh/venikoff_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 root@147.45.141.23 'python3 -' <<'PY'
+          import sqlite3, json, urllib.request, urllib.error, hashlib
+          BASE='https://api.moysklad.ru/api/remap/1.2'
+          def emit(data): print('order8166-audit '+json.dumps(data,ensure_ascii=False))
+          db=sqlite3.connect('file:/opt/venikoff/pb/pb_data/data.db?mode=ro',uri=True,timeout=10);db.row_factory=sqlite3.Row
+          s=db.execute('SELECT ms_token FROM settings LIMIT 1').fetchone()
+          o=db.execute('SELECT id,number,created,updated,total,payment_status,payment_id,ms_id,ms_payment_id FROM orders WHERE number=?',(8166,)).fetchone()
+          if not o: emit({'event':'missing'});raise SystemExit(0)
+          token=s['ms_token']
+          def api(path):
+           req=urllib.request.Request(BASE+path,headers={'Authorization':'Bearer '+token,'Accept-Encoding':'gzip','User-Agent':'Venikoff-order-audit'})
+           try:
+            with urllib.request.urlopen(req,timeout=25) as r:
+             raw=r.read()
+             if r.headers.get('Content-Encoding')=='gzip':
+              import gzip;raw=gzip.decompress(raw)
+             return json.loads(raw)
+           except urllib.error.HTTPError as e: emit({'event':'api-error','status':e.code});raise SystemExit(1)
+           except Exception as e: emit({'event':'api-error','type':type(e).__name__});raise SystemExit(1)
+          emit({'event':'site','number':o['number'],'created':o['created'],'updated':o['updated'],'total':o['total'],'payment_status':o['payment_status'],'gateway_payment_present':bool(o['payment_id']),'ms_id':o['ms_id'],'saved_ms_payment_id':o['ms_payment_id']})
+          if not o['ms_id']:raise SystemExit(0)
+          r=api('/entity/customerorder/'+o['ms_id']+'?expand=payments,state')
+          refs=r.get('payments') or []
+          if not isinstance(refs,list): refs=refs.get('rows',[])
+          emit({'event':'moysklad','name':r.get('name'),'sum':r.get('sum'),'payedSum':r.get('payedSum'),'applicable':r.get('applicable'),'state':(r.get('state')or{}).get('name'),'payment_count':len(refs)})
+          purposes=[]
+          for ref in refs:
+           meta=ref.get('meta')or{};href=meta.get('href','')
+           if not href.startswith(BASE+'/entity/'): emit({'event':'unexpected-ref'});continue
+           p=api(href[len(BASE):]);purpose=str(p.get('paymentPurpose')or'');purposes.append(purpose)
+           ops=p.get('operations')or[]
+           emit({'event':'payment','id':p.get('id'),'name':p.get('name'),'type':meta.get('type'),'created':p.get('created'),'updated':p.get('updated'),'moment':p.get('moment'),'sum':p.get('sum'),'applicable':p.get('applicable'),'linkedSum':ref.get('linkedSum'),'saved_on_site':p.get('id')==o['ms_payment_id'],'purpose_is_site_auto':purpose.startswith('Оплата заказа №8166 на сайте'),'purpose_mentions_cloudpayments':'CloudPayments' in purpose,'purpose_matches_site_gateway_payment':bool(o['payment_id']) and str(o['payment_id']) in purpose,'purpose_fingerprint':hashlib.sha256(purpose.encode()).hexdigest()[:16],'bank_reference_present':bool(p.get('incomingNumber')or p.get('bankInNumber')),'operation_count':len(ops),'order_links':[{'type':(x.get('meta')or{}).get('type'),'is_this_order':(x.get('meta')or{}).get('href','').split('?')[0].endswith('/'+o['ms_id']),'linkedSum':x.get('linkedSum')}for x in ops]})
+          emit({'event':'summary','identical_payment_purposes':len(set(purposes))==1 if len(purposes)>1 else None})
+          
+          PY
