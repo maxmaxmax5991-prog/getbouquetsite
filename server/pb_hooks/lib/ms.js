@@ -781,8 +781,27 @@ function updateAttrs(app, o) {
 function addPayment(app, o) {
   const s = shop.settings(app);
   if (!o.get("ms_id") || !s.get("ms_token") || o.get("ms_payment_id")) return { ok: false };
-  const ord = ms(s, "GET", `/entity/customerorder/${o.get("ms_id")}`);
+  const ord = ms(s, "GET", `/entity/customerorder/${o.get("ms_id")}?expand=payments`);
   if (!ord.ok) return ord;
+  // Заказ могли создать в МойСкладе раньше, чем сайт сохранил ms_id.
+  // Сначала подхватываем уже связанную оплату, иначе повторная отправка задвоит её.
+  const totalKop = Math.round((+o.get("total") || 0) * 100);
+  const paidKop = Math.round(+ord.data.payedSum || 0);
+  if (paidKop > 0) {
+    const refs = Array.isArray(ord.data.payments) ? ord.data.payments : [];
+    const full = refs.filter(p => +p.linkedSum === totalKop && p.meta &&
+      ["paymentin", "cashin"].indexOf(p.meta.type) >= 0);
+    if (paidKop === totalKop && refs.length === 1 && full.length === 1) {
+      const id = String(full[0].meta.href || "").split("/").pop();
+      if (id) {
+        app.db().newQuery("UPDATE orders SET ms_payment_id = {:v} WHERE id = {:id}")
+          .bind({ v: id, id: o.id }).execute();
+        o.set("ms_payment_id", id);
+        return { ok: true, id, existing: true };
+      }
+    }
+    return { ok: false, wait: true, error: "В МоёмСкладе уже есть связанные оплаты. Нужна сверка, новый платёж не создан." };
+  }
   const agentHref = ord.data.agent && ord.data.agent.meta && ord.data.agent.meta.href;
   if (!agentHref) return { ok: false, error: "У заказа в МоёмСкладе нет контрагента." };
   if (!claim(app, o.id, "payment")) return { ok: false, wait: true, error: "Платёж уже проводится." };
