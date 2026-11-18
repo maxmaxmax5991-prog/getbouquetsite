@@ -31,37 +31,45 @@ jobs:
       - name: Read order and linked payments only
         run: |
           ssh -T -i ~/.ssh/venikoff_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 root@147.45.141.23 'python3 -' <<'PY'
-          import sqlite3, json, urllib.request, urllib.error, hashlib
+          import sqlite3,json,urllib.request,urllib.error,urllib.parse,base64,gzip,hashlib
           BASE='https://api.moysklad.ru/api/remap/1.2'
-          def emit(data): print('order8166-audit '+json.dumps(data,ensure_ascii=False))
+          def emit(x):print('order8166-exact '+json.dumps(x,ensure_ascii=False))
           db=sqlite3.connect('file:/opt/venikoff/pb/pb_data/data.db?mode=ro',uri=True,timeout=10);db.row_factory=sqlite3.Row
-          s=db.execute('SELECT ms_token FROM settings LIMIT 1').fetchone()
-          o=db.execute('SELECT id,number,created,updated,total,payment_status,payment_id,ms_id,ms_payment_id FROM orders WHERE number=?',(8166,)).fetchone()
-          if not o: emit({'event':'missing'});raise SystemExit(0)
-          token=s['ms_token']
-          def api(path):
-           req=urllib.request.Request(BASE+path,headers={'Authorization':'Bearer '+token,'Accept-Encoding':'gzip','User-Agent':'Venikoff-order-audit'})
+          s=db.execute('SELECT ms_token,cp_public_id,cp_secret FROM settings LIMIT 1').fetchone()
+          o=db.execute('SELECT id,number,brand,invoice,total,payment_id,ms_id,ms_payment_id FROM orders WHERE number=?',(8166,)).fetchone()
+          if not o:emit({'event':'missing'});raise SystemExit(0)
+          def request(url,auth,body=None):
+           headers={'Authorization':auth,'Accept-Encoding':'gzip'}
+           if body is not None:headers['Content-Type']='application/json'
+           req=urllib.request.Request(url,headers=headers,data=json.dumps(body).encode()if body is not None else None)
            try:
-            with urllib.request.urlopen(req,timeout=25) as r:
+            with urllib.request.urlopen(req,timeout=25)as r:
              raw=r.read()
-             if r.headers.get('Content-Encoding')=='gzip':
-              import gzip;raw=gzip.decompress(raw)
+             if r.headers.get('Content-Encoding')=='gzip':raw=gzip.decompress(raw)
              return json.loads(raw)
-           except urllib.error.HTTPError as e: emit({'event':'api-error','status':e.code});raise SystemExit(1)
-           except Exception as e: emit({'event':'api-error','type':type(e).__name__});raise SystemExit(1)
-          emit({'event':'site','number':o['number'],'created':o['created'],'updated':o['updated'],'total':o['total'],'payment_status':o['payment_status'],'gateway_payment_present':bool(o['payment_id']),'ms_id':o['ms_id'],'saved_ms_payment_id':o['ms_payment_id']})
-          if not o['ms_id']:raise SystemExit(0)
-          r=api('/entity/customerorder/'+o['ms_id']+'?expand=payments,state')
-          import urllib.parse
-          agent=(r.get('agent')or{}).get('meta',{}).get('href')
-          if not agent: emit({'event':'no-agent'});raise SystemExit(0)
-          for typ in ['paymentin','cashin']:
-           query=urllib.parse.urlencode({'filter':'agent='+agent+';sum='+str(round(float(r['sum'])))+';moment>=2026-11-16 00:00:00;moment<=2026-11-18 23:59:59','limit':100})
-           found=api('/entity/'+typ+'?'+query)
-           emit({'event':'search-count','type':typ,'count':len(found.get('rows',[])),'total':found.get('meta',{}).get('size')})
+           except urllib.error.HTTPError as e:emit({'event':'api-error','service':'moysklad'if url.startswith(BASE)else'cloudpayments','status':e.code});return None
+           except Exception as e:emit({'event':'api-error','type':type(e).__name__});return None
+          def ms(path):return request(BASE+path,'Bearer '+s['ms_token'])
+          order=ms('/entity/customerorder/'+o['ms_id'])or{}
+          for number in ['CP-3835108394','CP-3835108403']:
+           found=ms('/entity/paymentin?'+urllib.parse.urlencode({'filter':'name='+number,'limit':10}))
+           if not found:continue
+           emit({'event':'lookup','number':number,'count':len(found.get('rows',[]))})
            for p in found.get('rows',[]):
-            purpose=str(p.get('paymentPurpose')or'')
-            ops=p.get('operations')or[]
-            emit({'event':'matching-payment','id':p.get('id'),'type':typ,'created':p.get('created'),'updated':p.get('updated'),'moment':p.get('moment'),'sum':p.get('sum'),'applicable':p.get('applicable'),'saved_on_site':p.get('id')==o['ms_payment_id'],'purpose_is_site_auto':purpose.startswith('Оплата заказа №8166 на сайте'),'purpose_mentions_order8166':'8166' in purpose,'purpose_mentions_cloudpayments':'CloudPayments' in purpose,'purpose_matches_site_gateway_payment':bool(o['payment_id']) and str(o['payment_id']) in purpose,'purpose_fingerprint':hashlib.sha256(purpose.encode()).hexdigest()[:16],'bank_reference_present':bool(p.get('incomingNumber')or p.get('bankInNumber')),'operation_count':len(ops),'order_links':[{'type':(x.get('meta')or{}).get('type'),'is_this_order':(x.get('meta')or{}).get('href','').split('?')[0].endswith('/'+o['ms_id']),'id':(x.get('meta')or{}).get('href','').split('?')[0].split('/')[-1],'linkedSum':x.get('linkedSum')}for x in ops]})
+            purpose=str(p.get('paymentPurpose')or'');links=[]
+            for link in p.get('operations')or[]:
+             m=link.get('meta')or{};href=m.get('href','');detail=ms(href[len(BASE):])if href.startswith(BASE+'/entity/')else None
+             links.append({'type':m.get('type'),'id':href.split('?')[0].split('/')[-1],'linkedSum':link.get('linkedSum'),'is_site_ms_order':href.split('?')[0].endswith('/'+o['ms_id']),'document_name':detail.get('name')if detail else None,'customerOrder_id':((detail or{}).get('customerOrder')or{}).get('meta',{}).get('href','').split('/')[-1]})
+            def same(field):return(p.get(field)or{}).get('meta',{}).get('href')==(order.get(field)or{}).get('meta',{}).get('href')
+            emit({'event':'payment','number':number,'id':p.get('id'),'sum':p.get('sum'),'created':p.get('created'),'updated':p.get('updated'),'applicable':p.get('applicable'),'agent_matches_site_order':same('agent'),'organization_matches_site_order':same('organization'),'saved_on_site':p.get('id')==o['ms_payment_id'],'purpose_mentions_order8166':'8166'in purpose,'purpose_matches_site_gateway_payment':bool(o['payment_id'])and str(o['payment_id'])in purpose,'purpose_is_auto':purpose.startswith('Оплата заказа №8166 на сайте'),'purpose_fingerprint':hashlib.sha256(purpose.encode()).hexdigest()[:16],'operations':links})
+          br=db.execute('SELECT cp_public_id,cp_secret FROM brands WHERE id=?',(o['brand'],)).fetchone()if o['brand']else None
+          public,secret=(br['cp_public_id'],br['cp_secret'])if br and br['cp_public_id']and br['cp_secret']else(s['cp_public_id'],s['cp_secret'])
+          if not(public and secret):emit({'event':'cloudpayments-access-missing'});raise SystemExit(0)
+          auth='Basic '+base64.b64encode((public+':'+secret).encode()).decode()
+          for tid in [3835108394,3835108403]:
+           data=request('https://api.cloudpayments.ru/payments/get',auth,{'TransactionId':tid})
+           if data is None:continue
+           model=data.get('Model')or{}
+           emit({'event':'gateway','transaction':tid,'success':data.get('Success'),'status':model.get('Status'),'amount':model.get('Amount'),'currency':model.get('Currency'),'test_mode':model.get('TestMode'),'reason_code':model.get('ReasonCode'),'created_utc':model.get('CreatedDateIso'),'authorized_utc':model.get('AuthDateIso'),'confirmed_utc':model.get('ConfirmDateIso'),'refunded_amount':model.get('RefundedAmount'),'invoice_matches_order':str(model.get('InvoiceId'))in[str(o['number']),str(o['invoice'])],'saved_on_site':str(tid)==str(o['payment_id'])})
           
           PY
