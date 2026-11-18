@@ -2938,7 +2938,7 @@ function полоскаПартии(пар) {
   // Округляем вверх, чтобы в полоске не стояла цена ниже настоящей.
   const зашт = (пар.variants || []).filter(v => v.price > 0 && v.cnt > 0 && !v.out && (!пар.batch.len || +v.len===+пар.batch.len))
     .map(v => Math.ceil(v.price / v.cnt));
-  return `<a class="dline live" href="/drop/" data-nav>
+  return `<a class="dline live" href="${purl(пар)}" data-nav>
     <span class="em">🔥</span>
     <span class="tx"><span class="deal">супер выгода</span><b>${esc(нбп(б.note) || пар.name)}</b><small>по лучшей цене${
       зашт.length ? ' · от ' + rub(Math.min.apply(null, зашт)) + '/шт' : ''}</small></span>
@@ -2947,7 +2947,7 @@ function полоскаПартии(пар) {
 
 function вставитьДроп(куда) {
   if (!куда) return;
-  const партия = партияДропа();
+  const партия = партииДропа().find(p => p.id === 'lploh076pnut27y') || null;
   const d = (DROP && DROP.есть) ? DROP : null;
   if (!партия && !d) return;
   // Один раз за загрузку: полоска рисуется и на главной, и в каталоге,
