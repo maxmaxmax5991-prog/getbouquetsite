@@ -696,7 +696,7 @@ function prepareOrder(app, rec) {
       const dr = require(`${__hooks}/lib/drop.js`);
       const выдача = dr.взять(app, rec.get("customer"), it.id, rec.get("phone"));
       let p;
-      try { p = app.findRecordById("products", String(it.id)); } catch (_) { fail("Сорт из дропа больше недоступен."); }
+      try { p = app.findRecordById("products", String(выдача.product || it.id)); } catch (_) { fail("Сорт из дропа больше недоступен."); }
       items.push({ id: p.id, kind: "drop", name: `${p.get("name")} ${выдача.len} см, ${выдача.cnt} шт (дроп)`,
         label: `${выдача.len}-${выдача.cnt}`, label_text: `${выдача.cnt} шт · ${выдача.len} см`,
         qty: 1, price: выдача.price, sum: выдача.price, stems: выдача.cnt });

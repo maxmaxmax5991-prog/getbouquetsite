@@ -33,7 +33,7 @@ routerAdd("GET", "/api/shop/drop", (e) => {
         try { q = $app.findFirstRecordByFilter("drop_queue", "drop = {:d} && customer = {:c}", { d: d.id, c: c.id }); } catch (_) {}
         if (q) я = {
           место: +q.get("place") || 0, статус: q.get("status"),
-          сорт: имена[q.get("product")] || "", до: q.get("expires_at") || "", заказ: q.get("order") || "",
+          сорт: имена[String(q.get("product")).split(":")[0]] || "", до: q.get("expires_at") || "", заказ: q.get("order") || "",
         };
       }
     }
@@ -60,7 +60,7 @@ routerAdd("GET", "/api/shop/drop", (e) => {
     подпись: d.get("note") || "",
     всего: dr.всего(d), свободно: dr.свободно(d),
     окно: dr.ОКНО,
-    лоты: dr.лоты(d).map((l) => ({ id: l.product, name: имена[l.product] || "", img: фото[l.product] || "",
+    лоты: dr.лоты(d).map((l) => ({ id: l.key || l.product, product: l.product, cnt: +l.cnt || +d.get("cnt"), len: +l.len || +d.get("len"), price: +l.price || +d.get("price"), name: имена[l.product] || "", img: фото[l.product] || "",
       qty: +l.qty || 0, left: Math.max(0, +l.left || 0) })),
     // Анонс: сортов ещё нет, но карточка не должна быть пустой — показываем
     // снимки прошлых дропов. Эльторо всегда первой, так просил владелец.
@@ -184,7 +184,7 @@ routerAdd("GET", "/api/shop/drops", (e) => {
   if (текущий) {
     очередь = dr.очередь($app, текущий).map((q) => ({
       место: +q.get("place") || 0, имя: q.get("name") || "", телефон: q.get("phone") || "",
-      статус: q.get("status"), сорт: имена[q.get("product")] || "", до: q.get("expires_at") || "",
+      статус: q.get("status"), сорт: имена[String(q.get("product")).split(":")[0]] || "", до: q.get("expires_at") || "",
     }));
   }
   return e.json(200, {
@@ -361,20 +361,20 @@ cronAdd("drop-run", "* * * * *", () => {
   for (const q of ждут) {
     const лот = dr.щедрыйЛот(d);
     if (!лот) break;
-    if (!dr.занятьЛот($app, d, лот.product)) break;
+    if (!dr.занятьЛот($app, d, лот.key || лот.product)) break;
     const до = new Date(Date.now() + dr.ОКНО * 60000).toISOString().slice(0, 19).replace("T", " ");
     try {
       // Имена подстановок только латиницей: на кириллическом {:до} движок
       // запнулся («unrecognized token»), и ни одно приглашение не ушло.
       $app.db().newQuery(`UPDATE drop_queue SET status = 'invited', product = {:pid},
         invited_at = {:now}, expires_at = {:till} WHERE id = {:id}`)
-        .bind({ pid: String(лот.product), now: new Date().toISOString().slice(0, 19).replace("T", " "), till: до, id: q.id }).execute();
-    } catch (err) { console.log("дроп: приглашение", err); dr.вернутьЛот($app, d, лот.product); continue; }
+        .bind({ pid: String(лот.key || лот.product), now: new Date().toISOString().slice(0, 19).replace("T", " "), till: до, id: q.id }).execute();
+    } catch (err) { console.log("дроп: приглашение", err); dr.вернутьЛот($app, d, лот.key || лот.product); continue; }
     const br = витрина(q);
     написать(q,
-      `🌹 Ваша очередь подошла!\n\n${имя(лот.product)}, ${+d.get("cnt") || 101} шт — ${shop.rub(+d.get("price") || 0)}.\n`
+      `🌹 Ваша очередь подошла!\n\n${имя(лот.product)}, ${+лот.cnt || +d.get("cnt") || 101} шт — ${shop.rub(+лот.price || +d.get("price") || 0)}.\n`
       + `🚚 Доставим ${деньДоставки} с ${String(d.get("ready_at") || "").slice(11)}.\n\n`
       + `Держим за вами ${dr.ОКНО} минут. Не успеете — букет уйдёт следующему в очереди.`,
-      `Забрать за ${shop.rub(+d.get("price") || 0)}`, ссылка(q, br));
+      `Забрать за ${shop.rub(+лот.price || +d.get("price") || 0)}`, ссылка(q, br));
   }
 });

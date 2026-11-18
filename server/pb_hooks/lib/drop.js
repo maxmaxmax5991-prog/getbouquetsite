@@ -24,7 +24,7 @@ const вМс = (строка) => {
 function текущий(app) {
   const сег = мск().день;
   try {
-    return app.findFirstRecordByFilter("drops", "active = true && date >= {:d}", { d: сег });
+    return app.findFirstRecordByFilter("drops", "active = true && (date >= {:d} || display_through >= {:d})", { d: сег });
   } catch (_) { return null; }
 }
 
@@ -84,7 +84,7 @@ function щедрыйЛот(d) {
 }
 function занятьЛот(app, d, pid) {
   const сп = лоты(d);
-  const i = сп.findIndex((l) => String(l.product) === String(pid));
+  const i = сп.findIndex((l) => String(l.key || l.product) === String(pid));
   if (i < 0 || +сп[i].left <= 0) return false;
   сп[i].left = +сп[i].left - 1;
   сохранитьЛоты(app, d, сп);
@@ -92,7 +92,7 @@ function занятьЛот(app, d, pid) {
 }
 function вернутьЛот(app, d, pid) {
   const сп = лоты(d);
-  const i = сп.findIndex((l) => String(l.product) === String(pid));
+  const i = сп.findIndex((l) => String(l.key || l.product) === String(pid));
   if (i < 0) return;
   сп[i].left = Math.min(+сп[i].qty || 0, (+сп[i].left || 0) + 1);
   сохранитьЛоты(app, d, сп);
@@ -167,13 +167,18 @@ function взять(app, cust, pid, phone) {
   // Сорт человек выбирает сам, уже видя витрину: при приглашении мы держим
   // место, а не конкретный сорт.
   const сп = лоты(d);
-  const i = сп.findIndex((l) => String(l.product) === String(pid));
+  const i = сп.findIndex((l) => String(l.key || l.product) === String(pid));
   if (i < 0) беда("Этого сорта в дропе нет.");
-  if (+сп[i].left <= 0) беда("Этот сорт только что разобрали — выберите другой.");
+  if (String(q.get("product")) !== String(pid)) {
+    if (!занятьЛот(app, d, pid)) беда("Этот сорт только что разобрали — выберите другой.");
+    вернутьЛот(app, d, q.get("product"));
+    app.db().newQuery('UPDATE drop_queue SET product = {:p} WHERE id = {:id}').bind({p:String(pid),id:q.id}).execute();
+    q.set("product", String(pid));
+  }
   // Букет списываем НЕ здесь. Проверка идёт в середине сборки заказа, и дальше
   // он ещё может не пройти по дате или адресу — тогда букет исчез бы в никуда,
   // не достав никому. Списываем после того, как заказ сохранился.
-  return { drop: d, очередь: q, len: +d.get("len") || 40, cnt: +d.get("cnt") || 101, price: +d.get("price") || 0,
+  return { drop: d, очередь: q, product: сп[i].product, len: +сп[i].len || +d.get("len") || 40, cnt: +сп[i].cnt || +d.get("cnt") || 101, price: +сп[i].price || +d.get("price") || 0,
     ready_at: d.get("ready_at") || "" };
 }
 // Отметка «забрал» ставится запросом: соседнее сохранение заказа не должно
