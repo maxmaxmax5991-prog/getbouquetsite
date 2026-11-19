@@ -3367,7 +3367,13 @@ const pct = (now, was) => {
 };
 
 async function ordersBetween(fromUtc, toUtc) {
-  return list('orders', `&sort=created&filter=${encodeURIComponent(`created>="${fromUtc}" && created<"${toUtc}"`)}`);
+  const query = `perPage=500&sort=created,id&filter=${encodeURIComponent(`created>="${fromUtc}" && created<"${toUtc}"`)}`;
+  const orders = [];
+  for (let page = 1; ; page++) {
+    const result = await api(`/api/collections/orders/records?${query}&page=${page}`);
+    orders.push(...result.items);
+    if (page >= result.totalPages) return orders;
+  }
 }
 
 /* ---------- корзины и кашпо ----------
