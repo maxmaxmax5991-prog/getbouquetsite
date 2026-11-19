@@ -1083,7 +1083,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
       <div id="bkFill"></div>
     </div>
     <div class="bk-card" id="bkShapeCard" hidden>
-      <h2 class="bk-h">Форма</h2>
+      <h2 class="bk-h">Дополнительная выкладка</h2>
       <div class="bk-chips" id="bkShapes"></div>
       <div class="bk-shapes-pics" id="bkShapePics"></div>
       <div id="bkLetters" hidden>
@@ -1930,7 +1930,7 @@ function бкРисоватьФормы() {
   if (БК.форма === 'heart' && БК.всего < f.heart.from) БК.форма = '';
   if (БК.форма === 'letters' && !буквДо) БК.форма = '';
   const вар = [
-    { k: '', имя: 'Корзина', ок: true, от: 0 },
+    { k: '', имя: 'Без выкладки', ок: true, от: 0 },
     { k: 'heart', имя: '❤️ Сердце', ок: БК.всего >= f.heart.from, от: f.heart.from },
     { k: 'letters', имя: '🔤 Буквы', ок: буквДо > 0, от: минБукв },
   ];
@@ -1998,16 +1998,6 @@ function бкРисоватьШкалу() {
   // плюс корзина. Человек видит, с чего начинается цена, ещё до выбора сорта.
   const откуда = бкОткуда(БК.всего);
   const вмещает = основа ? Math.floor(основа.capacity / (c.units || 1)) : 0;
-  if (БК.форма) {
-    const f = бкФормы() || {};
-    const имя = БК.форма === 'heart' ? ((f.heart || {}).name || 'Сердце')
-      : `Буквы${БК.текст ? ' «' + esc(БК.текст) + '»' : ''}`;
-    const каркас = бкКаркас();
-    $('#bkBase').innerHTML = `<div><b>${имя}</b><small>${БК.всего} ${бкСлово(БК.всего, true)} на каркасе${
-      каркас ? ' · каркас ' + rub(каркас) : ''}${основа ? ' · корзина ' + rub(основа.price) : ''}</small></div>`;
-    $('#bkFill').innerHTML = '';
-    return;
-  }
   $('#bkBase').innerHTML = основа
     ? `${основа.img ? `<img src="${основа.img}" alt="">` : ''}<div><b>${esc(основа.name.replace('ЛФ-', ''))}</b>
         <small>вмещает до ${вмещает} ${бкСлово(вмещает)} · корзина ${rub(основа.price)}</small></div>
@@ -2558,9 +2548,8 @@ const имяКорзины = к => {
   const c = счётКорзины(к);
   const сорта = (к.parts || []).map(x => `${(byId[x.id] || {}).name || '?'} ${x.len}см ×${x.n}`).join(', ');
   const f = (BSET && BSET.формы) || null;
-  const что = к.shape === 'heart' ? `${(f && f.heart.name) || 'Сердце'} из ${c.стеблей} шт`
-    : к.shape === 'letters' ? `Буквы «${к.text || ''}» из ${c.стеблей} шт`
-    : `Корзина ${c.стеблей} шт`;
+  const что = `Корзина ${c.стеблей} шт` + (к.shape === 'heart' ? ' · выкладка «Сердце»'
+    : к.shape === 'letters' ? ` · выкладка букв «${к.text || ''}»` : '');
   return `${что}: ${сорта}`;
 };
 let favs = new Set(store.get('favs', []));
