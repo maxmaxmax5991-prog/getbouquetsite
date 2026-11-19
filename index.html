@@ -1640,7 +1640,10 @@ function вазаДля(p, len, cnt) {
   const L = +len || 60;                      // товар без ростовки считаем как 60 см
   const высота = L >= 70 ? 40 : L >= 50 ? 30 : узкая ? 25 : 20;
   const диаметр = высота === 40 ? 20 : узкая ? 15 : 20;
-  return ВАЗЫ.find(v => v.д === диаметр && v.в === высота) || null;
+  return ВАЗЫ.find(v => v.д === диаметр && v.в === высота)
+    || ВАЗЫ.filter(v => v.д >= диаметр && v.в >= высота)
+      .sort((a,b) => (a.в-высота)-(b.в-высота) || (a.д-диаметр)-(b.д-диаметр) || a.товар.price-b.товар.price)[0]
+    || null;
 }
 const count = P.reduce((m, p) => (m[p.cat] = (m[p.cat] || 0) + 1, m), {});
 // Разделы без товаров ни в плитки на главной, ни в кнопки каталога не ставим.
@@ -1979,7 +1982,7 @@ function бкРисоватьСорта() {
     return `<button type="button" class="bk-sort" data-bksort="${p.id}" aria-pressed="${p.id === выбран}">
       ${p.img ? `<img src="${p.img}" alt="" loading="lazy">` : '<span class="ph"></span>'}
       <b>${esc(p.name)}</b>
-      <small>${р ? rub(Math.round(р.цена)) + ' за стебель' : ''}</small></button>`;
+      <small>${р ? 'от ' + rub(Math.round(р.цена)) + ' за стебель' : ''}</small></button>`;
   }).join('') : '<p class="hint" style="margin:0">Сортов этого вида сейчас нет в наличии.</p>';
 }
 
