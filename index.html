@@ -2735,7 +2735,8 @@ function card(p, место, и) {
   // 164 px длинный текст меткой не помещается — уезжает под сердечко.
   const акция = p.sale && p.badge_text ? esc(p.badge_text) : '';
   // своя надпись на фото сильнее готовых меток: её пишут руками под конкретный повод
-  const tag = акция ? ''
+  const tag = p.cat === 'hydrangea' ? '<span class="tag own">🔥 Всего<br>449 ₽/шт 🔥</span>'
+    : акция ? ''
     : p.badge_text ? `<span class="tag own">${esc(p.badge_text)}</span>`
     : p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
