@@ -327,7 +327,9 @@ function attrMeta(id) {
 // а при сбое связи поле молча остаётся пустым (так вышло с «Тип Оплаты» у №3143).
 function customValue(app, s, attr, valueName) {
   if (!attr.customEntityMeta || !valueName) return null;
-  const dict = String(attr.customEntityMeta.href).split("/").pop();
+  const match = String(attr.customEntityMeta.href).match(/\/customentity\/([^/?#]+)/);
+  if (!match) return null;
+  const dict = match[1];
   const key = dict + "|" + norm(valueName);
 
   let cache = {};
