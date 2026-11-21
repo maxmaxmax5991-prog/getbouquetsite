@@ -271,6 +271,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
 .tgp-zoom button{min-width:30px;padding:2px 8px;font-size:15px;line-height:1.2}
 .tgp-img{overflow:hidden}
 @media (max-width:600px){.tgp-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.tgp-cap{font-size:11px}}
+#appearanceTheme{appearance:none;position:relative;width:54px;height:30px;border-radius:999px;background:#c8c8cf;border:1px solid #aaa;cursor:pointer;flex:none;transition:background .2s}#appearanceTheme:before{content:'';position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0003;transition:transform .2s}#appearanceTheme:checked{background:#b63888;border-color:#b63888}#appearanceTheme:checked:before{transform:translateX(24px)}#appearanceTheme:focus-visible{outline:3px solid #f097c9;outline-offset:3px}#appearanceTheme:disabled{opacity:.5}
 </style>
 </head>
 <body>
@@ -1012,6 +1013,13 @@ table.t td{padding:4px 6px;vertical-align:middle}
     </section>
     <section id="tab-settings" hidden>
       <div class="stack">
+<div class="card stack" id="appearanceCard" hidden>
+  <h2>Оформление venikoff.net</h2>
+  <label class="row" style="align-items:center;gap:14px;justify-content:flex-start"><span>Классика</span><input type="checkbox" role="switch" id="appearanceTheme" aria-label="Vice Bloom на главной и в дропе"><b>Vice Bloom</b></label>
+  <p class="hint">Переключение сохраняется сразу. Обновите страницу сайта, чтобы увидеть выбранный стиль. Цены и заказы не меняются.</p>
+  <div class="row"><a class="btn btn-g" href="/" target="_blank">Открыть главную</a><a class="btn btn-g" href="/drop/" target="_blank">Открыть дроп</a></div>
+</div>
+
         <div class="card stack">
           <h2>Сотрудники</h2>
           <p class="hint">Кто и что может:<br>
@@ -6004,6 +6012,7 @@ $('#cTok').value = ''; $('#cTok').placeholder = S.tg_client_token ? 'Ключ с
   $('#callChatTo').value = (S.call_chat_to === 0 || S.call_chat_to) ? S.call_chat_to : '';
   loadCallPeople();
 renderBrandsCard();
+renderAppearanceControl();
 $('#mxTok').value = ''; $('#mxTok').placeholder = S.max_token ? 'Ключ сохранён. Вставьте новый, чтобы заменить' : 'Вставьте ключ бота MAX';
 $('#mxName').value = S.max_bot || '';
 $('#msDeliv').value = S.ms_delivery_name || '';
@@ -6104,6 +6113,27 @@ const BRAND_TEXTS = [
     ['foot_slogan', 'Строка в подвале', 'Оптовые цены в розницу'],
   ]],
 ];
+function renderAppearanceControl() {
+  const b = BRANDS.find(b => String(b.domain || '').replace(/^www\./,'') === 'venikoff.net');
+  $('#appearanceCard').hidden = !b;
+  if (b) $('#appearanceTheme').checked = (b.texts || {}).appearance_theme === 'vice';
+}
+$('#appearanceTheme').onchange = safe(async () => {
+  const control = $('#appearanceTheme'), value = control.checked ? 'vice' : 'classic';
+  const b = BRANDS.find(b => String(b.domain || '').replace(/^www\./,'') === 'venikoff.net');
+  if (!b) return;
+  const previous = (b.texts || {}).appearance_theme === 'vice' ? 'vice' : 'classic';
+  control.disabled = true;
+  try {
+    const fresh = await api(`/api/collections/brands/records/${b.id}`);
+    const texts = Object.assign({}, fresh.texts || {}, { appearance_theme: value });
+    const saved = await api(`/api/collections/brands/records/${b.id}`, { method:'PATCH', body:{texts} });
+    b.texts = saved.texts;
+    toast(value === 'vice' ? 'Vice Bloom включён на главной и в дропе' : 'Классика включена на главной и в дропе');
+  } catch (error) { control.checked = previous === 'vice'; throw error; }
+  finally { control.disabled = false; }
+});
+
 function brandTextsHTML(b) {
   const T = (b.texts && typeof b.texts === 'object') ? b.texts : {};
   return `<details class="stack"><summary style="cursor:pointer;font-weight:700">Тексты на сайте</summary>
@@ -6214,8 +6244,8 @@ $('#brandsBox').addEventListener('click', safe(async e => {
   if (save) {
     const id = save.dataset.bsave, body = {};
     $$(`#brandsBox [data-bf][data-bid="${id}"]`).forEach(i => body[i.dataset.bf] = i.value.trim());
-    const texts = {};
-    $$(`#brandsBox [data-bt][data-bid="${id}"]`).forEach(i => { if (i.value.trim()) texts[i.dataset.bt] = i.value.trim(); });
+    const texts = Object.assign({}, (BRANDS.find(b => b.id === id) || {}).texts || {});
+    $$(`#brandsBox [data-bt][data-bid="${id}"]`).forEach(i => { if (i.value.trim()) texts[i.dataset.bt] = i.value.trim(); else delete texts[i.dataset.bt]; });
     if ($(`#brandsBox [data-bt][data-bid="${id}"]`)) body.texts = texts;
     $$(`#brandsBox [data-btok][data-bid="${id}"]`).forEach(i => {
       const v = i.value.trim();
