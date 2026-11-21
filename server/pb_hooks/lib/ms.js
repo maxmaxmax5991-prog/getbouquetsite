@@ -717,6 +717,9 @@ else {
   }
 
   // Берём замок перед самой отправкой: до этого заказ мог не пройти проверки
+  if (missedAttrs.some((name) => /^(Способ доставки|Тип Оплаты)(\s|$)/.test(name))) {
+    return { ok: false, wait: true, error: "Не удалось заполнить способ доставки или тип оплаты — повторим передачу через минуту." };
+  }
   if (!claim(app, o.id, "push")) return { ok: false, wait: true, error: "Заказ уже отправляется в МойСклад." };
   let created = ms(s, "POST", "/entity/customerorder", body);
   // «Нарушено ограничение уникальности name» значит, что заказ там уже есть:
