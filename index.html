@@ -958,7 +958,7 @@ body:has(#viewBasket:not([hidden])) .chat-fab{bottom:118px}
 
 .party-photo{position:relative;margin-bottom:10px;border-radius:12px;overflow:hidden}.party-photo>img{width:100%;display:block}.party-photo>.offer-deadline{position:absolute;left:0;right:0;bottom:0;margin:0;border-radius:0}.party-photo>.offer-best-price{position:absolute;left:0;right:0;top:0}
 /* Temporary Vice Bloom theme, scoped to the drop page. */
-body:has(#viewDrop:not([hidden])){background:#241027}
+body.vice-route{background:#241027}
 #viewDrop.vice-active{color:#fff;background:#241027;padding-bottom:48px}
 #viewDrop.vice-active>.wrap{max-width:1440px;padding-inline:clamp(16px,4vw,48px)}
 #viewDrop.vice-active .crumbs{color:#ecc7dc;padding-block:18px;margin:0}
@@ -974,21 +974,21 @@ body:has(#viewDrop:not([hidden])){background:#241027}
 .vice-stock{background:#79ffc0;color:#25102a;border-radius:12px;padding:13px 20px;font-weight:900;font-size:16px;text-align:center;transform:rotate(-3deg);flex:none}.vice-stock small{display:block;font-size:11px;margin-top:2px}
 .vice-lots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}.vice-lot{overflow:hidden;border:2px solid #f8b3d5;border-radius:20px;background:#ffe8e4;color:#27122b;box-shadow:0 8px 0 #100817}.vice-lot-photo{position:relative;aspect-ratio:4/5;background:#e2c4d7}.vice-lot-photo img{width:100%;height:100%;object-fit:cover;display:block}.vice-left{position:absolute;left:10px;bottom:10px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:900;background:#f54aa1;color:#240e28}.vice-left.low{background:#ffbd6d}.vice-left.gone{background:#3c3042;color:white}.vice-lot.gone img{filter:grayscale(1);opacity:.6}.vice-lot-body{padding:16px}.vice-lot h3{font-size:clamp(15px,1.6vw,22px);font-weight:900;line-height:1.2;margin:0 0 8px}.vice-lot-meta{font-size:12px;opacity:.75}.vice-price{font-size:26px;font-weight:900;margin:12px 0}.vice-buy{width:100%;min-height:46px;padding:9px 8px;border-radius:12px;background:#33102f;color:white;font-weight:800}.vice-buy:disabled{opacity:.5;cursor:default}
 #viewDrop.vice-active .drp-how{margin-top:36px}#viewDrop.vice-active .drp-how section{background:#36203e;border:1px solid #66425e;color:white}#viewDrop.vice-active .drp-how p{color:#efd4e4}
-body:has(#viewDrop:not([hidden])) .foot{color:#eed5e4;background:#241027}body:has(#viewDrop:not([hidden])) .foot a{color:inherit}
+body.vice-route .foot{color:#eed5e4;background:#241027}body.vice-route .foot a{color:inherit}
 @media(max-width:800px){.vice-hero{min-height:480px;background-position:58% center;padding:32px}.vice-copy{max-width:65%}.vice-hero h1{font-size:clamp(48px,8.5vw,70px)}.vice-lots{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.vice-drop-head{align-items:flex-start}.vice-stock{padding:12px;font-size:14px}.vice-lot h3{font-size:18px}}
 @media(max-width:480px){.vice-hero{min-height:460px;padding:25px 18px;align-items:flex-end;background-position:62% center;border-radius:20px}.vice-hero:before{background:linear-gradient(0deg,rgba(36,9,40,.85),rgba(36,9,40,.1) 90%)}.vice-copy{max-width:100%}.vice-kicker{font-size:9px;margin-bottom:14px}.vice-hero h1{font-size:49px}.vice-hero p.vice-lede{font-size:15px;margin:16px 0;max-width:240px}.vice-edition{right:12px;top:15px;bottom:auto;font-size:8px}.vice-drop-head{display:block;margin-top:30px}.vice-drop-head h2{font-size:31px}.vice-stock{display:inline-block;transform:rotate(-2deg);margin-top:16px}.vice-lot-body{padding:11px}.vice-lot h3{font-size:15px}.vice-price{font-size:22px}.vice-left{font-size:10px;left:6px;bottom:6px;padding:5px 8px}.vice-lot{border-radius:14px}.vice-lot-photo{aspect-ratio:4/5}}
 /* Editorial mobile edition: bold key art, neon accents, clipped panels. */
-body:has(#viewDrop:not([hidden])) .top{background:#30122e;color:white;border-bottom:1px solid #eb77b5;backdrop-filter:none}
-body:has(#viewDrop:not([hidden])) .top .logo{color:white;font-style:italic;font-weight:900}
-body:has(#viewDrop:not([hidden])) .top .icon-btn{background:#4a2547;color:white;border-color:#78516b}
-body:has(#viewDrop:not([hidden])) .top .nav a{color:#fff}
+body.vice-route .top{background:#30122e;color:white;border-bottom:1px solid #eb77b5;backdrop-filter:none}
+body.vice-route .top .logo{color:white;font-style:italic;font-weight:900}
+body.vice-route .top .icon-btn{background:#4a2547;color:white;border-color:#78516b}
+body.vice-route .top .nav a{color:#fff}
 .vice-hero{border-radius:8px;box-shadow:0 5px 0 #ef78ad}.vice-hero h1{color:#fff8f2;filter:drop-shadow(0 3px 0 #2b1030)}
 .vice-hero h1 span{color:#fff8f2}.vice-drop-head h2{font-family:Impact,'Arial Black',var(--display);font-style:italic;text-transform:uppercase;font-size:clamp(40px,5vw,65px);letter-spacing:-.025em}
 .vice-lot{border-radius:0;clip-path:polygon(0 15px,15px 0,calc(100% - 15px) 0,100% 15px,100% calc(100% - 15px),calc(100% - 15px) 100%,15px 100%,0 calc(100% - 15px));background:linear-gradient(145deg,#ffe8ed,#ffded4);border:0}
 .vice-lot h3{font-style:italic;font-weight:900}.vice-photo-count{position:absolute;top:9px;left:9px;padding:5px 9px;background:rgba(36,12,38,.88);color:#fff;border-radius:6px;font-size:11px;font-weight:700;backdrop-filter:blur(8px)}
 .vice-stock{border-radius:999px;font-style:italic;font-size:18px}.vice-stock small{font-style:normal}
 .vice-lots{gap:20px}.vice-lot-photo{border-bottom:2px solid #fa91bb}.vice-buy{border-radius:7px;font-size:14px}
-#viewDrop.vice-active .drp-how h2{color:#fff}body:has(#viewDrop:not([hidden])) .foot .btn{color:#34142f}
+#viewDrop.vice-active .drp-how h2{color:#fff}body.vice-route .foot .btn{color:#34142f}
 @media(max-width:480px){
  #viewDrop.vice-active>.wrap{padding-inline:16px}#viewDrop.vice-active .crumbs{display:none}
  .vice-hero{margin-inline:-16px;width:calc(100% + 32px);min-height:590px;border:0;border-radius:0;padding:30px 22px 44px;background-position:78% center;align-items:flex-end}
@@ -1022,8 +1022,8 @@ body:has(#viewDrop:not([hidden])) .top .nav a{color:#fff}
 
 #viewDrop.vice-active{overflow-x:clip}
 /* Full-bleed key art and collectible bouquet panels. */
-body:has(#viewDrop:not([hidden])) .top{position:absolute;inset:0 0 auto;width:100%;background:linear-gradient(#241027b8,transparent);border:0;backdrop-filter:none}
-body:has(#viewDrop:not([hidden])) .top .icon-btn{background:#36153155;border-color:#ffe5f247;backdrop-filter:blur(8px)}
+body.vice-route .top{position:absolute;inset:0 0 auto;width:100%;background:linear-gradient(#241027b8,transparent);border:0;backdrop-filter:none}
+body.vice-route .top .icon-btn{background:#36153155;border-color:#ffe5f247;backdrop-filter:blur(8px)}
 #viewDrop.vice-active .crumbs{display:none}
 #viewDrop.vice-active .vice-hero{width:100vw;max-width:none;margin-left:calc(50% - 50vw);margin-right:0;border:0;border-radius:0;padding:130px max(5vw,24px) 95px;min-height:760px;background-position:center;box-shadow:none}
 .vice-drop-head{padding-top:0!important;margin-top:12px!important}
@@ -1049,6 +1049,32 @@ body:has(#viewDrop:not([hidden])) .top .icon-btn{background:#36153155;border-col
  .vice-lots{gap:20px 12px}.vice-card-index{font-size:26px;right:7px;top:10px}.vice-lot-body{padding:14px 10px 17px}.vice-lot h3{font-size:21px;min-height:0;margin-bottom:5px}.vice-lot-meta{font-size:10px;letter-spacing:0}.vice-lot .vice-price{font-size:31px;margin:11px 0 13px;padding-top:11px}.vice-lot .vice-buy{font-size:12px;min-height:44px}.vice-lot .vice-left{font-size:10px;padding:6px 8px}.vice-lot .vice-photo-count{font-size:9px;padding:4px 5px}
 }
 
+/* The appearance is selected per storefront; classic markup stays intact. */
+#viceHomeHero{display:none}
+body.vice-theme #viceHomeHero{display:flex}
+body.vice-theme #viewHome #studio-sec{display:none}
+body.vice-route{background:#241027;color:#fff}
+body.vice-theme #viewHome .vice-home-hero{width:100%;margin:0;border:0;border-radius:0;min-height:760px;padding:130px max(5vw,24px) 95px;background-position:center}
+.vice-home-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.vice-home-actions a{text-decoration:none}.vice-home-secondary{padding:14px 22px;border:1px solid #ffd4ea88;border-radius:999px;color:#fff;font-weight:800;background:#33102e80}
+.vice-home-trust{font-size:12px!important;margin-top:26px!important;color:#ffdeed}
+body.vice-theme #viewHome .sec{position:relative;color:#fff;padding-top:36px}
+body.vice-theme #viewHome .h2{font-family:Impact,'Arial Black',var(--display);font-size:clamp(34px,5vw,56px);font-style:italic;text-transform:uppercase;letter-spacing:-.02em;color:#fff7ed;text-shadow:2px 3px 0 #8c2a68}
+body.vice-theme #viewHome .more{color:#82ffc5}
+body.vice-theme #viewHome .card{background:linear-gradient(145deg,#48203f,#29102d);color:#fff;padding:2px;border:1px solid #d879af;border-radius:17px;box-shadow:4px 5px 0 #110916;overflow:hidden}
+body.vice-theme #viewHome .card h3{padding-inline:11px;color:#fff;font-family:Impact,'Arial Black',var(--display);font-style:italic;text-transform:uppercase;font-size:23px;letter-spacing:.015em}
+body.vice-theme #viewHome .card h3 a{color:#fff}body.vice-theme #viewHome .card .sub{color:#e7bbd4;padding-inline:11px}body.vice-theme #viewHome .card .opts{padding-inline:10px}body.vice-theme #viewHome .card .card-note{padding-inline:10px}
+body.vice-theme #viewHome .card .buy-slot{padding:5px 10px 12px}body.vice-theme #viewHome .card .buy{background:#83ffc2;color:#241028;box-shadow:2px 3px 0 #dd559e;border:0}
+body.vice-theme #viewHome .card-img{border-radius:12px 12px 0 0}
+body.vice-theme #viewHome .card .chip{background:#4b2a4b;color:#fff;border-color:#a56791}body.vice-theme #viewHome .card .chip[aria-pressed="true"]{background:#ff70b7;color:#2a102b}
+body.vice-theme #viewHome .card .opt button{color:#fff}body.vice-theme #viewHome .card .opt button[aria-pressed="true"]{background:#f55da6;color:#fff}
+body.vice-theme #viewHome .tiles a{background:linear-gradient(135deg,#5a294b,#30203e);color:#fff;border-color:#ba6d9f;border-radius:14px}body.vice-theme #viewHome .tiles small{color:#f4cde3}
+body.vice-theme #viewHome .dline{background:linear-gradient(110deg,#d6348e,#713fa0);color:white;border-color:#fda8d0}body.vice-theme #viewHome .dline .tx small{color:#ffe1ef}
+body.vice-theme #viewHome .size-tiles a{background:#46233e;color:#fff;border-color:#b96e9d}
+body.vice-theme #viewHome .sec-head{align-items:center}
+@media(max-width:480px){body.vice-theme #viewHome .vice-home-hero{min-height:710px;padding:130px 22px 80px;background-position:78% center}.vice-home-secondary{font-size:14px;padding:14px 18px}.vice-home-trust{font-size:11px!important;line-height:1.6!important;max-width:280px}body.vice-theme #viewHome .card h3{font-size:20px}body.vice-theme #viewHome .h2{font-size:35px}body.vice-theme #viewHome .sec-head{align-items:flex-start;gap:12px}body.vice-theme #viewHome .more{font-size:12px}body.vice-theme #viewHome .card .buy-slot{padding-inline:8px}}
+
+body.vice-theme #viewHome .sizes{padding-inline:10px}body.vice-theme #viewHome .sizes button{color:#f4d3e6}body.vice-theme #viewHome .sizes button.gone{opacity:.45}body.vice-theme #viewHome .sizes button[aria-pressed="true"]{background:#f05da8;color:#fff}
+body.vice-theme #viewHome .dp{background:linear-gradient(140deg,#49213f,#2d1735);color:white;border-color:#e184b9}body.vice-theme #viewHome .dp h3{color:white}body.vice-theme #viewHome .dp .meta,body.vice-theme #viewHome .dp .sub{color:#edc7df}body.vice-theme #viewHome .dp .sorts span{color:#f5d9e7;background:#4b2a4c;border-color:#916482}body.vice-theme #viewHome .dp .btn{background:#83ffc2;color:#26102c}body.vice-theme #viewHome .dp .dp-head{color:white;background:#46233e}
 </style>
 </head>
 <body>
@@ -1100,6 +1126,15 @@ body:has(#viewDrop:not([hidden])) .top .icon-btn{background:#36153155;border-col
 <main>
 <!-- ============ HOME ============ -->
 <div id="viewHome">
+  <section class="vice-hero vice-home-hero" id="viceHomeHero" aria-label="Vice Bloom Edition">
+    <div class="vice-copy"><p class="vice-kicker">VENIKOFF · VICE BLOOM EDITION</p>
+      <h1>Потрачено.<span>На любовь.</span></h1>
+      <p class="vice-lede">Цветы с характером.<br>Доставка по Москве.</p>
+      <div class="vice-home-actions"><a class="vice-cta" href="/catalog/">Выбрать букет →</a><a class="vice-home-secondary" href="/drop/">В дроп →</a></div>
+      <p class="vice-home-trust">Напрямую от производителей · Фото перед доставкой</p>
+    </div><span class="vice-edition">LOVE IS THE MISSION</span>
+  </section>
+
   <section class="hero" id="studio-sec">
     <div class="wrap">
       <div class="hero-copy">
@@ -1345,7 +1380,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1795087029"></script>
+<script src="/data.js?v=1795253498"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1375,6 +1410,9 @@ const $$ = s => [...document.querySelectorAll(s)];
    перекрашивается весь сайт разом, включая тёмную тему. */
 const BSET = (await window.SHOP_BASKETS) || null;
 const BRAND = (API && API.brand) || null;
+const APPEARANCE = (BRAND && BRAND.texts && BRAND.texts.appearance_theme) === 'vice' ? 'vice' : 'classic';
+document.body.classList.toggle('vice-theme', APPEARANCE === 'vice');
+document.body.classList.toggle('vice-route', APPEARANCE === 'vice' && /^(\/|\/drop\/?)$/.test(location.pathname));
 const SITE = (BRAND && BRAND.name) || 'venikoff.net';
 function applyBrand(b) {
   document.title = SITE;
@@ -3156,8 +3194,8 @@ function renderDropPage() {
   const партии = партииДропа(), пар = партии[0] || null;
   const d = (DROP && DROP.есть) ? DROP : null;
   const оба = !!(пар && d);
-  $('#viewDrop').classList.toggle('vice-active', !!d);
-  if (d) { renderViceDrop(d); return; }
+  $('#viewDrop').classList.toggle('vice-active', !!d && APPEARANCE === 'vice');
+  if (d && APPEARANCE === 'vice') { renderViceDrop(d); return; }
 
   if (!пар && !d) {
     бокс.innerHTML = `<div class="notice">Дроп на сегодня ещё не назначили. Он бывает каждый день в 12:00 — загляните к полудню или подпишитесь на наш Телеграм.</div>`;
@@ -3830,6 +3868,9 @@ function router() {
   else { scrollTo = null; document.title = SITE; }
   if (name !== 'product') route = { name };
   Object.entries(views).forEach(([k, v]) => v.hidden = k !== name);
+  document.body.classList.toggle('vice-route', APPEARANCE === 'vice' && (name === 'home' || name === 'drop'));
+  const classicHomeTitle = $('#heroTitle');
+  if (classicHomeTitle) classicHomeTitle.hidden = APPEARANCE === 'vice' && name === 'home';
   $$('.nav a').forEach(l => l.toggleAttribute('aria-current', l.dataset.nav === (name === 'catalog' ? 'catalog' : a)));
   // студию-карусель убрали 19.10.2026 (лежит в attic/), пересчитывать нечего
   if (scrollTo) requestAnimationFrame(() => $(scrollTo).scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }));
