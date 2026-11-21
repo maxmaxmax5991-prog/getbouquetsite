@@ -1005,6 +1005,22 @@ body:has(#viewDrop:not([hidden])) .top .nav a{color:#fff}
 }
 @media(max-width:360px){.vice-hero h1{font-size:56px}.vice-drop-head h2{font-size:35px}.vice-lot h3{font-size:14px}.vice-price{font-size:23px}}
 
+/* Carry the key-art mood into the limited drop, with a broken panel edge. */
+.vice-hero{box-shadow:none!important;border-bottom:0;clip-path:polygon(0 0,100% 0,100% calc(100% - 29px),78% calc(100% - 8px),72% calc(100% - 26px),31% 100%,25% calc(100% - 21px),0 calc(100% - 6px));padding-bottom:65px}
+#dropPage>section[aria-label="Букеты дропа"]{position:relative;isolation:isolate;padding:1px 0 30px}
+#dropPage>section[aria-label="Букеты дропа"]:before{content:'';position:absolute;z-index:-2;inset:0 -30px;background:radial-gradient(ellipse at 95% 12%,rgba(235,50,150,.28),transparent 45%),radial-gradient(ellipse at 0 65%,rgba(125,74,197,.3),transparent 45%);pointer-events:none}
+#dropPage>section[aria-label="Букеты дропа"]:after{content:'VI';font-family:Impact,'Arial Black',sans-serif;font-size:360px;font-style:italic;line-height:1;color:transparent;-webkit-text-stroke:2px rgba(255,126,196,.13);position:absolute;right:-10px;top:80px;z-index:-1;transform:rotate(-9deg);pointer-events:none}
+.vice-tropical{position:absolute;inset:0;overflow:hidden;z-index:-1;pointer-events:none;opacity:.4}
+.vice-palm{position:absolute;width:220px;height:400px;right:-70px;top:0;fill:#e7539d;transform:rotate(-14deg)}.vice-palm.second{right:auto;left:-100px;top:48%;transform:scaleX(-1) rotate(-12deg);fill:#b383dc;opacity:.6}
+.vice-drop-head{position:relative;padding-top:30px;margin-top:15px}
+.vice-drop-head:before{content:'LIMITED DROP / VICE BLOOM';position:absolute;left:0;top:0;background:#ff70b6;color:#29102d;padding:5px 13px;font-family:Impact,'Arial Black',sans-serif;font-size:13px;letter-spacing:.1em;transform:rotate(-3deg);box-shadow:3px 3px 0 #7e345d}
+.vice-drop-head h2{color:#fff7ef;text-shadow:3px 3px 0 #a22b75;transform:rotate(-1deg)}
+.vice-drop-head .vice-kicker{text-shadow:2px 2px 0 #341036}.vice-stock{box-shadow:4px 5px 0 #e14a9c;transform:rotate(-5deg)}
+.vice-lot-photo:after{content:'';position:absolute;inset:0;box-shadow:inset 0 0 0 2px rgba(255,144,193,.55);pointer-events:none}
+.vice-lot .vice-price{font-family:Impact,'Arial Black',sans-serif;font-size:31px;font-style:italic}.vice-lot .vice-buy{font-weight:900;letter-spacing:.015em;box-shadow:3px 3px 0 #f59fc2;transition:transform .15s}.vice-buy:active{transform:translate(2px,2px)}
+@media(max-width:480px){.vice-hero{min-height:615px;padding-bottom:62px}.vice-drop-head{padding-top:42px;margin-top:8px}.vice-drop-head:before{font-size:11px;padding:5px 11px}.vice-drop-head .vice-kicker{font-size:21px}.vice-drop-head h2{font-size:40px}.vice-lot .vice-price{font-size:29px}.vice-palm{width:195px;height:350px;right:-72px;top:25px}.vice-stock{margin-top:22px;margin-bottom:8px}#dropPage>section[aria-label="Букеты дропа"]:after{font-size:300px;right:-20px;top:180px}}
+
+#viewDrop.vice-active{overflow-x:clip}
 </style>
 </head>
 <body>
@@ -3085,7 +3101,7 @@ function renderViceDrop(d) {
     <p class="vice-lede">Цветы с характером.<br>Доставка по Москве.</p>
     <button class="vice-cta" data-drop="${live ? 'take' : 'queue'}">${live ? 'Выбрать букет →' : soon ? 'Встать в очередь →' : 'Сегодня разобрали'}</button></div>
     <span class="vice-edition">LOVE IS THE MISSION</span></section>
-    <section aria-label="Букеты дропа"><div class="vice-drop-head"><div>
+    <section aria-label="Букеты дропа"><div class="vice-tropical"><svg class="vice-palm" viewBox="0 0 220 400" aria-hidden="true"><path d="M112 400 Q130 240 105 100 L119 95 Q147 255 131 400Z M111 100 Q18 42 0 110 Q50 76 103 110 Q0 95 2 172 Q53 117 107 119 Q39 178 70 212 Q81 156 115 123 Q143 199 185 190 Q145 145 124 114 Q205 146 220 110 Q170 91 127 101 Q205 57 193 24 Q148 40 119 88 Q126 8 89 0 Q79 49 105 94 Q44 7 12 36 Q52 47 111 100Z"/></svg><svg class="vice-palm second" viewBox="0 0 220 400" aria-hidden="true"><path d="M112 400 Q130 240 105 100 L119 95 Q147 255 131 400Z M111 100 Q18 42 0 110 Q50 76 103 110 Q0 95 2 172 Q53 117 107 119 Q39 178 70 212 Q81 156 115 123 Q143 199 185 190 Q145 145 124 114 Q205 146 220 110 Q170 91 127 101 Q205 57 193 24 Q148 40 119 88 Q126 8 89 0 Q79 49 105 94 Q44 7 12 36 Q52 47 111 100Z"/></svg></div><div class="vice-drop-head"><div>
     <p class="vice-kicker">${esc(d.подпись || 'Букет дня')}</p>
     <h2>${d.штук} ${plural(d.штук,'роза','розы','роз')} — ${rub(d.цена)}</h2>
     <p class="vice-delivery">${d.длина} см · ${esc(delivery)}</p></div>
