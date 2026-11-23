@@ -302,6 +302,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="orders" aria-selected="true">Заказы <span class="dot" id="newCount" hidden>0</span></button>
       <button role="tab" data-tab="products">Товары</button>
+      <button role="tab" data-tab="mother">День мамы</button>
       <button role="tab" data-tab="nom">Номенклатура</button>
       <button role="tab" data-tab="baskets">Корзины</button>
       <button role="tab" data-tab="drop">Дроп</button>
@@ -438,6 +439,14 @@ table.t td{padding:4px 6px;vertical-align:middle}
 
 
     <!-- Товары -->
+    <section id="tab-mother" hidden>
+      <div class="toolbar"><h2>День мамы · 29 ноября</h2><button class="btn btn-p" id="motherReportRefresh">Обновить</button><a class="btn btn-g" href="/den-mamy/" target="_blank">Открыть страницу</a></div>
+      <p class="hint">Все заказы на 29 ноября, включая ожидающие оплаты. Отменённые исключены. Срочные — часовые интервалы за +1 250 ₽. Сорта одной длины складываются в стеблях: 2 букета по 51 розе = 102 стебля. Предзаказы не расходуют сегодняшний остаток.</p>
+      <h3 id="motherReportSummary"></h3><p class="hint" id="motherReportState"></p>
+      <h3>Заказы по интервалам</h3><div class="scroll"><table class="t" id="motherReportSlots"></table></div>
+      <h3>Потребность по сортам и длинам</h3><div class="scroll"><table class="t" id="motherReportPositions"></table></div>
+      <h3>Срочные / часовые доставки</h3><div class="scroll"><table class="t" id="motherReportUrgent"></table></div>
+    </section>
     <section id="tab-products" hidden>
       <div class="bar">
         <input class="in" id="pSearch" type="search" placeholder="Поиск по названию" style="flex:1;min-width:180px">
@@ -445,7 +454,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <button class="btn btn-p" id="pNew">+ Новый товар</button>
       </div>
       <p class="hint" style="margin:-4px 0 12px">Нажмите на товар, чтобы изменить. Зелёный переключатель справа — показать или скрыть товар вообще, цветные — на какой витрине он продаётся. Товары можно добавлять и через Телеграм-бота.</p>
-      <p class="hint">Галочка «День мамы» сохраняется сразу. На праздничной странице видны только отмеченные активные букеты с фото. <a href="/den-mamy/" target="_blank">Открыть страницу предзаказов →</a></p>
+      <p class="hint">Галочка «День мамы» сохраняется сразу. На праздничной странице видны отмеченные букеты с фото, даже без текущего остатка. Одноголовые — только 50/60 см. <a href="/den-mamy/" target="_blank">Открыть страницу предзаказов →</a></p>
       <div class="plist" id="plist"></div>
     </section>
 
@@ -1373,6 +1382,66 @@ $('#loginForm').addEventListener('submit', async e => {
   } catch (err) { $('#lErr').textContent = err.message; $('#lErr').hidden = false; }
 });
 
+function aggregateMotherOrders(orders, products) {
+  const names = new Map((products || []).map(p => [p.id,p.name]));
+  const slots = new Map(), positions = new Map(), urgent = [];
+  const regular = ['08:00–13:00','13:00–18:00','18:00–22:00'];
+  const normalize = s => String(s || '').replace(/\s/g,'').replace(/[-—]/g,'–');
+  regular.forEach(s => slots.set(s,{label:s,orders:0,paid:0,hourly:false}));
+  const add = (id,name,len,n,bouquets,unit) => {
+    const key = `${id || name}|${len || ''}|${unit}`;
+    const row = positions.get(key) || {name:names.get(id) || name,len:len || '',n:0,bouquets:0,unit};
+    row.n += n; row.bouquets += bouquets; positions.set(key,row);
+  };
+  const active = orders.filter(o => String(o.date).slice(0,10) === '2026-11-29' && o.status !== 'cancelled');
+  active.forEach(o => {
+    const pickup = o.delivery_type === 'pickup';
+    const label = pickup ? 'Самовывоз' : normalize(o.interval) || 'Без интервала';
+    const match = label.match(/^(\d\d):(\d\d)–(\d\d):(\d\d)$/);
+    const hourly = !pickup && !!match && (+match[3]*60 + +match[4] - +match[1]*60 - +match[2] === 60);
+    const row = slots.get(label) || {label,orders:0,paid:0,hourly};
+    row.orders++; if(o.payment_status === 'paid') row.paid++; slots.set(label,row);
+    if(hourly) urgent.push(o);
+    let items = o.items || []; if(typeof items === 'string') { try {items = JSON.parse(items);} catch (_) {items=[];} }
+    items.forEach(it => {
+      const qty = Math.max(0,+it.qty || 1);
+      if(Array.isArray(it.parts) && it.parts.length) {
+        it.parts.forEach(p => add(p.id,p.name,+p.len,(+p.n || +p.cnt || 0)*qty,qty,'стеблей'));
+        return;
+      }
+      const m = String(it.label || '').match(/^(\d+)-(\d+)$/);
+      if(m) add(it.id,it.name,+m[1],+m[2]*qty,qty,'стеблей');
+      else if(+it.stems > 0) add(it.id,it.name,'',+it.stems*qty,qty,'стеблей');
+      else add(it.id,it.name,'',qty,qty,'шт');
+    });
+  });
+  return {active,paid:active.filter(o => o.payment_status === 'paid').length,urgent,
+    slots:[...slots.values()].sort((a,b) => a.label.localeCompare(b.label)),
+    positions:[...positions.values()].sort((a,b) => a.name.localeCompare(b.name,'ru') || +a.len - +b.len)};
+}
+let motherReportTimer;
+async function loadMotherReport() {
+  clearTimeout(motherReportTimer);
+  $('#motherReportState').textContent = 'Обновляем…';
+  try {
+    const orders = []; let page = 1;
+    while(true) {
+      const r = await api('/api/collections/orders/records?perPage=200&page='+page+'&sort=interval,number&filter='+encodeURIComponent('date="2026-11-29"'));
+      orders.push(...r.items); if(page >= r.totalPages) break; page++;
+    }
+    const products = await list('products');
+    const data = aggregateMotherOrders(orders,products);
+    $('#motherReportSummary').textContent = `Заказов: ${data.active.length} · оплачено: ${data.paid} · часовых доставок: ${data.urgent.length}`;
+    const table = (heads,rows) => '<thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody>';
+    $('#motherReportSlots').innerHTML = table(['Интервал','Заказов','Оплачено','Ждут оплаты'],data.slots.map(s=>`<tr><td>${esc(s.label)}${s.hourly?' · часовая +1 250 ₽':''}</td><td>${s.orders}</td><td>${s.paid}</td><td>${s.orders-s.paid}</td></tr>`));
+    $('#motherReportPositions').innerHTML = table(['Позиция','Длина','Итого штук','Букетов / позиций'],data.positions.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.len ? p.len+' см':'—'}</td><td><b>${p.n.toLocaleString('ru-RU')} ${p.unit}</b></td><td>${p.bouquets}</td></tr>`));
+    $('#motherReportUrgent').innerHTML = data.urgent.length ? table(['Заказ','Время','Клиент','Телефон','Оплата'],data.urgent.map(o=>`<tr><td>№${o.number}</td><td>${esc(o.interval)}</td><td>${esc(o.name || '')}</td><td>${esc(o.phone || '')}</td><td>${o.payment_status==='paid'?'Оплачен':'Ждёт оплаты'}</td></tr>`)) : '<tbody><tr><td>Часовых доставок пока нет</td></tr></tbody>';
+    $('#motherReportState').textContent = 'Обновлено '+new Date().toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})+' · автообновление раз в минуту';
+  } catch(error) { $('#motherReportState').textContent='Не удалось обновить: '+error.message; }
+  motherReportTimer = setTimeout(()=>{if(tab==='mother')loadMotherReport();},60000);
+}
+$('#motherReportRefresh').onclick = loadMotherReport;
+
 /* ---------- вкладки ---------- */
 let tab = 'orders';
 $$('.tabs button').forEach(b => b.onclick = () => show(b.dataset.tab));
@@ -1380,7 +1449,7 @@ function show(t) {
   tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + t);
-  ({ team: loadTeam, florists: loadBouquets, orders: loadOrders, products: loadProducts, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, nps: loadNps, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople, batch: loadBatch })[t]();
+  ({ team: loadTeam, florists: loadBouquets, orders: loadOrders, products: loadProducts, mother: loadMotherReport, nom: loadNom, stock: loadStock, chat: loadChats, incoming: loadIncoming, errors: loadErrors, cats: loadCats, delivery: loadDelivery, prices: loadPrices, bc: loadBc, care: loadCare, nps: loadNps, stats: loadStats, settings: loadSettings, baskets: loadBaskets, drop: loadDrop, dpeople: loadDPeople, batch: loadBatch })[t]();
 }
 
 let S = null, CATS = [], BRANDS = [], ME = { role: 'owner', can: { orders: 1, chat: 1, swap: 1, stock: 1, all: 1, fixnps: 1 } };
@@ -1402,7 +1471,7 @@ function brandPill(id) {
 // Кто вошёл и что ему можно. Лишние вкладки прячем; на сервере права проверяются заново.
 // «Флористы» — это выработка сборщиков и кто сколько собрал: вкладка для
 // владельца, а не для менеджера. Раньше стояла на 'orders' и висела у всех.
-const TAB_NEED = { team: 'staff', florists: 'all', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all', drop: 'all', dpeople: 'all', batch: 'all' };
+const TAB_NEED = { mother: 'orders', team: 'staff', florists: 'all', bc: 'all', orders: 'orders', chat: 'chat', incoming: 'stock', products: 'all', cats: 'all', delivery: 'all', prices: 'all', care: 'care', stats: 'all', settings: 'all', baskets: 'all', drop: 'all', dpeople: 'all', batch: 'all' };
 async function loadRole() {
   try { ME = await api('/api/shop/me-role'); } catch (_) {}
   // витрины нужны всем вкладкам, а не только настройкам: без них заказы
