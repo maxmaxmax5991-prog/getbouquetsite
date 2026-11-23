@@ -1087,6 +1087,7 @@ body.mother-route{background:#fcf7f0;color:#503b3a}body.mother-route .top{backgr
 .home-mother-button{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:50px;padding:14px 22px;border-radius:999px;background:#f9b4d1;color:#472039!important;font-weight:800;font-size:15px;text-decoration:none;box-shadow:0 5px 22px #ee7fb038;border:1px solid #ffdaeb}.home-mother-button span{font-size:12px;font-weight:600;white-space:nowrap}.home-mother-button:hover{background:#ffd0e3}.hero-cta .home-mother-button{background:#f9e1eb;color:#8f365a!important}@media(max-width:480px){.home-mother-button{padding:14px 18px;font-size:14px}}
 .mother-notice[hidden]{display:none!important}.mother-notice{position:fixed;z-index:1400;top:calc(env(safe-area-inset-top,0px) + 80px);left:50%;width:min(420px,calc(100vw - 24px));box-sizing:border-box;transform:translateX(-50%);padding:14px 17px 15px;border:1px solid #ffffffba;border-radius:25px;background:#fff8f3ed;color:#4e3440;box-shadow:0 12px 45px #33213235,0 2px 9px #33213212;backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3);animation:motherNoticeIn .45s cubic-bezier(.16,1,.3,1)}.mother-notice-top{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.05em;font-weight:700;color:#927982;margin-bottom:10px}.mother-notice-icon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:#f4d3e0;font-size:17px}.mother-notice-now{margin-left:auto;font-weight:400;letter-spacing:0}.mother-notice-top button{width:26px;height:26px;border-radius:50%;background:#e9dce080;color:#8b737d;font-size:21px;line-height:1;display:grid;place-items:center;cursor:pointer;border:0}.mother-notice strong{display:block;font-size:17px;line-height:1.4;letter-spacing:-.02em}.mother-notice p{font-size:14px;line-height:1.5;margin:5px 0 12px;color:#765d67}.mother-notice>a{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;min-height:41px;border-radius:14px;background:#b95179;color:#fff;text-decoration:none;font-size:14px;font-weight:800}.mother-notice>a:hover{background:#a7446b}@keyframes motherNoticeIn{from{opacity:0;transform:translate(-50%,-30px)}to{opacity:1;transform:translate(-50%,0)}}@media(prefers-reduced-motion:reduce){.mother-notice{animation:none}}@media(max-width:480px){.mother-notice{top:calc(env(safe-area-inset-top,0px) + 72px);padding:13px 16px 14px;border-radius:23px}}
 
+.chip.mother-filter{display:inline-flex;align-items:center;text-decoration:none;background:#f9e1eb;border-color:#eab8cd;color:#983e64;font-weight:800}.size-tiles a.mother-filter{background:#f9e1eb;color:#983e64}
 </style>
 </head>
 <body>
@@ -3356,6 +3357,7 @@ $('#popular').innerHTML = POPULAR.map((id, i) => card(byId[id], 'главная'
   const поКоличеству = n => P.some(p => !p.off && !isAddon(p) && (p.variants || [])
     .some(v => живой(v) && +v.cnt === n));
   const плитки = [
+    { имя: '🌸 День мамы', url: '/den-mamy/', класс: ' mother-filter', есть: () => true },
     // Корзина — не отбор каталога, а отдельный конструктор, поэтому и цвет свой,
     // зелёный: в ряду фуксиевых кнопок её видно сразу.
     { имя: '🌹 Конструктор корзин', url: '/korzina/', класс: ' basket',
@@ -3385,6 +3387,7 @@ $('#tiles').innerHTML = разделыСТоваром().map(([k, label]) => {
 /* ---------- catalog ---------- */
 function renderChips() {
   let html = `<button class="chip" data-cat="all" aria-pressed="${!state.favOnly && state.cat === 'all'}">Все <small class="num">${P.length - ADDONS.length}</small></button>`;
+  html += '<a class="chip mother-filter" href="/den-mamy/">🌸 День мамы</a>';
   html += разделыСТоваром(state.cat).map(([k, label]) => `<button class="chip" data-cat="${k}" aria-pressed="${!state.favOnly && state.cat === k}">${label} <small class="num">${count[k] || 0}</small></button>`).join('');
   if (favs.size) html += `<button class="chip" data-favonly aria-pressed="${state.favOnly}">${icon('heart')}Избранное <small class="num">${favs.size}</small></button>`;
   $('#chips').innerHTML = html;
