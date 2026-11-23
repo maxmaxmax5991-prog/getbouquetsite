@@ -446,7 +446,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <p class="hint">Уникальные посетители: показы → переходы → заказ на 29 ноября. Заказ засчитывается после клика в течение 7 дней; оплаченные считаются по фактическому статусу оплаты. Отменённые исключены. Статистика с 23 ноября, только эта витрина.</p>
       <h3 id="motherReportSummary"></h3><p class="hint" id="motherReportState"></p>
       <h3>Заказы по интервалам</h3><div class="scroll"><table class="t" id="motherReportSlots"></table></div>
-      <h3>Потребность по сортам и длинам</h3><div class="scroll"><table class="t" id="motherReportPositions"></table></div>
+      <h3>Потребность по сортам и длинам</h3><button class="btn btn-p" id="motherExport">Скачать закупку CSV</button><div class="scroll"><table class="t" id="motherReportPositions"></table></div>
       <h3>Срочные / часовые доставки</h3><div class="scroll"><table class="t" id="motherReportUrgent"></table></div>
     </section>
     <section id="tab-products" hidden>
@@ -1421,10 +1421,11 @@ function aggregateMotherOrders(orders, products) {
     slots:[...slots.values()].sort((a,b) => a.label.localeCompare(b.label)),
     positions:[...positions.values()].sort((a,b) => a.name.localeCompare(b.name,'ru') || +a.len - +b.len)};
 }
-let motherReportTimer;
+let motherReportTimer, motherPurchaseRows = [];
 async function loadMotherReport() {
   clearTimeout(motherReportTimer);
   $('#motherReportState').textContent = 'Обновляем…';
+  $('#motherExport').disabled=true;
   try {
     const orders = []; let page = 1;
     while(true) {
@@ -1438,6 +1439,8 @@ async function loadMotherReport() {
     } catch (_) { $('#motherNoticeStats').textContent = 'Статистика уведомления доступна владельцу и управляющему.'; }
     const products = await list('products');
     const data = aggregateMotherOrders(orders,products);
+    motherPurchaseRows=data.positions;
+    $('#motherExport').disabled=false;
     $('#motherReportSummary').textContent = `Заказов: ${data.active.length} · оплачено: ${data.paid} · часовых доставок: ${data.urgent.length}`;
     const table = (heads,rows) => '<thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody>';
     $('#motherReportSlots').innerHTML = table(['Интервал','Заказов','Оплачено','Самовывоз без оплаты'],data.slots.map(s=>`<tr><td>${esc(s.label)}${s.hourly?' · часовая +1 250 ₽':''}</td><td>${s.orders}</td><td>${s.paid}</td><td>${s.orders-s.paid}</td></tr>`));
@@ -1448,6 +1451,13 @@ async function loadMotherReport() {
   motherReportTimer = setTimeout(()=>{if(tab==='mother')loadMotherReport();},60000);
 }
 $('#motherReportRefresh').onclick = loadMotherReport;
+$('#motherExport').onclick = () => {
+  const cell = value => {let text=String(value ?? '');if(/^[=+@-]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';};
+  const rows=[['Дата','Сорт / позиция','Ростовка, см','Количество','Единица','Букетов / позиций']].concat(motherPurchaseRows.map(p=>['29.11.2026',p.name,p.len,p.n,p.unit,p.bouquets]));
+  const csv='\uFEFF'+rows.map(row=>row.map(cell).join(';')).join('\r\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download='Закупка-День-мамы-29-11-2026.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
 
 /* ---------- вкладки ---------- */
 let tab = 'orders';
@@ -1493,18 +1503,19 @@ async function loadRole() {
 }
 
 /* ---------- заказы ---------- */
+let unknownAddressCount = 0;
 let oFilter = 'active', oDay = 'today', oKind = 'all';
-const OF = [['active', 'Активные'], ['mine', 'Мои'], ['free', 'Ничьи'], ['new', 'Новые'], ['unpaid', 'Ждут оплаты'], ['done', 'Доставленные'], ['cancelled', 'Отменённые'], ['all', 'Все']];
+const OF = [['unknown_address','Уточнить адрес'],['active', 'Активные'], ['mine', 'Мои'], ['free', 'Ничьи'], ['new', 'Новые'], ['unpaid', 'Ждут оплаты'], ['done', 'Доставленные'], ['cancelled', 'Отменённые'], ['all', 'Все']];
 // день доставки, а не день оформления: флористу важно, что везём сегодня
 const ODAY = [['today', 'Сегодня'], ['tomorrow', 'Завтра'], ['week', 'Ближайшая неделя'], ['all', 'Любой день']];
 const OKIND = [['all', 'Доставка и самовывоз'], ['delivery', 'Только доставка'], ['pickup', 'Только самовывоз']];
 const mskDay = (plus = 0) => new Date(Date.now() + 3 * 3600e3 + plus * 864e5).toISOString().slice(0, 10);
 function renderOF() {
-  $('#orderFilters').innerHTML = OF.map(([k, t]) => `<button class="chip" data-f="${k}" aria-pressed="${oFilter === k}">${t}</button>`).join('');
+  $('#orderFilters').innerHTML = OF.map(([k, t]) => `<button class="chip" data-f="${k}" aria-pressed="${oFilter === k}">${t}${k === 'unknown_address' ? ' · '+unknownAddressCount : ''}</button>`).join('');
   $('#orderDays').innerHTML = ODAY.map(([k, t]) => `<button class="chip" data-day="${k}" aria-pressed="${oDay === k}">${t}</button>`).join('');
   $('#orderKind').innerHTML = OKIND.map(([k, t]) => `<button class="chip" data-kind="${k}" aria-pressed="${oKind === k}">${t}</button>`).join('');
 }
-$('#orderFilters').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { oFilter = b.dataset.f; loadOrders(); } };
+$('#orderFilters').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { oFilter = b.dataset.f; if(oFilter==='unknown_address'){oDay='all';oKind='delivery';$('#oSearch').value='';} loadOrders(); } };
 $('#orderDays').onclick = e => { const b = e.target.closest('[data-day]'); if (b) { oDay = b.dataset.day; loadOrders(); } };
 $('#orderKind').onclick = e => { const b = e.target.closest('[data-kind]'); if (b) { oKind = b.dataset.kind; loadOrders(); } };
 let oSearchTimer = 0;
@@ -1512,6 +1523,7 @@ $('#oSearch').addEventListener('input', () => { clearTimeout(oSearchTimer); oSea
 $('#oSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(oSearchTimer); loadOrders(); } });
 $('#oSearchClear').onclick = () => { $('#oSearch').value = ''; loadOrders(); };
 const loadOrders = safe(async () => {
+  try { const count=await api('/api/collections/orders/records?perPage=1&fields=id&filter='+encodeURIComponent("unknown_address=true&&delivery_type!='pickup'&&status!='done'&&status!='cancelled'"));unknownAddressCount=count.totalItems || 0; } catch (_) {}
   renderOF();
 
   // Поиск сильнее фильтров: искомый заказ почти всегда не сегодняшний и не
@@ -1539,7 +1551,7 @@ const loadOrders = safe(async () => {
   $('#oSearchNote').textContent = '';
 
   const parts = [];
-  const f = { active: "status!='done'&&status!='cancelled'", new: "status='new'",
+  const f = { unknown_address: "unknown_address=true&&delivery_type!='pickup'&&status!='done'&&status!='cancelled'", active: "status!='done'&&status!='cancelled'", new: "status='new'",
     // «Мои» и «Ничьи» — про ответственного, а не про статус: закрытые заказы
     // в них не нужны, иначе список утонет в доставленных
     mine: `manager='${(ME.id || '')}'&&status!='done'&&status!='cancelled'`,
