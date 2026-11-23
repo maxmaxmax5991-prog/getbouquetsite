@@ -318,6 +318,7 @@ function catalog(app, brand) {
         // состав готового букета показываем прямо в карточке: по нему и выбирают
         made: p.get("is_express") ? String(p.get("description") || "").replace(/\s+/g, " ").trim().slice(0, 90) || undefined : undefined,
         badge_text: String(p.get("badge_text") || "").trim() || undefined,
+        mothers_day: !!p.get("mothers_day"),
         // Партия: сколько привезли и сколько ещё свободно. Свободное считаем
         // из настоящего остатка, поэтому счётчик не соврёт и партия кончится
         // сама. Пусто — обычный товар, блока на карточке нет.
