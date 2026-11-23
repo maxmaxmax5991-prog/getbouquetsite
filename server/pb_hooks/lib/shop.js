@@ -549,6 +549,7 @@ function slotRules(s) {
     hours: +s.get("slot_hours") || 3,
     step: +s.get("slot_step") || 30,
     min: +s.get("slot_min") || 60,
+    by_date: { '2026-11-29': ['08:00–13:00', '13:00–18:00', '18:00–22:00'] },
   };
 }
 
@@ -568,7 +569,8 @@ function prepFor(r, sum, express, pickup) {
 // время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
 function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin) {
   const r = slotRules(s);
-  const open = toMin(r.from), send = toMin(r.to);
+  const fixed = !pickup && (r.by_date || {})[dateIso];
+  const open = fixed ? toMin(fixed[0].split('–')[0]) : toMin(r.from), send = toMin(r.to);
   // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
   const till = pickup ? send : Math.max(toMin(r.till), send);
   const now = moscowNow();
@@ -583,6 +585,7 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin) {
   // «доставляем не раньше»: час суток, одинаковый в любой день. Сборку сюда не
   // добавляем — букет к этому часу уже готов, его можно везти.
   if (fromMin > 0) first = Math.max(first, fromMin);
+  if (fixed) return fixed.filter(label => toMin(label.split('–')[0]) >= first);
   const start0 = Math.ceil(first / r.step) * r.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
   const full = pickup ? r.step : r.hours * 60;
@@ -604,6 +607,12 @@ function slotProblem(s, dateIso, sum, label, pickup, ready, express, fromMin) {
   if (!m) return late;
 
   const st = +m[1] * 60 + +m[2], en = +m[3] * 60 + +m[4];
+  const fixed = !pickup && (r.by_date || {})[dateIso];
+  if (fixed) {
+    const canonical = `${hhmm(st)}–${hhmm(en)}`;
+    if (!fixed.includes(canonical)) return 'На эту дату доступны только интервалы 08:00–13:00, 13:00–18:00 и 18:00–22:00.';
+    return slotsFor(s, dateIso, sum, 20, pickup, ready, express, fromMin).includes(canonical) ? '' : late;
+  }
   const open = toMin(r.from), send = toMin(r.to);
   const till = pickup ? send : Math.max(toMin(r.till), send);
   const full = pickup ? r.step : r.hours * 60;
