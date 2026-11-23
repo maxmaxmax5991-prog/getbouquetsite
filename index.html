@@ -1075,6 +1075,7 @@ body.vice-theme #viewHome .sec-head{align-items:center}
 
 body.vice-theme #viewHome .sizes{padding-inline:10px}body.vice-theme #viewHome .sizes button{color:#f4d3e6}body.vice-theme #viewHome .sizes button.gone{opacity:.45}body.vice-theme #viewHome .sizes button[aria-pressed="true"]{background:#f05da8;color:#fff}
 body.vice-theme #viewHome .dp{background:linear-gradient(140deg,#49213f,#2d1735);color:white;border-color:#e184b9}body.vice-theme #viewHome .dp h3{color:white}body.vice-theme #viewHome .dp .meta,body.vice-theme #viewHome .dp .sub{color:#edc7df}body.vice-theme #viewHome .dp .sorts span{color:#f5d9e7;background:#4b2a4c;border-color:#916482}body.vice-theme #viewHome .dp .btn{background:#83ffc2;color:#26102c}body.vice-theme #viewHome .dp .dp-head{color:white;background:#46233e}
+.hourly-choice{padding:13px;border:1px solid var(--accent-soft-2);border-radius:14px;background:var(--accent-soft)}.hourly-toggle{display:block;width:100%;min-height:48px;border:1px solid var(--accent);border-radius:11px;padding:10px 12px;color:var(--accent-text);font-weight:800;font-size:14px;background:var(--paper)}.hourly-toggle[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}.hourly-choice p{font-size:12px;color:var(--ink-2);line-height:1.4;margin:8px 0 0}
 </style>
 </head>
 <body>
@@ -1380,7 +1381,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1795254044"></script>
+<script src="/data.js?v=1795430261"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -4516,6 +4517,10 @@ function renderCart() {
           <label for="fTime" id="timeLabel">Интервал<select id="fTime" name="time" required></select></label>
         </div>
         <p class="addr-hint" id="timeNote" hidden></p>
+        <div class="hourly-choice" id="hourlyChoice" hidden>
+          <button type="button" id="hourlyToggle" class="hourly-toggle" aria-pressed="false">Выбрать часовой интервал (+1 250 ₽)</button>
+          <p id="hourlyHint">Доставка в выбранный час. Доступно только 29 ноября.</p>
+        </div>
 ${payChoice()}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
         ${getType === 'pickup' ? '' : `<label for="fDnote">Комментарий курьеру<textarea id="fDnote" name="dnote" placeholder="Например: позвонить за час, оставить на охране, не звонить в дверь" maxlength="500"></textarea></label>`}
@@ -4591,6 +4596,7 @@ ${payChoice()}
     }
 
     $('#fDate').onchange = () => { fillIntervals(); recalc(); };
+    $('#hourlyToggle').onclick = () => { hourlySlot = !hourlySlot; fillIntervals(); recalc(); };
     if ($('#fZone')) $('#fZone').onchange = recalc;
     $('#fTime').onchange = () => { шаг('slot', $('#fTime').value || ''); recalc(); };
   } else {
@@ -4664,6 +4670,7 @@ cartDlg.addEventListener('click', async e => {
 const PAY = API ? API.payment : null;
 const PICKUP = API ? API.pickup : null;
 let getType = 'delivery';
+let hourlySlot = false;
 function payChoice() {
   if (!PAY || !PAY.card) return '';
   const onDelivery = PAY.on_delivery && getType === 'pickup';
@@ -4785,7 +4792,8 @@ async function payCard(order, name, phone) {
 /* доставка: зоны, интервалы, даты — из админки */
 
 function slotList(date, sum) {
-  const fixed = getType !== 'pickup' && (SLOTS.by_date || {})[date];
+  const hourlyRule = getType !== 'pickup' && (SLOTS.hourly_by_date || {})[date];
+  const fixed = getType !== 'pickup' && (hourlySlot && hourlyRule ? hourlyRule.windows : (SLOTS.by_date || {})[date]);
   const now = mskNow(), open = fixed ? toMin(fixed[0].split('–')[0]) : toMin(SLOTS.from), send = toMin(SLOTS.to);
   // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
   const till = getType === 'pickup' ? send : Math.max(toMin(SLOTS.till || SLOTS.to), send);
@@ -4910,6 +4918,15 @@ const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5)
 const zonePrice = (z, sum) => z.free_from > 0 && sum >= z.free_from ? 0 : z.price;
 function fillIntervals() {
   const date = $('#fDate').value;
+  const hourlyRule = getType !== 'pickup' && (SLOTS.hourly_by_date || {})[date];
+  if (!hourlyRule) hourlySlot = false;
+  const box = $('#hourlyChoice'), toggle = $('#hourlyToggle');
+  if (box) box.hidden = !hourlyRule;
+  if (toggle) {
+    toggle.setAttribute('aria-pressed', String(hourlySlot));
+    toggle.textContent = hourlySlot ? `✓ Часовой интервал (+${rub(hourlyRule.price)})` : `Выбрать часовой интервал (+${rub(hourlyRule ? hourlyRule.price : 1250)})`;
+    $('#hourlyHint').textContent = hourlySlot ? 'Нажмите ещё раз, чтобы вернуть обычные интервалы без доплаты.' : 'Доставка в выбранный час. Доступно только 29 ноября.';
+  }
   const closed = DEL && DEL.closed_dates.includes(date);
   const sum = totals().sum;
   const list = closed ? [] : slotList(date, sum);
@@ -5082,21 +5099,23 @@ function bindAddress() {
 function recalc() {
   const sum = totals().sum;
   if (getType === 'pickup') { $('#fDelivery').textContent = 'самовывоз'; $('#fTotal').textContent = rub(sum); return; }
-  const extra = 0;   // доплат за интервал нет: время считается от заказа
+  const hourlyRule = (SLOTS.hourly_by_date || {})[($('#fDate') || {}).value];
+  const extra = hourlyRule && hourlyRule.windows.includes(($('#fTime') || {}).value) ? hourlyRule.price : 0;
+  const hourlyText = extra ? ` + часовой интервал ${rub(extra)}` : '';
   if (DEL && DEL.km) {
     if (!addrInfo) {
-      $('#fDelivery').textContent = addrBusy ? 'считаем доставку…' : 'доставка — укажите адрес';
+      $('#fDelivery').textContent = (addrBusy ? 'считаем доставку…' : 'доставка — укажите адрес') + hourlyText;
       $('#fTotal').textContent = rub(sum + extra);
       return;
     }
     const del = addrInfo.price + extra;
-    $('#fDelivery').textContent = `букеты ${rub(sum)} + доставка ${rub(del)}`;
+    $('#fDelivery').textContent = `букеты ${rub(sum)} + доставка ${rub(addrInfo.price)}` + hourlyText;
     $('#fTotal').textContent = rub(sum + del);
     return;
   }
   const z = DEL && $('#fZone') ? DEL.zones.find(x => x.id === $('#fZone').value) : null;
   const del = (z ? zonePrice(z, sum) : 0) + extra;
-  $('#fDelivery').textContent = DEL ? (del ? `букеты ${rub(sum)} + доставка ${rub(del)}` : 'доставка бесплатно') : '';
+  $('#fDelivery').textContent = DEL ? (del ? `букеты ${rub(sum)} + доставка ${rub(del - extra)}` + hourlyText : 'доставка бесплатно') : hourlyText;
   $('#fTotal').textContent = rub(sum + del);
 }
 cartDlg.addEventListener('submit', async e => {
