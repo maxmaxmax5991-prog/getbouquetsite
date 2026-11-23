@@ -550,6 +550,7 @@ function slotRules(s) {
     step: +s.get("slot_step") || 30,
     min: +s.get("slot_min") || 60,
     by_date: { '2026-11-29': ['08:00–13:00', '13:00–18:00', '18:00–22:00'] },
+    hourly_by_date: { '2026-11-29': { price: 1250, windows: Array.from({length:13}, (_,i) => `${hhmm((i+9)*60)}–${hhmm((i+10)*60)}`) } },
   };
 }
 
@@ -567,9 +568,10 @@ function prepFor(r, sum, express, pickup) {
 // Все интервалы, которые ещё можно выбрать на эту дату.
 // graceMin — небольшая поблажка при проверке заказа: пока покупатель заполнял форму,
 // время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
-function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin) {
+function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin, hourly) {
   const r = slotRules(s);
-  const fixed = !pickup && (r.by_date || {})[dateIso];
+  const hourlyRule = !pickup && (r.hourly_by_date || {})[dateIso];
+  const fixed = !pickup && (hourly && hourlyRule ? hourlyRule.windows : (r.by_date || {})[dateIso]);
   const open = fixed ? toMin(fixed[0].split('–')[0]) : toMin(r.from), send = toMin(r.to);
   // забрать самому можно только до конца рабочего дня; позже едут одни курьеры
   const till = pickup ? send : Math.max(toMin(r.till), send);
@@ -610,6 +612,10 @@ function slotProblem(s, dateIso, sum, label, pickup, ready, express, fromMin) {
   const fixed = !pickup && (r.by_date || {})[dateIso];
   if (fixed) {
     const canonical = `${hhmm(st)}–${hhmm(en)}`;
+    const hourlyRule = (r.hourly_by_date || {})[dateIso];
+    if (hourlyRule && hourlyRule.windows.includes(canonical)) {
+      return slotsFor(s, dateIso, sum, 20, pickup, ready, express, fromMin, true).includes(canonical) ? '' : late;
+    }
     if (!fixed.includes(canonical)) return 'На эту дату доступны только интервалы 08:00–13:00, 13:00–18:00 и 18:00–22:00.';
     return slotsFor(s, dateIso, sum, 20, pickup, ready, express, fromMin).includes(canonical) ? '' : late;
   }
@@ -640,6 +646,17 @@ function slotProblem(s, dateIso, sum, label, pickup, ready, express, fromMin) {
     }
   }
   return "";
+}
+
+// The selected window determines the surcharge; client amounts are never trusted.
+function slotSurcharge(s, dateIso, label, pickup) {
+  if (pickup) return 0;
+  const rule = (slotRules(s).hourly_by_date || {})[dateIso];
+  if (!rule) return 0;
+  const m = String(label || '').match(/^(\d{1,2}):(\d{2})[–-](\d{1,2}):(\d{2})$/);
+  if (!m) return 0;
+  const canonical = `${hhmm(+m[1]*60 + +m[2])}–${hhmm(+m[3]*60 + +m[4])}`;
+  return rule.windows.includes(canonical) ? rule.price : 0;
 }
 
 // Доставку считает карта — кругами от магазина или расстоянием от МКАД.
@@ -901,6 +918,8 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   // посчитанной цене доставки, а не заменяем — расстояние никуда не делось.
   // При самовывозе надбавки нет: нести будет сам покупатель.
   if (корзДоставка > 0 && !pickup) delivery += корзДоставка;
+  const hourlyFee = slotSurcharge(s, date, interval, pickup);
+  delivery += hourlyFee;
   rec.set("delivery_price", delivery);
   rec.set("total", sum + delivery);
   rec.set("bonus", bonus);
