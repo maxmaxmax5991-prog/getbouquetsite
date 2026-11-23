@@ -1,0 +1,1 @@
+migrate(app=>{app.db().newQuery("CREATE TABLE IF NOT EXISTS occasion_public_links (token_hash TEXT PRIMARY KEY,day TEXT NOT NULL,expires TEXT NOT NULL)").execute();},app=>{app.db().newQuery('DROP TABLE IF EXISTS occasion_public_links').execute();});

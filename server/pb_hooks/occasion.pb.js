@@ -35,3 +35,11 @@ routerAdd('GET','/api/shop/mother-map',(e)=>{
  const s=shop.settings($app),lat=+s.get('origin_lat')||0,lon=+s.get('origin_lon')||0;
  return e.json(200,{day:'2026-11-29',orders:mapOrders,department_updated_at:department.updated_at,pickup:{lat,lon,address:String(s.get('pickup_address')||s.get('origin_address')||'Точка самовывоза')},updated_at:new Date().toISOString()});
 },$apis.requireAuth('managers'));
+routerAdd('GET','/api/shop/mother-free',(e)=>{
+ e.response.header().set('Cache-Control','no-store');e.response.header().set('X-Robots-Tag','noindex, nofollow, noarchive');e.response.header().set('Referrer-Policy','no-referrer');
+ const key=String(e.request.url.query().get('key')||'');if(!/^[A-Za-z0-9_-]{43}$/.test(key))return e.json(404,{message:'Ссылка недействительна.'});
+ const rows=arrayOf(new DynamicModel({day:'',expires:''}));$app.db().newQuery('SELECT day,expires FROM occasion_public_links WHERE token_hash={:hash}').bind({hash:$security.sha256(key)}).all(rows);
+ if(!rows.length||rows[0].day!=='2026-11-29'||Date.parse(rows[0].expires)<=Date.now())return e.json(404,{message:'Ссылка недействительна или срок её действия истёк.'});
+ const r=require(`${__hooks}/lib/occasion.js`).report($app),t=r.total;
+ return e.json(200,{day:r.day,updated_at:r.updated_at,sales_updated_at:r.department.updated_at,sales_stale:r.department.stale||!!r.department.last_error,total:{reserved:t.reserved,booked:t.booked,free:t.free,shortage:t.shortage,percent:t.percent},positions:r.positions.filter(p=>p.has_reserve||p.shortage>0).map(p=>({name:p.name,length:p.length,reserved:p.has_reserve?p.reserved:0,booked:p.booked,free:p.has_reserve?p.free:-p.booked,shortage:p.shortage||0,has_reserve:p.has_reserve}))});
+});

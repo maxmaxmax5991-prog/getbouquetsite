@@ -19,8 +19,8 @@ def delivery_details(order):
  interval='–'.join(times[:2]) if times else str(order.get('deliveryPlannedMoment',''))[11:16]
  if interval=='00:00':interval=''
  full=order.get('shipmentAddressFull')or{};parts=[str(full.get(k)or'').strip() for k in ['city','street','house','block']];address=', '.join(p for p in parts if p)
- if not address:
-  address=str(order.get('shipmentAddress')or'');address=re.split(r'\b(?:кв\.?|квартира|подъезд|этаж|домофон|получатель|телефон)\b',address,1,flags=re.I)[0].strip(' ,;')
+ if not full.get('street') or not full.get('house'):
+  address=str(order.get('shipmentAddress')or', '.join(p for p in [str(full.get('city')or''),str(full.get('addInfo')or'')]if p));address=re.split(r'\b(?:кв\.?|квартира|подъезд|этаж|домофон|получатель|телефон)\b',address,1,flags=re.I)[0].strip(' ,;')
  address=re.sub(r'\+?[78][\s()\-]*\d(?:[\s()\-]*\d){9}', '',address).strip(' ,;')
  return {'interval':interval,'interval_raw':raw,'address':address}
 def geocode_cached(address,key,cache):
