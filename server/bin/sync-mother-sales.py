@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only MoySklad -> atomic dated sales snapshot. Never alters ordinary inventory."""
 import sqlite3,json,urllib.request,urllib.parse,gzip,re,pathlib,datetime,time,os,sys,fcntl
-DAY='2026-11-29';BASE='https://api.moysklad.ru/api/remap/1.2'
+DAY='2026-11-29';STORE_ID='3d520ee3-76c1-11f0-0a80-142900354c8e';STORE_NAME='Москва 01 - Маленковская 14, к1 (Ласфлор)';BASE='https://api.moysklad.ru/api/remap/1.2'
 SELECTED=['INST Venikoff','VK Venikoff','INST GB','INST GB LP','VK GB','VK Fl','INST FLOW','INST BELCV','INST 31','Телеграм Venikoff','Телеграмм','WhatsApp','MAX','Ева Venikoff','Ева ГБ','Ева Ген.Дир','Личный акк ген.дир','Яковлев МА','Стафф Магазина','Вх. звонок','Розница','Витрина','Канал Готовые букеты','Юрлица']
 def norm(s):return re.sub(r'[^a-zа-я0-9]','',str(s).lower().replace('ё','е').replace('аваланш','аваланж'))
 def flower_key(s):
@@ -13,6 +13,32 @@ def classify(order):
  paid=('оплачен' in state and not re.search(r'не\s*оплачен',state))or(order.get('sum',0)>0 and order.get('payedSum',0)>=order['sum'])
  cancelled='отмен' in state or bool(order.get('deleted'))
  return {'counted':not cancelled and (pickup or paid),'pickup':pickup,'paid':paid,'state':(order.get('state')or{}).get('name',''),'reason':'Отменён' if cancelled else '' if pickup or paid else 'Неоплаченная доставка'}
+def delivery_details(order):
+ attrs={a['name']:a.get('value')for a in order.get('attributes',[]) if isinstance(a.get('value'),str)}
+ raw=attrs.get('Время доставки','');times=re.findall(r'(?<!\d)([0-2]?\d):([0-5]\d)',raw);times=[h.zfill(2)+':'+m for h,m in times]
+ interval='–'.join(times[:2]) if times else str(order.get('deliveryPlannedMoment',''))[11:16]
+ if interval=='00:00':interval=''
+ full=order.get('shipmentAddressFull')or{};parts=[str(full.get(k)or'').strip() for k in ['city','street','house','block']];address=', '.join(p for p in parts if p)
+ if not address:
+  address=str(order.get('shipmentAddress')or'');address=re.split(r'\b(?:кв\.?|квартира|подъезд|этаж|домофон|получатель|телефон)\b',address,1,flags=re.I)[0].strip(' ,;')
+ address=re.sub(r'\+?[78][\s()\-]*\d(?:[\s()\-]*\d){9}', '',address).strip(' ,;')
+ return {'interval':interval,'interval_raw':raw,'address':address}
+def geocode_cached(address,key,cache):
+ if not address or not key:return {'lat':0,'lon':0,'geo_error':'Адрес не указан' if not address else 'Геокодирование не настроено'}
+ digest=__import__('hashlib').sha256(address.encode()).hexdigest();old=cache.get(digest)
+ if old and old.get('expires',0)>time.time():return old['result']
+ query=address if re.search(r'моск|город|область|химки|мытищи|красногорск|балашиха',address,re.I) else 'Москва, '+address
+ result={'lat':0,'lon':0,'geo_error':'Адрес требует уточнения'}
+ try:
+  url='https://geocode-maps.yandex.ru/1.x/?'+urllib.parse.urlencode({'apikey':key,'format':'json','results':1,'lang':'ru_RU','ll':'37.6173,55.7558','spn':'1.2,0.8','geocode':query})
+  with urllib.request.urlopen(url,timeout=12)as response:data=json.load(response)
+  rows=data['response']['GeoObjectCollection']['featureMember']
+  if rows:
+   obj=rows[0]['GeoObject'];meta=obj.get('metaDataProperty',{}).get('GeocoderMetaData',{});lon,lat=map(float,obj['Point']['pos'].split())
+   if meta.get('precision')in['exact','number','near']and meta.get('kind')=='house'and abs(lat)<=90 and abs(lon)<=180:result={'lat':lat,'lon':lon,'geo_error':''}
+ except Exception:result={'lat':0,'lon':0,'geo_error':'Не удалось определить координаты'}
+ cache[digest]={'expires':time.time()+(7*86400 if result['lat']else 3600),'result':result};return result
+
 class Client:
  def __init__(self,token):self.token=token
  def get(self,path):
@@ -41,11 +67,16 @@ def build(client,db):
    bits=str(label).split('-');length=int(bits[0]) if bits[0].isdigit() else 0;count=int(bits[1]) if len(bits)>1 and bits[1].isdigit() and b.get('whole') else 1
    bindings.setdefault(b['id'],[]).append((p,length,count))
  channels=client.all('/entity/saleschannel');selected=[c for c in channels if norm(c['name'])in{norm(n) for n in SELECTED}];channelids={c['id'] for c in selected}
- orders=client.all('/entity/customerorder',{'filter':'deliveryPlannedMoment>='+DAY+' 00:00:00;deliveryPlannedMoment<2026-11-30 00:00:00','expand':'salesChannel,state,positions.assortment','order':'updated,asc'})
+ orders=client.all('/entity/customerorder',{'filter':'store='+BASE+'/entity/store/'+STORE_ID+';deliveryPlannedMoment>='+DAY+' 00:00:00;deliveryPlannedMoment<2026-11-30 00:00:00','expand':'salesChannel,state,positions.assortment','order':'updated,asc'})
  siteids={r[0] for r in db.execute("select ms_id from orders where ms_id!=''")};docs=[];items=[];externalmeta={};issues=[];bundles={};duplicates=0
  cache=pathlib.Path(os.getenv('VENIKOFF_COMPONENTS_CACHE','/opt/venikoff/backups/mother-reserve-20261129/sales-components-cache.json'))
  try:stored=json.loads(cache.read_text())
  except (OSError,ValueError):stored={}
+ geopath=cache.with_name('sales-geocoding-cache.json')
+ try:geodata=json.loads(geopath.read_text())
+ except (OSError,ValueError):geodata={}
+ try:geokey=db.execute('select ymaps_key from settings limit 1').fetchone()[0]
+ except (sqlite3.Error,TypeError):geokey=''
  def components(a):
   aid=a['id'];old=stored.get(aid)
   if old and time.time()-old['at']<3600:return old['rows']
@@ -74,17 +105,21 @@ def build(client,db):
    externalmeta[pid]={'id':pid,'name':display,'no_stock':untracked};issues.append({'document':doc['id'],'number':doc['number'],'name':name,'quantity':qty,'length':length,'untracked':untracked})
   items.append({'document':doc['id'],'product_id':pid,'length':length,'quantity':qty,'name':display,'source_name':name,'channel':doc['channel'],'untracked':untracked})
  for order in orders:
+  if (order.get('store')or{}).get('meta',{}).get('href','').rstrip('/').split('/')[-1]!=STORE_ID:continue
   ch=order.get('salesChannel')or{}
   if order['id'] in siteids:duplicates+=1;continue
   if ch.get('id')not in channelids:continue
   if str(order.get('deliveryPlannedMoment',''))[:10]!=DAY:raise RuntimeError('Upstream returned incorrect planned day')
-  cl=classify(order);doc={'id':order['id'],'number':order['name'],'channel':ch.get('name',''),'channel_id':ch.get('id'),'date':order['deliveryPlannedMoment'],**cl};docs.append(doc)
+  cl=classify(order);doc={'id':order['id'],'number':order['name'],'channel':ch.get('name',''),'channel_id':ch.get('id'),'date':order['deliveryPlannedMoment'],'total':float(order.get('sum',0))/100,**cl,**delivery_details(order)};docs.append(doc)
   if not cl['counted']:continue
+  if not cl['pickup']:doc.update(geocode_cached(doc['address'],geokey,geodata))
+  else:doc.update(lat=0,lon=0,geo_error='')
   positions=order.get('positions')or{};rows=positions.get('rows',[])
   if positions.get('meta',{}).get('size',0)>len(rows):rows=client.all('/entity/customerorder/'+order['id']+'/positions',{'expand':'assortment'})
   for pos in rows:add(pos['assortment'],float(pos['quantity']),doc)
+ gtemp=geopath.with_suffix('.tmp');gtemp.write_text(json.dumps(geodata,ensure_ascii=False));gtemp.chmod(0o600);gtemp.replace(geopath)
  temp=cache.with_suffix('.tmp');temp.write_text(json.dumps(stored,ensure_ascii=False));temp.chmod(0o600);temp.replace(cache)
- return {'day':DAY,'documents':docs,'items':items,'products':list(externalmeta.values()),'unmatched':issues,'channels':[{'id':c['id'],'name':c['name']}for c in selected],'excluded_site':duplicates,'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+ return {'day':DAY,'store':{'id':STORE_ID,'name':STORE_NAME},'documents':docs,'items':items,'products':list(externalmeta.values()),'unmatched':issues,'channels':[{'id':c['id'],'name':c['name']}for c in selected],'excluded_site':duplicates,'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
 def main():
  lock=open('/opt/venikoff/backups/mother-reserve-20261129/sales-sync.lock','a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
  db=sqlite3.connect('/opt/venikoff/pb/pb_data/data.db',timeout=30);db.row_factory=sqlite3.Row

@@ -30,6 +30,8 @@ routerAdd('GET','/api/shop/mother-map',(e)=>{
  e.response.header().set('Cache-Control','no-store');
  const rows=arrayOf(new DynamicModel({id:'',number:0,interval:'',address:'',lat:0.1,lon:0.1,delivery_type:'',payment_status:'',status:'',unknown_address:false}));
  $app.db().newQuery("SELECT id,number,interval,address,lat,lon,delivery_type,payment_status,status,unknown_address FROM orders WHERE substr(date,1,10)='2026-11-29' AND status!='cancelled' AND (delivery_type='pickup' OR payment_status='paid') ORDER BY interval,number").all(rows);
+ const department=require(`${__hooks}/lib/occasion.js`).departmentReport($app);
+ const mapOrders=JSON.parse(JSON.stringify(rows)).map(o=>({...o,source:'site'})).concat(department.documents.filter(d=>d.counted).map(d=>({id:'ms:'+d.id,number:d.number,source:'department',channel:d.channel,interval:d.interval||'',address:d.address||'',lat:+d.lat||0,lon:+d.lon||0,delivery_type:d.pickup?'pickup':'delivery',payment_status:d.paid?'paid':'unpaid',status:'new',unknown_address:!d.address&&!d.pickup,geo_error:d.geo_error||''})));
  const s=shop.settings($app),lat=+s.get('origin_lat')||0,lon=+s.get('origin_lon')||0;
- return e.json(200,{day:'2026-11-29',orders:JSON.parse(JSON.stringify(rows)),pickup:{lat,lon,address:String(s.get('pickup_address')||s.get('origin_address')||'Точка самовывоза')},updated_at:new Date().toISOString()});
+ return e.json(200,{day:'2026-11-29',orders:mapOrders,department_updated_at:department.updated_at,pickup:{lat,lon,address:String(s.get('pickup_address')||s.get('origin_address')||'Точка самовывоза')},updated_at:new Date().toISOString()});
 },$apis.requireAuth('managers'));
