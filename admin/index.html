@@ -272,6 +272,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
 .tgp-img{overflow:hidden}
 @media (max-width:600px){.tgp-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.tgp-cap{font-size:11px}}
 #appearanceTheme{appearance:none;position:relative;width:54px;height:30px;border-radius:999px;background:#c8c8cf;border:1px solid #aaa;cursor:pointer;flex:none;transition:background .2s}#appearanceTheme:before{content:'';position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0003;transition:transform .2s}#appearanceTheme:checked{background:#b63888;border-color:#b63888}#appearanceTheme:checked:before{transform:translateX(24px)}#appearanceTheme:focus-visible{outline:3px solid #f097c9;outline-offset:3px}#appearanceTheme:disabled{opacity:.5}
+.mother-product-check{display:inline-flex;align-items:center;gap:6px;margin-top:7px;font-size:12px;color:var(--accent);font-weight:700;cursor:pointer}.mother-product-check input{width:17px;height:17px;accent-color:#b95174;margin:0}.mother-product-check:has(input:checked){color:#a83760}
 </style>
 </head>
 <body>
@@ -444,6 +445,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <button class="btn btn-p" id="pNew">+ Новый товар</button>
       </div>
       <p class="hint" style="margin:-4px 0 12px">Нажмите на товар, чтобы изменить. Зелёный переключатель справа — показать или скрыть товар вообще, цветные — на какой витрине он продаётся. Товары можно добавлять и через Телеграм-бота.</p>
+      <p class="hint">Галочка «День мамы» сохраняется сразу. На праздничной странице видны только отмеченные активные букеты с фото. <a href="/den-mamy/" target="_blank">Открыть страницу предзаказов →</a></p>
       <div class="plist" id="plist"></div>
     </section>
 
@@ -1752,7 +1754,8 @@ function renderProducts() {
   $('#plist').innerHTML = r.length ? r.map(p => `<div class="prow${p.active ? '' : ' off'}" data-id="${p.id}"${sortable ? ' draggable="true"' : ''}>
     <div class="grip">${sortable ? `<button data-up="${p.id}" aria-label="Выше">▲</button><button data-down="${p.id}" aria-label="Ниже">▼</button>` : ''}</div>
     ${p.photo && p.photo[0] ? `<img src="${fileUrl(p, p.photo[0], '160x160')}" alt="" loading="lazy">` : '<div class="ph" style="width:56px;height:56px"></div>'}
-    <div><div class="n">${esc(p.name)}</div><div class="s">${esc((CATS.find(x => x.id === p.category) || {}).name || '')} · ${priceOf(p)}</div></div>
+    <div><div class="n">${esc(p.name)}</div><div class="s">${esc((CATS.find(x => x.id === p.category) || {}).name || '')} · ${priceOf(p)}</div>
+      ${!['cards','toys','vazy'].includes((CATS.find(x => x.id === p.category) || {}).slug) ? `<label class="mother-product-check" data-mother-label><input type="checkbox" data-mothers-day="${p.id}"${p.mothers_day ? ' checked' : ''}><span>День мамы</span></label>` : ''}</div>
     ${brandCells(p)}
     <button class="sw" data-toggle="${p.id}" role="switch" aria-checked="${p.active}" aria-label="На сайте"></button>
   </div>`).join('') : `<div class="empty">Ничего не нашлось.</div>`;
@@ -1794,9 +1797,25 @@ const loadProducts = safe(async () => {
   PRODS.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
   renderProducts();
 });
+$('#plist').addEventListener('change', safe(async e => {
+  const input = e.target.closest('[data-mothers-day]');
+  if (!input) return;
+  const p = PRODS.find(p => p.id === input.dataset.mothersDay);
+  if (!p) return;
+  const previous = !!p.mothers_day;
+  input.disabled = true;
+  try {
+    const saved = await api(`/api/collections/products/records/${p.id}`, {method:'PATCH',body:{mothers_day:input.checked}});
+    p.mothers_day = !!saved.mothers_day;
+    toast(p.mothers_day ? 'Добавлен на страницу Дня мамы' : 'Убран со страницы Дня мамы');
+  } catch (error) { input.checked = previous; throw error; }
+  finally { input.disabled = false; }
+}));
+
 $('#pSearch').oninput = renderProducts;
 $('#pCat').onchange = renderProducts;
 $('#plist').addEventListener('click', safe(async e => {
+  if (e.target.closest('[data-mother-label]')) return;
   const up = e.target.closest('[data-up]'), dn = e.target.closest('[data-down]');
   if (up || dn) {
     const id = (up || dn).dataset[up ? 'up' : 'down'];
