@@ -614,7 +614,7 @@ routerAdd("POST", "/api/shop/cart-check", (e) => {
     let p;
     try { p = $app.findRecordById("products", String(it.id || "")); } catch (_) { out.push({ key, gone: true, text: "Этого букета больше нет." }); return; }
     const lengthError = shop.mothersDayLengthProblem($app, String(b.date || ""), p, String(it.label || "").split("-")[0]);
-    if (lengthError) { out.push({key,ok:false,text:lengthError}); return; }
+    if (lengthError) { out.push({key,ok:true,mother_error:lengthError}); return; }
     if (String(b.date || "") === "2026-11-29" && p.get("mothers_day")) { out.push({key,ok:true}); return; }
     if (!p.get("active")) { out.push({ key, gone: true, text: "Сейчас недоступен." }); return; }
     const qty = Math.max(1, Math.floor(+it.qty || 1));
