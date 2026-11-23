@@ -1,10 +1,10 @@
 const DAY='2026-11-29';
-function aggregate(orders,movements,products) {
+function aggregate(orders,movements,products,sales=[]) {
  const names={},meta={};products.forEach(p=>{names[p.id]=p.name;meta[p.id]=p;});
  const rows={};
  const row=(id,length,name)=>{
   const key=id+'|'+(+length);
-  if(!rows[key])rows[key]={id,name:names[id]||name||id,length:+length,reserved:0,booked:0,has_reserve:false,orders:[],purchase_cost_kop:0,purchase_cost_missing:0};
+  if(!rows[key])rows[key]={id,name:names[id]||name||id,length:+length,reserved:0,booked:0,site_booked:0,sales_booked:0,has_reserve:false,orders:[],purchase_cost_kop:0,purchase_cost_missing:0};
   return rows[key];
  };
  movements.forEach(m=>{const r=row(m.product_id,m.length);r.reserved+=+m.quantity;r.has_reserve=true;if(m.cost_kop===null||m.cost_kop===undefined)r.purchase_cost_missing++;else r.purchase_cost_kop+=+m.cost_kop;});
@@ -13,7 +13,7 @@ function aggregate(orders,movements,products) {
   if(String(o.date).slice(0,10)!==DAY || o.status==='cancelled' || (o.delivery_type!=='pickup' && o.payment_status!=='paid'))return;
   counted++;
   let items=o.items||[];if(typeof items==='string'){try{items=JSON.parse(items);}catch(_){items=[];}}
-  const add=(p,length,n,name)=>{if(!p||!(+length>0)||!(n>0))return;const r=row(p,length,name);r.booked+=n;if(r.orders.indexOf(o.id)<0)r.orders.push(o.id);};
+  const add=(p,length,n,name)=>{if(!p||!(+length>0)||!(n>0))return;const r=row(p,length,name);r.booked+=n;r.site_booked+=n;if(r.orders.indexOf(o.id)<0)r.orders.push(o.id);};
   items.forEach(it=>{
    const quantity=it.qty===undefined?1:+it.qty;if(!(quantity>0))return;
    if(Array.isArray(it.parts)&&it.parts.length){it.parts.forEach(p=>add(p.id,p.len,(+p.n||+p.cnt||0)*quantity,p.name));return;}
@@ -22,6 +22,7 @@ function aggregate(orders,movements,products) {
    else if(+it.stems>0 && (+it.len||+it.length)>0)add(it.id,+it.len||+it.length,+it.stems*quantity,it.name);
   });
  });
+ sales.forEach(m=>{if(!(m.quantity>0)||!m.product_id)return;const r=row(m.product_id,m.length,m.name);r.booked+=+m.quantity;r.sales_booked+=+m.quantity;if(r.orders.indexOf('ms:'+m.document)<0)r.orders.push('ms:'+m.document);});
  const positions=Object.keys(rows).map(k=>{
   const r=rows[k];r.order_count=r.orders.length;delete r.orders;
   r.untracked=!!(meta[r.id] && meta[r.id].no_stock);
@@ -45,6 +46,8 @@ function aggregate(orders,movements,products) {
  });
  const by_variety=Object.keys(varieties).map(k=>{const v=varieties[k];return {...v,free:v.reserved-v.booked,percent:v.reserved?Math.round(v.booked/v.reserved*1000)/10:null};}).filter(v=>v.reserved>0).sort((a,b)=>b.percent-a.percent||a.name.localeCompare(b.name,'ru'));
  const total=positions.filter(r=>r.has_reserve).reduce((a,r)=>({reserved:a.reserved+r.reserved,booked:a.booked+r.booked,free:a.free+r.free}),{reserved:0,booked:0,free:0});
+ total.site_booked=positions.filter(r=>r.has_reserve).reduce((n,r)=>n+r.site_booked,0);
+ total.sales_booked=positions.filter(r=>r.has_reserve).reduce((n,r)=>n+r.sales_booked,0);
  total.percent=total.reserved?Math.round(total.booked/total.reserved*10000)/100:0;
  total.purchase_cost_kop=positions.reduce((n,r)=>n+r.purchase_cost_kop,0);
  total.purchase_cost=total.purchase_cost_kop/100;
@@ -70,6 +73,18 @@ function report(app) {
  });
  const decode=v=>JSON.parse(JSON.stringify(v));
  const moves=decode(movements).map(m=>({...m,unit_cost_kop:m.unit_cost_kop<0?null:m.unit_cost_kop,cost_kop:m.cost_kop<0?null:m.cost_kop}));
- return {...aggregate(decode(orders),moves,products),movements:moves,updated_at:new Date().toISOString()};
+ const snapshots=arrayOf(new DynamicModel({payload:'',updated:'',last_error:''}));
+ app.db().newQuery('SELECT payload,updated,last_error FROM occasion_sales_snapshots WHERE day={:day}').bind({day:DAY}).all(snapshots);
+ let department={day:DAY,documents:[],items:[],products:[],unmatched:[],channels:[],updated_at:null,last_error:'Синхронизация ещё не выполнена.'};
+ if(snapshots.length){department=JSON.parse(snapshots[0].payload);department.last_error=snapshots[0].last_error;department.updated_at=snapshots[0].updated;}
+ const siteIds=arrayOf(new DynamicModel({ms_id:''}));app.db().newQuery("SELECT DISTINCT ms_id FROM orders WHERE ms_id!=''").all(siteIds);
+ const blocked={};decode(siteIds).forEach(r=>blocked[r.ms_id]=true);
+ department.documents=department.documents.filter(d=>!blocked[d.id]);
+ department.items=department.items.filter(r=>!blocked[r.document]);
+ department.unmatched=department.unmatched.filter(r=>!blocked[r.document]);
+ department.stale=!department.updated_at||Date.now()-Date.parse(department.updated_at)>15*60000;
+ const allProducts=products.concat((department.products||[]).filter(p=>!products.some(x=>x.id===p.id)));
+ const result=aggregate(decode(orders),moves,allProducts,department.items),checks=result.counted_orders+department.documents.filter(d=>d.counted).length;
+ return {...result,goal:{target:1000,count:checks,percent:Math.round(checks/1000*10000)/100},department,movements:moves,updated_at:new Date().toISOString()};
 }
 module.exports={DAY,aggregate,report};

@@ -1,0 +1,11 @@
+[Unit]
+Description=Read MoySklad sales department preorders for Mothers Day
+After=network-online.target venikoff-pb.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/venikoff/bin/sync-mother-sales.py
+TimeoutStartSec=180
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/venikoff/pb/pb_data /opt/venikoff/backups/mother-reserve-20261129

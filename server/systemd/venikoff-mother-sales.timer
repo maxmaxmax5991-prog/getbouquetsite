@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh Mothers Day department bookings every five minutes
+[Timer]
+OnBootSec=90s
+OnUnitInactiveSec=5min
+RandomizedDelaySec=20s
+[Install]
+WantedBy=timers.target

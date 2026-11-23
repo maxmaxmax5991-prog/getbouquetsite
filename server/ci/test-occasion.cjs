@@ -11,3 +11,6 @@ assert.equal(r.total.reserved,204);assert.equal(r.total.booked,122);assert.equal
 const topped=aggregate(orders,[...movements,{product_id:'rose',length:50,quantity:51,cost_kop:null}],products);assert.equal(topped.total.booked,122);assert.equal(topped.total.free,133);assert.equal(topped.total.purchase_cost_missing,1);
 const short=aggregate([order('large',{items:[{id:'rose',label:'50-301',qty:1}]})],movements,products);assert.equal(short.total.free,-97);assert.equal(short.total.shortage,97);
 console.log('PASS: paid deliveries + all pickups; baskets; exclusions; reserve topups; shortage; valuation and cost completeness');
+const dept=aggregate(orders,movements,products,[{document:'department-order',product_id:'rose',length:50,quantity:90},{document:'department-order',product_id:'free',length:60,quantity:20}]);
+assert.equal(dept.total.booked,212);assert.equal(dept.total.site_booked,122);assert.equal(dept.total.sales_booked,90);assert.equal(dept.total.free,-8);assert.equal(dept.total.shortage,8);
+console.log('PASS: site + department share reserve, channel breakdown and joint shortage');
