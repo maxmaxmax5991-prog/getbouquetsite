@@ -591,6 +591,9 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin, ho
   if (fixed) return fixed.filter(label => toMin(label.split('–')[0]) >= first);
   const start0 = Math.ceil(first / r.step) * r.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
+  if (pickup && dateIso === "2026-11-29") {
+    const times = []; for (let t=start0;t<=send;t+=r.step) times.push(hhmm(t)); return times;
+  }
   const full = pickup ? r.step : r.hours * 60;
   // букет должен уехать не позже «отправляем до», а приехать не позже «крайнего времени доставки»
   const last = Math.min(send, till - full);
@@ -605,6 +608,9 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin, ho
 // Что не так с выбранным интервалом: пустая строка — всё в порядке.
 function slotProblem(s, dateIso, sum, label, pickup, ready, express, fromMin) {
   const r = slotRules(s);
+  if (pickup && dateIso === "2026-11-29" && /^\d{2}:\d{2}$/.test(String(label))) {
+    return slotsFor(s,dateIso,sum,20,true,ready,express,fromMin).includes(String(label)) ? "" : "Выберите время, когда заберёте букет.";
+  }
   const m = String(label).match(/^(\d{1,2}):(\d{2})[–-](\d{1,2}):(\d{2})$/);
   const late = pickup ? "Выберите время, когда заберёте букет." : "На этот интервал уже не успеем. Выберите более поздний.";
   if (!m) return late;
@@ -844,9 +850,24 @@ function prepareOrder(app, rec) {
     rec.set("address", (br && br.get("pickup_address")) || s.get("pickup_address") || "Самовывоз");
   }
 
-  let delivery = 0;
+  const unknownAddress = !pickup && !!rec.get("unknown_address");
+  rec.set("unknown_address", unknownAddress);
+  if (unknownAddress) {
+    const recipient = String(rec.get("recipient") || "").trim();
+    const phone = String(rec.get("recipient_phone") || "").trim();
+    const digits = phone.replace(/\D/g, "");
+    if (!recipient) fail("Укажите имя получателя, чтобы мы уточнили адрес.");
+    if (digits.length < 10 || digits.length > 15) fail("Укажите телефон получателя, чтобы мы уточнили адрес.");
+    rec.set("recipient_phone", phone.slice(0,40));
+    rec.set("recipient", `${recipient}, ${phone}`.slice(0,200));
+    rec.set("address", "Адрес уточнить у получателя");
+    rec.set("zone", ""); rec.set("zone_name", "адрес неизвестен — уточнить у получателя");
+    ["street","house","block","entrance","floor","flat","intercom"].forEach(k => rec.set(k,""));
+    ["lat","lon","distance_km","mkad_km"].forEach(k => rec.set(k,0));
+  } else rec.set("recipient_phone", "");
+  let delivery = unknownAddress ? 700 : 0;
   let адресНеУзнан = false;   // карта не нашла дом — предупредим менеджера ниже
-  if (!pickup) {
+  if (!pickup && !unknownAddress) {
     // Адрес всегда по частям: улица, дом, корпус, подъезд, этаж, квартира, домофон.
     const geo = require(`${__hooks}/lib/geo.js`);
     const parts = {};
@@ -942,11 +963,11 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
   rec.set("delivery_price", delivery);
   rec.set("total", sum + delivery);
   rec.set("bonus", bonus);
-  rec.set("comment", адресНеУзнан
+  rec.set("comment", unknownAddress ? "⚠️ УТОЧНИТЬ АДРЕС У ПОЛУЧАТЕЛЯ. Предоплата доставки 700 ₽; если потребуется доплата, отправителю нужна ссылка на оплату." : адресНеУзнан
     ? "⚠️ Карта не нашла этот адрес. Доставка посчитана по городу — проверьте адрес с покупателем."
     : "");
   // просьба курьеру — только при доставке; длину режем на сервере, клиенту не верим
-  rec.set("delivery_note", pickup ? "" : String(rec.get("delivery_note") || "").slice(0, 500));
+  rec.set("delivery_note", pickup ? "" : (unknownAddress ? "Адрес уточнить у получателя. Предоплата доставки 700 ₽. Возможна доплата по ссылке отправителю. " : "") + String(rec.get("delivery_note") || "").slice(0, unknownAddress ? 350 : 500));
   rec.set("tg_code", $security.randomString(10));   // по нему покупатель подпишется на статусы в боте
   // откуда пришёл человек — чтобы считать не только посетителей по источникам, но и деньги
   rec.set("source", String(rec.get("source") || "").slice(0, 60));
