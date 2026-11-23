@@ -28,7 +28,7 @@ routerAdd('GET','/api/shop/mother-map',(e)=>{
  const shop=require(`${__hooks}/lib/shop.js`);
  if(!shop.can(e,['owner','head','manager']))return e.json(403,{message:'Недостаточно прав.'});
  e.response.header().set('Cache-Control','no-store');
- const rows=arrayOf(new DynamicModel({id:'',number:0,interval:'',address:'',lat:0,lon:0,delivery_type:'',payment_status:'',status:'',unknown_address:false}));
+ const rows=arrayOf(new DynamicModel({id:'',number:0,interval:'',address:'',lat:0.1,lon:0.1,delivery_type:'',payment_status:'',status:'',unknown_address:false}));
  $app.db().newQuery("SELECT id,number,interval,address,lat,lon,delivery_type,payment_status,status,unknown_address FROM orders WHERE substr(date,1,10)='2026-11-29' AND status!='cancelled' AND (delivery_type='pickup' OR payment_status='paid') ORDER BY interval,number").all(rows);
  const s=shop.settings($app),lat=+s.get('origin_lat')||0,lon=+s.get('origin_lon')||0;
  return e.json(200,{day:'2026-11-29',orders:JSON.parse(JSON.stringify(rows)),pickup:{lat,lon,address:String(s.get('pickup_address')||s.get('origin_address')||'Точка самовывоза')},updated_at:new Date().toISOString()});
