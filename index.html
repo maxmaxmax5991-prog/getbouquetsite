@@ -1268,8 +1268,9 @@ body.mother-route{background:#fcf7f0;color:#503b3a}body.mother-route .top{backgr
   </div></section>
   <div class="wrap mother-content">
     <div class="mother-benefits"><span>♡ Фото букета перед доставкой</span><span>✉ Открытка с вашими словами</span><span>⌁ Доставка в выбранный интервал</span></div>
-    <section class="mother-selection" id="motherSelection"><div class="mother-section-head"><div><p class="mother-eyebrow">ВЫБИРАЙТЕ С ЛЮБОВЬЮ</p><h2>Букеты для мамы</h2></div><p>Обычные цены каталога.<br>Дату доставки подставим за вас.</p></div>
-      <div class="grid" id="motherGrid"></div>
+    <section class="mother-selection" id="motherSelection"><div class="mother-section-head"><div><p class="mother-eyebrow">ВЫБИРАЙТЕ С ЛЮБОВЬЮ</p><h2>Букеты для мамы</h2></div><p>Обычные цены каталога.<br>Предзаказ независимо от текущих остатков.</p></div>
+      <p class="hint">Одноголовые розы на 29 ноября — только 50 и 60 см.</p>
+  <div class="grid" id="motherGrid"></div>
     </section>
     <section class="mother-delivery"><div><p class="mother-eyebrow">ПОЗАБОТИМСЯ О ВАЖНОМ</p><h2>Встречаемся<br><em>29 ноября.</em></h2><p>Оформите предзаказ заранее и выберите удобное время доставки.</p></div>
       <div class="mother-windows"><b>Три интервала на выбор</b><span>08:00–13:00</span><span>13:00–18:00</span><span>18:00–22:00</span><p>Нужно точнее? При оформлении можно выбрать часовой интервал с 09:00 до 22:00 за дополнительные 1 250 ₽. Стоимость самой доставки рассчитывается по адресу.</p></div>
@@ -1862,6 +1863,27 @@ const curLabel = (p) => {
   if (выбран) delete sel[p.id];
   return defLabel(p);
 };
+function motherLengthContext() {
+  return location.pathname.replace(/\/$/, '') === '/den-mamy' || store.get('preorderDate','') === '2026-11-29';
+}
+function motherViewProduct(p) {
+  if (!p || !motherLengthContext()) return p;
+  const preorder = !!p.mothers_day;
+  let variants = p.variants;
+  if (p.cat === 'single') variants = (variants || []).filter(v => [50,60].includes(+v.len));
+  if (preorder && variants) variants = variants.map(v => ({...v,out:false,wait_at:undefined,ready:undefined}));
+  const available = (variants || []).filter(v => !v.out);
+  return {...p, variants, lengths:p.cat === 'single' ? (p.lengths || []).filter(L => [50,60].includes(+L)) : p.lengths,
+    def_label:(variants || []).some(v => v.label === p.def_label) ? p.def_label : undefined,
+    price:variants && variants.length ? Math.min(...(available.length ? available : variants).map(v => v.price)) : p.price,
+    off:preorder ? false : p.off, soldout:preorder ? false : (variants ? !available.length : p.soldout),
+    express:preorder ? false : p.express, ready_at:preorder ? undefined : p.ready_at, batch:preorder ? undefined : p.batch};
+}
+function motherCartProblem(date) {
+  if (date !== '2026-11-29') return '';
+  const invalid = Object.keys(cart).map(parseKey).find(({id,label}) => byId[id] && byId[id].cat === 'single' && ![50,60].includes(+String(label).split('-')[0]));
+  return invalid ? `На 29 ноября одноголовые розы доступны только 50 и 60 см. Замените «${byId[invalid.id].name}» в корзине или выберите другую дату.` : '';
+}
 const variant = (p, label) => p.variants && p.variants.find(v => v.label === label);
 const FLOWER = [[/роз/i, ['роза', 'розы', 'роз']], [/гортенз/i, ['гортензия', 'гортензии', 'гортензий']],
   [/тюльпан/i, ['тюльпан', 'тюльпана', 'тюльпанов']], [/пион/i, ['пион', 'пиона', 'пионов']],
@@ -2719,7 +2741,7 @@ const parseKey = k => { const [id, label = ''] = k.split('|'); return { id, labe
 const cardKey = p => p.variants ? `${p.id}|${curLabel(p)}` : p.id;
 for (const k of Object.keys(cart)) {
   const { id, label } = parseKey(k), p = byId[id];
-  if (!p || p.off || (p.variants ? !variant(p, label) : label)) delete cart[k];
+  if (!p || (p.off && !(p.mothers_day && motherLengthContext())) || (p.variants ? !variant(p, label) : label)) delete cart[k];
 }
 // Цена нуль — это не «бесплатно»: buyHTML на такую цену рисует «Цену уточняем».
 // Лучше честная заглушка на одной кнопке, чем упавшая отрисовка всей страницы.
@@ -2766,6 +2788,7 @@ function readyNow(p) {
   return (v && v.ready !== undefined) ? Math.max(0, +v.ready || 0) : Math.max(0, +p.ready || 0);
 }
 function buyHTML(p) {
+  p = motherViewProduct(p);
   // цена не проставлена — купить нельзя, иначе букет уйдёт даром
   if (p.no_price || !(keyPrice(cardKey(p)) > 0)) return '<span class="buy soon">Цену уточняем</span>';
   // весь сорт или выбранный размер закончился — показываем, но продать не даём
@@ -2880,6 +2903,8 @@ setInterval(обновитьТаймерыПредложения, 1000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) обновитьТаймерыПредложения(); });
 
 function card(p, место, и) {
+  p = motherViewProduct(p);
+  if (motherLengthContext() && p.cat === 'single' && !p.variants.length) return '';
   const f = favs.has(p.id);
   const лучшаяЦена = ['oghyzgr5n0kdnc1','fruttibablz001'].includes(p.id) && p.batch && p.batch.left > 0;
   // «Акция» + своя надпись = полоса под фотографией: на карточке шириной
@@ -3590,7 +3615,7 @@ $('#sort').addEventListener('change', e => { state.sort = e.target.value; render
 /* ---------- product page ---------- */
 let pd = { id: null, qty: 1 };
 function pdSync() {
-  const p = byId[pd.id], k = cardKey(p), label = curLabel(p);
+  const p = motherViewProduct(byId[pd.id]), k = cardKey(p), label = curLabel(p);
   $('#pdPrice').textContent = rub(keyPrice(k));
   $('#pdTotal').textContent = rub(keyPrice(k) * pd.qty);
   $('#pdQty').textContent = pd.qty;
@@ -3764,7 +3789,8 @@ function рисоватьПартию(p) {
 }
 
 function showProduct(id) {
-  const p = byId[id]; if (!p) return go404();
+  const p = motherViewProduct(byId[id]); if (!p) return go404();
+  if (motherLengthContext() && p.cat === 'single' && !p.variants.length) { toast('На 29 ноября доступны одноголовые розы 50 и 60 см'); nav('/den-mamy/'); return; }
   pd = { id, qty: 1 };
   // Тот же заголовок, что отдал сервер: короткий «Кейтлин — venikoff.net»
   // затирал серверный и уходил в выдачу вместо него.
@@ -3806,7 +3832,7 @@ function showProduct(id) {
 }
 $('#pdMinus').onclick = () => { pd.qty = Math.max(1, pd.qty - 1); pdSync(); };
 $('#pdPlus').onclick = () => { pd.qty++; pdSync(); };
-$('#pdAdd').onclick = () => addToCart(cardKey(byId[pd.id]), pd.qty);
+$('#pdAdd').onclick = () => addToCart(cardKey(motherViewProduct(byId[pd.id])), pd.qty);
 // Корзину собирают из того же сорта: ведём в конструктор и подставляем его,
 // чтобы человек не искал сорт заново.
 $('#pdBasket').onclick = () => {
@@ -3847,7 +3873,7 @@ function изСтарогоАдреса() {
 }
 const MOTHERS_DAY = '2026-11-29';
 function renderMotherPage() {
-  const products = P.filter(p => p.mothers_day && !p.off && p.img);
+  const products = P.filter(p => p.mothers_day && p.img).map(motherViewProduct).filter(p => p.cat !== 'single' || p.variants.length);
   $('#motherGrid').innerHTML = products.length ? products.map((p,i) => card(p,'mother',i)).join('')
     : '<div class="mother-empty"><h3>Собираем для вас самое нежное</h3><p>Скоро здесь появятся букеты для предзаказа ко Дню мамы.</p></div>';
 }
@@ -4421,7 +4447,7 @@ async function проверитьКорзину() {
   if (!API || !Object.keys(cart).length) { нехватка = {}; return нехватка; }
   try {
     const r = await fetch('/api/shop/cart-check', { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { key: k, id, label, qty }; }) }) });
+      body: JSON.stringify({ date: motherLengthContext() ? '2026-11-29' : (($('#fDate') || {}).value || ''), items: Object.entries(cart).map(([k, qty]) => { const { id, label } = parseKey(k); return { key: k, id, label, qty }; }) }) });
     const d = await r.json();
     нехватка = {};
     (d.items || []).forEach(x => { if (x && !x.ok) нехватка[x.key] = x; });
@@ -4639,7 +4665,7 @@ ${payChoice()}
       форма.addEventListener('change', запомнить);
     }
 
-    $('#fDate').onchange = () => { if ($('#fDate').value !== MOTHERS_DAY) store.set('preorderDate',''); fillIntervals(); recalc(); };
+    $('#fDate').onchange = () => { store.set('preorderDate', $('#fDate').value === MOTHERS_DAY ? MOTHERS_DAY : ''); fillIntervals(); recalc(); };
     $('#hourlyToggle').onclick = () => { hourlySlot = !hourlySlot; fillIntervals(); recalc(); };
     if ($('#fZone')) $('#fZone').onchange = recalc;
     $('#fTime').onchange = () => { шаг('slot', $('#fTime').value || ''); recalc(); };
@@ -5141,6 +5167,9 @@ function bindAddress() {
 }
 
 function recalc() {
+  const lengthError = motherCartProblem(($('#fDate') || {}).value);
+  if ($('#fErr')) { $('#fErr').textContent = lengthError; $('#fErr').hidden = !lengthError; }
+  if ($('#fSubmit')) $('#fSubmit').disabled = !!lengthError || !!(DEL && !DEL.accepting);
   const sum = totals().sum;
   if (getType === 'pickup') { $('#fDelivery').textContent = 'самовывоз'; $('#fTotal').textContent = rub(sum); return; }
   const hourlyRule = (SLOTS.hourly_by_date || {})[($('#fDate') || {}).value];
@@ -5167,6 +5196,8 @@ cartDlg.addEventListener('submit', async e => {
   const f = e.target, v = k => { const el = f.elements.namedItem(k); return el ? el.value : ''; };
   const err = m => { $('#fErr').textContent = m; $('#fErr').hidden = !m; };
   err('');
+  const lengthError = motherCartProblem(v('date'));
+  if (lengthError) { err(lengthError); return; }
   // считаем саму попытку: разрыв между «нажал» и «заказ создан» показывает,
   // сколько людей упирается в отказы, а не передумало
   шаг('submit', getType === 'pickup' ? 'самовывоз' : 'доставка');
