@@ -82,6 +82,17 @@ routerAdd("POST", "/api/shop/order-edit", (e) => {
     }
   }
 
+  if (b.resolve_address && o.get("unknown_address")) {
+    const address = String(b.address || "").trim();
+    if (!address || /адрес уточнить у получателя/i.test(address)) return e.json(400,{message:"Укажите уточнённый адрес получателя."});
+    if (b.delivery_price === undefined || !Number.isFinite(+b.delivery_price) || +b.delivery_price < 0) return e.json(400,{message:"Укажите итоговую стоимость доставки."});
+    o.set("unknown_address", false);
+    o.set("zone_name", "адрес уточнён у получателя");
+    o.set("comment", String(o.get("comment") || "").replace(/^⚠️ УТОЧНИТЬ АДРЕС У ПОЛУЧАТЕЛЯ\..*?ссылка на оплату\.\s*/, ""));
+    o.set("delivery_note", String(o.get("delivery_note") || "").replace(/^Адрес уточнить у получателя\. Предоплата доставки 700 ₽\. Возможна доплата по ссылке отправителю\.\s*/, ""));
+    правки.push(["адрес", "уточнён у получателя, предоплата доставки зачтена"]);
+  }
+
   // Снять красную плашку «доставка посчитана неверно»: менеджер уточнил адрес.
   // Сам адрес и цену правит теми же полями выше — здесь только отметка.
   if (b.zone_ok && /не распознан/i.test(String(o.get("zone_name") || ""))) {
