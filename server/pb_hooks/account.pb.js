@@ -91,7 +91,7 @@ onRecordCreateRequest((e) => {
     e.record.set("tg_chat", "");
     e.record.set("max_chat", "");
 
-    let c = acc.byToken($app, key);
+    let c = acc.byToken(e.app, key);
     if (!c) {
       // Без входа узнаём покупателя только по ПОДТВЕРЖДЁННОМУ номеру — тому, что прислал
       // сам Телеграм по кнопке «Поделиться номером». По набранному в форме номеру
@@ -99,7 +99,7 @@ onRecordCreateRequest((e) => {
       const phone = onlyDigits(e.record.get("phone"));
       if (phone.length === 10) {
         try {
-          c = $app.findRecordsByFilter("customers", "phone_ok != ''", "-created", 500, 0)
+          c = e.app.findRecordsByFilter("customers", "phone_ok != ''", "-created", 500, 0)
             .find((x) => onlyDigits(x.get("phone_ok")) === phone) || null;
         } catch (_) { c = null; }
       }
@@ -115,7 +115,7 @@ onRecordCreateRequest((e) => {
       if (!c.get("phone") && e.record.get("phone")) {
         c.set("phone", e.record.get("phone"));
         if (!c.get("name") && e.record.get("name")) c.set("name", e.record.get("name"));
-        try { $app.save(c); } catch (_) {}
+        try { e.app.save(c); } catch (_) {}
       }
     }
   } catch (err) { console.log("bind customer", err); }

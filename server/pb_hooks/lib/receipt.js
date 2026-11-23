@@ -67,9 +67,15 @@ function ужеБили(app, id) {
   } catch (_) { return true; }
 }
 
-const снять = (app, id) => {
-  try { app.db().newQuery("DELETE FROM order_notified WHERE order_id = {:id} AND status = 'receipt'").bind({ id }).execute(); } catch (_) {}
-};
+// A network timeout is not a rejection: the fiscal request may already be accepted.
+// Leave the receipt claim intact and record it for reconciliation; never retry blindly.
+function сомнительный(app, key, result) {
+  try {
+    app.db().newQuery("INSERT INTO recovery_operations (operation_key, kind, state, detail, created) VALUES ({:k}, 'receipt', 'unknown', {:d}, {:t}) ON CONFLICT(operation_key) DO UPDATE SET state='unknown', detail=excluded.detail")
+      .bind({k:key,d:String((result.data && result.data.Message) || result.error || "Unknown fiscal result").slice(0,500),t:new Date().toISOString()}).execute();
+    app.db().newQuery("UPDATE receipt_jobs SET state='unknown',detail={:d} WHERE order_id={:id}").bind({id:key,d:String(result.error || "Fiscal result requires reconciliation").slice(0,500)}).execute();
+  } catch (err) { console.log("receipt reconciliation record failed", err); }
+}
 
 function пробить(app, s, o, brand) {
   const н = настройки(s);
@@ -94,10 +100,10 @@ function пробить(app, s, o, brand) {
       Items: items, taxationSystem: н.tax, phone: тел, email: "",
       amounts: { electronic: итого },
     },
-  }, brand);
+  }, brand, "venikoff-receipt-" + o.id + "-income");
   if (!r.ok || !r.data || r.data.Success === false) {
-    // Отметку снимаем: беда могла быть разовой, и чек надо будет добить.
-    снять(app, o.id);
+    // Результат неизвестен: сохраняем отметку и отправляем на сверку.
+    сомнительный(app, o.id, r);
     const текст = (r.data && r.data.Message) || r.error || "касса не ответила";
     return { ok: false, error: String(текст) };
   }
@@ -108,6 +114,7 @@ function пробить(app, s, o, brand) {
     app.db().newQuery("UPDATE orders SET receipt_at = {:t} WHERE id = {:id}")
       .bind({ t: new Date().toISOString() + (id ? " " + id : ""), id: o.id }).execute();
   } catch (_) {}
+  app.db().newQuery("UPDATE receipt_jobs SET state='done',detail={:v} WHERE order_id={:id}").bind({id:o.id,v:id}).execute();
   return { ok: true, позиций: items.length, сумма: итого, id };
 }
 
@@ -131,9 +138,9 @@ function доплата(app, s, o, ex, brand) {
       taxationSystem: н.tax, phone: тел, email: "",
       amounts: { electronic: сумма },
     },
-  }, brand);
+  }, brand, "venikoff-receipt-" + ex.id + "-extra");
   if (!r.ok || !r.data || r.data.Success === false) {
-    снять(app, ключ);
+    сомнительный(app, ключ, r);
     return { ok: false, error: String((r.data && r.data.Message) || r.error || "касса не ответила") };
   }
   return { ok: true, сумма };
@@ -160,9 +167,9 @@ function возврат(app, s, o, brand) {
     InvoiceId: shop.invoiceOf(o), AccountId: тел,
     CustomerReceipt: { Items: items, taxationSystem: н.tax, phone: тел, email: "",
       amounts: { electronic: итого } },
-  }, brand);
+  }, brand, "venikoff-receipt-" + o.id + "-return");
   if (!r.ok || !r.data || r.data.Success === false) {
-    снять(app, ключ);
+    сомнительный(app, ключ, r);
     return { ok: false, error: String((r.data && r.data.Message) || r.error || "касса не ответила") };
   }
   return { ok: true, сумма: итого };

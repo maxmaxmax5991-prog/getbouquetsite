@@ -30,6 +30,7 @@ jobs:
           find server/pb_hooks server/pb_migrations -name '*.js' -print0 | xargs -0 -n1 node --check
           # Синтаксис встроенных скриптов сайта, админки и страницы загрузки
           node server/ci/check-html.js index.html admin/index.html add/index.html
+          node server/ci/test-reliability.cjs
           # Функции, которые уже раз пропадали при правке (CLAUDE.md, 14.11.2026)
           for f in дропПеререндер рисоватьПартию дропКарточка дропПолоска полоскаПартии \
                    вставитьДроп партияДропа привязатьВыбор renderDropPage блокПартии; do

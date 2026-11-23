@@ -5322,7 +5322,7 @@ cartDlg.addEventListener('submit', async e => {
   if (API) {
     const btn = $('#fSubmit'); btn.disabled = true;
     try {
-      const res = await fetch('/api/collections/orders/records', { method: 'POST', headers: { 'content-type': 'application/json', ...meHeaders() }, body: JSON.stringify({
+      const payload = {
         name: v('name').trim(), phone: v('phone').trim(), recipient: v('to').trim(),
         unknown_address: isUnknownAddress(), recipient_phone: isUnknownAddress() ? v('recipient_phone').trim() : '',
         // адрес собирает сервер из частей — он же проверяет его по картам
@@ -5344,7 +5344,14 @@ cartDlg.addEventListener('submit', async e => {
             shape: к.shape || '', text: к.text || '',
             parts: (к.parts || []).map(x => ({ id: x.id, len: x.len, n: x.n })) })))
           // букет из дропа: шлём только сорт, цену и право на покупку проверит сервер
-          .concat(дропБукет ? [{ kind: 'drop', id: дропБукет, qty: 1 }] : []) }) });
+          .concat(дропБукет ? [{ kind: 'drop', id: дропБукет, qty: 1 }] : []) };
+      const signature = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(payload))))).map(x=>x.toString(16).padStart(2,'0')).join('');
+      let attempt = store.get('checkoutAttempt', null);
+      if (!attempt || attempt.signature !== signature) {
+        attempt = {signature,key:Array.from(crypto.getRandomValues(new Uint8Array(24))).map(x=>x.toString(16).padStart(2,'0')).join('')};
+        store.set('checkoutAttempt',attempt);
+      }
+      const res = await fetch('/api/collections/orders/records', {method:'POST',headers:{'content-type':'application/json','Idempotency-Key':attempt.key,...meHeaders()},body:JSON.stringify(payload)});
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         // Отказ не должен превращаться в долбёжку кнопкой: каждое нажатие тратит
@@ -5371,6 +5378,7 @@ cartDlg.addEventListener('submit', async e => {
         }
         return err(текст);
       }
+      store.set('checkoutAttempt',null);
       store.set('preorderDate','');
       lastOrder = { number: data.number, sum: data.total, when, code: data.tg_code, order: data, name: v('name').trim(), phone: v('phone').trim() };
       saveLastOrder();

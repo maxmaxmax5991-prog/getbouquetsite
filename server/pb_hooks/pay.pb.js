@@ -29,7 +29,7 @@ routerAdd("POST", "/api/shop/pay-link", (e) => {
     RequireConfirmation: false,
     SuccessRedirectUrl: back,
     FailRedirectUrl: back,
-  }, brand);
+  }, brand, "venikoff-pay-link-" + o.id + "-" + Math.round(+o.get("total") * 100));
   if (!r.ok || !r.data || !r.data.Success || !r.data.Model || !r.data.Model.Url) {
     console.log("pay-link", JSON.stringify(r.data || r.error || ""));
     return e.json(502, { message: "Не получилось открыть оплату. Попробуйте ещё раз." });
@@ -256,26 +256,34 @@ routerAdd("POST", "/api/cloudpayments/callback", (e) => {
     inv = String(b.InvoiceId || b.invoiceId || b.invoice_id || "").trim();
   } catch (_) {}
 
-  // Банку всегда отвечаем «принято»: иначе он будет слать то же уведомление
-  // снова и снова. Разбираться — наша забота, а не его.
+  // Подтверждаем обработку после проверки банка. При сбое просим повторить уведомление.
   const принято = () => e.json(200, { code: 0 });
-  if (!inv) return принято();
+  if (!inv || inv.length>128) return принято();
+  $app.db().newQuery("INSERT INTO payment_callback_inbox (invoice,received_at) VALUES ({:i},{:t}) ON CONFLICT(invoice) DO UPDATE SET attempts=attempts+1,received_at=excluded.received_at").bind({i:inv,t:new Date().toISOString()}).execute();
+  const handled = () => { $app.db().newQuery("UPDATE payment_callback_inbox SET processed_at={:t} WHERE invoice={:i}").bind({i:inv,t:new Date().toISOString()}).execute();return принято(); };
 
   try {
     // Доплата: счёт вида v4371d1 — отрезаем хвост и находим сам заказ.
     const корень = inv.replace(/d\d+$/i, "");
     let o = null;
-    try { o = $app.findFirstRecordByFilter("orders", "invoice = {:i}", { i: корень }); } catch (_) {}
+    try { o = $app.findFirstRecordByFilter("orders", "invoice = {:i}", { i: inv }); } catch (_) {}
+    if (!o) { try { o = $app.findFirstRecordByFilter("orders", "invoice = {:i}", { i: корень }); } catch (_) {} }
     if (!o && /^\d+$/.test(корень)) {
       try { o = $app.findFirstRecordByFilter("orders", "number = {:n}", { n: +корень }); } catch (_) {}
     }
-    if (!o) { console.log("callback: не нашёл заказ по счёту", inv); return принято(); }
+    if (!o) { console.log("callback: заказ отсутствует, требуется сверка", inv); return e.json(503,{code:13}); }
 
     if (/d\d+$/i.test(inv)) {
       // Доплата. Отмечаем её оплаченной и проводим в МойСклад отдельным платежом.
       let ex = null;
       try { ex = $app.findFirstRecordByFilter("order_extras", "invoice = {:i}", { i: inv }); } catch (_) {}
       if (ex && !ex.get("paid_at")) {
+        // Webhooks are hints only. Confirm the supplementary payment at the order's merchant terminal.
+        const verified = pay.verifyExtra($app, o, ex);
+        if (!verified) return e.json(503, { code: 13 });
+        if (!shop.claim($app, ex.id, "extra-paid")) return принято();
+        ex = $app.findRecordById("order_extras", ex.id);
+        if (ex.get("paid_at")) return принято();
         ex.set("paid_at", new Date().toISOString());
         $app.save(ex);
         require(`${__hooks}/lib/staff.js`).запись($app, o, null, "доплата пришла", `${shop.rub(ex.get("sum"))}, счёт ${inv}`);
@@ -291,15 +299,19 @@ routerAdd("POST", "/api/cloudpayments/callback", (e) => {
           }
         } catch (_) {}
       }
-      return принято();
+      if (!ex || !ex.get("paid_at")) return e.json(503,{code:13});
+      return handled();
     }
 
     // Обычная оплата: перепроверяем у банка и, если подтвердилось, дальше всё
     // идёт привычным путём — уведомления, МойСклад, статусы.
     pay.checkOrder($app, o);
+    const current=$app.findRecordById("orders",o.id);
+    if(["paid","failed"].indexOf(current.get("payment_status"))>=0) return handled();
+    return e.json(503,{code:13});
   } catch (err) {
     console.log("callback", err);
     require(`${__hooks}/lib/err.js`).note($app, "Оплата", String(err), "уведомление банка");
+    return e.json(503,{code:13});
   }
-  return принято();
 });

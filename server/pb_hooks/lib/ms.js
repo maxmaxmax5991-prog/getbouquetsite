@@ -3,6 +3,12 @@
 const shop = require(`${__hooks}/lib/shop.js`);
 
 const BASE = "https://api.moysklad.ru/api/remap/1.2";
+// Stable UUID per operation. MoySklad returns the original entity for a repeated syncId.
+function syncId(kind,id) {
+ const h=$security.sha256("venikoff:"+kind+":"+String(id));
+ return h.slice(0,8)+"-"+h.slice(8,12)+"-5"+h.slice(13,16)+"-8"+h.slice(17,20)+"-"+h.slice(20,32);
+}
+
 const meta = (type, id) => ({ meta: { href: `${BASE}/entity/${type}/${id}`, type, mediaType: "application/json" } });
 
 function ms(s, method, path, body) {
@@ -54,6 +60,7 @@ function agent(s, order) {
     if (found.ok && found.data.rows && found.data.rows.length) return { ok: true, id: found.data.rows[0].id };
   }
   const created = ms(s, "POST", "/entity/counterparty", {
+    syncId: syncId("counterparty",phone || order.id),
     name: order.get("name") || `Покупатель +${phone}`,
     phone: order.get("phone") || "",
     actualAddress: order.get("delivery_type") === "pickup" ? "" : order.get("address") || "",
@@ -678,6 +685,7 @@ function pushOrder(app, o) {
   // сюда собираем поля, которые не удалось заполнить: молчать о них нельзя
   const missedAttrs = [];
   const body = {
+    syncId: syncId("customerorder",o.id),
     name: имяЗаказа(o),
     organization: meta("organization", s.get("ms_org_id")),
     store: meta("store", s.get("ms_store_id")),
@@ -811,6 +819,7 @@ function addPayment(app, o) {
   if (!agentHref) return { ok: false, error: "У заказа в МоёмСкладе нет контрагента." };
   if (!claim(app, o.id, "payment")) return { ok: false, wait: true, error: "Платёж уже проводится." };
   const created = ms(s, "POST", "/entity/paymentin", {
+    syncId: syncId("paymentin",o.id),
     organization: meta("organization", s.get("ms_org_id")),
     agent: { meta: { href: agentHref, type: "counterparty", mediaType: "application/json" } },
     sum: Math.round((o.get("total") || 0) * 100),

@@ -34,7 +34,7 @@ function keysOf(s, brand) {
   return { id: s.get("cp_public_id"), secret: s.get("cp_secret") };
 }
 
-function cp(s, path, body, brand) {
+function cp(s, path, body, brand, requestId) {
   const { id, secret } = keysOf(s, brand);
   if (!id || !secret) return { ok: false, error: "Не указаны ключи CloudPayments." };
   try {
@@ -45,6 +45,7 @@ function cp(s, path, body, brand) {
       headers: {
         "content-type": "application/json",
         "Authorization": "Basic " + b64(`${id}:${secret}`),
+        ...(requestId ? { "X-Request-ID": requestId } : {}),
       },
       timeout: 30,
     });
@@ -107,12 +108,17 @@ function checkOrder(app, o) {
       return false;
     }
   }
-  if (Math.round(m.Amount) < Math.round(o.get("total"))) return false;   // оплачено меньше суммы заказа
+  if (!String(m.TransactionId || "")) return false;
+  if (m.Currency && m.Currency !== "RUB") return false;
+  if (Math.round(+m.Amount * 100) !== Math.round(+o.get("total") * 100)) return false;   // оплачено меньше суммы заказа
 
   // Страница заказа и проверка оплаты приходят одновременно: обе видят «не оплачен»,
   // обе подтверждают платёж — и флорист получает две одинаковые карточки заказа.
   // Так задвоился №3026. Первый взявший замок доводит дело до конца, остальные уходят.
   if (!shop.claim(app, o.id, "paid")) return false;
+  // The caller may hold an old object after a concurrent payment check.
+  o = app.findRecordById("orders", o.id);
+  if (o.get("payment_status") === "paid") return false;
 
   o.set("payment_status", "paid");
   o.set("payment_id", String(m.TransactionId || ""));
@@ -120,7 +126,10 @@ function checkOrder(app, o) {
   // Статус заказа ведёт МойСклад — мы его не придумываем. Свой ставим только когда
   // интеграция выключена, иначе два источника перебивали бы друг друга.
   if (o.get("status") === "new" && !s.get("ms_enabled")) o.set("status", "confirmed");
-  app.save(o);
+  app.runInTransaction((txApp)=>{
+    txApp.save(o);
+    txApp.db().newQuery("INSERT INTO receipt_jobs (order_id,created) VALUES ({:id},{:t}) ON CONFLICT(order_id) DO NOTHING").bind({id:o.id,t:new Date().toISOString()}).execute();
+  });
   // Полную карточку заказа флорист получает именно сейчас: до оплаты заказа как бы и нет
   const token = s.get("tg_token");
   shop.adminIds(s).forEach((chat) => shop.tg(token, "sendMessage", {
@@ -148,4 +157,16 @@ function checkOrder(app, o) {
   return true;
 }
 
-module.exports = { cp, keysOf, test, checkOrder };
+function verifyExtra(app, order, extra) {
+  const result = cp(shop.settings(app), "/v2/payments/find", {InvoiceId: String(extra.get("invoice"))}, shop.brandOfOrder(app, order));
+  const m = result.ok && result.data && result.data.Success && result.data.Model;
+  if (!m || m.TestMode || !m.TransactionId || m.Status !== "Completed") return false;
+  if (String(m.InvoiceId || "") !== String(extra.get("invoice"))) return false;
+  if (m.Currency && m.Currency !== "RUB") return false;
+  if (Math.round(+m.Amount * 100) !== Math.round(+extra.get("sum") * 100)) return false;
+  const iso = String(m.CreatedDateIso || m.CreatedDate || "");
+  const made = Date.parse(/(Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? iso : iso + "Z");
+  const born = Date.parse(String(extra.get("created")).replace(" ", "T"));
+  return !!made && !!born && made >= born - 300000;
+}
+module.exports = { cp, keysOf, test, checkOrder, verifyExtra };

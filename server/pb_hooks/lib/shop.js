@@ -992,7 +992,7 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
           app.db().newQuery("UPDATE products SET ready_qty = MAX(0, IFNULL(ready_qty,0) - {:n}) WHERE id = {:id}")
             .bind({ n: t.qty, id: t.p.id }).execute();
         }
-      } catch (err) { console.log("экспресс", t.p.id, err); }
+      } catch (err) { throw err; }
       return;
     }
     if (!t.len || !t.stems) return;
@@ -1007,7 +1007,7 @@ const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret")
     try {
       app.db().newQuery("UPDATE products SET stock = {:v} WHERE id = {:id}")
         .bind({ v: JSON.stringify(st), id: t.p.id }).execute();
-    } catch (err) { console.log("остаток", t.p.id, err); }
+    } catch (err) { throw err; }
   });
 }
 

@@ -46,12 +46,18 @@ routerAdd("GET", "/api/shop/mkad", (e) => {
 
 onRecordCreateRequest((e) => {
   const shop = require(`${__hooks}/lib/shop.js`);
+  const idem = require(`${__hooks}/lib/idempotency.js`);
+  const originalApp=e.app;
+  try { $app.runInTransaction((txApp)=>{
+  e.app=txApp;
   // с какой витрины заказ — решает домен, а не то, что прислал браузер
   try {
-    const b = require(`${__hooks}/lib/brand.js`).byHost($app, e);
+    const b = require(`${__hooks}/lib/brand.js`).byHost(txApp, e);
     e.record.set("brand", b ? b.id : "");
   } catch (err) { console.log("brand on order", err); }
-  shop.prepareOrder($app, e.record);
+  const attempt=idem.begin(txApp,e,e.record.get("brand"));
+  if(attempt.replay) return e.json(200,attempt.replay);
+  shop.prepareOrder(txApp, e.record);
   // Согласие на рассылку живёт у покупателя, а не у заказа: один человек —
   // одно решение. Снимать его здесь нельзя: отказ в одном заказе не должен
   // молча отписывать того, кто согласился раньше; отписка — отдельным действием.
@@ -59,12 +65,14 @@ onRecordCreateRequest((e) => {
     if (e.record.get("ads")) {
       const cid = String(e.record.get("customer") || "");
       if (cid) {
-        $app.db().newQuery("UPDATE customers SET ads_ok = true, ads_at = {:t} WHERE id = {:id} AND (ads_ok IS NULL OR ads_ok = false)")
+        txApp.db().newQuery("UPDATE customers SET ads_ok = true, ads_at = {:t} WHERE id = {:id} AND (ads_ok IS NULL OR ads_ok = false)")
           .bind({ t: new Date().toISOString(), id: cid }).execute();
       }
     }
   } catch (err) { console.log("согласие на рассылку", err); }
   e.next();
+  idem.finish(txApp,attempt.key,e.record.id);
+  }); } finally { e.app=originalApp; }
 }, "orders");
 
 onRecordAfterCreateSuccess((e) => {
