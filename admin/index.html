@@ -273,6 +273,16 @@ table.t td{padding:4px 6px;vertical-align:middle}
 @media (max-width:600px){.tgp-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.tgp-cap{font-size:11px}}
 #appearanceTheme{appearance:none;position:relative;width:54px;height:30px;border-radius:999px;background:#c8c8cf;border:1px solid #aaa;cursor:pointer;flex:none;transition:background .2s}#appearanceTheme:before{content:'';position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0003;transition:transform .2s}#appearanceTheme:checked{background:#b63888;border-color:#b63888}#appearanceTheme:checked:before{transform:translateX(24px)}#appearanceTheme:focus-visible{outline:3px solid #f097c9;outline-offset:3px}#appearanceTheme:disabled{opacity:.5}
 .mother-product-check{display:inline-flex;align-items:center;gap:6px;margin-top:7px;font-size:12px;color:var(--accent);font-weight:700;cursor:pointer}.mother-product-check input{width:17px;height:17px;accent-color:#b95174;margin:0}.mother-product-check:has(input:checked){color:#a83760}
+.mother-reserve-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}.mother-reserve-summary>div{padding:15px;border:1px solid var(--line);border-radius:13px;background:var(--paper)}.mother-reserve-summary span{display:block;font-size:12px;opacity:.75}.mother-reserve-summary b{display:block;font-size:22px;margin-top:7px}.mother-reserve-form{display:flex;flex-wrap:wrap;gap:9px;align-items:end;padding:15px 0}.mother-reserve-form label{display:grid;gap:5px;font-size:12px}.mother-reserve-form input,.mother-reserve-form select{min-height:40px;max-width:240px}@media(max-width:600px){.mother-reserve-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.mother-reserve-summary b{font-size:18px}}
+/* Mother's Day operations dashboard */
+#tab-mother{--md-rose:#b44a72;--md-pink:#e9a7bf;--md-green:#25836a;--md-amber:#b77c2c}
+.md-hero{display:flex;justify-content:space-between;align-items:center;gap:22px;border:1px solid var(--line);border-radius:24px;padding:28px 30px;margin:0 0 20px;background:linear-gradient(120deg,color-mix(in srgb,var(--paper) 88%,#ecc4d4),var(--paper));position:relative;overflow:hidden}.md-hero h2{font-size:clamp(25px,4vw,38px);margin:9px 0 5px;letter-spacing:-.04em}.md-hero p{margin:0;color:var(--ink-2);font-size:13px}.md-tag{display:inline-flex;align-items:center;padding:5px 10px;background:color-mix(in srgb,var(--md-rose) 12%,var(--paper));border:1px solid color-mix(in srgb,var(--md-rose) 24%,var(--line));border-radius:999px;color:var(--md-rose);font-size:11px;letter-spacing:.08em;font-weight:800}.md-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.md-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}.md-panel{padding:22px;border:1px solid var(--line);border-radius:20px;background:var(--paper)}.md-panel h3{margin:0 0 14px;font-size:15px}.md-overall{display:flex;align-items:center;gap:24px}.md-ring{width:128px;height:128px;border-radius:50%;flex:none;display:grid;place-items:center;background:conic-gradient(var(--md-rose) calc(var(--progress,0)*1%),var(--line) 0)}.md-ring-inner{width:104px;height:104px;background:var(--paper);border-radius:50%;display:grid;place-content:center;text-align:center}.md-ring strong{font-size:25px;letter-spacing:-.04em}.md-ring span{display:block;font-size:10px;color:var(--ink-2);margin-top:4px}.md-overall p{color:var(--ink-2);font-size:12px;line-height:1.6;margin:5px 0}.md-overall b{font-size:18px}.md-coverage-list{display:flex;flex-wrap:wrap;gap:7px}.md-coverage-item{display:flex;align-items:center;gap:10px;border:1px solid color-mix(in srgb,var(--md-amber) 28%,var(--line));background:color-mix(in srgb,var(--md-amber) 7%,var(--paper));padding:9px 11px;border-radius:11px;font-size:12px}.md-coverage-item b{font-size:14px;color:var(--md-amber)}.md-coverage-item small{font-size:11px;color:var(--ink-2)}
+.mother-reserve-summary{gap:12px;margin:16px 0}.mother-reserve-summary>div{border-radius:17px;padding:19px 20px;border:1px solid var(--line);background:var(--paper);box-shadow:0 3px 16px #00000004}.mother-reserve-summary>div:first-child{border-color:color-mix(in srgb,var(--md-rose) 32%,var(--line))}.mother-reserve-summary>div:nth-child(3){border-color:color-mix(in srgb,var(--md-green) 30%,var(--line))}.mother-reserve-summary>div:nth-child(4){border-color:color-mix(in srgb,var(--md-amber) 32%,var(--line))}.mother-reserve-summary span{font-size:11px;letter-spacing:.02em}.mother-reserve-summary b{font-size:clamp(22px,2.5vw,31px);letter-spacing:-.045em;line-height:1.2;margin-top:10px}.md-section{border:1px solid var(--line);border-radius:20px;background:var(--paper);padding:21px;margin:18px 0}.md-section>h3,.md-section-head h3{font-size:16px;margin:0}.md-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}.md-section .scroll{margin-top:14px}.md-section .t thead th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2)}.md-section .t td{padding-block:13px}.md-section details>summary{cursor:pointer;font-size:14px;font-weight:750}.md-variety-cell{min-width:150px}.md-progress{height:5px;border-radius:10px;background:var(--line);margin-top:7px;overflow:hidden}.md-progress>i{height:100%;display:block;border-radius:10px;background:linear-gradient(90deg,var(--md-rose),var(--md-pink))}.md-percent{font-weight:800;color:var(--md-rose)}.md-status{display:inline-block;border-radius:999px;padding:4px 8px;background:color-mix(in srgb,var(--md-green) 9%,var(--paper));color:var(--md-green);font-size:10px;font-weight:750;white-space:nowrap}.md-status.attention{color:var(--md-amber);background:color-mix(in srgb,var(--md-amber) 10%,var(--paper))}.md-slot-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:15px}.md-slot{border:1px solid var(--line);border-radius:14px;padding:15px;background:color-mix(in srgb,var(--ground) 60%,var(--paper))}.md-slot span{font-size:11px;color:var(--ink-2);display:block}.md-slot strong{font-size:27px;display:block;margin:8px 0 2px;letter-spacing:-.05em}.md-slot small{font-size:11px;color:var(--ink-2)}#motherReportSummary{font-size:15px;margin-top:16px}#motherReserveState,#motherReportState{font-size:11px;line-height:1.6}#motherReserveValuation{font-size:11px;line-height:1.65;color:var(--ink-2);margin-bottom:0}.mother-reserve-form{gap:12px;padding:18px 0}.mother-reserve-form .in{border-radius:10px}
+@media(max-width:760px){.md-hero{padding:22px;align-items:flex-start;flex-direction:column;border-radius:20px}.md-actions{justify-content:flex-start}.md-overview{grid-template-columns:1fr}.md-panel,.md-section{padding:17px}.md-overall{gap:17px}.md-ring{width:112px;height:112px}.md-ring-inner{width:90px;height:90px}.md-slot-cards{grid-template-columns:1fr}.md-slot{display:flex;align-items:center;justify-content:space-between;gap:12px}.md-slot strong{font-size:24px;margin:0}.md-section-head{align-items:flex-start;flex-direction:column}.mother-reserve-summary>div{padding:15px}.mother-reserve-summary b{font-size:22px}}
+
+.mother-reserve-summary{grid-template-columns:repeat(4,minmax(0,1fr))}@media(max-width:1100px){.mother-reserve-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.md-map-filters{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0}.md-map-filters button{display:inline-flex;align-items:center;gap:6px;min-height:35px;padding:7px 10px;border:1px solid var(--line);background:var(--paper);border-radius:999px;color:var(--ink);font-size:11px;font-weight:650}.md-map-filters button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}.md-map-filters i{width:8px;height:8px;border-radius:50%;background:var(--dot);display:inline-block}#motherMapCanvas{height:440px;border-radius:16px;isolation:isolate;background:#e8ede8;z-index:0}.md-map-icon{background:none!important;border:0!important}.md-map-icon>span{display:grid;place-items:center;min-width:44px;height:34px;padding:0 7px;border:3px solid #fff;border-radius:11px;color:#fff;font-size:11px;font-weight:850;box-shadow:0 3px 10px #0004;position:relative;white-space:nowrap}.md-map-icon>span:after{content:'';position:absolute;width:8px;height:8px;bottom:-6px;left:calc(50% - 4px);background:inherit;transform:rotate(45deg);z-index:-1}.md-map-icon>span.pickup{border-radius:50%}.md-map-popup{font-family:Manrope,system-ui,sans-serif;color:#352b31;font-size:12px;line-height:1.5}.md-map-popup>div{padding:8px 0;border-bottom:1px solid #eadfe5}.md-map-popup>div:last-child{border:0}.md-map-popup span,.md-map-popup small{display:block;color:#78656f}.md-map-popup p{margin:5px 0}.md-map-missing{font-size:12px;color:var(--md-amber);line-height:1.6;margin:12px 0}.md-map-orders{margin-top:14px}.md-map-orders>summary{font-size:12px!important;color:var(--ink-2)}@media(max-width:600px){#motherMapCanvas{height:340px}.md-map-filters button{min-height:40px}}
+
 </style>
 </head>
 <body>
@@ -440,14 +450,21 @@ table.t td{padding:4px 6px;vertical-align:middle}
 
     <!-- Товары -->
     <section id="tab-mother" hidden>
-      <div class="toolbar"><h2>День мамы · 29 ноября</h2><button class="btn btn-p" id="motherReportRefresh">Обновить</button><a class="btn btn-g" href="/den-mamy/" target="_blank">Открыть страницу</a></div>
+      <div class="md-hero"><div><span class="md-tag">29 НОЯБРЯ 2026</span><h2>День мамы</h2><p>Запасы под сайт, бронирования и доставка — в одном месте.</p></div><div class="md-actions"><button class="btn btn-p" id="motherReportRefresh">Обновить данные</button><a class="btn btn-g" href="/den-mamy/" target="_blank">Открыть витрину</a></div></div>
       <p class="hint">Бронирования на 29 ноября: только оплаченные доставки и все самовывозы, включая неоплаченные. Неоплаченные доставки и отменённые заказы исключены. Срочные — часовые интервалы за +1 250 ₽. Сорта одной длины складываются в стеблях: 2 букета по 51 розе = 102 стебля. Предзаказы не расходуют сегодняшний остаток.</p>
-      <h3>Уведомление на сайте</h3><div id="motherNoticeStats" class="hint">Загружаем…</div>
-      <p class="hint">Уникальные посетители: показы → переходы → заказ на 29 ноября. Заказ засчитывается после клика в течение 7 дней; оплаченные считаются по фактическому статусу оплаты. Отменённые исключены. Статистика с 23 ноября, только эта витрина.</p>
       <h3 id="motherReportSummary"></h3><p class="hint" id="motherReportState"></p>
-      <h3>Заказы по интервалам</h3><div class="scroll"><table class="t" id="motherReportSlots"></table></div>
-      <h3>Потребность по сортам и длинам</h3><button class="btn btn-p" id="motherExport">Скачать закупку CSV</button><div class="scroll"><table class="t" id="motherReportPositions"></table></div>
-      <h3>Срочные / часовые доставки</h3><div class="scroll"><table class="t" id="motherReportUrgent"></table></div>
+      <div id="motherReserveSummary" class="mother-reserve-summary"></div><div class="md-overview"><section class="md-panel"><h3>Доля забронированного запаса</h3><div id="motherReserveRing" class="md-overall"></div></section><section class="md-panel"><h3>Нужно дорезервировать под заказы</h3><div id="motherReserveCoverage" class="md-coverage-list"></div><p class="hint">Здесь показан разрыв в отдельном резерве на дату, а не нехватка на сегодняшнем складе. Франция, Эквадор и гортензии учитываются как товары без пересчёта.</p></section></div><p class="hint" id="motherReserveState">Загружаем…</p><section class="md-section"><div class="md-section-head"><h3>Розничная модель запасов</h3><span class="md-tag">БУКЕТ ИЗ 51 РОЗЫ</span></div><p id="motherReserveValuation"></p></section>
+      <section class="md-section"><div class="md-section-head"><h3>Распроданность по сортам</h3><span class="hint">Все ростовки сорта вместе</span></div><div class="scroll"><table class="t" id="motherReserveVarieties"></table></div></section>
+      <section class="md-section"><div class="md-section-head"><h3>Каждая ростовка под контролем</h3><button class="btn btn-g" id="motherReserveExport">Выгрузить резерв CSV</button></div><div class="scroll"><table class="t" id="motherReservePositions"></table></div></section>
+      <section class="md-section"><details id="motherReserveHistory"><summary>Пополнить резерв и посмотреть историю</summary><div id="motherReserveTopup" class="mother-reserve-form" hidden><label>Сорт<select class="in" id="motherReserveProduct"></select></label><label>Длина, см<input class="in" id="motherReserveLength" type="number" value="50" min="10" max="200"></label><label>Добавить стеблей<input class="in" id="motherReserveQuantity" type="number" min="1" step="1"></label><label>Цена за стебель с НДС, ₽<input class="in" id="motherReserveCost" type="number" min="0" step="0.01" placeholder="Необязательно"></label><label>Счёт / основание<input class="in" id="motherReserveSource" maxlength="160" placeholder="Счёт или поставка"></label><button class="btn btn-p" type="button" id="motherReserveAdd">Пополнить резерв</button><span class="hint" id="motherReserveAddState"></span></div><div class="scroll"><table class="t" id="motherReserveMovements"></table></div></details></section>
+      <section class="md-section"><div class="md-section-head"><h3>Карта заказов</h3><button type="button" class="btn btn-g" id="motherMapFit">Показать все метки</button></div><div class="md-map-filters" id="motherMapFilters"><button type="button" data-map-filter="all" aria-pressed="true">Все заказы</button><button type="button" data-map-filter="morning" aria-pressed="false"><i style="--dot:#b48736"></i>08:00–13:00</button><button type="button" data-map-filter="afternoon" aria-pressed="false"><i style="--dot:#8461bd"></i>13:00–18:00</button><button type="button" data-map-filter="evening" aria-pressed="false"><i style="--dot:#bb4676"></i>18:00–22:00</button><button type="button" data-map-filter="hourly" aria-pressed="false"><i style="--dot:#dc5c58"></i>Часовые</button><button type="button" data-map-filter="pickup" aria-pressed="false"><i style="--dot:#2b8b73"></i>Самовывоз</button></div><div id="motherMapCanvas" aria-label="Карта доставок и точки самовывоза на 29 ноября"></div><p class="hint" id="motherMapState">Загружаем карту…</p><p class="md-map-missing" id="motherMapMissing"></p><details class="md-map-orders"><summary>Адреса списком</summary><div class="scroll"><table class="t" id="motherMapOrders"></table></div></details></section>
+      <section class="md-section"><div class="md-section-head"><h3>Загрузка доставки</h3><span class="hint">Часовые интервалы — отдельно</span></div><div id="motherSlotCards" class="md-slot-cards"></div><div class="scroll"><table class="t" id="motherReportSlots"></table></div></section>
+      <section class="md-section"><div class="md-section-head"><h3>Самовывозы по времени</h3><span class="md-tag">29 НОЯБРЯ</span></div><div class="scroll"><table class="t" id="motherReportPickups"></table></div></section>
+      <details class="md-section"><summary>Полная потребность по цветам</summary><button class="btn btn-p" id="motherExport">Скачать закупку CSV</button><div class="scroll"><table class="t" id="motherReportPositions"></table></div></details>
+      <section class="md-section"><h3>Срочные / часовые доставки</h3><div class="scroll"><table class="t" id="motherReportUrgent"></table></div></section>
+      <details class="md-section"><summary>Переходы и конверсия уведомления</summary>      <h3>Уведомление на сайте</h3><div id="motherNoticeStats" class="hint">Загружаем…</div>
+      <p class="hint">Уникальные посетители: показы → переходы → заказ на 29 ноября. Заказ засчитывается после клика в течение 7 дней; оплаченные считаются по фактическому статусу оплаты. Отменённые исключены. Статистика с 23 ноября, только эта витрина.</p>
+</details>
     </section>
     <section id="tab-products" hidden>
       <div class="bar">
@@ -1398,7 +1415,7 @@ function aggregateMotherOrders(orders, products) {
   const active = orders.filter(o => String(o.date).slice(0,10) === '2026-11-29' && o.status !== 'cancelled' && (o.delivery_type === 'pickup' || o.payment_status === 'paid'));
   active.forEach(o => {
     const pickup = o.delivery_type === 'pickup';
-    const label = pickup ? 'Самовывоз' : normalize(o.interval) || 'Без интервала';
+    const label = pickup ? 'Самовывоз · '+(normalize(o.interval)||'Без времени') : normalize(o.interval) || 'Без интервала';
     const match = label.match(/^(\d\d):(\d\d)–(\d\d):(\d\d)$/);
     const hourly = !pickup && !!match && (+match[3]*60 + +match[4] - +match[1]*60 - +match[2] === 60);
     const row = slots.get(label) || {label,orders:0,paid:0,hourly};
@@ -1439,12 +1456,17 @@ async function loadMotherReport() {
     } catch (_) { $('#motherNoticeStats').textContent = 'Статистика уведомления доступна владельцу и управляющему.'; }
     const products = await list('products');
     const data = aggregateMotherOrders(orders,products);
+    await loadMotherReserve(products);
+    loadMotherMap();
     motherPurchaseRows=data.positions;
+    $('#motherSlotCards').innerHTML=data.slots.filter(x=>['08:00–13:00','13:00–18:00','18:00–22:00'].includes(x.label)).map(x=>`<div class="md-slot"><span>${esc(x.label)}</span><strong>${x.orders}</strong><small>доставок · ${x.paid} оплачено</small></div>`).join('');
     $('#motherExport').disabled=false;
     $('#motherReportSummary').textContent = `Заказов: ${data.active.length} · оплачено: ${data.paid} · часовых доставок: ${data.urgent.length}`;
     const table = (heads,rows) => '<thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody>';
-    $('#motherReportSlots').innerHTML = table(['Интервал','Заказов','Оплачено','Самовывоз без оплаты'],data.slots.map(s=>`<tr><td>${esc(s.label)}${s.hourly?' · часовая +1 250 ₽':''}</td><td>${s.orders}</td><td>${s.paid}</td><td>${s.orders-s.paid}</td></tr>`));
+    $('#motherReportSlots').innerHTML = table(['Интервал','Заказов','Оплачено','Не оплачено'],data.slots.filter(s=>!s.label.startsWith('Самовывоз')).map(s=>`<tr><td>${esc(s.label)}${s.hourly?' · часовая +1 250 ₽':''}</td><td>${s.orders}</td><td>${s.paid}</td><td>${s.orders-s.paid}</td></tr>`));
     $('#motherReportPositions').innerHTML = table(['Позиция','Длина','Итого штук','Букетов / позиций'],data.positions.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.len ? p.len+' см':'—'}</td><td><b>${p.n.toLocaleString('ru-RU')} ${p.unit}</b></td><td>${p.bouquets}</td></tr>`));
+    const pickupTimes=new Map();data.active.filter(o=>o.delivery_type==='pickup').forEach(o=>{const time=String(o.interval||'Без времени').replace(/\s/g,'').replace(/[-—]/g,'–'),r=pickupTimes.get(time)||{time,orders:0,paid:0};r.orders++;if(o.payment_status==='paid')r.paid++;pickupTimes.set(time,r);});
+    $('#motherReportPickups').innerHTML=pickupTimes.size?table(['Время выдачи','Самовывозов','Оплачено','Не оплачено'],[...pickupTimes.values()].sort((a,b)=>a.time.localeCompare(b.time)).map(r=>`<tr><td><b>${esc(r.time)}</b></td><td>${r.orders}</td><td>${r.paid}</td><td>${r.orders-r.paid}</td></tr>`)):'<tbody><tr><td>Самовывозов на 29 ноября пока нет</td></tr></tbody>';
     $('#motherReportUrgent').innerHTML = data.urgent.length ? table(['Заказ','Время','Клиент','Телефон','Оплата'],data.urgent.map(o=>`<tr><td>№${o.number}</td><td>${esc(o.interval)}</td><td>${esc(o.name || '')}</td><td>${esc(o.phone || '')}</td><td>${o.payment_status==='paid'?'Оплачен':'Ждёт оплаты'}</td></tr>`)) : '<tbody><tr><td>Часовых доставок пока нет</td></tr></tbody>';
     $('#motherReportState').textContent = 'Обновлено '+new Date().toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})+' · автообновление раз в минуту';
   } catch(error) { $('#motherReportState').textContent='Не удалось обновить: '+error.message; }
@@ -1458,6 +1480,93 @@ $('#motherExport').onclick = () => {
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
   const a=document.createElement('a');a.href=url;a.download='Закупка-День-мамы-29-11-2026.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
+
+let motherReserveSnapshot=null,motherTopupAttempt=null;
+function motherReserveMoney(n){return (+n||0).toLocaleString('ru-RU',{maximumFractionDigits:0})+' ₽';}
+function motherReserveNumber(n){return n===null?'—':(+n||0).toLocaleString('ru-RU',{maximumFractionDigits:2});}
+async function loadMotherReserve(products){
+ const state=$('#motherReserveState');state.textContent='Обновляем отдельный резерв…';
+ try{
+  const r=await api('/api/shop/mother-reserve');motherReserveSnapshot=r;
+  const t=r.total,stat=(label,value)=>`<div><span>${label}</span><b>${value}</b></div>`;
+  $('#motherReserveRing').innerHTML=`<div class="md-ring" style="--progress:${Math.min(100,t.percent)}"><div class="md-ring-inner"><strong>${motherReserveNumber(t.percent)}%</strong><span>забронировано</span></div></div><div><b>${motherReserveNumber(t.booked)} из ${motherReserveNumber(t.reserved)}</b><p>стеблей из выделенного запаса</p><p>Оплаченные доставки + все самовывозы.<br>Пополнения увеличивают общий резерв.</p></div>`;
+  const gaps=r.positions.filter(p=>p.shortage>0).sort((a,b)=>b.shortage-a.shortage);
+  $('#motherReserveCoverage').innerHTML=gaps.length?gaps.map(p=>`<div class="md-coverage-item"><span>${esc(p.name)} <small>${p.length} см</small></span><b>${p.shortage} шт</b></div>`).join(''):'<p class="hint">По учитываемым сортам дорезервирование не требуется.</p>';
+
+  $('#motherReserveSummary').innerHTML=stat('Резерв, стеблей',motherReserveNumber(t.reserved))+stat('Забронировано из резерва',motherReserveNumber(t.booked)+' · '+motherReserveNumber(t.percent)+'%')+stat('Свободно, стеблей',motherReserveNumber(t.free))+stat('Нужно дорезервировать',motherReserveNumber(t.shortage)+' стеблей')+stat('Закупочная стоимость с НДС',r.can_view_cost?(t.purchase_cost_missing?'Неполная оценка':(+t.purchase_cost).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽'):'Доступ владельцу')+stat('Розничная оценка резерва',t.price_missing.length?'Не все цены заданы':motherReserveMoney(t.retail_value))+stat('Розничная оценка свободного',t.price_missing.length?'Не все цены заданы':motherReserveMoney(t.free_retail_value))+stat('Полных букетов по 51 розе',motherReserveNumber(t.bouquets_51));
+  $('#motherReserveValuation').textContent=t.price_missing.length?'Не задана цена букета из 51 розы: '+t.price_missing.map(p=>p.name+' '+p.length+' см').join(', '):`Оценка по текущим ценам каталога: стебли ÷ 51 × цена букета из 51 розы. Это оценка запаса, не выручка. Полными букетами по 51 розе: ${t.bouquets_51} букетов на ${motherReserveMoney(t.whole_bouquets_value)}; ещё ${t.remainder_stems} стеблей остаются по отдельным сортам и длинам. Доставка, корзины и дополнительные товары не включены.`;
+  const table=(heads,rows)=>'<thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody>';
+  $('#motherReserveVarieties').innerHTML=table(['Сорт','Резерв','Забронировано','Свободно','Продано, %'],r.by_variety.map(p=>`<tr><td class="md-variety-cell">${esc(p.name)}<div class="md-progress"><i style="width:${Math.min(100,p.percent)}%"></i></div></td><td>${motherReserveNumber(p.reserved)}</td><td>${motherReserveNumber(p.booked)}</td><td>${motherReserveNumber(p.free)}</td><td class="md-percent">${motherReserveNumber(p.percent)}%</td></tr>`));
+  $('#motherReservePositions').innerHTML=table(['Сорт / позиция','См','Резерв','Забронировано','Продано, %','Свободно','Дорезервировать','Букет 51 шт','Розничная оценка','Закупка с НДС','День мамы'],r.positions.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.length}</td><td>${p.has_reserve?motherReserveNumber(p.reserved):p.untracked?'Без пересчёта':'Не задан'}</td><td>${motherReserveNumber(p.booked)}</td><td>${p.percent===null?'—':motherReserveNumber(p.percent)+'%'}</td><td>${motherReserveNumber(p.free)}</td><td>${p.shortage===null?'Без пересчёта':p.shortage?'<b>'+motherReserveNumber(p.shortage)+'</b>':'—'}</td><td>${p.price_51?motherReserveMoney(p.price_51):'—'}</td><td>${p.retail_value===null?'—':motherReserveMoney(p.retail_value)}</td><td>${!r.can_view_cost||p.purchase_cost===null?'—':p.purchase_cost_missing?'Не все цены':(+p.purchase_cost).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽'}</td><td><span class="md-status${!p.on_mother||!p.has_photo?' attention':''}">${!p.on_mother?'Не включён':!p.has_photo?'Нужно фото':'Включён'}</span></td></tr>`));
+  $('#motherReserveMovements').innerHTML=table(['Когда','Сорт на сайте','Название в счёте','См','Добавлено','Закупка за стебель','Сумма с НДС','Основание'],r.movements.slice().reverse().map(m=>`<tr><td>${new Date(m.created).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})}</td><td>${esc((products.find(p=>p.id===m.product_id)||{}).name||m.product_id)}</td><td>${esc(m.source_name||'—')}</td><td>${m.length}</td><td>+${motherReserveNumber(m.quantity)}</td><td>${m.unit_cost_kop===null||m.unit_cost_kop===undefined?'—':(m.unit_cost_kop/100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽'}</td><td>${m.cost_kop===null||m.cost_kop===undefined?'—':(m.cost_kop/100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽'}</td><td>${esc(m.source)}${m.source_row?' · строка '+m.source_row:''}</td></tr>`));
+  const select=$('#motherReserveProduct'),selected=select.value;select.innerHTML=products.filter(p=>Array.isArray(p.lengths)&&p.lengths.length).sort((a,b)=>a.name.localeCompare(b.name,'ru')).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');if(selected)select.value=selected;
+  $('#motherReserveTopup').hidden=!['owner','head'].includes(ME.role);
+  state.textContent='На 29.11.2026 · обновлено '+new Date(r.updated_at).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})+'. Свободно = резерв − оплаченные доставки − все самовывозы. Неоплаченные доставки и отмены исключены. «Дорезервировать» — недостающее именно в отдельном резерве на дату; это не проверка наличия на сегодняшнем складе.';
+ }catch(error){state.textContent='Не удалось обновить отдельный резерв: '+error.message;}
+}
+$('#motherReserveAdd').onclick=async()=>{
+ const button=$('#motherReserveAdd'),error=$('#motherReserveAddState');
+ const body={product:$('#motherReserveProduct').value,length:+$('#motherReserveLength').value,quantity:+$('#motherReserveQuantity').value,unit_cost:$('#motherReserveCost').value.trim()===''?null:Number($('#motherReserveCost').value.replace(',','.')),source:$('#motherReserveSource').value.trim()};
+ if(!body.product||!Number.isInteger(body.quantity)||body.quantity<1||!body.source){error.textContent='Укажите сорт, длину, количество и основание.';return;}
+ const signature=JSON.stringify(body);if(!motherTopupAttempt||motherTopupAttempt.signature!==signature)motherTopupAttempt={signature,key:Array.from(crypto.getRandomValues(new Uint8Array(24))).map(x=>x.toString(16).padStart(2,'0')).join('')};
+ button.disabled=true;error.textContent='Сохраняем…';
+ try{await api('/api/shop/mother-reserve',{method:'POST',body:{...body,key:motherTopupAttempt.key}});motherTopupAttempt=null;$('#motherReserveQuantity').value='';$('#motherReserveCost').value='';$('#motherReserveSource').value='';error.textContent='Пополнение записано отдельно. Сегодняшний склад не менялся.';await loadMotherReport();}catch(e){error.textContent=e.message;}finally{button.disabled=false;}
+};
+$('#motherReserveExport').onclick=()=>{
+ if(!motherReserveSnapshot)return;
+ const cell=v=>{let text=String(v??'');if(typeof v==='string'&&/^[=+@-]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';};
+ const rows=[['Дата','Сорт','Длина см','Резерв','Забронировано','Свободно','Продано %','Дорезервировать','Цена букета 51','Розничная оценка']].concat(motherReserveSnapshot.positions.map(p=>['29.11.2026',p.name,p.length,p.has_reserve?p.reserved:'',p.booked,p.free,p.percent,p.shortage,p.price_51,p.retail_value===null?'':Math.round(p.retail_value*100)/100]));
+ const a=document.createElement('a'),url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.href=url;a.download='Резерв-День-мамы-29-11-2026.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+
+let motherMap=null,motherMapLayer=null,motherMapData=null,motherMapFilter='all',motherLeafletPromise=null;
+function motherMapKind(o){
+ if(o.delivery_type==='pickup')return 'pickup';
+ const label=String(o.interval||'').replace(/\s/g,'').replace(/[-—]/g,'–'),m=label.match(/^(\d\d):(\d\d)–(\d\d):(\d\d)$/);
+ if(m&&(+m[3]*60+ +m[4])-(+m[1]*60+ +m[2])===60)return 'hourly';
+ return {'08:00–13:00':'morning','13:00–18:00':'afternoon','18:00–22:00':'evening'}[label]||'other';
+}
+const motherMapColors={morning:'#b48736',afternoon:'#8461bd',evening:'#bb4676',hourly:'#dc5c58',pickup:'#2b8b73',other:'#758494'};
+function motherLoadLeaflet(){
+ if(window.L)return Promise.resolve();if(motherLeafletPromise)return motherLeafletPromise;
+ motherLeafletPromise=new Promise((resolve,reject)=>{
+  const link=document.createElement('link');link.rel='stylesheet';link.href='/admin/vendor/leaflet/leaflet.css';document.head.append(link);
+  const script=document.createElement('script');script.src='/admin/vendor/leaflet/leaflet.js';script.onload=()=>resolve();script.onerror=()=>{motherLeafletPromise=null;reject(new Error('Не удалось загрузить карту'));};document.head.append(script);
+ });return motherLeafletPromise;
+}
+function motherMapPopup(orders,pickup){
+ return `<div class="md-map-popup">${pickup?'<b>Точка самовывоза</b><p>'+esc(motherMapData.pickup.address)+'</p>':''}${orders.map(o=>`<div><b>Заказ №${o.number}</b><span>${o.delivery_type==='pickup'?'Самовывоз':'Доставка'} · ${esc(o.interval||'Без времени')}</span>${o.delivery_type==='pickup'?'':'<p>'+esc(o.address||'Адрес уточняется')+'</p>'}<small>${o.payment_status==='paid'?'Оплачен':'Не оплачен'}</small></div>`).join('')}</div>`;
+}
+function drawMotherMap(fit){
+ if(!motherMap||!motherMapData)return;motherMapLayer.clearLayers();
+ const data=motherMapData,groups=new Map(),unmapped=[],selected=data.orders.filter(o=>motherMapFilter==='all'||motherMapKind(o)===motherMapFilter);
+ selected.forEach(o=>{
+  const pickup=o.delivery_type==='pickup',lat=+(pickup?data.pickup.lat:o.lat),lon=+(pickup?data.pickup.lon:o.lon);
+  if(!lat||!lon||Math.abs(lat)>90||Math.abs(lon)>180||(!pickup&&o.unknown_address)){unmapped.push(o);return;}
+  const key=lat.toFixed(6)+'|'+lon.toFixed(6),group=groups.get(key)||{lat,lon,orders:[],pickup};group.orders.push(o);groups.set(key,group);
+ });
+ const bounds=[];
+ groups.forEach(g=>{
+  const kind=g.pickup?'pickup':motherMapKind(g.orders[0]),color=motherMapColors[kind],label=g.pickup?'С':g.orders.length>1?g.orders.length:String(g.orders[0].number),title=g.pickup?'Самовывоз':g.orders.length>1?g.orders.length+' заказа':'Заказ №'+g.orders[0].number;
+  const icon=L.divIcon({className:'md-map-icon',html:`<span style="background:${color}"${g.pickup?' class="pickup"':''}>${label}</span>`,iconSize:[46,38],iconAnchor:[23,36],popupAnchor:[0,-30]});
+  L.marker([g.lat,g.lon],{icon,title}).bindPopup(motherMapPopup(g.orders,g.pickup),{maxWidth:310}).addTo(motherMapLayer);bounds.push([g.lat,g.lon]);
+ });
+ if(fit&&bounds.length)motherMap.fitBounds(bounds,{padding:[35,35],maxZoom:13});
+ $('#motherMapMissing').innerHTML=unmapped.length?'<b>Без метки: '+unmapped.length+'</b> · '+unmapped.map(o=>'№'+o.number+' — '+esc(o.unknown_address?'адрес уточняется':o.address||'нет координат')).join('; '):'';
+ const plotted=selected.length-unmapped.length;
+ $('#motherMapState').textContent=`На карте ${plotted} из ${selected.length} заказов${unmapped.length?' · '+unmapped.length+' без точных координат':''}. Данные только по учтённым бронированиям на 29 ноября.`;
+ $('#motherMapOrders').innerHTML='<thead><tr><th>Заказ</th><th>Тип / интервал</th><th>Адрес</th></tr></thead><tbody>'+selected.map(o=>`<tr><td>№${o.number}</td><td>${o.delivery_type==='pickup'?'Самовывоз · ':''}${esc(o.interval||'Без времени')}</td><td>${esc(o.delivery_type==='pickup'?data.pickup.address:o.address||'Адрес уточняется')}</td></tr>`).join('')+'</tbody>';
+}
+async function loadMotherMap(){
+ try{
+  const data=await api('/api/shop/mother-map');motherMapData=data;await motherLoadLeaflet();if(tab!=='mother')return;
+  const first=!motherMap;
+  if(first){motherMap=L.map('motherMapCanvas',{scrollWheelZoom:false}).setView([55.7558,37.6173],10);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(motherMap);motherMapLayer=L.layerGroup().addTo(motherMap);}
+  motherMap.invalidateSize();drawMotherMap(first);
+ }catch(e){$('#motherMapState').textContent='Не удалось обновить карту: '+e.message;}
+}
+$('#motherMapFilters').addEventListener('click',e=>{const b=e.target.closest('[data-map-filter]');if(!b)return;motherMapFilter=b.dataset.mapFilter;$('#motherMapFilters').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));drawMotherMap(true);});
+$('#motherMapFit').onclick=()=>drawMotherMap(true);
 
 /* ---------- вкладки ---------- */
 let tab = 'orders';

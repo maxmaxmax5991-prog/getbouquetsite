@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const target=process.argv[2]||path.join(__dirname,'../pb_hooks/lib/occasion.js');
+const ctx={module:{exports:{}}};vm.runInNewContext(fs.readFileSync(target,'utf8'),ctx);
+const {aggregate,DAY}=ctx.module.exports;
+const products=[{id:'rose',name:'Example rose',mothers_day:true,prices_51:{50:5100}},{id:'free',name:'Untracked',no_stock:true}];
+const movements=[{product_id:'rose',length:50,quantity:204,cost_kop:408000}];
+const order=(id,extra={})=>({id,date:DAY,status:'new',delivery_type:'delivery',payment_status:'paid',items:[{id:'rose',label:'50-51',qty:1}],...extra});
+const orders=[order('paid'),order('pickup',{delivery_type:'pickup',payment_status:'unpaid'}),order('unpaid',{payment_status:'unpaid'}),order('cancelled',{status:'cancelled'}),order('other',{date:'2026-11-28'}),order('basket',{items:[{kind:'basket',qty:2,parts:[{id:'rose',len:50,n:10}]}]}),order('untracked',{items:[{id:'free',label:'60-101',qty:1}]})];
+const r=aggregate(orders,movements,products);
+assert.equal(r.total.reserved,204);assert.equal(r.total.booked,122);assert.equal(r.total.free,82);assert.equal(r.total.percent,59.8);assert.equal(r.total.shortage,0);assert.equal(r.total.purchase_cost,4080);assert.equal(r.total.retail_value,20400);assert.equal(r.total.bouquets_51,4);assert.equal(r.counted_orders,4);
+const topped=aggregate(orders,[...movements,{product_id:'rose',length:50,quantity:51,cost_kop:null}],products);assert.equal(topped.total.booked,122);assert.equal(topped.total.free,133);assert.equal(topped.total.purchase_cost_missing,1);
+const short=aggregate([order('large',{items:[{id:'rose',label:'50-301',qty:1}]})],movements,products);assert.equal(short.total.free,-97);assert.equal(short.total.shortage,97);
+console.log('PASS: paid deliveries + all pickups; baskets; exclusions; reserve topups; shortage; valuation and cost completeness');

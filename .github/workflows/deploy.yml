@@ -31,6 +31,7 @@ jobs:
           # Синтаксис встроенных скриптов сайта, админки и страницы загрузки
           node server/ci/check-html.js index.html admin/index.html add/index.html
           node server/ci/test-reliability.cjs
+          node server/ci/test-occasion.cjs
           # Функции, которые уже раз пропадали при правке (CLAUDE.md, 14.11.2026)
           for f in дропПеререндер рисоватьПартию дропКарточка дропПолоска полоскаПартии \
                    вставитьДроп партияДропа привязатьВыбор renderDropPage блокПартии; do
