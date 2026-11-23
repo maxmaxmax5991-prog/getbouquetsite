@@ -710,6 +710,8 @@ function mothersDayLengthProblem(app, date, p, len) {
   if (String(date) !== "2026-11-29") return "";
   let category;
   try { category = app.findRecordById("categories", p.get("category")); } catch (_) { return ""; }
+  if (["cards","toys","vazy"].indexOf(category.get("slug")) >= 0) return "";
+  if (!p.get("mothers_day")) return `«${p.get("name")}» недоступен на 29 ноября. Выберите букет из каталога Дня мамы или другую дату.`;
   if (category.get("slug") !== "single" || [50, 60].indexOf(+len) >= 0) return "";
   return `На 29 ноября одноголовые розы доступны только 50 и 60 см. «${p.get("name")}»: выберите другую длину или дату.`;
 }
@@ -759,7 +761,7 @@ function prepareOrder(app, rec) {
       return;
     }
     if (it && it.kind === "basket") {
-      const r = require(`${__hooks}/lib/basket.js`).разобрать(app, s, it);
+      const r = require(`${__hooks}/lib/basket.js`).разобрать(app, s, it, String(rec.get("date") || ""));
       r.take.forEach((x) => { const error = mothersDayLengthProblem(app, rec.get("date"), x.p, x.len); if (error) fail(error); });
       items.push(r.item);
       r.take.forEach((x) => take.push(x));
