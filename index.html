@@ -1084,6 +1084,7 @@ body.mother-route{background:#fcf7f0;color:#503b3a}body.mother-route .top{backgr
 .mother-delivery{display:grid;grid-template-columns:1fr 1fr;gap:40px;background:#f4e4df;border-radius:28px;padding:46px;margin:0 0 40px}.mother-delivery h2 em{color:#a34a65;font-weight:400}.mother-delivery p{color:#89615d;font-size:14px;line-height:1.7}.mother-windows{background:#fffaf7;border:1px solid #e8cdc7;border-radius:20px;padding:25px}.mother-windows>b{display:block;font-size:15px;margin-bottom:13px}.mother-windows>span{display:inline-block;background:#f6e8e9;border-radius:999px;padding:9px 13px;font-size:13px;font-weight:700;margin:4px}.mother-windows p{margin-bottom:0;font-size:12px}.mother-letter{text-align:center;padding:35px 16px 65px}.mother-letter>span{font:40px Georgia,serif;color:#b8627b}.mother-letter h2{font:400 clamp(30px,4vw,45px)/1.2 Georgia,serif;margin:14px 0}.mother-letter p{font-size:13px;color:#9b7670}.mother-promo{display:block;margin:24px auto 0;padding:19px 23px;max-width:1160px;border:1px solid #e9c5cf;border-radius:17px;background:#f9e9eb;color:#6a3a4c;text-decoration:none}.mother-promo b{display:block;font:400 25px Georgia,serif}.mother-promo span{font-size:13px;display:block;margin-top:6px}
 @media(max-width:600px){.mother-hero{min-height:660px;align-items:flex-end;padding:35px 23px;background-position:75% top}.mother-hero:before{background:linear-gradient(0deg,#fcf4e8 3%,#fcf4e8e8 30%,#fcf4e800 75%)}.mother-hero h1{font-size:48px}.mother-hero .mother-eyebrow{margin-bottom:16px}.mother-hero-copy>p:not(.mother-eyebrow){font-size:15px;line-height:1.5;margin:20px 0}.mother-hero-note{font-size:11px}.mother-benefits{display:grid;gap:12px;padding:24px 0;font-size:12px}.mother-section-head{display:block}.mother-section-head>p{margin-top:13px}.mother-selection{padding:35px 0}.mother-section-head h2{font-size:38px}.mother-delivery{grid-template-columns:1fr;gap:22px;padding:25px 20px;border-radius:22px}.mother-windows{padding:18px}.mother-hero .mother-cta{font-size:14px;padding:14px 21px}.mother-promo{margin:19px 16px 0;padding:18px}.mother-promo b{font-size:23px}}
 
+.home-mother-button{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:50px;padding:14px 22px;border-radius:999px;background:#f9b4d1;color:#472039!important;font-weight:800;font-size:15px;text-decoration:none;box-shadow:0 5px 22px #ee7fb038;border:1px solid #ffdaeb}.home-mother-button span{font-size:12px;font-weight:600;white-space:nowrap}.home-mother-button:hover{background:#ffd0e3}.hero-cta .home-mother-button{background:#f9e1eb;color:#8f365a!important}@media(max-width:480px){.home-mother-button{padding:14px 18px;font-size:14px}}
 </style>
 </head>
 <body>
@@ -1139,7 +1140,7 @@ body.mother-route{background:#fcf7f0;color:#503b3a}body.mother-route .top{backgr
     <div class="vice-copy"><p class="vice-kicker">VENIKOFF · VICE BLOOM EDITION</p>
       <h1>Потрачено.<span>На любовь.</span></h1>
       <p class="vice-lede">Цветы с характером.<br>Доставка по Москве.</p>
-      <div class="vice-home-actions"><a class="vice-cta" href="/catalog/">Выбрать букет →</a><a class="vice-home-secondary" href="/drop/">В дроп →</a></div>
+      <div class="vice-home-actions"><a class="home-mother-button" href="/den-mamy/">🌸 День мамы <span>29 ноября →</span></a><a class="vice-cta" href="/catalog/">Выбрать букет →</a><a class="vice-home-secondary" href="/drop/">В дроп →</a></div>
       <p class="vice-home-trust">Напрямую от производителей · Фото перед доставкой</p>
     </div><span class="vice-edition">LOVE IS THE MISSION</span>
   </section>
@@ -1151,6 +1152,7 @@ body.mother-route{background:#fcf7f0;color:#503b3a}body.mother-route .top{backgr
         <h1 id="heroTitle">Букет, <em>а не веник.</em></h1>
         <p class="lede" id="heroText"></p>
         <div class="hero-cta">
+          <a class="home-mother-button" href="/den-mamy/">🌸 День мамы <span>29 ноября →</span></a>
           <a class="btn btn-primary" href="/catalog/">Перейти в каталог <svg class="i"><use href="#i-arrow"/></svg></a>
         </div>
         <ul class="perks">
@@ -1410,7 +1412,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1795430261"></script>
+<script src="/data.js?v=1795433076"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
