@@ -442,6 +442,8 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <section id="tab-mother" hidden>
       <div class="toolbar"><h2>День мамы · 29 ноября</h2><button class="btn btn-p" id="motherReportRefresh">Обновить</button><a class="btn btn-g" href="/den-mamy/" target="_blank">Открыть страницу</a></div>
       <p class="hint">Все заказы на 29 ноября, включая ожидающие оплаты. Отменённые исключены. Срочные — часовые интервалы за +1 250 ₽. Сорта одной длины складываются в стеблях: 2 букета по 51 розе = 102 стебля. Предзаказы не расходуют сегодняшний остаток.</p>
+      <h3>Уведомление на сайте</h3><div id="motherNoticeStats" class="hint">Загружаем…</div>
+      <p class="hint">Уникальные посетители: показы → переходы → заказ на 29 ноября. Заказ засчитывается после клика в течение 7 дней; оплаченные считаются по фактическому статусу оплаты. Отменённые исключены. Статистика с 23 ноября, только эта витрина.</p>
       <h3 id="motherReportSummary"></h3><p class="hint" id="motherReportState"></p>
       <h3>Заказы по интервалам</h3><div class="scroll"><table class="t" id="motherReportSlots"></table></div>
       <h3>Потребность по сортам и длинам</h3><div class="scroll"><table class="t" id="motherReportPositions"></table></div>
@@ -1429,6 +1431,11 @@ async function loadMotherReport() {
       const r = await api('/api/collections/orders/records?perPage=200&page='+page+'&sort=interval,number&filter='+encodeURIComponent('date="2026-11-29"'));
       orders.push(...r.items); if(page >= r.totalPages) break; page++;
     }
+    try {
+      const n = await api('/api/shop/mother-notice-stats');
+      const pct = x => (+x || 0).toLocaleString('ru-RU')+'%';
+      $('#motherNoticeStats').innerHTML = `<div class="scroll"><table class="t"><thead><tr><th>Увидели</th><th>Перешли</th><th>Переход / показ</th><th>Заказали</th><th>Заказ / переход</th><th>Оплатили</th><th>Оплата / переход</th></tr></thead><tbody><tr><td>${n.shown}</td><td>${n.clicked}</td><td>${pct(n.ctr)}</td><td>${n.converted} чел. / ${n.orders} заказов</td><td>${pct(n.order_conversion)}</td><td>${n.paid_visitors} чел. / ${n.paid_orders} заказов</td><td>${pct(n.paid_conversion)}</td></tr></tbody></table></div>`;
+    } catch (_) { $('#motherNoticeStats').textContent = 'Статистика уведомления доступна владельцу и управляющему.'; }
     const products = await list('products');
     const data = aggregateMotherOrders(orders,products);
     $('#motherReportSummary').textContent = `Заказов: ${data.active.length} · оплачено: ${data.paid} · часовых доставок: ${data.urgent.length}`;
