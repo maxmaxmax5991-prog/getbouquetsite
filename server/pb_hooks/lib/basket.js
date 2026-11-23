@@ -55,7 +55,7 @@ function буквДоступно(f, стеблей) {
 
 // Разбор и проверка корзины из заказа. Возвращает готовую позицию, что списать
 // с остатков и надбавку к доставке.
-function разобрать(app, s, it) {
+function разобрать(app, s, it, date) {
   const беда = (m) => { throw new BadRequestError(m); };
   const ф = формы(s);
   const форма = String(it.shape || "").trim();           // "" — обычная корзина
@@ -81,7 +81,8 @@ function разобрать(app, s, it) {
   части.forEach((ч) => {
     let p;
     try { p = app.findRecordById("products", String(ч.id || "")); } catch (_) { беда("Один из сортов больше недоступен."); }
-    if (!p.get("active")) беда(`«${p.get("name")}» сейчас недоступен.`);
+    const preorder = String(date) === "2026-11-29" && !!p.get("mothers_day");
+    if (!p.get("active") && !preorder) беда(`«${p.get("name")}» сейчас недоступен.`);
     const n = Math.floor(+ч.n || 0);
     if (!(n >= 1 && n <= 2000)) беда(`Неверное количество у «${p.get("name")}».`);
     const len = String(parseInt(ч.len, 10) || 0);
@@ -96,11 +97,13 @@ function разобрать(app, s, it) {
     раздел = c.id;
     const ед = Math.max(1, +c.get("basket_units") || 1);
 
-    if (!shop.stockOk(p, len, n)) {
+    const selectionError = shop.mothersDayLengthProblem(app,date,p,len);
+    if (selectionError) беда(selectionError);
+    if (!preorder && !shop.stockOk(p, len, n)) {
       const есть = +shop.stockOf(p)[len] || 0;
       беда(`«${p.get("name")}» ${len} см: осталось ${есть} шт. Уменьшите количество.`);
     }
-    take.push({ p, len, stems: n });
+    if (!preorder) take.push({ p, len, stems: n });
     мест += n * ед;
     стеблей += n;
     состав.push({ id: p.id, name: p.get("name"), len: +len, n });
