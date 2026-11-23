@@ -1088,6 +1088,7 @@ body.mother-route{background:#fcf7f0;color:#503b3a}body.mother-route .top{backgr
 .mother-notice[hidden]{display:none!important}.mother-notice{position:fixed;z-index:1400;top:calc(env(safe-area-inset-top,0px) + 80px);left:50%;width:min(420px,calc(100vw - 24px));box-sizing:border-box;transform:translateX(-50%);padding:14px 17px 15px;border:1px solid #ffffffba;border-radius:25px;background:#fff8f3ed;color:#4e3440;box-shadow:0 12px 45px #33213235,0 2px 9px #33213212;backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3);animation:motherNoticeIn .45s cubic-bezier(.16,1,.3,1)}.mother-notice-top{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.05em;font-weight:700;color:#927982;margin-bottom:10px}.mother-notice-icon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:#f4d3e0;font-size:17px}.mother-notice-now{margin-left:auto;font-weight:400;letter-spacing:0}.mother-notice-top button{width:26px;height:26px;border-radius:50%;background:#e9dce080;color:#8b737d;font-size:21px;line-height:1;display:grid;place-items:center;cursor:pointer;border:0}.mother-notice strong{display:block;font-size:17px;line-height:1.4;letter-spacing:-.02em}.mother-notice p{font-size:14px;line-height:1.5;margin:5px 0 12px;color:#765d67}.mother-notice>a{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;min-height:41px;border-radius:14px;background:#b95179;color:#fff;text-decoration:none;font-size:14px;font-weight:800}.mother-notice>a:hover{background:#a7446b}@keyframes motherNoticeIn{from{opacity:0;transform:translate(-50%,-30px)}to{opacity:1;transform:translate(-50%,0)}}@media(prefers-reduced-motion:reduce){.mother-notice{animation:none}}@media(max-width:480px){.mother-notice{top:calc(env(safe-area-inset-top,0px) + 72px);padding:13px 16px 14px;border-radius:23px}}
 
 .chip.mother-filter{display:inline-flex;align-items:center;text-decoration:none;background:#f9e1eb;border-color:#eab8cd;color:#983e64;font-weight:800}.size-tiles a.mother-filter{background:#f9e1eb;color:#983e64}
+.unknown-address-choice{display:flex!important;align-items:flex-start;gap:10px;padding:14px;border:1px solid #e8c1d1;background:#fff5f9;border-radius:14px;cursor:pointer}.unknown-address-choice[hidden]{display:none!important}.unknown-address-choice input{width:19px;height:19px;margin:2px 0 0;flex:none;accent-color:var(--accent)}.unknown-address-choice b{font-size:14px}.unknown-address-choice small{display:block;font-size:12px;line-height:1.55;margin-top:5px;color:var(--ink-2)}.mother-notice .mother-notice-prices{font-size:14px;font-weight:900;color:#9d325d;margin-top:7px}
 </style>
 </head>
 <body>
@@ -1391,6 +1392,7 @@ body.mother-route{background:#fcf7f0;color:#503b3a}body.mother-route .top{backgr
 <aside id="motherNotice" class="mother-notice" role="region" aria-label="Предзаказ ко Дню мамы" hidden>
   <div class="mother-notice-top"><span class="mother-notice-icon" aria-hidden="true">🌸</span><span>VENIKOFF.NET</span><span class="mother-notice-now">сейчас</span><button type="button" id="motherNoticeClose" aria-label="Закрыть уведомление">×</button></div>
   <strong>Уже скоро День Мамы ❤️!</strong>
+  <strong class="mother-notice-prices">МЫ НЕ ПОВЫШАЕМ ЦЕНЫ!</strong>
   <p>На 29 ноября лучше оформить заказ заранее.</p>
   <a href="/den-mamy/" id="motherNoticeGo">Перейти <span aria-hidden="true">→</span></a>
 </aside>
@@ -1422,7 +1424,7 @@ window.SHOP = (async () => {
   return null;
 })();
 </script>
-<script src="/data.js?v=1795433359"></script>
+<script src="/data.js?v=1795433628"></script>
 <script>
 (async () => {
 const API = await window.SHOP;
@@ -1735,15 +1737,15 @@ const store = {
    нередко выгружает нашу страницу. Человек возвращался к пустой форме и
    заполнял всё заново. Теперь поля запоминаются на ходу и возвращаются сами —
    это же спасает при случайном обновлении и при «назад». */
-const ПОЛЯ = ['fName','fPhone','fTo','fStreet','fHouse','fBlock','fEntrance','fFloor','fFlat','fIntercom','fNote','fDnote','fDate','fTime','fZone'];
+const ПОЛЯ = ['fName','fPhone','fTo','fRecipientPhone','fStreet','fHouse','fBlock','fEntrance','fFloor','fFlat','fIntercom','fNote','fDnote','fDate','fTime','fZone'];
 // Как назвать поле человеку, когда заказ не ушёл из-за него
 const ИМЯ_ПОЛЯ = {
-  fName: 'Ваше имя', fPhone: 'Телефон', fStreet: 'Улица', fHouse: 'Дом',
+  fName: 'Ваше имя', fPhone: 'Телефон', fTo: 'Имя получателя', fRecipientPhone: 'Телефон получателя', fStreet: 'Улица', fHouse: 'Дом',
   fDate: 'Дата', fTime: 'Интервал', fZone: 'Зона доставки',
   fPd: 'согласие на обработку персональных данных',
 };
 function сохранитьЧерновик() {
-  const d = { тип: getType, поля: {} };
+  const d = { тип: getType, unknown_address: !!(($('#fUnknownAddress') || {}).checked), поля: {} };
   ПОЛЯ.forEach(id => { const el = $('#' + id); if (el && el.value) d.поля[id] = el.value; });
   d.at = Date.now();
   store.set('draft', d);
@@ -1757,6 +1759,7 @@ function черновик() {
 // Дату и интервал возвращаем отдельно: список интервалов строится позже
 function вернутьЧерновик(сДатой) {
   const d = черновик(); if (!d) return;
+  if (!сДатой && $('#fUnknownAddress')) $('#fUnknownAddress').checked = !!d.unknown_address;
   Object.keys(d.поля || {}).forEach(id => {
     if (!сДатой && (id === 'fDate' || id === 'fTime')) return;
     if (сДатой && id !== 'fDate' && id !== 'fTime') return;
@@ -4579,6 +4582,8 @@ function renderCart() {
         <label for="fName">Ваше имя<input id="fName" name="name" required autocomplete="name" placeholder="Анна" maxlength="120"></label>
         <label for="fPhone">Телефон<input id="fPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7 900 000-00-00" pattern="[\\-+0-9 \\(\\)]{10,}" maxlength="40"></label>
         <label for="fTo">Получатель, если не вы<input id="fTo" name="to" placeholder="Имя и телефон получателя" maxlength="200"></label>
+        <label class="unknown-address-choice" id="unknownAddressChoice"><input type="checkbox" id="fUnknownAddress" name="unknown_address"><span><b>Не знаю адрес — уточните у получателя</b><small>Доставка — 700 ₽. Если потребуется доплата, вам придёт ссылка на оплату.</small></span></label>
+        <label for="fRecipientPhone" id="recipientPhoneBox" hidden>Телефон получателя<input id="fRecipientPhone" name="recipient_phone" type="tel" placeholder="+7 900 000-00-00" pattern="[\\-+0-9 \\(\\)]{10,}" maxlength="40" disabled></label>
         <div id="addrBox">
           <label for="fStreet" class="sugg-wrap">Улица<input id="fStreet" name="street" required autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="streetSugg" placeholder="Начните вводить улицу" maxlength="200"><ul class="sugg" id="streetSugg" role="listbox" hidden></ul></label>
           <div class="three">
@@ -4638,6 +4643,7 @@ ${payChoice()}
       ['#fStreet', '#fHouse'].forEach(sel => { const el = $(sel); if (el) el.required = !pickup; });
       if ($('#zoneBox')) $('#zoneBox').hidden = pickup;
       if ($('#pickupNote')) $('#pickupNote').hidden = !pickup;
+      syncUnknownAddress();
       // «При получении» бывает только у самовывоза. Выбор оплаты при возврате к
       // доставке исчезает с экрана, а payMethod оставался прежним — и сервер
       // отбивал заказ: «Доставку нужно оплатить картой». За неделю 9 таких отказов.
@@ -4661,10 +4667,12 @@ ${payChoice()}
     prepLogin('#idTg', '#idMax', '#idWait', afterLogin);
     if (PAY && PAY.card) loadWidget();      // пока заполняют форму, окно оплаты уже готово
     bindAddress();
+    $('#fUnknownAddress').onchange = () => { syncUnknownAddress(); recalc(); сохранитьЧерновик(); };
     вернутьЧерновик(false);                 // имя, телефон, адрес — до построения интервалов
     fillIntervals();
     вернутьЧерновик(true);                  // дата и время — когда список интервалов готов
     if (store.get('preorderDate','') === MOTHERS_DAY && MOTHERS_DAY >= today) $('#fDate').value = MOTHERS_DAY;
+    syncUnknownAddress();
     fillIntervals(); recalc();
     // запоминаем на ходу: вход в Телеграм уводит со страницы, и браузер её выгружает
     const форма = $('#orderForm');
@@ -4894,6 +4902,9 @@ function slotList(date, sum) {
   if (fixed) return fixed.filter(label => toMin(label.split('–')[0]) >= first);
   const start0 = Math.ceil(first / SLOTS.step) * SLOTS.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
+  if (getType === 'pickup' && date === '2026-11-29') {
+    const times = []; for (let t=start0;t<=send;t+=SLOTS.step) times.push(hhmm(t)); return times;
+  }
   const full = getType === 'pickup' ? SLOTS.step : SLOTS.hours * 60;
   const last = Math.min(send, till - full);   // уехать до «отправляем до», приехать до крайнего времени
   const out = [];
@@ -5002,6 +5013,7 @@ const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5)
 const zonePrice = (z, sum) => z.free_from > 0 && sum >= z.free_from ? 0 : z.price;
 function fillIntervals() {
   const date = $('#fDate').value;
+  const timeLabel = $('#timeLabel'); if (timeLabel && timeLabel.firstChild) timeLabel.firstChild.textContent = getType === 'pickup' ? 'Время получения' : 'Интервал';
   const hourlyRule = getType !== 'pickup' && (SLOTS.hourly_by_date || {})[date];
   if (!hourlyRule) hourlySlot = false;
   const box = $('#hourlyChoice'), toggle = $('#hourlyToggle');
@@ -5134,7 +5146,7 @@ const loadSuggest = debounce(async () => {
 }, 250);
 
 const checkAddress = debounce(async () => {
-  if (!(DEL && DEL.km) || getType === 'pickup') return;
+  if (!(DEL && DEL.km) || getType === 'pickup' || isUnknownAddress()) return;
   const f = addrFields();
   addrInfo = null;
   if (!f.street.trim() || !f.house.trim()) { addrSay('', false); recalc(); return; }
@@ -5180,6 +5192,22 @@ function bindAddress() {
   ['#fHouse', '#fBlock'].forEach(sel => { const el = $(sel); if (el) el.oninput = checkAddress; });
 }
 
+function isUnknownAddress() { return getType !== 'pickup' && !!(($('#fUnknownAddress') || {}).checked); }
+function syncUnknownAddress() {
+  const pickup = getType === 'pickup', unknown = isUnknownAddress();
+  $('#unknownAddressChoice').hidden = pickup;
+  $('#addrBox').hidden = pickup || unknown;
+  $$('#addrBox input').forEach(el => {el.disabled=pickup || unknown;el.required=!pickup && !unknown && ['fStreet','fHouse'].includes(el.id);});
+  if ($('#zoneBox')) $('#zoneBox').hidden=pickup || unknown;
+  if ($('#fZone')) {$('#fZone').disabled=pickup || unknown;$('#fZone').required=!pickup && !unknown;}
+  $('#recipientPhoneBox').hidden=!unknown;
+  $('#fRecipientPhone').disabled=!unknown;$('#fRecipientPhone').required=unknown;
+  $('#fTo').required=unknown;
+  $('#fTo').placeholder=unknown ? 'Имя получателя' : 'Имя и телефон получателя';
+  if (unknown || pickup) {addrInfo=null;addrBusy=false;suggClose();}
+  else checkAddress();
+}
+
 function recalc() {
   const lengthError = motherCartProblem(($('#fDate') || {}).value);
   if ($('#fErr')) { $('#fErr').textContent = lengthError; $('#fErr').hidden = !lengthError; }
@@ -5189,6 +5217,7 @@ function recalc() {
   const hourlyRule = (SLOTS.hourly_by_date || {})[($('#fDate') || {}).value];
   const extra = hourlyRule && hourlyRule.windows.includes(($('#fTime') || {}).value) ? hourlyRule.price : 0;
   const hourlyText = extra ? ` + часовой интервал ${rub(extra)}` : '';
+  if (isUnknownAddress()) { $('#fDelivery').textContent = 'букеты '+rub(sum)+' + доставка 700 ₽'+hourlyText; $('#fTotal').textContent=rub(sum+700+extra); return; }
   if (DEL && DEL.km) {
     if (!addrInfo) {
       $('#fDelivery').textContent = (addrBusy ? 'считаем доставку…' : 'доставка — укажите адрес') + hourlyText;
@@ -5249,7 +5278,7 @@ cartDlg.addEventListener('submit', async e => {
   // покупатель увидит и эту покупку.
 
   // при расчёте по километрам заказ уходит только с найденным на карте адресом
-  const km = !!(DEL && DEL.km) && getType !== 'pickup';
+  const km = !!(DEL && DEL.km) && getType !== 'pickup' && !isUnknownAddress();
   if (km && addrBusy) { шаг('refuse', 'адрес ещё проверяется'); return err('Секунду, проверяем адрес.'); }
   // АДРЕС, КОТОРЫЙ НЕ УЗНАЛИ КАРТЫ, БОЛЬШЕ НЕ ОСТАНАВЛИВАЕТ ЗАКАЗ. За две
   // недели сюда упёрлись 160 человек, 41 ушёл совсем. Карты не знают новых
@@ -5264,11 +5293,12 @@ cartDlg.addEventListener('submit', async e => {
     try {
       const res = await fetch('/api/collections/orders/records', { method: 'POST', headers: { 'content-type': 'application/json', ...meHeaders() }, body: JSON.stringify({
         name: v('name').trim(), phone: v('phone').trim(), recipient: v('to').trim(),
+        unknown_address: isUnknownAddress(), recipient_phone: isUnknownAddress() ? v('recipient_phone').trim() : '',
         // адрес собирает сервер из частей — он же проверяет его по картам
         address: getType === 'pickup' ? 'Самовывоз' : '',
-        ...(getType === 'pickup' ? {} : { street: v('street').trim(), house: v('house').trim(), block: v('block').trim(),
+        ...(getType === 'pickup' || isUnknownAddress() ? {} : { street: v('street').trim(), house: v('house').trim(), block: v('block').trim(),
           entrance: v('entrance').trim(), floor: v('floor').trim(), flat: v('flat').trim(), intercom: v('intercom').trim() }),
-        zone: getType === 'pickup' || !$('#fZone') ? '' : v('zone'), date: v('date'), interval: v('time'), note: v('note').trim(),
+        zone: getType === 'pickup' || isUnknownAddress() || !$('#fZone') ? '' : v('zone'), date: v('date'), interval: v('time'), note: v('note').trim(),
         // просьба курьеру: отдельно от открытки, уходит в МойСклад в комментарий по доставке
         delivery_note: getType === 'pickup' ? '' : (($('#fDnote') || {}).value || '').trim(),
         delivery_type: getType, payment_method: payMethod,
