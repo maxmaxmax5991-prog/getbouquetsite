@@ -285,6 +285,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
 
 @media(max-width:600px){.top .wrap{height:auto;min-height:60px;flex-wrap:wrap;padding-block:10px;gap:8px}.top .who{width:100%;margin-left:0;justify-content:space-between;gap:8px}.top .who>*{flex-shrink:0}.top .who #buildAt{font-size:11px}}
 .md-map-icon>span{min-width:14px;width:14px;height:14px;padding:0;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 6px #0005}.md-map-icon>span:after{display:none}.md-map-icon>span.fire{min-width:28px;width:28px;height:28px;border:0;border-radius:0;background:none!important;box-shadow:none;font-size:26px;line-height:1}
+.md-overview{grid-template-columns:repeat(2,minmax(0,1fr))}.md-overview>section:last-child{grid-column:1/-1}@media(max-width:600px){.md-overview{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1464,7 +1465,7 @@ async function loadMotherReport() {
     motherPurchaseRows=data.positions;
     $('#motherSlotCards').innerHTML=data.slots.filter(x=>['08:00–13:00','13:00–18:00','18:00–22:00'].includes(x.label)).map(x=>`<div class="md-slot"><span>${esc(x.label)}</span><strong>${x.orders}</strong><small>доставок · ${x.paid} оплачено</small></div>`).join('');
     $('#motherExport').disabled=false;
-    $('#motherReportSummary').textContent = `Заказов: ${data.active.length} · оплачено: ${data.paid} · часовых доставок: ${data.urgent.length}`;
+    $('#motherReportSummary').textContent = `Сайт: ${data.active.length} заказов · оплачено: ${data.paid} · часовых доставок: ${data.urgent.length}`;
     const table = (heads,rows) => '<thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody>';
     $('#motherReportSlots').innerHTML = table(['Интервал','Заказов','Оплачено','Не оплачено'],data.slots.filter(s=>!s.label.startsWith('Самовывоз')).map(s=>`<tr><td>${esc(s.label)}${s.hourly?' · часовая +1 250 ₽':''}</td><td>${s.orders}</td><td>${s.paid}</td><td>${s.orders-s.paid}</td></tr>`));
     $('#motherReportPositions').innerHTML = table(['Позиция','Длина','Итого штук','Букетов / позиций'],data.positions.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.len ? p.len+' см':'—'}</td><td><b>${p.n.toLocaleString('ru-RU')} ${p.unit}</b></td><td>${p.bouquets}</td></tr>`));
