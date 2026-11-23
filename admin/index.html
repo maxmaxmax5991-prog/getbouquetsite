@@ -441,7 +441,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
     <!-- Товары -->
     <section id="tab-mother" hidden>
       <div class="toolbar"><h2>День мамы · 29 ноября</h2><button class="btn btn-p" id="motherReportRefresh">Обновить</button><a class="btn btn-g" href="/den-mamy/" target="_blank">Открыть страницу</a></div>
-      <p class="hint">Все заказы на 29 ноября, включая ожидающие оплаты. Отменённые исключены. Срочные — часовые интервалы за +1 250 ₽. Сорта одной длины складываются в стеблях: 2 букета по 51 розе = 102 стебля. Предзаказы не расходуют сегодняшний остаток.</p>
+      <p class="hint">Бронирования на 29 ноября: только оплаченные доставки и все самовывозы, включая неоплаченные. Неоплаченные доставки и отменённые заказы исключены. Срочные — часовые интервалы за +1 250 ₽. Сорта одной длины складываются в стеблях: 2 букета по 51 розе = 102 стебля. Предзаказы не расходуют сегодняшний остаток.</p>
       <h3>Уведомление на сайте</h3><div id="motherNoticeStats" class="hint">Загружаем…</div>
       <p class="hint">Уникальные посетители: показы → переходы → заказ на 29 ноября. Заказ засчитывается после клика в течение 7 дней; оплаченные считаются по фактическому статусу оплаты. Отменённые исключены. Статистика с 23 ноября, только эта витрина.</p>
       <h3 id="motherReportSummary"></h3><p class="hint" id="motherReportState"></p>
@@ -1395,7 +1395,7 @@ function aggregateMotherOrders(orders, products) {
     const row = positions.get(key) || {name:names.get(id) || name,len:len || '',n:0,bouquets:0,unit};
     row.n += n; row.bouquets += bouquets; positions.set(key,row);
   };
-  const active = orders.filter(o => String(o.date).slice(0,10) === '2026-11-29' && o.status !== 'cancelled');
+  const active = orders.filter(o => String(o.date).slice(0,10) === '2026-11-29' && o.status !== 'cancelled' && (o.delivery_type === 'pickup' || o.payment_status === 'paid'));
   active.forEach(o => {
     const pickup = o.delivery_type === 'pickup';
     const label = pickup ? 'Самовывоз' : normalize(o.interval) || 'Без интервала';
@@ -1440,7 +1440,7 @@ async function loadMotherReport() {
     const data = aggregateMotherOrders(orders,products);
     $('#motherReportSummary').textContent = `Заказов: ${data.active.length} · оплачено: ${data.paid} · часовых доставок: ${data.urgent.length}`;
     const table = (heads,rows) => '<thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody>';
-    $('#motherReportSlots').innerHTML = table(['Интервал','Заказов','Оплачено','Ждут оплаты'],data.slots.map(s=>`<tr><td>${esc(s.label)}${s.hourly?' · часовая +1 250 ₽':''}</td><td>${s.orders}</td><td>${s.paid}</td><td>${s.orders-s.paid}</td></tr>`));
+    $('#motherReportSlots').innerHTML = table(['Интервал','Заказов','Оплачено','Самовывоз без оплаты'],data.slots.map(s=>`<tr><td>${esc(s.label)}${s.hourly?' · часовая +1 250 ₽':''}</td><td>${s.orders}</td><td>${s.paid}</td><td>${s.orders-s.paid}</td></tr>`));
     $('#motherReportPositions').innerHTML = table(['Позиция','Длина','Итого штук','Букетов / позиций'],data.positions.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.len ? p.len+' см':'—'}</td><td><b>${p.n.toLocaleString('ru-RU')} ${p.unit}</b></td><td>${p.bouquets}</td></tr>`));
     $('#motherReportUrgent').innerHTML = data.urgent.length ? table(['Заказ','Время','Клиент','Телефон','Оплата'],data.urgent.map(o=>`<tr><td>№${o.number}</td><td>${esc(o.interval)}</td><td>${esc(o.name || '')}</td><td>${esc(o.phone || '')}</td><td>${o.payment_status==='paid'?'Оплачен':'Ждёт оплаты'}</td></tr>`)) : '<tbody><tr><td>Часовых доставок пока нет</td></tr></tbody>';
     $('#motherReportState').textContent = 'Обновлено '+new Date().toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})+' · автообновление раз в минуту';
@@ -1642,6 +1642,7 @@ function orderHTML(o) {
     <div class="order-h"><b>№${o.number}</b>${brandPill(o.brand)}<span class="pill st-${o.status}">${STATUS[o.status]}</span>${payPill(o)}${вазаВЗаказе(o) ? '<span class="pill vaza">vaza — не забыть вазу</span>' : ''}${флагФото(o)}
       <span class="hint" style="margin:0">создан ${created.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
       <span class="sum num">${rub(o.total)}</span></div>
+    ${o.unknown_address && !['done','cancelled'].includes(o.status) ? `<div class="geo-bad"><b>НУЖНО УТОЧНИТЬ АДРЕС У ПОЛУЧАТЕЛЯ</b><span class="hint" style="margin:0">Доставка оплачивается предварительно: 700 ₽${o.delivery_price > 700 ? ' + выбранные надбавки' : ''}. Если итоговая стоимость выше — выставьте отправителю доплату по ссылке.</span><div class="bar"><button class="btn btn-p btn-s" data-resolve-address>Указать адрес и стоимость доставки</button><button class="btn btn-g btn-s" data-extra>Выставить доплату</button></div></div>` : ''}
     ${адресНеУзнан(o) ? `<div class="geo-bad">
       <b>СТОИМОСТЬ ДОСТАВКИ ПОСЧИТАНА НЕ КОРРЕКТНО</b>
       <span class="hint" style="margin:0">Карта не нашла этот адрес. Доставка посчитана по городу — ${rub(o.delivery_price || 0)}. Уточните адрес у покупателя, поставьте верную цену, а разницу выставите доплатой — ссылка уйдёт покупателю сама.</span>
@@ -1680,6 +1681,17 @@ function orderHTML(o) {
 }
 $('#orders').addEventListener('click', safe(async e => {
   const t = e.target;
+  if (t.matches('[data-resolve-address]')) {
+    const id=t.closest('.order').dataset.id;
+    const o=await api('/api/collections/orders/records/'+id);
+    const address=prompt('Адрес, уточнённый у получателя:',''); if(address===null || !address.trim())return;
+    const value=prompt('Полная стоимость доставки, ₽ (включая часовой интервал и другие надбавки, если выбраны):',String(o.delivery_price || 700)); if(value===null)return;
+    if(!/^\d+(?:[.,]\d{1,2})?$/.test(value.trim()))return toast('Укажите стоимость доставки числом');
+    const r=await api('/api/shop/order-edit',{method:'POST',body:{order:id,address:address.trim(),delivery_price:+value.replace(',','.'),resolve_address:true}});
+    if(r.доплата && confirm(`Нужна доплата ${rub(r.доплата)}. Отправить заказчику ссылку на оплату?`))await выставитьДоплату(id,r.доплата);
+    if(r.возврат)toast('Адрес сохранён. Проверьте возврат '+rub(r.возврат));else toast('Адрес и стоимость доставки сохранены');
+    return loadOrders();
+  }
   if (t.matches('[data-take]')) {
     await api('/api/shop/order-take', { method: 'POST', body: { order: t.dataset.take } });
     toast('Заказ за вами'); return loadOrders();
