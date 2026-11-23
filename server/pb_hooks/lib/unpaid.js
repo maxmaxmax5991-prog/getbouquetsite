@@ -30,6 +30,7 @@ function вернутьОстатки(app, o) {
   if (!Array.isArray(items)) return 0;
   let стеблей = 0;
   items.forEach((it) => {
+    if (it.preorder) return; // Предзаказ не занимал сегодняшний склад.
     const m = String(it.label || "").match(/^(\d+)-(\d+)$/);
     if (!m) return;
     const надо = +m[2] * (+it.qty || 1);
