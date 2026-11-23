@@ -378,7 +378,7 @@ function catalog(app, brand) {
   // кустовые и только со снимком — карточка без фотографии выглядела бы сломанной.
   const OFF = ["single", "kustovye-rozy"];
   app.findRecordsByFilter("products", "active = false", "sort,-created", 300, 0)
-    .filter((p) => catById[p.get("category")] && mine(p) && OFF.indexOf(catById[p.get("category")].get("slug")) >= 0)
+    .filter((p) => catById[p.get("category")] && mine(p) && (OFF.indexOf(catById[p.get("category")].get("slug")) >= 0 || p.get("mothers_day")))
     .filter((p) => (p.get("photo") || []).length)
     .forEach((p) => {
       const c = card(p);
@@ -696,6 +696,18 @@ function invoiceOf(o) {
   return String(o.get("invoice") || "") || String(o.get("number"));
 }
 
+// Ограничение ростовок действует только на дату получения 29 ноября 2026.
+function isMothersDayPreorder(rec, p) {
+  return String(rec.get("date")) === "2026-11-29" && !!p.get("mothers_day");
+}
+function mothersDayLengthProblem(app, date, p, len) {
+  if (String(date) !== "2026-11-29") return "";
+  let category;
+  try { category = app.findRecordById("categories", p.get("category")); } catch (_) { return ""; }
+  if (category.get("slug") !== "single" || [50, 60].indexOf(+len) >= 0) return "";
+  return `На 29 ноября одноголовые розы доступны только 50 и 60 см. «${p.get("name")}»: выберите другую длину или дату.`;
+}
+
 function prepareOrder(app, rec) {
   const s = settings(app);
   const fail = (msg) => { throw new BadRequestError(msg); };
@@ -725,6 +737,8 @@ function prepareOrder(app, rec) {
       const выдача = dr.взять(app, rec.get("customer"), it.id, rec.get("phone"));
       let p;
       try { p = app.findRecordById("products", String(выдача.product || it.id)); } catch (_) { fail("Сорт из дропа больше недоступен."); }
+      const lengthError = mothersDayLengthProblem(app, rec.get("date"), p, выдача.len);
+      if (lengthError) fail(lengthError);
       items.push({ id: p.id, kind: "drop", name: `${p.get("name")} ${выдача.len} см, ${выдача.cnt} шт (дроп)`,
         label: `${выдача.len}-${выдача.cnt}`, label_text: `${выдача.cnt} шт · ${выдача.len} см`,
         qty: 1, price: выдача.price, sum: выдача.price, stems: выдача.cnt });
@@ -740,6 +754,7 @@ function prepareOrder(app, rec) {
     }
     if (it && it.kind === "basket") {
       const r = require(`${__hooks}/lib/basket.js`).разобрать(app, s, it);
+      r.take.forEach((x) => { const error = mothersDayLengthProblem(app, rec.get("date"), x.p, x.len); if (error) fail(error); });
       items.push(r.item);
       r.take.forEach((x) => take.push(x));
       if (r.dx > корзДоставка) корзДоставка = r.dx;
@@ -748,7 +763,8 @@ function prepareOrder(app, rec) {
     }
     let p;
     try { p = app.findRecordById("products", String(it.id)); } catch (_) { fail("Один из букетов больше недоступен. Обновите страницу."); }
-    if (!p.get("active")) fail(`«${p.get("name")}» сейчас недоступен.`);
+    const motherPreorder = isMothersDayPreorder(rec, p);
+    if (!p.get("active") && !motherPreorder) fail(`«${p.get("name")}» сейчас недоступен.`);
     const qty = Math.floor(+it.qty);
     if (!(qty >= 1 && qty <= 99)) fail("Неверное количество.");
     const variants = variantsOf(p, s);
@@ -769,21 +785,23 @@ function prepareOrder(app, rec) {
         price = своя; label = `${+m[1]}-${+m[2]}`;
       }
     }
+    const lengthError = mothersDayLengthProblem(app, rec.get("date"), p, String(label || it.label || "").split("-")[0]);
+    if (lengthError) fail(lengthError);
     // цену проверяем здесь: пустое поле в карточке даёт ноль, и букет уходил бы даром
     if (!(+price > 0)) fail(`У «${p.get("name")}» не указана цена. Позвоните нам — оформим вручную.`);
     // Остатки: сколько стеблей забронировано под сайт. Проверяем здесь, а списываем
     // ниже, когда весь заказ уже прошёл проверки — иначе списали бы под отказ.
     if (label) {
       const m = String(label).match(/^(\d+)-(\d+)$/);
-      if (m && !stockOk(p, m[1], +m[2] * qty)) {
+      if (m && !motherPreorder && !stockOk(p, m[1], +m[2] * qty)) {
         const have = +stockOf(p)[m[1]] || 0;
         const едет = +((incomingOf(p)[m[1]] || {}).qty) || 0;
         fail(`«${p.get("name")}» ${m[1]} см: осталось ${have} ${have === 1 ? "цветок" : "штук"}${едет ? ` (и ${едет} в пути)` : ""}. Уменьшите количество.`);
       }
-      take.push({ p, len: m ? m[1] : "", stems: m ? +m[2] * qty : 0 });
+      if (!motherPreorder) take.push({ p, len: m ? m[1] : "", stems: m ? +m[2] * qty : 0 });
     }
-    // экспресс-букет: проверяем, сколько готовых осталось
-    if (p.get("is_express")) {
+    // Предзаказ собираем к празднику, сегодняшние готовые букеты не расходуем.
+    if (p.get("is_express") && !motherPreorder) {
       const raw = jget(p, "variants");
       const vrow = (label && Array.isArray(raw)) ? raw.find((x) => x && x.label === label) : null;
       const perVariant = vrow && vrow.ready !== undefined && vrow.ready !== null;
@@ -794,7 +812,7 @@ function prepareOrder(app, rec) {
       }
       take.push({ p, express: true, qty, label: perVariant ? label : "" });
     }
-    items.push({ id: p.id, name: p.get("name"), label, label_text: label ? labelText(label) : "", price: +price, qty, sum: price * qty });
+    items.push({ id: p.id, preorder: motherPreorder || undefined, name: p.get("name"), label, label_text: label ? labelText(label) : "", price: +price, qty, sum: price * qty });
     sum += price * qty;
     bonus += (p.get("bonus") || 0) * qty;
   });
@@ -1222,6 +1240,6 @@ function notifyCustomer(app, o, status) {
 }
 
 module.exports = {
-  STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, ценаЗаШтуки, рамкиШтук, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, fromMinOf, stockOf, stockOk, incomingOf, availAt,
+  isMothersDayPreorder, mothersDayLengthProblem, STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, ценаЗаШтуки, рамкиШтук, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, fromMinOf, stockOf, stockOk, incomingOf, availAt,
   tg, tgPhoto, clientToken, markBot, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
 };
