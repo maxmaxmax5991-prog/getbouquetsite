@@ -31,7 +31,7 @@
  }
  function tick(now){frame=0;if(!enabled||document.hidden||!allowed())return;if(now-last<33){frame=requestAnimationFrame(tick);return;}const dt=Math.min(.08,(now-last)/1000||.033);last=now;elapsed+=dt;
   size(screen);const c=screen.ctx,w=screen.w,h=screen.h;c.clearRect(0,0,w,h);
-  while(flakes.length<Math.min(46,Math.ceil(w/24)))flakes.push({x:Math.random()*w,y:Math.random()*h,r:.65+Math.random()*.9,v:11+Math.random()*15,phase:Math.random()*6.28});
+  while(flakes.length<Math.min(65,Math.ceil(w/17)))flakes.push({x:Math.random()*w,y:Math.random()*h,r:.85+Math.random()*1.1,v:13+Math.random()*17,phase:Math.random()*6.28});
   c.fillStyle='rgba(255,255,255,.72)';c.shadowColor='rgba(141,167,189,.45)';c.shadowBlur=1;
   for(const p of flakes){p.y+=p.v*dt;p.x+=Math.sin(elapsed*.6+p.phase)*dt*3;if(p.y>h+3){p.y=-3;p.x=Math.random()*w;}c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);c.fill();}c.shadowBlur=0;
   if(now>nextScan){scan();nextScan=now+750;}for(const m of models)if(m.visible)bank(m,(elapsed+m.offset)%47);
