@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh cached Moscow weather for storefront
+[Timer]
+OnBootSec=75s
+OnUnitActiveSec=10min
+RandomizedDelaySec=45s
+Persistent=true
+[Install]
+WantedBy=timers.target

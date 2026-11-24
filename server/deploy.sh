@@ -15,7 +15,7 @@ perl -pi -e "s#data\.js\?v=\d+#data.js?v=$(date +%s)#" index.html
 rsync -az --delete -e ssh server/pb_hooks/ "$HOST:/opt/venikoff/pb/pb_hooks/"
 rsync -az --delete -e ssh server/pb_migrations/ "$HOST:/opt/venikoff/pb/pb_migrations/"
 rsync -az -e ssh server/bin/ "$HOST:/opt/venikoff/bin/"
-rsync -az --delete -e ssh --include='index.html' --include='rezerv-mamy.html' --include='data.js' --include='img/***' --include='admin/***' --include='add/***' --include='fonts/***' --exclude='*' ./ "$HOST:/opt/venikoff/site/"
+rsync -az --delete -e ssh --include='index.html' --include='winter.js' --include='rezerv-mamy.html' --include='data.js' --include='img/***' --include='admin/***' --include='add/***' --include='fonts/***' --exclude='*' ./ "$HOST:/opt/venikoff/site/"
 ssh "$HOST" 'chown -R venikoff:venikoff /opt/venikoff/pb && chmod -R u=rwX,go=rX /opt/venikoff/site && systemctl restart venikoff-pb && sleep 2 && systemctl is-active venikoff-pb'
 # Проверку делаем С САМОГО СЕРВЕРА: с мака прямой связи с ним нет, и curl
 # отсюда всегда возвращал бы 000 — выкладка выглядела бы сломанной.
