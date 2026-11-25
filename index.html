@@ -1901,7 +1901,7 @@ function motherStockHTML(p){
   const row=motherStockData?.items?.find(r=>r.id===p.id&&+r.length===len);
   let text='Уточняем свободный резерв…';
   if(motherStockFailed||motherStockData?.department_stale)text='Свободный резерв уточняется';
-  else if(motherStockData)text=row?'Свободно на 29 ноября · '+len+' см: '+Math.max(0,row.free).toLocaleString('ru-RU')+' стеблей':'Доступно к предзаказу на 29 ноября';
+  else if(motherStockData)text=row?'Свободно на 29 ноября · '+len+' см: '+Math.max(0,row.free).toLocaleString('ru-RU')+' '+plural(Math.max(0,row.free),'стебель','стебля','стеблей'):'Доступно к предзаказу на 29 ноября';
   return '<div class="mother-card-stock" role="status">'+esc(text)+'</div>';
 }
 async function loadMotherStock(){
@@ -2887,10 +2887,11 @@ function sizesHTML(p, cls = 'sizes') {
     // кнопку длины показываем даже когда она одна: карточки стоят ровно и видно ростовку.
     // прячем только когда длины у товара нет вовсе (гортензии — это длина 0)
     return (p.lengths.some(L => L > 0)
-      ? row('Длина', p.lengths.map(L => {
+      ? row('Длина', p.lengths.filter(L => p.variants.some(x => x.len === L)).map(L => {
           const all = p.variants.filter(x => x.len === L);
           const gone = all.length && all.every(x => x.out);
-          return `<button class="num${gone ? ' gone' : ''}" data-size="${L}-${v.cnt}" data-pid="${p.id}" aria-pressed="${L === v.len}"${gone ? ' title="Закончились, ждём в следующую срезку"' : ''}>${L} см</button>`;
+          const next = all.find(x => x.cnt === v.cnt) || all.find(x => !x.out) || all[0];
+          return `<button class="num${gone ? ' gone' : ''}" data-size="${next.label}" data-pid="${p.id}" aria-pressed="${L === v.len}"${gone ? ' title="Закончились, ждём в следующую срезку"' : ''}>${L} см</button>`;
         }).join(''))
       : '') +
       row('Количество', counts.map(C => {
