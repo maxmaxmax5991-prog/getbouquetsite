@@ -1958,7 +1958,10 @@ const FLOWER = [[/роз/i, ['роза', 'розы', 'роз']], [/гортен�
 // фотографии: в полоске под фото листают снимки, и подпись обязана меняться
 // вместе с картинкой. Без этого у французских роз на всех трёх снимках висело
 // «25 роз» — столько на том, с которого карточка открывается.
+const photoSizeText = p => /^на фото размер (?:XXS|XS|S|M|L|XL|XXL|XXXL)$/i.test(String(p.badge_text || '').trim()) ? String(p.badge_text).trim() : '';
 function countText(p, label, снимок) {
+  const sizeCaption=photoSizeText(p);
+  if(sizeCaption)return sizeCaption;
   const v = variant(p, label);
   const f = снимок !== undefined ? снимок : photoFor(p, label);
   // считаем по тому снимку, который показан: у размера свой (pcnt), подобранный
@@ -2988,7 +2991,7 @@ function card(p, место, и) {
   // своя надпись на фото сильнее готовых меток: её пишут руками под конкретный повод
   const tag = p.cat === 'hydrangea' ? '<span class="tag own">🔥 Всего<br>449 ₽/шт 🔥</span>'
     : акция ? ''
-    : p.badge_text ? `<span class="tag own">${esc(p.badge_text)}</span>`
+    : p.badge_text && !photoSizeText(p) ? `<span class="tag own">${esc(p.badge_text)}</span>`
     : p.sale ? '<span class="tag">Акция</span>' : p.author ? '<span class="tag author">Авторский</span>'
     : p.site_only ? '<span class="tag only">Только на сайте</span>' : '';
   return `<article class="card${p.off ? ' is-off' : p.soldout ? ' is-gone' : ''}" data-id="${p.id}"${место ? ` data-pos="${место}#${(+и || 0) + 1}"` : ''}>
@@ -3891,7 +3894,7 @@ function showProduct(id) {
   $('#pdFresh').innerHTML = `<b>🌿 Этот сорт сегодня приехал к нам напрямую ${откуда(p)}</b>`;
   $('#pdExpress').hidden = !readyNow(p);
   if (readyNow(p)) $('#pdExpress').innerHTML = `<b>⚡ Готов сейчас</b> — букет уже собран, ${readyNow(p) === 1 ? 'остался 1' : 'осталось ' + readyNow(p)} шт. Везём без времени на сборку.`;
-  $('#pdCat').textContent = p.badge_text || catName[p.cat] || '';
+  $('#pdCat').textContent = (photoSizeText(p) ? '' : p.badge_text) || catName[p.cat] || '';
   // Описание сорта: цвет, форма бутона, для чего берут. Его же сервер отдаёт
   // в мета-описание и в разметку товара — текст один, писать его надо один раз.
   { const d = $('#pdDesc'); if (d) { d.textContent = p.description || ''; d.hidden = !p.description; } }
@@ -3953,6 +3956,8 @@ const MOTHERS_DAY = '2026-11-29';
 function renderMotherPage() {
   loadMotherStock();
   const products = P.filter(p => p.mothers_day && p.img).map(motherViewProduct).filter(p => p.cat !== 'single' || p.variants.length);
+  // Bubble Gum — первый букет в праздничной подборке по выбору владельца.
+  products.sort((a,b)=>Number(b.id==='8z8pp1wt7add9lk')-Number(a.id==='8z8pp1wt7add9lk'));
   $('#motherGrid').innerHTML = products.length ? products.map((p,i) => card(p,'mother',i)).join('')
     : '<div class="mother-empty"><h3>Собираем для вас самое нежное</h3><p>Скоро здесь появятся букеты для предзаказа ко Дню мамы.</p></div>';
 }
