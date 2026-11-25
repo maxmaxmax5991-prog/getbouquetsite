@@ -702,7 +702,7 @@ function invoiceOf(o) {
   return String(o.get("invoice") || "") || String(o.get("number"));
 }
 
-// Ограничение ростовок действует только на дату получения 29 ноября 2026.
+// На 29 ноября доступность определяется ассортиментом Дня мамы; длины — по прайсу товара.
 function isMothersDayPreorder(rec, p) {
   return String(rec.get("date")) === "2026-11-29" && !!p.get("mothers_day");
 }
@@ -712,8 +712,7 @@ function mothersDayLengthProblem(app, date, p, len) {
   try { category = app.findRecordById("categories", p.get("category")); } catch (_) { return ""; }
   if (["cards","toys","vazy"].indexOf(category.get("slug")) >= 0) return "";
   if (!p.get("mothers_day")) return `«${p.get("name")}» недоступен на 29 ноября. Выберите букет из каталога Дня мамы или другую дату.`;
-  if (category.get("slug") !== "single" || [50, 60].indexOf(+len) >= 0) return "";
-  return `На 29 ноября одноголовые розы доступны только 50 и 60 см. «${p.get("name")}»: выберите другую длину или дату.`;
+  return "";
 }
 
 function prepareOrder(app, rec) {

@@ -1099,6 +1099,7 @@ body.mother-route .top .logo-dark{display:none}
 body.mother-route .top .icon-btn{background:#fffaf6;color:#503b3a;border-color:#dec5bb}
 body.mother-route .top .icon-btn:hover{background:#f4e6df;border-color:#a83e65}
 
+.mother-card-stock{margin:10px 14px 14px;padding:10px 12px;border-radius:12px;background:#f6edf0;color:#78384d;font-size:12px;line-height:1.45;font-weight:700;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -1289,7 +1290,7 @@ body.mother-route .top .icon-btn:hover{background:#f4e6df;border-color:#a83e65}
   <div class="wrap mother-content">
     <div class="mother-benefits"><span>♡ Фото букета перед доставкой</span><span>✉ Открытка с вашими словами</span><span>⌁ Доставка в выбранный интервал</span></div>
     <section class="mother-selection" id="motherSelection"><div class="mother-section-head"><div><p class="mother-eyebrow">ВЫБИРАЙТЕ С ЛЮБОВЬЮ</p><h2>Букеты для мамы</h2></div><p>Обычные цены каталога.<br>Предзаказ независимо от текущих остатков.</p></div>
-      <p class="hint">Одноголовые розы на 29 ноября — только 50 и 60 см.</p>
+      <p class="hint">Выберите сорт, длину и размер букета. Свободный резерв на 29 ноября указан под карточками.</p>
   <div class="grid" id="motherGrid"></div>
     </section>
     <section class="mother-delivery"><div><p class="mother-eyebrow">ПОЗАБОТИМСЯ О ВАЖНОМ</p><h2>Встречаемся<br><em>29 ноября.</em></h2><p>Оформите предзаказ заранее и выберите удобное время доставки.</p></div>
@@ -1892,6 +1893,26 @@ const curLabel = (p) => {
   if (выбран) delete sel[p.id];
   return defLabel(p);
 };
+
+let motherStockData=null,motherStockLoading=false,motherStockFetched=0,motherStockFailed=false;
+function motherStockHTML(p){
+  if(location.pathname.replace(/\/$/,'')!=='/den-mamy')return '';
+  const len=+(variant(p,curLabel(p))?.len||0);
+  const row=motherStockData?.items?.find(r=>r.id===p.id&&+r.length===len);
+  let text='Уточняем свободный резерв…';
+  if(motherStockFailed||motherStockData?.department_stale)text='Свободный резерв уточняется';
+  else if(motherStockData)text=row?'Свободно на 29 ноября · '+len+' см: '+Math.max(0,row.free).toLocaleString('ru-RU')+' стеблей':'Доступно к предзаказу на 29 ноября';
+  return '<div class="mother-card-stock" role="status">'+esc(text)+'</div>';
+}
+async function loadMotherStock(){
+  if(motherStockLoading||Date.now()-motherStockFetched<60000)return;
+  motherStockLoading=true;motherStockFetched=Date.now();
+  try{const r=await fetch('/api/shop/mother-stock',{cache:'no-store'});if(!r.ok)throw Error('stock');const data=await r.json();if(data.day!=='2026-11-29'||!Array.isArray(data.items))throw Error('stock');motherStockData=data;motherStockFailed=false;}
+  catch(_){motherStockFailed=true;}
+  finally{motherStockLoading=false;if(location.pathname.replace(/\/$/,'')==='/den-mamy')renderMotherPage();}
+}
+setInterval(()=>{if(!document.hidden&&location.pathname.replace(/\/$/,'')==='/den-mamy')loadMotherStock();},60000);
+
 function motherLengthContext() {
   return location.pathname.replace(/\/$/, '') === '/den-mamy' || store.get('preorderDate','') === '2026-11-29';
 }
@@ -1899,10 +1920,9 @@ function motherViewProduct(p) {
   if (!p || !motherLengthContext()) return p;
   const preorder = !!p.mothers_day;
   let variants = p.variants;
-  if (p.cat === 'single') variants = (variants || []).filter(v => [50,60].includes(+v.len));
   if (preorder && variants) variants = variants.map(v => ({...v,out:false,wait_at:undefined,ready:undefined}));
   const available = (variants || []).filter(v => !v.out);
-  return {...p, variants, lengths:p.cat === 'single' ? (p.lengths || []).filter(L => [50,60].includes(+L)) : p.lengths,
+  return {...p, variants, lengths:p.lengths,
     def_label:(variants || []).some(v => v.label === p.def_label) ? p.def_label : undefined,
     price:variants && variants.length ? Math.min(...(available.length ? available : variants).map(v => v.price)) : p.price,
     off:preorder ? false : p.off, soldout:preorder ? false : (variants ? !available.length : p.soldout),
@@ -1913,7 +1933,6 @@ function motherCartProblem(date) {
   const check = (id,len) => { const p=byId[id]; if(!p)return 'Один из букетов больше недоступен. Выберите другой в каталоге Дня мамы.';
     if(['cards','toys','vazy'].includes(p.cat))return '';
     if(!p.mothers_day)return `«${p.name}» недоступен на 29 ноября. Выберите букет из каталога Дня мамы или другую дату.`;
-    if(p.cat==='single' && ![50,60].includes(+len))return `На 29 ноября одноголовые розы доступны только 50 и 60 см. «${p.name}»: выберите другую длину или дату.`;
     return ''; };
   for(const key of Object.keys(cart)){const {id,label}=parseKey(key);const error=check(id,String(label).split('-')[0]);if(error)return error;}
   for(const basket of корзины || [])for(const part of basket.parts || []){const error=check(part.id,part.len);if(error)return error;}
@@ -2354,7 +2373,7 @@ function бкПересчёт() {
 // цена расходилась с настоящей (501 Пинк Аваланж 60 см — 70 120 ₽, а не 60 100).
 const бкСоставПримера = (x) => {
   const сп = (Array.isArray(x.parts) ? x.parts : []).filter(y => y && byId[y.id] && +y.n > 0);
-  if (сп.length) {const parts=сп.map(y => ({id:y.id,len:+y.len || 0,n:+y.n || 0}));return bkOccasion==='mother' && parts.some(y=>!byId[y.id].mothers_day || (byId[y.id].cat==='single' && ![50,60].includes(y.len))) ? [] : parts;}
+  if (сп.length) {const parts=сп.map(y => ({id:y.id,len:+y.len || 0,n:+y.n || 0}));return bkOccasion==='mother' && parts.some(y=>!byId[y.id].mothers_day) ? [] : parts;}
   // старые примеры: один сорт, ростовка — самая дешёвая из доступных
   const p = бкТовар(byId[x.product]);
   if (!p || (bkOccasion==='mother' && !p.mothers_day) || !(+x.qty > 0)) return [];
@@ -2983,6 +3002,7 @@ function card(p, место, и) {
     ${isStem(p) ? `<div class="sub num">${rub(p.price)} за стебель</div>` : p.made ? `<div class="sub made" title="${esc(p.made)}">${esc(p.made)}</div>` : (!isAddon(p) && catName[p.cat]) ? `<div class="sub">${esc(oneOf(catName[p.cat]))}</div>` : ''}
     ${sizesHTML(p)}
     <div class="buy-slot">${buyHTML(p)}</div>
+    ${motherStockHTML(p)}
   </article>`;
 }
 function refreshBuy(id) { const p = byId[id]; $$(`[data-id="${id}"] .buy-slot`).forEach(el => el.innerHTML = buyHTML(p)); if (route.name === 'product' && route.id === id) pdSync(); }
@@ -3847,7 +3867,7 @@ function рисоватьПартию(p) {
 
 function showProduct(id) {
   const p = motherViewProduct(byId[id]); if (!p) return go404();
-  if (motherLengthContext() && p.cat === 'single' && !p.variants.length) { toast('На 29 ноября доступны одноголовые розы 50 и 60 см'); nav('/den-mamy/'); return; }
+  if (motherLengthContext() && p.cat === 'single' && !p.variants.length) { toast('Для этого букета пока не настроены размеры и цены'); nav('/den-mamy/'); return; }
   pd = { id, qty: 1 };
   // Тот же заголовок, что отдал сервер: короткий «Кейтлин — venikoff.net»
   // затирал серверный и уходил в выдачу вместо него.
@@ -3930,6 +3950,7 @@ function изСтарогоАдреса() {
 }
 const MOTHERS_DAY = '2026-11-29';
 function renderMotherPage() {
+  loadMotherStock();
   const products = P.filter(p => p.mothers_day && p.img).map(motherViewProduct).filter(p => p.cat !== 'single' || p.variants.length);
   $('#motherGrid').innerHTML = products.length ? products.map((p,i) => card(p,'mother',i)).join('')
     : '<div class="mother-empty"><h3>Собираем для вас самое нежное</h3><p>Скоро здесь появятся букеты для предзаказа ко Дню мамы.</p></div>';
@@ -5369,7 +5390,7 @@ cartDlg.addEventListener('submit', async e => {
         if (res.status === 429) { шаг('refuse', 'лимит запросов'); return err('Слишком часто — подождите минуту и нажмите ещё раз. Всё заполненное сохранится.'); }
         const текст = data.message || 'Не получилось отправить заказ. Попробуйте ещё раз или позвоните нам.';
         шаг('refuse', текст);
-        if(v('date')==='2026-11-29' && /каталог.*Дня мамы|только 50 и 60/.test(текст)){showMotherRestriction(текст);return err(текст);}
+        if(v('date')==='2026-11-29' && /каталог.*Дня мамы/.test(текст)){showMotherRestriction(текст);return err(текст);}
         // кончились цветы — чинить это надо в корзине, а не в форме доставки
         if (/осталось|разобрали|закончил/i.test(текст)) {
           err(текст);
