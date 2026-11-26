@@ -25,3 +25,5 @@ console.log('PASS: existing-document atomic warehouse + organization PUT, confir
 
 
 row=original();row.store=ref('store',B);rows[0].status='confirmed';let fixed=lib.move(app,{order:id,from:B,to:B});assert.equal(fixed.order.organization,'047ab4e2-e4b8-11f1-0a80-1f37000a92f0');assert.equal(puts.length,2);lib.move(app,{order:id,from:B,to:B});assert.equal(puts.length,2);console.log('PASS: legacy transferred order organization repaired in place; same-target retry is idempotent');
+
+row=original();row.state={name:'Новый'};rows[0].status='confirmed';assert.throws(()=>lib.move(app,{order:id,from:A,to:B,require_accepted:true}),e=>e.status===409);assert.equal(puts.length,2);row.state={name:'Принят, Не оплачен'};lib.move(app,{order:id,from:A,to:B,require_accepted:true});assert.equal(puts.length,3);console.log('PASS: accepted-only bulk transfer excludes New and allows accepted unpaid deliveries without changing payment');

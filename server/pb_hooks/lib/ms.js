@@ -698,6 +698,13 @@ function syncPositions(app, o) {
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { positions: pos.positions });
 }
 
+// Owner rule from 2026-11-26, all dates: deliveries -> Moscow 02; pickup -> Moscow 01.
+function fulfillmentOf(o){
+ return o.get("delivery_type")==="pickup"
+  ? {store:"3d520ee3-76c1-11f0-0a80-142900354c8e",organization:"281efedb-76c1-11f0-0a80-0fdb00366fa7"}
+  : {store:"36029ea4-e4b8-11f1-0a80-0c290009e4f4",organization:"047ab4e2-e4b8-11f1-0a80-1f37000a92f0"};
+}
+
 function pushOrder(app, o) {
   const s = shop.settings(app);
   if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция выключена." };
@@ -717,11 +724,12 @@ function pushOrder(app, o) {
 
   // сюда собираем поля, которые не удалось заполнить: молчать о них нельзя
   const missedAttrs = [];
+  const fulfillment=fulfillmentOf(o);
   const body = {
     syncId: syncId("customerorder",o.id),
     name: имяЗаказа(app,o),
-    organization: meta("organization", s.get("ms_org_id")),
-    store: meta("store", s.get("ms_store_id")),
+    organization: meta("organization", fulfillment.organization),
+    store: meta("store", fulfillment.store),
     agent: meta("counterparty", a.id),
     description: orderDescription(o),
     deliveryPlannedMoment: `${o.get("date")} ${(o.get("interval") || "12:00").slice(0, 5)}:00`,
@@ -994,7 +1002,7 @@ function проверитьПривязки(app, предел) {
   return { ok: true, беда, проверено, ещё: false };
 }
 
-module.exports = { ownsLinkedOrder, проверитьПривязки, stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+module.exports = { fulfillmentOf, ownsLinkedOrder, проверитьПривязки, stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
 
 
 

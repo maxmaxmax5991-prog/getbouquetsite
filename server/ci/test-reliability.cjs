@@ -49,3 +49,29 @@ console.log('PASS: provider syncId stable per operation and distinct across oper
  }
  console.log('PASS: exact pickup totals for 7/25/51/101 stems and multiple bouquets');
 }
+
+// The owner’s ongoing intake rule applies to every delivery date and both brands.
+{
+ const ms=load("lib/ms.js",{"shop.js":{}});
+ const record=data=>({get:k=>data[k]});
+ for(const date of ["2026-11-26","2026-11-29","2027-01-01"]){
+  for(const invoice of ["v9999","g9999"]){
+   const d=ms.fulfillmentOf(record({delivery_type:"delivery",date,invoice}));
+   assert.equal(d.store,"36029ea4-e4b8-11f1-0a80-0c290009e4f4");assert.equal(d.organization,"047ab4e2-e4b8-11f1-0a80-1f37000a92f0");
+   const p=ms.fulfillmentOf(record({delivery_type:"pickup",date,invoice}));
+   assert.equal(p.store,"3d520ee3-76c1-11f0-0a80-142900354c8e");assert.equal(p.organization,"281efedb-76c1-11f0-0a80-0fdb00366fa7");
+  }
+ }
+ console.log("PASS: new deliveries route to Moscow 02 and pickup to Moscow 01, organization paired, all dates and both site brands");
+}
+
+{
+ const values={ms_enabled:true,ms_token:"fixture",ms_org_id:"281efedb-76c1-11f0-0a80-0fdb00366fa7",ms_store_id:"3d520ee3-76c1-11f0-0a80-142900354c8e",ms_state_paid:"paid",ms_state_unpaid:"unpaid",ms_channel:"Сайт",ms_channel_id:"site",ms_attrs_cache:{at:new Date().toISOString(),rows:[{id:"method",name:"Способ доставки",type:"customentity",customEntityMeta:{href:"https://api.moysklad.ru/api/remap/1.2/entity/customentity/method"}},{id:"payment",name:"Тип Оплаты",type:"customentity",customEntityMeta:{href:"https://api.moysklad.ru/api/remap/1.2/entity/customentity/payment"}}]},ms_dict_cache:{"method|доставка":"delivery","method|самовывоз":"pickup","payment|cloudpayments":"card"}};
+ const record=data=>({id:data.id,get:k=>data[k]||"",getString:k=>typeof data[k]==="string"?data[k]:JSON.stringify(data[k]),set:(k,v)=>data[k]=v});
+ const settings=record(values),product=record({ms_pick:{"40":{id:"rose",type:"product"}},category:"cat"}),bodies=[];
+ const ms=load("lib/ms.js",{"shop.js":{settings:()=>settings,jget:(o,k)=>o.get(k),invoiceOf:o=>o.get("invoice"),rub:String,claim:()=>true,unclaim:()=>{}}},{$security:{sha256:s=>crypto.createHash("sha256").update(s).digest("hex")},$http:{send:req=>{if(req.method==="POST"){bodies.push(JSON.parse(req.body));return{statusCode:200,json:{id:"created-"+bodies.length}};}return{statusCode:200,json:{rows:[{id:"customer"}]}};}}});
+ const app={findRecordById:(name)=>name==="products"?product:record({slug:"single"}),save:()=>{},db:()=>({newQuery:()=>({bind:()=>({execute:()=>{}})})})};
+ for(const kind of ["delivery","pickup"]){const o=record({id:kind,invoice:"v-test",number:1,date:"2026-11-29",interval:"08:00–13:00",delivery_type:kind,payment_method:"card",payment_status:kind==="pickup"?"unpaid":"paid",phone:"79990000000",items:[{id:"rose",label:"40-25",qty:1,price:2490}],delivery_price:0});assert(ms.pushOrder(app,o).ok);}
+ assert.equal(bodies.length,2);assert(bodies[0].store.meta.href.endsWith("/36029ea4-e4b8-11f1-0a80-0c290009e4f4"));assert(bodies[0].organization.meta.href.endsWith("/047ab4e2-e4b8-11f1-0a80-1f37000a92f0"));assert(bodies[1].store.meta.href.endsWith("/3d520ee3-76c1-11f0-0a80-142900354c8e"));assert(bodies[1].organization.meta.href.endsWith("/281efedb-76c1-11f0-0a80-0fdb00366fa7"));
+ console.log("PASS: real pushOrder request body pairs delivery warehouse/organization 02 and pickup 01");
+}

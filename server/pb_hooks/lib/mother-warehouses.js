@@ -43,7 +43,9 @@ function move(app,body){
  if(!shop.claim(app,id,'mother-store'))fail(409,'Этот заказ уже переносится. Обновите список.');
  try{
   const row=checked(ms.ms(s,'GET','/entity/customerorder/'+id+'?expand=state,salesChannel,agent'));
-  validate(row,s);const site=siteLinks(app)[id];if(site&&site.status==='cancelled')fail(400,'Заказ отменён на сайте. Сначала согласуйте восстановление.');
+  validate(row,s);
+  if(body.require_accepted&&!/^принят(?:,|\\s|$)/i.test(String(row.state&&row.state.name||'')))fail(409,'Статус заказа изменился: он больше не принят. Перенос пропущен.');
+  const site=siteLinks(app)[id];if(site&&site.status==='cancelled')fail(400,'Заказ отменён на сайте. Сначала согласуйте восстановление.');
   if(refId(row.store)!==from)fail(409,'Склад заказа уже изменился. Список будет обновлён.');
   if(view(row,site).locked)fail(400,'У заказа уже есть отгрузка или он завершён. Перенос требует проверки отгрузки в МойСкладе.');
   const target=STORES.find(s=>s.id===to);
