@@ -212,6 +212,10 @@ function variantsOf(p, s) {
 
 function catalog(app, brand) {
   const s = settings(app);
+  const motherRows = arrayOf(new DynamicModel({product_id:"",length:0}));
+  app.db().newQuery("SELECT DISTINCT product_id,length FROM occasion_reserve_movements WHERE day='2026-11-29' AND quantity>0").all(motherRows);
+  const motherLengths={};
+  motherRows.forEach(r=>{if(!motherLengths[r.product_id])motherLengths[r.product_id]=[];motherLengths[r.product_id].push(+r.length);});
   // Витрина: товар показываем, если у него отмечена эта витрина.
   // Ни одной галочки — товар продаётся везде: так новая карточка не пропадёт молча,
   // и правило читается просто — «сняли галочку, чтобы убрать с витрины».
@@ -319,6 +323,8 @@ function catalog(app, brand) {
         made: p.get("is_express") ? String(p.get("description") || "").replace(/\s+/g, " ").trim().slice(0, 90) || undefined : undefined,
         badge_text: String(p.get("badge_text") || "").trim() || undefined,
         mothers_day: !!p.get("mothers_day"),
+        mother_lengths: !p.get("no_stock") && ["single","kustovye-rozy","kustovye-rozy-pionovidnye"].indexOf(catById[p.get("category")].get("slug"))>=0
+          ? (motherLengths[p.id]||[]).sort((a,b)=>a-b) : undefined,
         // Партия: сколько привезли и сколько ещё свободно. Свободное считаем
         // из настоящего остатка, поэтому счётчик не соврёт и партия кончится
         // сама. Пусто — обычный товар, блока на карточке нет.
@@ -712,6 +718,11 @@ function mothersDayLengthProblem(app, date, p, len) {
   try { category = app.findRecordById("categories", p.get("category")); } catch (_) { return ""; }
   if (["cards","toys","vazy"].indexOf(category.get("slug")) >= 0) return "";
   if (!p.get("mothers_day")) return `«${p.get("name")}» недоступен на 29 ноября. Выберите букет из каталога Дня мамы или другую дату.`;
+  if (!p.get("no_stock") && ["single","kustovye-rozy","kustovye-rozy-pionovidnye"].indexOf(category.get("slug"))>=0) {
+    const reserved=arrayOf(new DynamicModel({length:0}));
+    app.db().newQuery("SELECT length FROM occasion_reserve_movements WHERE day='2026-11-29' AND product_id={:id} AND length={:len} AND quantity>0 LIMIT 1").bind({id:p.id,len:+len||0}).all(reserved);
+    if(!reserved.length)return `«${p.get("name")}» ${+len||0} см не внесена в резерв на 29 ноября. Выберите ростовку из каталога Дня мамы или другую дату.`;
+  }
   return "";
 }
 
