@@ -81,8 +81,17 @@ def reconcile_site_orders(client,db,orders):
    'interval':details['interval'],'local_date':site['date'],'local_delivery_type':site['delivery_type'],'local_interval':site['interval']})
  return projections,issues
 
+def reserve_binding(candidates,reserve_keys):
+ unique={(p['id'],length,count):(p,length,count)for p,length,count in candidates}
+ if len(unique)==1:return next(iter(unique.values()))
+ # Duplicate storefront cards may share an exact MS SKU. Use the one owning
+ # this day's reserve only when length and stem multiplier also agree.
+ if len({(length,count)for p,length,count in unique.values()})!=1:return None
+ reserved=[v for v in unique.values()if(v[0]['id'],v[1])in reserve_keys]
+ return reserved[0]if len(reserved)==1 else None
 def build(client,db):
  products=[dict(r) for r in db.execute('select id,name,ms_name,ms_pick,no_stock,lengths from products')];bindings={};names={};productmeta={}
+ reserve_keys={(r['product_id'],int(r['length']))for r in db.execute('select product_id,length from occasion_reserve_movements where day=? group by product_id,length having sum(quantity)>0',(DAY,))}
  for p in products:
   productmeta[p['id']]={'id':p['id'],'name':p['name'],'no_stock':bool(p['no_stock'])}
   try:lengths=json.loads(p['lengths']or'null')
@@ -119,8 +128,7 @@ def build(client,db):
   typ=(a.get('meta')or{}).get('type');aid=a.get('id');name=a.get('name','')
   if not aid or not name:raise RuntimeError('Assortment missing; cannot publish partial snapshot')
   if typ=='service':return
-  candidates=bindings.get(aid,[]);unique={(p['id'],length,count):(p,length,count)for p,length,count in candidates}
-  mapped=next(iter(unique.values())) if len(unique)==1 else None
+  mapped=reserve_binding(bindings.get(aid,[]),reserve_keys)
   if typ=='bundle' and not(mapped and mapped[2]>1):
    if aid in stack or len(stack)>5:raise RuntimeError('Cyclic or excessive bundle nesting')
    for component in components(a):add(component['assortment'],qty*float(component['quantity']),doc,stack+(aid,),untracked_hint or bool(re.search('француз|гортензи|эквадор',name,re.I)))
@@ -167,6 +175,7 @@ def main():
   with db:db.execute('UPDATE occasion_sales_snapshots SET last_error=?,attempted=? WHERE day=?',('Не удалось получить полный состав заказов МоегоСклада. Сохранён последний успешный расчёт.',now,DAY))
   print('Sales snapshot NOT replaced:',type(e).__name__,str(e)[:200],file=sys.stderr);raise
 if __name__=='__main__':main()
+
 
 
 
