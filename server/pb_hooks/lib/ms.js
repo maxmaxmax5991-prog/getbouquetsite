@@ -491,9 +491,18 @@ function сВазой(o) {
     return (shop.jget(o, "items") || []).some((it) => /ваз/i.test(String((it && it.name) || "")));
   } catch (_) { return false; }
 }
-function имяЗаказа(o) {
-  const invoice=String(shop.invoiceOf(o));
-  return (/^\d+$/.test(invoice)?"site-"+invoice:invoice)+(сВазой(o)?" vaza":"");
+function bouquetCount(app,o){
+ return (shop.jget(o,"items")||[]).reduce((n,it)=>{
+  const qty=Math.max(0,Math.floor(+it.qty||0));if(!qty)return n;
+  if(it.kind==="basket"||it.kind==="drop")return n+qty;
+  try{const p=app.findRecordById("products",String(it.id));const cat=app.findRecordById("categories",p.get("category")).get("slug");if(["cards","toys","vazy"].indexOf(cat)>=0)return n;}
+  catch(_){if(/ваз|открытк|игрушк|доставк/i.test(String(it.name||"")))return n;}
+  return n+qty;
+ },0);
+}
+function имяЗаказа(app,o) {
+  const invoice=String(shop.invoiceOf(o)),count=bouquetCount(app,o);
+  return (/^\d+$/.test(invoice)?"site-"+invoice:invoice)+(count>1?" "+count+"buk":"")+(сВазой(o)?" vaza":"");
 }
 function sameSiteOrder(row,body,number){
   if(!row)return false;
@@ -710,7 +719,7 @@ function pushOrder(app, o) {
   const missedAttrs = [];
   const body = {
     syncId: syncId("customerorder",o.id),
-    name: имяЗаказа(o),
+    name: имяЗаказа(app,o),
     organization: meta("organization", s.get("ms_org_id")),
     store: meta("store", s.get("ms_store_id")),
     agent: meta("counterparty", a.id),
