@@ -1892,7 +1892,7 @@ function orderHTML(o) {
       <input class="in sm" data-comment placeholder="Комментарий для себя" value="${esc(o.comment)}" style="flex:1;min-width:160px">
       <button class="btn btn-g btn-s" data-savec>Сохранить</button>
       ${адресНеУзнан(o) ? '' : '<button class="btn btn-g btn-s" data-extra title="Счёт на доплату — ссылка уйдёт покупателю в бот">Доплата</button>'}
-      ${o.ms_id ? '<span class="pill st-done">В МоёмСкладе</span><button class="btn btn-g btn-s" data-mspush title="Дозаполнить время доставки, способ доставки и тип оплаты">Обновить поля</button>' : `<button class="btn btn-g btn-s" data-mspush>В МойСклад</button>${o.ms_error ? `<span class="pill st-cancelled">${esc(o.ms_error)}</span>` : ''}`}
+      ${o.ms_id ? `${o.ms_error ? '<span class="pill st-cancelled">'+esc(o.ms_error)+'</span>' : '<span class="pill st-done">В МоёмСкладе</span>'}<button class="btn btn-g btn-s" data-mspush title="Дозаполнить время доставки, способ доставки и тип оплаты">Обновить поля</button>` : `<button class="btn btn-g btn-s" data-mspush>В МойСклад</button>${o.ms_error ? `<span class="pill st-cancelled">${esc(o.ms_error)}</span>` : ''}`}
     </div>
   </article>`;
 }
@@ -6727,5 +6727,6 @@ if (auth) start(); else logout();
 </script>
 </body>
 </html>
+
 
 

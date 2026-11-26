@@ -45,6 +45,12 @@ cronAdd("ms-status", "* * * * *", () => {
     try {
       const данные = поId[String(o.get("ms_id"))];
       if (!данные) return;
+      const audit=require(`${__hooks}/lib/ms-link-audit.js`);
+      const local={id:o.id,ms_id:o.get('ms_id'),number:o.get('number')};
+      if(!audit.owned(s,local,данные,msl)){
+        $app.db().newQuery('UPDATE orders SET ms_error={:error} WHERE id={:id} AND ms_id={:mid}').bind({error:audit.PREFIX+'статус чужого документа заблокирован.',id:o.id,mid:o.get('ms_id')}).execute();
+        return;
+      }
       const r = { ok: true, data: данные };
       const name = (r.data.state && r.data.state.name) || "";
       if (!name) return;
@@ -65,3 +71,4 @@ cronAdd("ms-status", "* * * * *", () => {
     } catch (err) { console.log("ms-status", err); require(`${__hooks}/lib/err.js`).note($app, "МойСклад", String(err), "чтение статусов"); }
   });
 });
+

@@ -994,6 +994,7 @@ function проверитьПривязки(app, предел) {
   return { ok: true, беда, проверено, ещё: false };
 }
 
-module.exports = { проверитьПривязки, stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+module.exports = { ownsLinkedOrder, проверитьПривязки, stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+
 
 
