@@ -24,7 +24,7 @@ function run(app){
    const expected={};batch.forEach(id=>expected[id]=true);
    (r.data.rows||[]).forEach(row=>{if(!expected[row.id])throw new Error('Склад вернул документ вне запроса.');docs[row.id]=row;});
   }
-  const issues=[];
+  const issues=[],previous={};(state(app).issues||[]).forEach(o=>previous[o.id]=o.reason);
   for(const o of orders){
    if(!o.ms_id&&Date.now()-Date.parse(o.created)<120000)continue;
    const row=docs[o.ms_id],ok=!!o.ms_id&&owned(s,o,row,ms);
@@ -32,11 +32,13 @@ function run(app){
     if(String(o.ms_error||'').startsWith(PREFIX))app.db().newQuery("UPDATE orders SET ms_error='' WHERE id={:id} AND ms_id={:mid} AND ms_error={:error}").bind({id:o.id,mid:o.ms_id,error:o.ms_error}).execute();
     continue;
    }
-   const reason=!o.ms_id?'документ ещё не связан с заказом.':!row?'связанный документ не найден в МойСкладе.':'номер совпал с чужим документом; передача заказа не подтверждена.';
+   const reason=!o.ms_id?(o.ms_error&&!String(o.ms_error).startsWith(PREFIX)?o.ms_error:'документ ещё не связан с заказом.'):!row?'связанный документ не найден в МойСкладе.':'номер совпал с чужим документом; передача заказа не подтверждена.';
    const message=PREFIX+reason;
    issues.push({number:o.number,id:o.id,reason,ms_id:o.ms_id});
-   if(o.ms_error!==message){
+   if(o.ms_id&&o.ms_error!==message){
     app.db().newQuery('UPDATE orders SET ms_error={:error} WHERE id={:id} AND ms_id={:mid}').bind({id:o.id,mid:o.ms_id,error:message}).execute();
+   }
+   if(previous[o.id]!==reason){
     err.note(app,'МойСклад','Заказ №'+o.number+': '+reason,'Проверка действующих заказов всех дат');
    }
   }

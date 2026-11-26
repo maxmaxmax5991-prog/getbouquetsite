@@ -13,7 +13,7 @@ let changes=[],stored=null,fail=false;
 const app={db:()=>({newQuery:sql=>({params:{},bind(p){this.params=p;return this;},all(out){out.push(...orders);},one(out){if(!stored)throw Error('not yet');out.value=JSON.stringify(stored);},execute(){if(sql.startsWith('INSERT INTO watchdog_state'))stored=JSON.parse(this.params.value);else changes.push({sql,params:this.params});}})})};
 const ms={...real,ms:()=>fail?{ok:false,error:'timeout'}:{ok:true,data:{meta:{size:2},rows:[valid,foreign]}}};
 const audit=load('lib/ms-link-audit.js',{'shop.js':shop,'ms.js':ms,'err.js':{note:()=>{}}},{arrayOf:()=>[],DynamicModel:function(){}});
-const r=audit.run(app);assert.equal(r.checked,3);assert.deepEqual(Array.from(r.issues,x=>x.number),[2,3]);assert.equal(changes.length,3);assert(changes.some(x=>x.sql.includes("ms_error=''")));assert(changes.filter(x=>x.params.error).every(x=>x.params.error.startsWith(audit.PREFIX)));
+const r=audit.run(app);assert.equal(r.checked,3);assert.deepEqual(Array.from(r.issues,x=>x.number),[2,3]);assert.equal(changes.length,2);assert(changes.some(x=>x.sql.includes("ms_error=''")));assert(!changes.some(x=>x.params.id==='local3'),'missing links must retain the original send-queue error and priority');assert(changes.filter(x=>x.params.error).every(x=>x.params.error.startsWith(audit.PREFIX)));
 changes=[];fail=true;let failed=audit.run(app);assert.equal(failed.error,'timeout');assert.equal(failed.checked_at,r.checked_at);assert.equal(changes.length,0,'a partial failed fetch must not alter order errors');
 let tick,saved=0;const order={id:'local2',get:k=>({number:2,ms_id:'bad',status:'confirmed'}[k]),set:()=>{}};
 const statusApp={...app,findRecordsByFilter:()=>[order],save:()=>saved++};
