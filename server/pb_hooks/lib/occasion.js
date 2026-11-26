@@ -75,11 +75,43 @@ function departmentReport(app){
  department.stale=!department.updated_at||Date.now()-Date.parse(department.updated_at)>15*60000;
  return department;
 }
+// A report projection: never rewrites customer orders or sends notifications.
+// Local cancellations always win; verified warehouse cancellations and planned dates
+// also apply. Fresh local date/type/time edits wait for the next full snapshot.
+function reconcileSite(orders,department){
+ const byId={};(department.site_orders||[]).forEach(o=>byId[o.site_id]=o);
+ const issues=(department.site_issues||[]).map(o=>({...o})),result=[];
+ orders.forEach(raw=>{
+  let o={...raw},m=byId[o.id];const reasons=[];
+  if(o.status==='cancelled'){
+   if(m&&!m.cancelled&&m.date===DAY)reasons.push('Отменён на сайте, в МойСкладе ещё активен — исключён.');
+  }else if(m&&m.ms_id===o.ms_id){
+   if(m.cancelled){o.status='cancelled';reasons.push('Отменён в МойСкладе — исключён из отчёта и бронирований.');}
+   if(o.date===m.local_date&&o.delivery_type===m.local_delivery_type&&o.interval===m.local_interval){
+    if(m.date){if(m.date!==String(o.date).slice(0,10))reasons.push('Плановая дата в МойСкладе: '+m.date+'.');o.date=m.date;}
+    else reasons.push('В МойСкладе не указана плановая дата; сохранена дата сайта.');
+    o.delivery_type=m.pickup?'pickup':'delivery';
+    if(m.interval)o.interval=m.interval;
+    if(m.paid)o.payment_status='paid';
+   }
+  }
+  if(reasons.length)issues.push({site_id:o.id,number:o.number,ms_id:o.ms_id,reason:reasons.join(' ')});
+  if(String(o.date).slice(0,10)===DAY&&o.status!=='cancelled'&&(o.delivery_type==='pickup'||o.payment_status==='paid'))result.push(o);
+ });
+ return {orders:result,issues};
+}
+function siteReport(app,department){
+ department=department||departmentReport(app);
+ const fields={id:'',number:0,ms_id:'',date:'',items:'',status:'',delivery_type:'',payment_status:'',total:0.1,interval:'',address:'',lat:0.1,lon:0.1,unknown_address:false,name:'',phone:''};
+ const orders=arrayOf(new DynamicModel(fields)),params={d:DAY},ids=[];
+ (department.site_orders||[]).filter(o=>o.date===DAY).forEach((o,i)=>{params['s'+i]=o.site_id;ids.push('{:s'+i+'}');});
+ app.db().newQuery('SELECT '+Object.keys(fields).join(',')+' FROM orders WHERE substr(date,1,10)={:d}'+(ids.length?' OR id IN ('+ids.join(',')+')':'')).bind(params).all(orders);
+ return reconcileSite(JSON.parse(JSON.stringify(orders)),department);
+}
+
 function report(app) {
  const movements=arrayOf(new DynamicModel({id:'',day:'',product_id:'',length:0,quantity:0,source:'',source_name:'',source_row:0,created:'',actor:'',unit_cost_kop:-1,cost_kop:-1}));
  app.db().newQuery("SELECT id,day,product_id,length,quantity,source,source_name,source_row,created,actor,COALESCE(unit_cost_kop,-1) AS unit_cost_kop,COALESCE(cost_kop,-1) AS cost_kop FROM occasion_reserve_movements WHERE day={:d} ORDER BY created,id").bind({d:DAY}).all(movements);
- const orders=arrayOf(new DynamicModel({id:'',date:'',items:'',status:'',delivery_type:'',payment_status:'',total:0.1}));
- app.db().newQuery("SELECT id,date,items,status,delivery_type,payment_status,total FROM orders WHERE substr(date,1,10)={:d} AND status!='cancelled' AND (delivery_type='pickup' OR payment_status='paid')").bind({d:DAY}).all(orders);
  const shop=require(`${__hooks}/lib/shop.js`),settings=shop.settings(app);
  const products=app.findRecordsByFilter('products','id != ""','name',1000,0).map(p=>{
   const prices_51={};shop.variantsOf(p,settings).filter(v=>+v.cnt===51).forEach(v=>prices_51[+v.len]=+v.price);
@@ -87,14 +119,14 @@ function report(app) {
  });
  const decode=v=>JSON.parse(JSON.stringify(v));
  const moves=decode(movements).map(m=>({...m,unit_cost_kop:m.unit_cost_kop<0?null:m.unit_cost_kop,cost_kop:m.cost_kop<0?null:m.cost_kop}));
- const department=departmentReport(app);
+ const department=departmentReport(app),site=siteReport(app,department);
  const allProducts=products.concat((department.products||[]).filter(p=>!products.some(x=>x.id===p.id)));
- const result=aggregate(decode(orders),moves,allProducts,department.items),checks=result.counted_orders+department.documents.filter(d=>d.counted).length;
+ const result=aggregate(site.orders,moves,allProducts,department.items),checks=result.counted_orders+department.documents.filter(d=>d.counted).length;
  const average_checks={delivery:{sum:0,count:0,average:null},pickup:{sum:0,count:0,average:null}};
- decode(orders).forEach(o=>{const a=average_checks[o.delivery_type==='pickup'?'pickup':'delivery'];a.sum+=+o.total||0;a.count++;});
+ site.orders.forEach(o=>{const a=average_checks[o.delivery_type==='pickup'?'pickup':'delivery'];a.sum+=+o.total||0;a.count++;});
  department.documents.filter(d=>d.counted).forEach(o=>{const a=average_checks[o.pickup?'pickup':'delivery'];a.sum+=+o.total||0;a.count++;});
  Object.keys(average_checks).forEach(k=>{const a=average_checks[k];a.sum=Math.round(a.sum*100)/100;a.average=a.count?Math.round(a.sum/a.count*100)/100:null;});
- return {...result,average_checks,goal:{target:1000,count:checks,percent:Math.round(checks/1000*10000)/100},department,movements:moves,updated_at:new Date().toISOString()};
+ return {...result,site_orders:site.orders,reconciliation:{issues:site.issues,updated_at:department.updated_at,stale:department.stale||!!department.last_error},average_checks,goal:{target:1000,count:checks,percent:Math.round(checks/1000*10000)/100},department,movements:moves,updated_at:new Date().toISOString()};
 }
 
 function stockProblem(app,items){
@@ -125,4 +157,5 @@ function stockProblem(app,items){
  return '';
 }
 
-module.exports={DAY,aggregate,report,departmentReport,stockProblem};
+module.exports={DAY,aggregate,report,departmentReport,siteReport,reconcileSite,stockProblem};
+

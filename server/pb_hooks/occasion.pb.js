@@ -28,10 +28,9 @@ routerAdd('GET','/api/shop/mother-map',(e)=>{
  const shop=require(`${__hooks}/lib/shop.js`);
  if(!shop.can(e,['owner','head','manager']))return e.json(403,{message:'Недостаточно прав.'});
  e.response.header().set('Cache-Control','no-store');
- const rows=arrayOf(new DynamicModel({id:'',number:0,interval:'',address:'',lat:0.1,lon:0.1,delivery_type:'',payment_status:'',status:'',unknown_address:false}));
- $app.db().newQuery("SELECT id,number,interval,address,lat,lon,delivery_type,payment_status,status,unknown_address FROM orders WHERE substr(date,1,10)='2026-11-29' AND status!='cancelled' AND (delivery_type='pickup' OR payment_status='paid') ORDER BY interval,number").all(rows);
- const department=require(`${__hooks}/lib/occasion.js`).departmentReport($app);
- const mapOrders=JSON.parse(JSON.stringify(rows)).map(o=>({...o,source:'site'})).concat(department.documents.filter(d=>d.counted).map(d=>({id:'ms:'+d.id,number:d.number,source:'department',channel:d.channel,interval:d.interval||'',address:d.address||'',lat:+d.lat||0,lon:+d.lon||0,delivery_type:d.pickup?'pickup':'delivery',payment_status:d.paid?'paid':'unpaid',status:'new',unknown_address:!d.address&&!d.pickup,geo_error:d.geo_error||''})));
+ const occasion=require(`${__hooks}/lib/occasion.js`),department=occasion.departmentReport($app);
+ const site=occasion.siteReport($app,department);
+ const mapOrders=site.orders.map(o=>({id:o.id,number:o.number,interval:o.interval,address:o.address,lat:o.lat,lon:o.lon,delivery_type:o.delivery_type,payment_status:o.payment_status,status:o.status,unknown_address:o.unknown_address,source:'site'})).concat(department.documents.filter(d=>d.counted).map(d=>({id:'ms:'+d.id,number:d.number,source:'department',channel:d.channel,interval:d.interval||'',address:d.address||'',lat:+d.lat||0,lon:+d.lon||0,delivery_type:d.pickup?'pickup':'delivery',payment_status:d.paid?'paid':'unpaid',status:'new',unknown_address:!d.address&&!d.pickup,geo_error:d.geo_error||''})));
  const s=shop.settings($app),lat=+s.get('origin_lat')||0,lon=+s.get('origin_lon')||0;
  return e.json(200,{day:'2026-11-29',orders:mapOrders,department_updated_at:department.updated_at,pickup:{lat,lon,address:String(s.get('pickup_address')||s.get('origin_address')||'Точка самовывоза')},updated_at:new Date().toISOString()});
 },$apis.requireAuth('managers'));
@@ -43,3 +42,4 @@ routerAdd('GET','/api/shop/mother-free',(e)=>{
  const r=require(`${__hooks}/lib/occasion.js`).report($app),t=r.total;
  return e.json(200,{day:r.day,updated_at:r.updated_at,sales_updated_at:r.department.updated_at,sales_stale:r.department.stale||!!r.department.last_error,total:{reserved:t.reserved,booked:t.booked,free:t.free,shortage:t.shortage,percent:t.percent},positions:r.positions.filter(p=>p.has_reserve||p.shortage>0).map(p=>({name:p.name,length:p.length,reserved:p.has_reserve?p.reserved:0,booked:p.booked,free:p.has_reserve?p.free:-p.booked,shortage:p.shortage||0,has_reserve:p.has_reserve}))});
 });
+

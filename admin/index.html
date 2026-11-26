@@ -459,6 +459,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <p class="hint">Бронирования на 29 ноября: только оплаченные доставки и все самовывозы, включая неоплаченные. Неоплаченные доставки и отменённые заказы исключены. Срочные — часовые интервалы за +1 250 ₽. Сорта одной длины складываются в стеблях: 2 букета по 51 розе = 102 стебля. Предзаказы не расходуют сегодняшний остаток.</p>
 <p class="hint" id="motherSalesModeSummary">Кнопки переключают статистику продаж, средний чек, интервалы и карту. Резерв и цель на 1 000 чеков — общие.</p>
       <section class="md-section"><div class="md-section-head"><h3 id="motherReportSummary"></h3><span class="md-tag">СТАТИСТИКА ПРОДАЖ</span></div><div id="motherSelectedStats" class="mother-reserve-summary"></div><p class="hint">Сумма заказов включает неоплаченные самовывозы. «Оплачено» — полные суммы заказов со статусом оплаты, без неоплаченных. Средний чек включает доставку и дополнительные товары.</p></section><p class="hint" id="motherReportState"></p>
+      <details class="md-section"><summary>Сверка с МоимСкладом · отмены и переносы</summary><p class="hint" id="motherReconciliationState"></p><div class="scroll"><table class="t" id="motherReconciliationRows"></table></div></details>
       <div id="motherReserveSummary" class="mother-reserve-summary"></div><div class="md-overview"><section class="md-panel"><h3>Доля забронированного запаса</h3><div id="motherReserveRing" class="md-overall"></div></section><section class="md-panel"><h3>Цель на 29 ноября · 1 000 чеков</h3><div id="motherChecksRing" class="md-overall"></div><p class="hint">Чеки здесь — учтённые заказы сайта и отдела: оплаченные доставки + все самовывозы, без дублей.</p></section><section class="md-panel"><h3>Доля продаж · сайт / отдел</h3><div id="motherChannelRing" class="md-overall"></div><p class="hint">По количеству учтённых заказов на 29 ноября.</p></section><section class="md-panel"><h3>Нужно дорезервировать под заказы</h3><div id="motherReserveCoverage" class="md-coverage-list"></div><p class="hint">Здесь показан разрыв в отдельном резерве на дату, а не нехватка на сегодняшнем складе. Франция, Эквадор и гортензии учитываются как товары без пересчёта.</p></section></div><p class="hint" id="motherReserveState">Загружаем…</p><section class="md-section"><div class="md-section-head"><h3>Розничная модель запасов</h3><span class="md-tag">БУКЕТ ИЗ 51 РОЗЫ</span></div><p id="motherReserveValuation"></p></section>
       <section class="md-section" id="motherSalesSection"><div class="md-section-head"><h3>Отдел продаж</h3><span class="md-tag">МОЙСКЛАД · 29 НОЯБРЯ</span></div><p class="hint">Продажи отдела и сайта используют общий резерв. Нехватка считается по сумме двух каналов, без повторного вычета заказов сайта.</p><div id="motherSalesSummary" class="mother-reserve-summary" style="margin-block:18px"></div><p id="motherSalesState" class="hint">Загружаем продажи отдела…</p><details style="margin-block:14px"><summary>Выбранные источники продаж</summary><p class="hint" id="motherSalesSources"></p></details><div class="scroll"><table class="t" id="motherSalesPositions"></table></div><p class="hint" id="motherSalesWarnings"></p><details style="margin-top:18px"><summary>Все заказы отдела и исключения</summary><div class="scroll"><table class="t" id="motherSalesOrders"></table></div></details></section>
       <section class="md-section"><div class="md-section-head"><h3>Распроданность по сортам</h3><span class="hint">Все ростовки сорта вместе</span></div><div class="scroll"><table class="t" id="motherReserveVarieties"></table></div></section>
@@ -1451,11 +1452,6 @@ async function loadMotherReport() {
   $('#motherReportState').textContent = 'Обновляем…';
   $('#motherExport').disabled=true;
   try {
-    const orders = []; let page = 1;
-    while(true) {
-      const r = await api('/api/collections/orders/records?perPage=200&page='+page+'&sort=interval,number&filter='+encodeURIComponent('date="2026-11-29"'));
-      orders.push(...r.items); if(page >= r.totalPages) break; page++;
-    }
     try {
       const n = await api('/api/shop/mother-notice-stats');
       const pct = x => (+x || 0).toLocaleString('ru-RU')+'%';
@@ -1463,7 +1459,7 @@ async function loadMotherReport() {
     } catch (_) { $('#motherNoticeStats').textContent = 'Статистика уведомления доступна владельцу и управляющему.'; }
     const products = await list('products');
     await loadMotherReserve(products);
-    const combined=orders.map(o=>({...o,source:'site'})).concat(motherDepartmentOrders(motherReserveSnapshot)),selectedOrders=combined.filter(o=>motherSalesView==='all'||o.source===motherSalesView);
+    const combined=motherReserveSnapshot.site_orders.map(o=>({...o,source:'site'})).concat(motherDepartmentOrders(motherReserveSnapshot)),selectedOrders=combined.filter(o=>motherSalesView==='all'||o.source===motherSalesView);
     const data = aggregateMotherOrders(selectedOrders,products);
     applyMotherSalesView();
     loadMotherMap();
@@ -1506,6 +1502,11 @@ function applyMotherSalesView(){
 const motherStickyHeader=document.querySelector('#app .top');
 if(motherStickyHeader){const syncMotherStickyTop=()=>document.documentElement.style.setProperty('--admin-top-height',motherStickyHeader.getBoundingClientRect().height+'px');new ResizeObserver(syncMotherStickyTop).observe(motherStickyHeader);syncMotherStickyTop();}
 $('#motherSalesSwitch').addEventListener('click',e=>{const b=e.target.closest('[data-sales-view]');if(!b)return;motherSalesView=b.dataset.salesView;applyMotherSalesView();loadMotherReport();});
+function renderMotherReconciliation(r){
+ const a=r.reconciliation||{},issues=a.issues||[];
+ $('#motherReconciliationState').textContent=(a.stale?'Сверка требует обновления. ':'')+'Отмена в любой системе исключает заказ. Для подтверждённых документов учитываются плановая дата, способ и время из МоегоСклада. Самовывозы учитываются с любой оплатой; доставки — оплаченные. Склад: Москва 01. '+(a.updated_at?'Сверено '+new Date(a.updated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})+'.':'');
+ $('#motherReconciliationRows').innerHTML=issues.length?'<thead><tr><th>Заказ</th><th>Как учтён</th></tr></thead><tbody>'+issues.map(o=>`<tr><td>№${esc(o.number)}</td><td>${esc(o.reason)}</td></tr>`).join('')+'</tbody>':'<tbody><tr><td>Расхождений статусов и дат не найдено.</td></tr></tbody>';
+}
 function renderMotherSales(r){
  const d=r.department||{documents:[],items:[],channels:[],unmatched:[]},docs=d.documents||[],items=d.items||[],counted=docs.filter(o=>o.counted),money=n=>(+n||0).toLocaleString('ru-RU'),table=(heads,rows)=>'<thead><tr>'+heads.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody>';
  $('#motherSalesSummary').innerHTML=[['Заказов отдела',docs.length],['Учитываем',counted.length],['Оплаченных доставок',counted.filter(o=>!o.pickup).length],['Самовывозов',counted.filter(o=>o.pickup).length],['Неоплаченные доставки · исключены',docs.filter(o=>!o.counted&&o.reason==='Неоплаченная доставка').length],['Из выделенного резерва, стеблей',r.total.sales_booked||0]].map(([label,value])=>`<div><span>${esc(label)}</span><b>${money(value)}</b></div>`).join('');
@@ -1528,6 +1529,7 @@ async function loadMotherReserve(products){
  try{
   const r=await api('/api/shop/mother-reserve');motherReserveSnapshot=r;
   renderMotherSales(r);
+  renderMotherReconciliation(r);
   const t=r.total,stat=(label,value)=>`<div><span>${label}</span><b>${value}</b></div>`;
   $('#motherReserveRing').innerHTML=`<div class="md-ring" style="--progress:${Math.min(100,t.percent)}"><div class="md-ring-inner"><strong>${motherReserveNumber(t.percent)}%</strong><span>забронировано</span></div></div><div><b>${motherReserveNumber(t.booked)} из ${motherReserveNumber(t.reserved)}</b><p>стеблей из выделенного запаса</p><p>Сайт + отдел продаж.<br>Оплаченные доставки и все самовывозы.<br>Пополнения увеличивают общий резерв.</p></div>`;
   const goal=r.goal||{target:1000,count:r.counted_orders||0,percent:(r.counted_orders||0)/10};
@@ -1546,7 +1548,7 @@ async function loadMotherReserve(products){
   const select=$('#motherReserveProduct'),selected=select.value;select.innerHTML=products.filter(p=>Array.isArray(p.lengths)&&p.lengths.length).sort((a,b)=>a.name.localeCompare(b.name,'ru')).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');if(selected)select.value=selected;
   $('#motherReserveTopup').hidden=!['owner','head'].includes(ME.role);
   state.textContent='На 29.11.2026 · обновлено '+new Date(r.updated_at).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})+'. Свободно = резерв − бронирования сайта − продажи отдела; в обоих каналах учтены оплаченные доставки и все самовывозы. Неоплаченные доставки и отмены исключены. «Дорезервировать» — недостающее именно в отдельном резерве на дату; это не проверка наличия на сегодняшнем складе.';
- }catch(error){state.textContent='Не удалось обновить отдельный резерв: '+error.message;}
+ }catch(error){motherReserveSnapshot=null;state.textContent='Не удалось обновить отдельный резерв: '+error.message;throw error;}
 }
 $('#motherReserveAdd').onclick=async()=>{
  const button=$('#motherReserveAdd'),error=$('#motherReserveAddState');
@@ -6675,3 +6677,4 @@ if (auth) start(); else logout();
 </script>
 </body>
 </html>
+
