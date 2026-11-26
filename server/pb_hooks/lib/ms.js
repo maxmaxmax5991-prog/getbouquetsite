@@ -667,9 +667,9 @@ function positionsFor(app, s, o) {
     }
     const st = stemsOf(it);   // в МоёмСкладе номенклатура — стебель: количество стеблей и цена за стебель
     const qty = st.cnt * it.qty;
-    const priceKop = Math.round(st.price * 100);
+    const priceKop = Math.round(it.price * 100) / st.cnt;
     positions.push({ quantity: qty, price: priceKop, assortment: meta(as.type || "product", as.id) });
-    posKop += priceKop * qty;
+    posKop += Math.round(priceKop * qty);
   }
   const delivery = o.get("delivery_price") || 0;
   if (delivery > 0) {

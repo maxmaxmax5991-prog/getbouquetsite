@@ -35,3 +35,17 @@ const msSource=fs.readFileSync(path.join(base,'lib/ms.js'),'utf8');const fn=msSo
 let crypto=require('crypto');let ctx={$security:{sha256:s=>crypto.createHash('sha256').update(s).digest('hex')}};vm.createContext(ctx);vm.runInContext(fn,ctx);
 const one=ctx.syncId('customerorder','abc');assert.equal(one,ctx.syncId('customerorder','abc'));assert.notEqual(one,ctx.syncId('paymentin','abc'));assert.match(one,/^[a-f0-9]{8}-[a-f0-9]{4}-5[a-f0-9]{3}-8[a-f0-9]{3}-[a-f0-9]{12}$/);
 console.log('PASS: provider syncId stable per operation and distinct across operation kinds');
+
+// Pickup totals must match the bouquet price even when it is not divisible by stems.
+{
+ const record=o=>({get:k=>o[k],getString:k=>typeof o[k]==='string'?o[k]:JSON.stringify(o[k])});
+ const fakeProduct=record({ms_pick:{50:{id:'rose',type:'product'}},ms_mix:null,variants:[],is_express:false});
+ const ms=load('lib/ms.js',{'shop.js':{jget:(o,k)=>o.get(k)}});
+ const app={findRecordById:()=>fakeProduct};
+ for(const [n,qty,price]of [[51,1,3990],[51,2,2990],[101,1,5490],[7,1,3500],[25,2,3990]]){
+  const result=ms.positionsFor(app,record({}),record({items:[{id:'rose',label:'50-'+n,price,qty}],delivery_price:0}));
+  assert(result.ok);assert.equal(result.positions.reduce((a,p)=>a+p.quantity,0),n*qty);
+  assert.equal(Math.round(result.positions.reduce((a,p)=>a+p.quantity*p.price,0)),price*qty*100);
+ }
+ console.log('PASS: exact pickup totals for 7/25/51/101 stems and multiple bouquets');
+}

@@ -84,7 +84,7 @@ cronAdd("ms-push", "* * * * *", () => {
   // в следующую минуту падала с «превышено ограничение» — хотя сама по себе
   // укладывалась. Берём по пять и останавливаемся на первом же отказе по лимиту.
   const noPay = $app.findRecordsByFilter("orders",
-    `payment_status = "paid" && ms_id != "" && ms_payment_id = "" && created > {:since}`,
+    `payment_status = "paid" && status != "cancelled" && ms_id != "" && ms_payment_id = "" && created > {:since}`,
     "created", 5, 0, { since });
   let стопPay = false;
   noPay.forEach((o) => {
