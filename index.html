@@ -1907,7 +1907,7 @@ function motherStockHTML(p){
 async function loadMotherStock(){
   if(motherStockLoading||Date.now()-motherStockFetched<60000)return;
   motherStockLoading=true;motherStockFetched=Date.now();
-  try{const r=await fetch('/api/shop/mother-stock',{cache:'no-store'});if(!r.ok)throw Error('stock');const data=await r.json();if(data.day!=='2026-11-29'||!Array.isArray(data.items))throw Error('stock');motherStockData=data;motherStockFailed=false;}
+  try{const r=await fetch('/api/shop/mother-stock',{cache:'no-store'});if(!r.ok)throw Error('stock');const data=await r.json();if(data.day!=='2026-11-29'||!Array.isArray(data.items))throw Error('stock');motherStockData=data;motherStockFailed=false;data.items.forEach(r=>{const p=byId[r.id];if(p&&Array.isArray(p.mother_lengths)){if(!p.mother_free)p.mother_free={};p.mother_free[String(r.length)]=r.free;}});}
   catch(_){motherStockFailed=true;}
   finally{motherStockLoading=false;if(location.pathname.replace(/\/$/,'')==='/den-mamy')renderMotherPage();}
 }
@@ -1923,15 +1923,25 @@ function motherViewProduct(p) {
   if (!p || !motherLengthContext()) return p;
   const preorder = !!p.mothers_day;
   let variants = p.variants;
-  if(Array.isArray(p.mother_lengths))variants=(variants||[]).filter(v=>motherHasLength(p,v.len));
+  if(Array.isArray(p.mother_lengths))variants=(variants||[]).filter(v=>motherHasLength(p,v.len) && +v.cnt<=(+p.mother_free?.[String(v.len)]||0));
   if (preorder && variants) variants = variants.map(v => ({...v,out:false,wait_at:undefined,ready:undefined}));
   const available = (variants || []).filter(v => !v.out);
-  return {...p, variants, lengths:Array.isArray(p.mother_lengths)?(p.lengths||[]).filter(L=>motherHasLength(p,L)):p.lengths,
+  const qty_range=p.qty_range?Object.fromEntries(Object.entries(p.qty_range).map(([L,r])=>[L,Array.isArray(p.mother_lengths)?[r[0],Math.min(r[1],+p.mother_free?.[L]||0)]:r])):p.qty_range;
+  return {...p, variants, qty_range, lengths:Array.isArray(p.mother_lengths)?(p.lengths||[]).filter(L=>motherHasLength(p,L)):p.lengths,
     def_label:(variants || []).some(v => v.label === p.def_label) ? p.def_label : undefined,
     price:variants && variants.length ? Math.min(...(available.length ? available : variants).map(v => v.price)) : p.price,
     off:preorder ? false : p.off, soldout:preorder ? false : (variants ? !available.length : p.soldout),
     express:preorder ? false : p.express, ready_at:preorder ? undefined : p.ready_at, batch:preorder ? undefined : p.batch};
 }
+
+function motherQuantityProblem(items){
+ const needs={};
+ const add=(id,len,n)=>{const p=byId[id];if(!p||!Array.isArray(p.mother_lengths))return;const key=id+'|'+len;if(!needs[key])needs[key]={p,len,n:0};needs[key].n+=+n||0;};
+ items.forEach(it=>{const qty=it.qty===undefined?1:+it.qty;if(it.parts?.length){it.parts.forEach(p=>add(p.id,p.len,(+p.n||0)*qty));return;}const m=String(it.label||'').match(/^(\d+)-(\d+)$/);if(m)add(it.id,+m[1],+m[2]*qty);});
+ for(const {p,len,n}of Object.values(needs)){const free=+p.mother_free?.[String(len)]||0;if(n>free)return '«'+p.name+'» '+len+' см: свободно в резерве '+free+' стеблей, в корзине '+n+'. Уменьшите количество или выберите другой сорт.';}
+ return '';
+}
+
 function motherCartProblem(date) {
   if(date !== '2026-11-29') return '';
   const check = (id,len) => { const p=byId[id]; if(!p)return 'Один из букетов больше недоступен. Выберите другой в каталоге Дня мамы.';
@@ -1942,7 +1952,8 @@ function motherCartProblem(date) {
   for(const key of Object.keys(cart)){const {id,label}=parseKey(key);const error=check(id,String(label).split('-')[0]);if(error)return error;}
   for(const basket of корзины || [])for(const part of basket.parts || []){const error=check(part.id,part.len);if(error)return error;}
   if(дропБукет){const p=byId[дропБукет];if(!p || !p.mothers_day)return 'Этот букет из дропа недоступен на 29 ноября. Выберите букет из каталога Дня мамы.';}
-  return '';
+  const lines=Object.keys(cart).map(k=>({...parseKey(k),qty:cart[k]})).concat((корзины||[]).map(b=>({parts:b.parts,qty:b.qty||1})));
+  return motherQuantityProblem(lines);
 }
 function showMotherRestriction(message) {
   const old=$('#motherRestriction');if(old){old.querySelector('p').textContent=message;return;}
@@ -2346,7 +2357,8 @@ function бкПересчёт() {
   const итог = цветы + (основа ? +основа.price || 0 : 0) + каркас;
   // У формы корзина не нужна, зато нужны буквы: пустое поле — не заказ.
   const формаОк = !БК.форма || (БК.форма === 'heart' ? true : бкБукв() > 0);
-  const готово = !!основа && формаОк && набрано === БК.всего && набрано > 0;
+  const reserveProblem=bkOccasion==='mother'?motherQuantityProblem([{parts:БК.слоты}]):'';
+  const готово = !!основа && формаОк && набрано === БК.всего && набрано > 0 && !reserveProblem;
   // На первых шагах показывать сумму нельзя: цена пустой корзины — не цена
   // корзины, владелец справедливо поймал меня на этом же на плитке.
   let слева, кнопка, действие, примечание = '';
@@ -2367,6 +2379,7 @@ function бкПересчёт() {
       ? `Доставка такой корзины дороже на ${rub(dx)} — её не поднять в одиночку, нужны двое.`
       : `Доставка корзины дороже обычной на ${rub(dx)} — её везут отдельно и в руках.`;
   }
+  if(reserveProblem)примечание=reserveProblem;
   $('#bkTotal').innerHTML = `<div class="sum">${слева}</div>
     <button class="btn btn-primary" id="bkGo" data-act="${действие}"${действие === 'add' && !готово ? ' disabled' : ''}>${кнопка}</button>
     ${примечание ? `<div class="note">${примечание}</div>` : ''}`;

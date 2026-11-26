@@ -96,4 +96,33 @@ function report(app) {
  Object.keys(average_checks).forEach(k=>{const a=average_checks[k];a.sum=Math.round(a.sum*100)/100;a.average=a.count?Math.round(a.sum/a.count*100)/100:null;});
  return {...result,average_checks,goal:{target:1000,count:checks,percent:Math.round(checks/1000*10000)/100},department,movements:moves,updated_at:new Date().toISOString()};
 }
-module.exports={DAY,aggregate,report,departmentReport};
+
+function stockProblem(app,items){
+ const needs={};
+ const add=(id,len,n)=>{
+  if(!id||!(+len>0)||!(+n>0))return;
+  const key=id+'|'+(+len);
+  if(!needs[key]){
+   let p,category;
+   try{p=app.findRecordById('products',id);category=app.findRecordById('categories',p.get('category')).get('slug');}catch(_){return;}
+   if(p.get('no_stock')||['single','kustovye-rozy','kustovye-rozy-pionovidnye'].indexOf(category)<0)return;
+   needs[key]={id,len:+len,name:p.get('name'),n:0};
+  }
+  needs[key].n+=+n;
+ };
+ (items||[]).forEach(it=>{
+  const qty=it.qty===undefined?1:+it.qty;
+  if(Array.isArray(it.parts)&&it.parts.length){it.parts.forEach(p=>add(p.id,p.len,(+p.n||+p.cnt||0)*qty));return;}
+  const m=String(it.label||'').match(/^(\d+)-(\d+)$/);
+  if(m)add(it.id,+m[1],+m[2]*qty);
+ });
+ if(!Object.keys(needs).length)return '';
+ const r=report(app),positions={};r.positions.forEach(p=>positions[p.id+'|'+p.length]=p);
+ for(const key of Object.keys(needs)){
+  const need=needs[key],row=positions[key],free=row&&row.has_reserve?Math.max(0,+row.free||0):0;
+  if(need.n>free)return '«'+need.name+'» '+need.len+' см: свободно в резерве на 29 ноября '+free+' стеблей, в корзине '+need.n+'. Уменьшите количество или выберите другой сорт.';
+ }
+ return '';
+}
+
+module.exports={DAY,aggregate,report,departmentReport,stockProblem};

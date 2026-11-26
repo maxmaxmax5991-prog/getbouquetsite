@@ -214,6 +214,8 @@ function catalog(app, brand) {
   const s = settings(app);
   const motherRows = arrayOf(new DynamicModel({product_id:"",length:0}));
   app.db().newQuery("SELECT DISTINCT product_id,length FROM occasion_reserve_movements WHERE day='2026-11-29' AND quantity>0").all(motherRows);
+  const motherBalance=require(`${__hooks}/lib/occasion.js`).report(app);
+  const motherFree={};motherBalance.positions.forEach(r=>{if(!motherFree[r.id])motherFree[r.id]={};motherFree[r.id][String(r.length)]=Math.max(0,+r.free||0);});
   const motherLengths={};
   motherRows.forEach(r=>{if(!motherLengths[r.product_id])motherLengths[r.product_id]=[];motherLengths[r.product_id].push(+r.length);});
   // Витрина: товар показываем, если у него отмечена эта витрина.
@@ -323,6 +325,7 @@ function catalog(app, brand) {
         made: p.get("is_express") ? String(p.get("description") || "").replace(/\s+/g, " ").trim().slice(0, 90) || undefined : undefined,
         badge_text: String(p.get("badge_text") || "").trim() || undefined,
         mothers_day: !!p.get("mothers_day"),
+        mother_free: !p.get("no_stock") && ["single","kustovye-rozy","kustovye-rozy-pionovidnye"].indexOf(catById[p.get("category")].get("slug"))>=0 ? (motherFree[p.id]||{}) : undefined,
         mother_lengths: !p.get("no_stock") && ["single","kustovye-rozy","kustovye-rozy-pionovidnye"].indexOf(catById[p.get("category")].get("slug"))>=0
           ? (motherLengths[p.id]||[]).sort((a,b)=>a-b) : undefined,
         // Партия: сколько привезли и сколько ещё свободно. Свободное считаем
@@ -834,6 +837,10 @@ function prepareOrder(app, rec) {
     sum += price * qty;
     bonus += (p.get("bonus") || 0) * qty;
   });
+  if(String(rec.get("date"))==="2026-11-29"){
+    const reserveError=require(`${__hooks}/lib/occasion.js`).stockProblem(app,items);
+    if(reserveError)fail(reserveError);
+  }
   if (sum < (s.get("min_order") || 0)) fail(`Минимальная сумма заказа — ${rub(s.get("min_order"))}.`);
 
   // Двойное нажатие «Оформить» давало два одинаковых заказа с разницей в секунды
