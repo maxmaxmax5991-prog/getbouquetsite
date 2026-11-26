@@ -462,6 +462,7 @@ function addressFull(o) {
 function orderDescription(o) {
   const parts = [
     `Заказ №${o.get("number")} с сайта venikoff.net`,
+    "Состав заказа: "+(shop.jget(o,"items")||[]).map(it=>String(+it.qty||1)+" × «"+String(it.name||"Товар")+"»"+(it.label_text?" ("+it.label_text+")":"")).join("; "),
     o.get("delivery_type") === "pickup" ? `Самовывоз: ${o.get("address")}` : `Доставка: ${o.get("address")}`,
     `Когда: ${o.get("date")}, ${o.get("interval") || "время не выбрано"}`,
     `Заказчик: ${o.get("name")}, ${o.get("phone")}`,
@@ -491,11 +492,33 @@ function сВазой(o) {
   } catch (_) { return false; }
 }
 function имяЗаказа(o) {
-  return String(o.get("number")) + (сВазой(o) ? " vaza" : "");
+  const invoice=String(shop.invoiceOf(o));
+  return (/^\d+$/.test(invoice)?"site-"+invoice:invoice)+(сВазой(o)?" vaza":"");
+}
+function sameSiteOrder(row,body,number){
+  if(!row)return false;
+  if(body.syncId && row.syncId===body.syncId)return true;
+  const id=ref=>String(ref&&ref.meta&&ref.meta.href||"").split("/").pop();
+  return id(row.store)===id(body.store)&&id(row.organization)===id(body.organization)&&id(row.agent)===id(body.agent)
+    && +row.sum===body.positions.reduce((n,p)=>n+(+p.quantity||0)*(+p.price||0),0)
+    && String(row.description||"").indexOf("Заказ №"+number+" с сайта venikoff.net")>=0;
 }
 
 // Позиции заказа для МоегоСклада: цветы в стеблях + доставка услугой.
 // Отдельной функцией, потому что то же самое нужно при замене сорта в заказе.
+function ownsLinkedOrder(s,o,row){
+  if(!row)return false;
+  if(row.syncId===syncId("customerorder",o.id))return true;
+  const refid=r=>String(r&&r.meta&&r.meta.href||"").split("/").pop();
+  return refid(row.store)===String(s.get("ms_store_id"))&&refid(row.organization)===String(s.get("ms_org_id"))
+    && String(row.description||"").indexOf("Заказ №"+o.get("number")+" с сайта venikoff.net")>=0;
+}
+function linkedOrder(app,s,o){
+  const r=ms(s,"GET","/entity/customerorder/"+o.get("ms_id"));
+  if(!r.ok)return r;
+  return ownsLinkedOrder(s,o,r.data)?r:{ok:false,error:"Связанный документ МоегоСклада не подтверждён как заказ сайта. Изменения заблокированы: проверьте номер, склад и клиента."};
+}
+
 function positionsFor(app, s, o) {
   const items = shop.jget(o, "items") || [];
   const positions = [];
@@ -662,13 +685,14 @@ function syncPositions(app, o) {
   if (!o.get("ms_id")) return { ok: true };
   const pos = positionsFor(app, s, o);
   if (!pos.ok) return pos;
+  const own=linkedOrder(app,s,o);if(!own.ok)return own;
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { positions: pos.positions });
 }
 
 function pushOrder(app, o) {
   const s = shop.settings(app);
   if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция выключена." };
-  if (o.get("ms_id")) return { ok: true, id: o.get("ms_id") };
+  if (o.get("ms_id")) {const own=linkedOrder(app,s,o);return own.ok?{ok:true,id:o.get("ms_id")}:own;}
   // доставку оформляем в МоёмСкладе только после оплаты; самовывоз — сразу
   if (o.get("delivery_type") !== "pickup" && o.get("payment_status") !== "paid") {
     return { ok: false, wait: true, error: "Ждём оплату — заказ уйдёт в МойСклад после неё." };
@@ -730,21 +754,17 @@ else {
   }
   if (!claim(app, o.id, "push")) return { ok: false, wait: true, error: "Заказ уже отправляется в МойСклад." };
   let created = ms(s, "POST", "/entity/customerorder", body);
-  // «Нарушено ограничение уникальности name» значит, что заказ там уже есть:
-  // прошлая отправка прошла, а номер к нам не вернулся. Второй такой же создавать
-  // нельзя — находим существующий и запоминаем его.
-  if (!created.ok && /уникальност/i.test(String(created.error || ""))) {
-    // Ищем и по новому имени («6682 vaza»), и по старому — заказы, уехавшие в
-    // склад до этой метки, иначе задвоим.
-    let был = ms(s, "GET", `/entity/customerorder?filter=name=${encodeURIComponent(имяЗаказа(o))}&limit=1`);
-    if (!(был.ok && был.data && был.data.rows && был.data.rows.length) && имяЗаказа(o) !== String(o.get("number"))) {
-      был = ms(s, "GET", `/entity/customerorder?filter=name=${encodeURIComponent(String(o.get("number")))}&limit=1`);
+  // A matching display number is not proof of ownership: other stores use the same numbers.
+  if(!created.ok && /уникальност|syncId/i.test(String(created.error||""))){
+    const bySync=ms(s,"GET","/entity/customerorder?filter="+encodeURIComponent("syncId="+body.syncId)+"&limit=2");
+    const synced=bySync.ok&&bySync.data&&bySync.data.rows||[];
+    let owned=synced.filter(r=>sameSiteOrder(r,body,o.get("number")));
+    if(!owned.length){
+      const named=ms(s,"GET","/entity/customerorder?filter="+encodeURIComponent("name="+body.name)+"&limit=10");
+      owned=(named.ok&&named.data&&named.data.rows||[]).filter(r=>sameSiteOrder(r,body,o.get("number")));
     }
-    const row = был.ok && был.data.rows && был.data.rows[0];
-    if (row) {
-      console.log("ms: заказ", o.get("number"), "уже был в складе — подхватили", row.id);
-      created = { ok: true, data: { id: row.id } };
-    }
+    if(owned.length===1)created={ok:true,data:{id:owned[0].id}};
+    else created={ok:false,error:"Не удалось подтвердить принадлежность существующего заказа в МоёмСкладе. Совпадения номера недостаточно; нужна проверка клиента, склада и состава."};
   }
   if (!created.ok) { unclaim(app, o.id, "push"); return created; }
   // Заказ ушёл, но часть полей не заполнилась — чаще всего склад не ответил.
@@ -774,6 +794,7 @@ else {
 function updateAttrs(app, o) {
   if (!o.get("ms_id")) return { ok: false, error: "Заказ ещё не в МоёмСкладе." };
   const s = shop.settings(app);
+  const own=linkedOrder(app,s,o);if(!own.ok)return own;
   const missed = [];
   const attributes = buildAttributes(app, s, o, missed);
   const body = {
@@ -796,6 +817,8 @@ function addPayment(app, o) {
   if (!o.get("ms_id") || !s.get("ms_token") || o.get("ms_payment_id")) return { ok: false };
   const ord = ms(s, "GET", `/entity/customerorder/${o.get("ms_id")}?expand=payments`);
   if (!ord.ok) return ord;
+  if(!ownsLinkedOrder(s,o,ord.data))return {ok:false,error:"Не подтверждена принадлежность заказа МоегоСклада; создание платежа заблокировано."};
+  if(+ord.data.sum!==Math.round((+o.get("total")||0)*100))return {ok:false,error:"Сумма ручного заказа МоегоСклада отличается от оплаты сайта. Нужна сверка перед созданием платежа."};
   // Заказ могли создать в МойСкладе раньше, чем сайт сохранил ms_id.
   // Сначала подхватываем уже связанную оплату, иначе повторная отправка задвоит её.
   const totalKop = Math.round((+o.get("total") || 0) * 100);
@@ -839,6 +862,7 @@ function addPayment(app, o) {
 function markPaid(app, o) {
   const s = shop.settings(app);
   if (!o.get("ms_id") || !s.get("ms_token")) return { ok: false };
+  const own=linkedOrder(app,s,o);if(!own.ok)return own;
   const st = stateId(app, s, true);
   if (!st) return { ok: false };
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { state: meta("state", st) });
