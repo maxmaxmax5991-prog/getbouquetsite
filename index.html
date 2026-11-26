@@ -4996,6 +4996,7 @@ function fromMin(p) {
 // Самый поздний такой час среди того, что в корзине
 function cartFrom() {
   let best = 0;
+  if(getType!=='pickup' && дропБукет && DROP){const r=когдаПривоз(DROP.доставка_с);if(r&&r.date===mskToday())best=r.min;}
   Object.keys(cart).forEach(k => { best = Math.max(best, fromMin(byId[parseKey(k).id])); });
   return best;
 }

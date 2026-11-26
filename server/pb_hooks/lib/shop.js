@@ -519,8 +519,13 @@ function readyOf(app, items) {
 // вкладывают в собранный букет во второй половине дня, и так каждый день,
 // поэтому `ready_at` с его одной датой здесь не годится. Берём самый поздний
 // час среди того, что в корзине; пусто — ограничения нет.
-function fromMinOf(app, items) {
+function fromMinOf(app, items, pickup) {
   let best = 0;
+  if(!pickup && (items||[]).some(it=>it.kind==="drop")){
+    const d=require(`${__hooks}/lib/drop.js`).текущий(app);
+    const r=d?разобратьВремя(d.get("ready_at")):null;
+    if(r&&r.date===moscowToday())best=r.minutes;
+  }
   (items || []).forEach((it) => {
     let p = null;
     try { p = app.findRecordById("products", String(it.id || "")); } catch (_) {}
@@ -955,7 +960,7 @@ function prepareOrder(app, rec) {
   const allExpress = items.length > 0 && items.every((it) => {
     try { return !!app.findRecordById("products", String(it.id)).get("is_express"); } catch (_) { return false; }
   });
-  const bad = slotProblem(s, date, sum, interval, pickup, readyOf(app, items), allExpress, fromMinOf(app, items));
+  const bad = slotProblem(s, date, sum, interval, pickup, readyOf(app, items), allExpress, fromMinOf(app, items, pickup));
   if (bad) fail(bad);
 
 const card = !!(s.get("pay_card") && s.get("cp_public_id") && s.get("cp_secret"));
