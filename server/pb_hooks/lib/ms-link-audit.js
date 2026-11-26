@@ -20,6 +20,7 @@ function run(app){
   for(let i=0;i<ids.length;i+=50){
    const batch=ids.slice(i,i+50),r=ms.ms(s,'GET','/entity/customerorder?filter='+encodeURIComponent(batch.map(id=>'id='+id).join(';'))+'&limit=100');
    if(!r.ok)throw new Error(r.error||'МойСклад не ответил.');
+   if(!r.data||!Array.isArray(r.data.rows)||!r.data.meta||typeof r.data.meta.size!=='number'||r.data.rows.length!==r.data.meta.size)throw new Error('МойСклад вернул неполную выборку. Предыдущая сверка сохранена.');
    if((r.data.meta&&r.data.meta.size||0)>100)throw new Error('Склад вернул неполную выборку идентификаторов.');
    const expected={};batch.forEach(id=>expected[id]=true);
    (r.data.rows||[]).forEach(row=>{if(!expected[row.id])throw new Error('Склад вернул документ вне запроса.');docs[row.id]=row;});
