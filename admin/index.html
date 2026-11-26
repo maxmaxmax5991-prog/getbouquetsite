@@ -287,6 +287,10 @@ table.t td{padding:4px 6px;vertical-align:middle}
 .md-map-icon>span{min-width:14px;width:14px;height:14px;padding:0;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 6px #0005}.md-map-icon>span:after{display:none}.md-map-icon>span.fire{min-width:28px;width:28px;height:28px;border:0;border-radius:0;background:none!important;box-shadow:none;font-size:26px;line-height:1}
 .md-overview{grid-template-columns:repeat(3,minmax(0,1fr))}.md-overview .md-overall{gap:14px}.md-overview>section:last-child{grid-column:1/-1}@media(max-width:950px){.md-overview{grid-template-columns:1fr}}@media(max-width:600px){.top .who #верс{display:none}.top .who{flex-wrap:wrap;justify-content:flex-start}}
 .md-sales-switch{position:sticky;top:var(--admin-top-height,60px);z-index:19;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 18px;padding:12px;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 24px #0000000a}.md-sales-label{font-weight:800;margin:0 8px 0 2px}@media(max-width:600px){.md-sales-switch{gap:4px;padding:8px}.md-sales-label{width:100%;font-size:12px}.md-sales-switch button{flex:1;padding-inline:8px}}.md-sales-switch button{min-height:44px;padding:10px 18px;border:1px solid var(--line);border-radius:12px;background:var(--paper);font-weight:750}.md-sales-switch button[aria-pressed=true]{background:var(--accent);color:white;border-color:var(--accent)}
+
+.md-subtabs{display:flex;gap:7px;margin-bottom:18px;padding:5px;background:var(--ground);border:1px solid var(--line);border-radius:14px;width:fit-content}.md-subtabs button{border:0;background:transparent;color:var(--ink-2);border-radius:10px;padding:11px 24px;font:inherit;font-weight:750;cursor:pointer}.md-subtabs button[aria-selected="true"]{background:var(--paper);color:var(--md-rose);box-shadow:0 2px 8px #0001}.md-warehouse-toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}.md-warehouse-toolbar input{flex:1;min-width:200px}.md-warehouse-board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}.md-warehouse-column{background:var(--ground);border:1px solid var(--line);border-top:4px solid var(--md-rose);border-radius:20px;min-height:260px;padding:18px}.md-warehouse-column:nth-child(2){border-top-color:var(--md-green)}.md-warehouse-column>header{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}.md-warehouse-column h3{margin:0;font-size:19px}.md-warehouse-column header p{font-size:12px;color:var(--ink-2);margin:5px 0}.md-warehouse-column header>b{font-size:27px;text-align:center;color:var(--md-rose)}.md-warehouse-column:nth-child(2) header>b{color:var(--md-green)}.md-warehouse-column header small{display:block;font-size:10px;color:var(--ink-2);font-weight:500}.md-warehouse-card{padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--paper);box-shadow:0 2px 8px #00000005;margin:10px 0;cursor:grab}.md-warehouse-card.locked{cursor:default}.md-warehouse-card-top,.md-warehouse-meta,.md-warehouse-card footer{display:flex;justify-content:space-between;align-items:center;gap:10px}.md-warehouse-card-top{margin-bottom:12px}.md-warehouse-card-top a{font-weight:800;color:var(--ink);text-decoration:none}.md-warehouse-card>strong{font-size:14px;color:var(--md-rose)}.md-warehouse-card p{font-size:12px;line-height:1.5;margin:8px 0;color:var(--ink-2);overflow-wrap:anywhere}.md-warehouse-card p.md-warehouse-address{color:var(--ink);font-size:13px}.md-warehouse-meta{font-size:11px;margin-top:14px}.md-warehouse-meta span{color:var(--ink-2)}.md-warehouse-card footer{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.md-warehouse-card footer small{font-size:10px;color:var(--ink-2)}.md-warehouse-card footer button{font-size:11px;padding:8px 12px;white-space:nowrap}.md-warehouse-empty{color:var(--ink-2);font-size:12px;padding:30px 5px;text-align:center}.md-warehouse-drop{display:none;border:2px dashed var(--md-rose);border-radius:12px;padding:20px;text-align:center;font-size:12px;color:var(--md-rose)}.md-warehouse-column.dragover{outline:3px solid var(--md-rose);outline-offset:3px}.md-warehouse-column.dragover .md-warehouse-drop{display:block}.md-warehouse-card.dragging{opacity:.35}#motherWarehouseState{min-height:1.8em}.md-warehouse-board[aria-busy="true"]{opacity:.75;pointer-events:none}@media(max-width:700px){.md-warehouse-board{grid-template-columns:1fr;gap:14px}.md-warehouse-column{padding:13px}.md-warehouse-toolbar>*{width:100%}.md-warehouse-card{padding:14px}}
+
+#motherWarehousePanel .md-hero{padding:20px 24px;margin-bottom:14px}#motherWarehousePanel .md-hero h2{font-size:26px}#motherWarehousePanel .md-hero p{margin:7px 0 0}.md-warehouse-toolbar input{width:auto}.md-warehouse-toolbar select{width:210px;flex:0 0 210px}@media(max-width:700px){#motherWarehousePanel .md-hero{padding:18px}#motherWarehousePanel .md-hero h2{font-size:22px}.md-warehouse-toolbar select{flex:1;width:100%}}
 </style>
 </head>
 <body>
@@ -454,6 +458,9 @@ table.t td{padding:4px 6px;vertical-align:middle}
 
     <!-- Товары -->
     <section id="tab-mother" hidden>
+      <nav class="md-subtabs" id="motherSubtabs" role="tablist" aria-label="День мамы"><button type="button" role="tab" data-mother-section="overview" aria-selected="true" aria-controls="motherOverview">Обзор</button><button type="button" role="tab" data-mother-section="warehouses" aria-selected="false" aria-controls="motherWarehousePanel">Склады</button></nav>
+      <section id="motherWarehousePanel" hidden role="tabpanel"><div class="md-hero"><div><span class="md-tag">29 НОЯБРЯ · ТОЛЬКО ДОСТАВКИ</span><h2>Распределение по складам</h2><p>Перетащите заказ между складами — изменение сохранится в МойСкладе.</p></div><button type="button" class="btn btn-p" id="motherWarehouseRefresh">Обновить</button></div><div class="md-warehouse-toolbar"><input class="in" id="motherWarehouseSearch" type="search" placeholder="Номер заказа, клиент или адрес" aria-label="Поиск доставок"><select class="in" id="motherWarehousePaid" aria-label="Оплата"><option value="all">Все доставки</option><option value="paid">Оплаченные</option><option value="unpaid">Неоплаченные</option></select></div><p class="hint">Самовывозы и отменённые заказы не показаны. На телефоне используйте кнопку переноса в карточке. В общем резерве по-прежнему учитываются только оплаченные доставки; перенос между двумя складами не освобождает бронь.</p><p class="hint" id="motherWarehouseState" role="status" aria-live="polite"></p><div id="motherWarehouseBoard" class="md-warehouse-board" aria-busy="false"></div></section>
+      <div id="motherOverview" role="tabpanel">
       <div class="md-sales-switch" id="motherSalesSwitch" role="group" aria-label="Источник продаж"><span class="md-sales-label">Продажи</span><button type="button" data-sales-view="all" aria-pressed="true">Общая</button><button type="button" data-sales-view="site" aria-pressed="false">Сайт</button><button type="button" data-sales-view="department" aria-pressed="false">Отдел продаж</button></div>
       <div class="md-hero"><div><span class="md-tag">29 НОЯБРЯ 2026</span><h2>День мамы</h2><p>Запасы под сайт, бронирования и доставка — в одном месте.</p></div><div class="md-actions"><button class="btn btn-p" id="motherReportRefresh">Обновить данные</button><a class="btn btn-g" href="/den-mamy/" target="_blank">Открыть витрину</a></div></div>
       <p class="hint">Бронирования на 29 ноября: только оплаченные доставки и все самовывозы, включая неоплаченные. Неоплаченные доставки и отменённые заказы исключены. Срочные — часовые интервалы за +1 250 ₽. Сорта одной длины складываются в стеблях: 2 букета по 51 розе = 102 стебля. Предзаказы не расходуют сегодняшний остаток.</p>
@@ -473,6 +480,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <details class="md-section"><summary>Переходы и конверсия уведомления</summary>      <h3>Уведомление на сайте</h3><div id="motherNoticeStats" class="hint">Загружаем…</div>
       <p class="hint">Уникальные посетители: показы → переходы → заказ на 29 ноября. Заказ засчитывается после клика в течение 7 дней; оплаченные считаются по фактическому статусу оплаты. Отменённые исключены. Статистика с 23 ноября, только эта витрина.</p>
 </details>
+      </div>
     </section>
     <section id="tab-products" hidden>
       <div class="bar">
@@ -1446,8 +1454,50 @@ function aggregateMotherOrders(orders, products) {
     slots:[...slots.values()].sort((a,b) => a.label.localeCompare(b.label)),
     positions:[...positions.values()].sort((a,b) => a.name.localeCompare(b.name,'ru') || +a.len - +b.len)};
 }
+let motherWarehouseData=null,motherWarehouseBusy=false,motherWarehouseDrag=null,motherWarehouseTimer=null,motherSection='overview',motherWarehouseRequest=0;
+function motherWarehouseCount(n){return n%100>=11&&n%100<=14?'доставок':n%10===1?'доставка':n%10>=2&&n%10<=4?'доставки':'доставок';}
+function motherWarehouseRender(){
+ const d=motherWarehouseData;if(!d)return;
+ const query=$('#motherWarehouseSearch').value.trim().toLowerCase(),filter=$('#motherWarehousePaid').value;
+ const orders=d.orders.filter(o=>(filter==='all'||(filter==='paid'?o.paid:!o.paid))&&(!query||[o.number,o.site_number,o.customer,o.address,o.channel].join(' ').toLowerCase().includes(query)));
+ $('#motherWarehouseBoard').innerHTML=d.stores.map(s=>{
+  const rows=orders.filter(o=>o.store===s.id).sort((a,b)=>a.interval.localeCompare(b.interval)||String(a.number).localeCompare(String(b.number),'ru',{numeric:true})),other=d.stores.find(x=>x.id!==s.id);
+  return `<section class="md-warehouse-column" data-warehouse="${esc(s.id)}" aria-label="${esc(s.title)}"><header><div><h3>${esc(s.title)}</h3><p>${esc(s.name)}</p></div><b>${rows.length}<small>${motherWarehouseCount(rows.length)}</small></b></header><div class="md-warehouse-drop">Перетащите заказ сюда</div><div class="md-warehouse-orders">${rows.map(o=>`<article class="md-warehouse-card${o.locked?' locked':''}" data-order="${esc(o.id)}" draggable="${!o.locked&&!motherWarehouseBusy}"><div class="md-warehouse-card-top"><a href="https://online.moysklad.ru/app/#customerorder/edit?id=${encodeURIComponent(o.id)}" target="_blank" rel="noopener">№${esc(o.number)}</a><span class="md-status${o.paid?'':' attention'}">${o.paid?'Оплачен':'Не оплачен'}</span></div><strong>${esc(o.interval||'Время не указано')}</strong><p class="md-warehouse-address">${esc(o.address||'Адрес уточняется')}</p><p>${esc(o.customer)}</p><div class="md-warehouse-meta"><span>${o.source==='site'?'Сайт':esc(o.channel||'Отдел продаж')}</span><b>${(+o.total).toLocaleString('ru-RU')} ₽</b></div><footer><small>${esc(o.state)}</small><button type="button" class="btn btn-g" data-warehouse-move="${esc(o.id)}" data-to="${esc(other.id)}" ${o.locked||motherWarehouseBusy?'disabled':''}>В «${esc(other.title)}» →</button></footer>${o.locked?'<small>Есть отгрузка / заказ завершён</small>':''}</article>`).join('')||'<p class="md-warehouse-empty">Доставок по выбранному фильтру нет</p>'}</div></section>`;
+ }).join('');
+ $('#motherWarehouseBoard').setAttribute('aria-busy',String(motherWarehouseBusy));
+}
+async function loadMotherWarehouses(){
+ clearTimeout(motherWarehouseTimer);if(motherWarehouseBusy)return;
+ const request=++motherWarehouseRequest;
+ $('#motherWarehouseState').textContent='Проверяем заказы в МойСкладе…';
+ try{const data=await api('/api/shop/mother-warehouses');if(request!==motherWarehouseRequest||motherWarehouseBusy)return;motherWarehouseData=data;motherWarehouseRender();$('#motherWarehouseState').textContent='Данные МойСклада · '+new Date(motherWarehouseData.updated_at).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})+' · '+motherWarehouseData.orders.length+' '+motherWarehouseCount(motherWarehouseData.orders.length)+' на двух складах';}
+ catch(e){if(request!==motherWarehouseRequest)return;$('#motherWarehouseState').textContent='Не удалось обновить: '+e.message;}
+ motherWarehouseTimer=setTimeout(()=>{if(tab==='mother'&&motherSection==='warehouses')loadMotherWarehouses();},60000);
+}
+async function motherWarehouseMove(id,to){
+ if(motherWarehouseBusy)return;const o=motherWarehouseData?.orders.find(x=>x.id===id);if(!o||o.store===to||o.locked)return;
+ motherWarehouseBusy=true;++motherWarehouseRequest;clearTimeout(motherWarehouseTimer);motherWarehouseRender();$('#motherWarehouseState').textContent='Меняем склад заказа №'+o.number+' в МойСкладе…';
+ try{
+  const result=await api('/api/shop/mother-warehouses',{method:'POST',body:{order:id,from:o.store,to}});
+  motherWarehouseData.orders=motherWarehouseData.orders.map(x=>x.id===id?result.order:x);
+  $('#motherWarehouseState').textContent='Заказ №'+o.number+' перенесён на склад «'+motherWarehouseData.stores.find(s=>s.id===to).title+'». МойСклад подтвердил изменение.';
+ }catch(e){$('#motherWarehouseState').textContent='Перенос не подтверждён: '+e.message;}
+ finally{motherWarehouseBusy=false;motherWarehouseDrag=null;motherWarehouseRender();motherWarehouseTimer=setTimeout(()=>{if(tab==='mother'&&motherSection==='warehouses')loadMotherWarehouses();},60000);}
+}
+$('#motherWarehouseBoard').addEventListener('click',e=>{const b=e.target.closest('[data-warehouse-move]');if(b)motherWarehouseMove(b.dataset.warehouseMove,b.dataset.to);});
+$('#motherWarehouseBoard').addEventListener('dragstart',e=>{const card=e.target.closest('[data-order]');if(!card||motherWarehouseBusy||card.classList.contains('locked')||e.target.closest('a,button')){e.preventDefault();return;}motherWarehouseDrag=card.dataset.order;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',motherWarehouseDrag);card.classList.add('dragging');});
+$('#motherWarehouseBoard').addEventListener('dragover',e=>{const column=e.target.closest('[data-warehouse]');if(column&&motherWarehouseDrag&&!motherWarehouseBusy){e.preventDefault();e.dataTransfer.dropEffect='move';column.classList.add('dragover');}});
+$('#motherWarehouseBoard').addEventListener('dragleave',e=>{const column=e.target.closest('[data-warehouse]');if(column&&!column.contains(e.relatedTarget))column.classList.remove('dragover');});
+$('#motherWarehouseBoard').addEventListener('drop',e=>{const column=e.target.closest('[data-warehouse]');e.preventDefault();$$('.md-warehouse-column').forEach(c=>c.classList.remove('dragover'));if(column&&motherWarehouseDrag)motherWarehouseMove(motherWarehouseDrag,column.dataset.warehouse);});
+$('#motherWarehouseBoard').addEventListener('dragend',()=>{motherWarehouseDrag=null;$$('.md-warehouse-column,.md-warehouse-card').forEach(c=>c.classList.remove('dragover','dragging'));});
+$('#motherWarehouseRefresh').onclick=loadMotherWarehouses;
+$('#motherWarehouseSearch').addEventListener('input',motherWarehouseRender);
+$('#motherWarehousePaid').addEventListener('change',motherWarehouseRender);
+$('#motherSubtabs').addEventListener('click',e=>{const b=e.target.closest('[data-mother-section]');if(!b)return;motherSection=b.dataset.motherSection;$$('#motherSubtabs button').forEach(x=>x.setAttribute('aria-selected',String(x===b)));$('#motherOverview').hidden=motherSection!=='overview';$('#motherWarehousePanel').hidden=motherSection!=='warehouses';if(motherSection==='warehouses')loadMotherWarehouses();else{clearTimeout(motherWarehouseTimer);loadMotherReport();setTimeout(()=>motherMap&&motherMap.invalidateSize(),0);}});
+
 let motherReportTimer, motherPurchaseRows = [];
 async function loadMotherReport() {
+  if(motherSection==='warehouses'){loadMotherWarehouses();return;}
   clearTimeout(motherReportTimer);
   $('#motherReportState').textContent = 'Обновляем…';
   $('#motherExport').disabled=true;
@@ -1478,7 +1528,7 @@ async function loadMotherReport() {
     $('#motherReportUrgent').innerHTML = data.urgent.length ? table(['Заказ','Время','Источник','Клиент','Телефон','Оплата'],data.urgent.map(o=>`<tr><td>№${o.number}</td><td>${esc(o.interval)}</td><td>${o.source==='department'?'Отдел · '+esc(o.channel||''):'Сайт'}</td><td>${esc(o.name || '')}</td><td>${esc(o.phone || '')}</td><td>${o.payment_status==='paid'?'Оплачен':'Ждёт оплаты'}</td></tr>`)) : '<tbody><tr><td>Часовых доставок пока нет</td></tr></tbody>';
     $('#motherReportState').textContent = 'Обновлено '+new Date().toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow'})+' · автообновление раз в минуту';
   } catch(error) { $('#motherReportState').textContent='Не удалось обновить: '+error.message; }
-  motherReportTimer = setTimeout(()=>{if(tab==='mother')loadMotherReport();},60000);
+  motherReportTimer = setTimeout(()=>{if(tab==='mother'&&motherSection==='overview')loadMotherReport();},60000);
 }
 $('#motherReportRefresh').onclick = loadMotherReport;
 $('#motherExport').onclick = () => {
@@ -6677,4 +6727,5 @@ if (auth) start(); else logout();
 </script>
 </body>
 </html>
+
 

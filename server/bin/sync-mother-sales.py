@@ -2,6 +2,8 @@
 """Read-only MoySklad -> atomic dated sales snapshot. Never alters ordinary inventory."""
 import sqlite3,json,urllib.request,urllib.parse,gzip,re,pathlib,datetime,time,os,sys,fcntl
 DAY='2026-11-29';STORE_ID='3d520ee3-76c1-11f0-0a80-142900354c8e';STORE_NAME='Москва 01 - Маленковская 14, к1 (Ласфлор)';BASE='https://api.moysklad.ru/api/remap/1.2'
+STORE_IDS=(STORE_ID,'36029ea4-e4b8-11f1-0a80-0c290009e4f4')
+STORE_NAMES={STORE_ID:STORE_NAME,STORE_IDS[1]:'Москва 02 - 1я Рыбинская 1, с4 (Гет Букет)'}
 SELECTED=['INST Venikoff','VK Venikoff','INST GB','INST GB LP','VK GB','VK Fl','INST FLOW','INST BELCV','INST 31','Телеграм Venikoff','Телеграмм','WhatsApp','MAX','Ева Venikoff','Ева ГБ','Ева Ген.Дир','Личный акк ген.дир','Яковлев МА','Стафф Магазина','Вх. звонок','Розница','Витрина','Канал Готовые букеты','Юрлица']
 def norm(s):return re.sub(r'[^a-zа-я0-9]','',str(s).lower().replace('ё','е').replace('аваланш','аваланж'))
 def flower_key(s):
@@ -58,7 +60,7 @@ def site_sync_id(record_id):
  return h[:8]+'-'+h[8:12]+'-5'+h[13:16]+'-8'+h[17:20]+'-'+h[20:32]
 def owns_site_document(order,site,organization):
  ref=lambda key:(order.get(key)or{}).get('meta',{}).get('href','').rstrip('/').split('/')[-1]
- if ref('store')!=STORE_ID or ref('organization')!=organization:return False
+ if ref('store')not in STORE_IDS or ref('organization')!=organization:return False
  if order.get('syncId')==site_sync_id(site['id']):return True
  return bool(re.search(r'Заказ №'+re.escape(str(site['number']))+r' с сайта venikoff\.net(?:\s|$)',order.get('description')or''))
 def reconcile_site_orders(client,db,orders):
@@ -92,7 +94,11 @@ def build(client,db):
    bits=str(label).split('-');length=int(bits[0]) if bits[0].isdigit() else 0;count=int(bits[1]) if len(bits)>1 and bits[1].isdigit() and b.get('whole') else 1
    bindings.setdefault(b['id'],[]).append((p,length,count))
  channels=client.all('/entity/saleschannel');selected=[c for c in channels if norm(c['name'])in{norm(n) for n in SELECTED}];channelids={c['id'] for c in selected}
- orders=client.all('/entity/customerorder',{'filter':'store='+BASE+'/entity/store/'+STORE_ID+';deliveryPlannedMoment>='+DAY+' 00:00:00;deliveryPlannedMoment<2026-11-30 00:00:00','expand':'salesChannel,state,positions.assortment','order':'updated,asc'})
+ orders_by_id={}
+ for store_id in STORE_IDS:
+  for order in client.all('/entity/customerorder',{'filter':'store='+BASE+'/entity/store/'+store_id+';deliveryPlannedMoment>='+DAY+' 00:00:00;deliveryPlannedMoment<2026-11-30 00:00:00','expand':'salesChannel,state,positions.assortment','order':'updated,asc'}):
+   orders_by_id[order['id']]=order
+ orders=list(orders_by_id.values())
  site_orders,site_issues=reconcile_site_orders(client,db,orders)
  siteids={r[0] for r in db.execute("select ms_id from orders where ms_id!=''")};docs=[];items=[];externalmeta={};issues=[];bundles={};duplicates=0
  cache=pathlib.Path(os.getenv('VENIKOFF_COMPONENTS_CACHE','/opt/venikoff/backups/mother-reserve-20261129/sales-components-cache.json'))
@@ -131,12 +137,12 @@ def build(client,db):
    externalmeta[pid]={'id':pid,'name':display,'no_stock':untracked};issues.append({'document':doc['id'],'number':doc['number'],'name':name,'quantity':qty,'length':length,'untracked':untracked})
   items.append({'document':doc['id'],'product_id':pid,'length':length,'quantity':qty,'name':display,'source_name':name,'channel':doc['channel'],'untracked':untracked})
  for order in orders:
-  if (order.get('store')or{}).get('meta',{}).get('href','').rstrip('/').split('/')[-1]!=STORE_ID:continue
+  if (order.get('store')or{}).get('meta',{}).get('href','').rstrip('/').split('/')[-1]not in STORE_IDS:continue
   ch=order.get('salesChannel')or{}
   if order['id'] in siteids:duplicates+=1;continue
   if ch.get('id')not in channelids:continue
   if str(order.get('deliveryPlannedMoment',''))[:10]!=DAY:raise RuntimeError('Upstream returned incorrect planned day')
-  cl=classify(order);doc={'id':order['id'],'number':order['name'],'channel':ch.get('name',''),'channel_id':ch.get('id'),'date':order['deliveryPlannedMoment'],'total':float(order.get('sum',0))/100,**cl,**delivery_details(order)};docs.append(doc)
+  cl=classify(order);doc={'store_id':(order.get('store')or{}).get('meta',{}).get('href','').split('/')[-1],'id':order['id'],'number':order['name'],'channel':ch.get('name',''),'channel_id':ch.get('id'),'date':order['deliveryPlannedMoment'],'total':float(order.get('sum',0))/100,**cl,**delivery_details(order)};docs.append(doc)
   if not cl['counted']:continue
   if not cl['pickup']:doc.update(geocode_cached(doc['address'],geokey,geodata))
   else:doc.update(lat=0,lon=0,geo_error='')
@@ -145,7 +151,7 @@ def build(client,db):
   for pos in rows:add(pos['assortment'],float(pos['quantity']),doc)
  gtemp=geopath.with_suffix('.tmp');gtemp.write_text(json.dumps(geodata,ensure_ascii=False));gtemp.chmod(0o600);gtemp.replace(geopath)
  temp=cache.with_suffix('.tmp');temp.write_text(json.dumps(stored,ensure_ascii=False));temp.chmod(0o600);temp.replace(cache)
- return {'day':DAY,'site_orders':site_orders,'site_issues':site_issues,'store':{'id':STORE_ID,'name':STORE_NAME},'documents':docs,'items':items,'products':list(externalmeta.values()),'unmatched':issues,'channels':[{'id':c['id'],'name':c['name']}for c in selected],'excluded_site':duplicates,'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+ return {'day':DAY,'site_orders':site_orders,'site_issues':site_issues,'store':{'id':STORE_ID,'name':'Москва 01 + Москва 02'},'stores':[{'id':sid,'name':STORE_NAMES[sid]}for sid in STORE_IDS],'documents':docs,'items':items,'products':list(externalmeta.values()),'unmatched':issues,'channels':[{'id':c['id'],'name':c['name']}for c in selected],'excluded_site':duplicates,'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
 def main():
  lock=open('/opt/venikoff/backups/mother-reserve-20261129/sales-sync.lock','a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
  db=sqlite3.connect('/opt/venikoff/pb/pb_data/data.db',timeout=30);db.row_factory=sqlite3.Row
@@ -160,4 +166,5 @@ def main():
   with db:db.execute('UPDATE occasion_sales_snapshots SET last_error=?,attempted=? WHERE day=?',('Не удалось получить полный состав заказов МоегоСклада. Сохранён последний успешный расчёт.',now,DAY))
   print('Sales snapshot NOT replaced:',type(e).__name__,str(e)[:200],file=sys.stderr);raise
 if __name__=='__main__':main()
+
 
