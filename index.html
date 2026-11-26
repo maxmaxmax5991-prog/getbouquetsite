@@ -3321,7 +3321,7 @@ function renderViceDrop(d) {
     <section aria-label="Букеты дропа"><div class="vice-tropical"><svg class="vice-palm" viewBox="0 0 220 400" aria-hidden="true"><path d="M112 400 Q130 240 105 100 L119 95 Q147 255 131 400Z M111 100 Q18 42 0 110 Q50 76 103 110 Q0 95 2 172 Q53 117 107 119 Q39 178 70 212 Q81 156 115 123 Q143 199 185 190 Q145 145 124 114 Q205 146 220 110 Q170 91 127 101 Q205 57 193 24 Q148 40 119 88 Q126 8 89 0 Q79 49 105 94 Q44 7 12 36 Q52 47 111 100Z"/></svg><svg class="vice-palm second" viewBox="0 0 220 400" aria-hidden="true"><path d="M112 400 Q130 240 105 100 L119 95 Q147 255 131 400Z M111 100 Q18 42 0 110 Q50 76 103 110 Q0 95 2 172 Q53 117 107 119 Q39 178 70 212 Q81 156 115 123 Q143 199 185 190 Q145 145 124 114 Q205 146 220 110 Q170 91 127 101 Q205 57 193 24 Q148 40 119 88 Q126 8 89 0 Q79 49 105 94 Q44 7 12 36 Q52 47 111 100Z"/></svg></div><div class="vice-drop-head"><div>
     <p class="vice-kicker">${esc(d.подпись || 'Букет дня')}</p>
     <h2>${d.штук} ${plural(d.штук,'роза','розы','роз')} — ${rub(d.цена)}</h2>
-    <p class="vice-delivery">${d.длина} см · ${esc(delivery)}</p></div>
+    <p class="vice-delivery">${d.длина} см · ${esc(delivery)} · доставка и самовывоз только сегодня</p></div>
     <div class="vice-stock">${live ? `Осталось ${d.свободно} ${plural(d.свободно,'букет','букета','букетов')}` : soon ? 'Скоро старт' : 'Разобрали'}<small>В выпуске ${d.всего} · один букет в руки</small></div></div>
     <div class="vice-lots">${(d.лоты || []).map((l, index) => {
       const left = Math.max(0,+l.left || 0), available = live && left > 0;
@@ -3340,62 +3340,19 @@ function renderViceDrop(d) {
 }
 
 function renderDropPage() {
-  const бокс = $('#dropPage'); if (!бокс) return;
-  const под = $('#drpSub'), как = $('#drpHow'), h1 = $('#drpH1');
-  const партии = партииДропа(), пар = партии[0] || null;
-  const d = (DROP && DROP.есть) ? DROP : null;
-  const оба = !!(пар && d);
-  $('#viewDrop').classList.toggle('vice-active', !!d && APPEARANCE === 'vice');
-  if (d && APPEARANCE === 'vice') { renderViceDrop(d); return; }
-
-  if (!пар && !d) {
-    бокс.innerHTML = `<div class="notice">Дроп на сегодня ещё не назначили. Он бывает каждый день в 12:00 — загляните к полудню или подпишитесь на наш Телеграм.</div>`;
-    if (h1) h1.textContent = 'Дроп дня';
-    if (под) под.textContent = 'Каждый день в 12:00';
-    if (как) как.innerHTML = '';
-    return;
-  }
-
-  const идёт = !!d && d.состояние === 'live', конец = !!d && d.состояние === 'over';
-  // Заголовок называет то, что стоит наверху: дроп дня, если он есть.
-  if (h1) h1.textContent = d ? (d.подпись || 'Дроп дня')
-    : (нбп(пар.batch.note) || `Привезли для вас ${число(пар.batch.total)} роз`);
-  if (под) {
-    if (d) {
-      под.innerHTML = `${d.штук} роз ${d.длина} см за ${rub(d.цена)}`
-        + (d.обычная && d.обычная > d.цена ? ` вместо <s>${rub(d.обычная)}</s>` : '')
-        + ` · ${идёт ? `🔥 свободно ${d.свободно} из ${d.всего}` : конец ? 'сегодня разобрали' : `старт ${дропДень(d.старт)} в ${String(d.старт).slice(11)}`}`
-        + (оба ? `<br>Партии — ${партии.length > 1 ? 'партии' : 'партия'}: ${партии.map(x => `${esc(x.name)}, ${число(x.batch.left)} ${plural(x.batch.left, 'стебель', 'стебля', 'стеблей')}`).join(' · ')} по оптовой цене` : '');
-    } else {
-      const зашт = заШтукуПартии(пар);
-      под.innerHTML = `по лучшей цене${пар.lengths && пар.lengths.length === 1 ? ' · ' + пар.lengths[0] + ' см' : ''}`
-        + (зашт ? ` · от <b>${rub(зашт)}/шт</b>` : '');
-    }
-  }
-
-  бокс.innerHTML = партии.map(x=>`<p class="drp-part">Партия · ${esc(x.name)}</p>`+блокПартии(x)).join('')
-    + (d ? '<p class="drp-part">Дроп дня</p>'+дропБлоки() : '');
-
-  // Нажали «51 шт» — карточка должна открыться сразу на 51, а не на размере по
-  // умолчанию. Свой обработчик на кнопке срабатывает раньше общего data-nav.
-  партии.forEach(x => бокс.querySelectorAll(`[data-batch-product="${x.id}"] [data-drpq]`)
-    .forEach(кн => привязатьВыбор(кн, x)));
-
-  // Коротко и с эмодзи: человек приходит с рекламы и абзацы читать не будет
-  // (поправка владельца 09.11.2026). «От 20 до 50 букетов» — его же слова:
-  // число меняется день ото дня, обещать сегодняшнее как постоянное нельзя.
-  if (как) {
-    const сразуЖе = идёт && +d.свободно > 0;
-    как.innerHTML = d ? `
-      <section><h2>🔥 Букет дня</h2><p>Каждый день в 12:00 мы выкладываем от 20 до 50 букетов по абсолютно лучшей цене.</p></section>
-      <section><h2>⚡ Как забрать</h2><p>${сразуЖе ? 'Жмите «Забрать букет» — он сразу в корзине.' : конец ? 'Сегодня разобрали. Встаньте в очередь на завтра.' : 'Встаньте в очередь. Позовём по порядку, 15 минут на оплату.'}</p></section>
-      ${оба
-        ? `<section><h2>🌿 Чем отличается партия</h2><p>Её берут без очереди и любым количеством: выбрали, положили в корзину, оплатили. Счётчик свободных стеблей живой.</p></section>`
-        : `<section><h2>🚚 Когда привезём</h2><p>${сБольшой(дропДень(d.доставка_с) || 'в день дропа')}${d.доставка_с ? ' с ' + String(d.доставка_с).slice(11) : ''} по Москве. Один букет в руки.</p></section>`}` : `
-      <section><h2>🔥 Что это</h2><p>Партия ${число(пар.batch.total)} роз, привезённая напрямую. Продаём по оптовой цене, пока она не разойдётся.</p></section>
-      <section><h2>⚡ Как забрать</h2><p>Выбираете количество и оформляете как обычный букет. Очереди нет.</p></section>
-      <section><h2>🌿 Сколько осталось</h2><p>Счётчик наверху живой: он считает настоящий остаток и падает с каждым заказом.</p></section>`;
-  }
+  const box=$('#dropPage');if(!box)return;
+  const d=DROP&&DROP.есть?DROP:null;
+  $('#viewDrop').classList.toggle('vice-active',!!d&&APPEARANCE==='vice');
+  if(d&&APPEARANCE==='vice'){renderViceDrop(d);return;}
+  if(!d){box.innerHTML='<div class="notice">Дроп на сегодня ещё не назначили.</div>';$('#drpH1').textContent='Дроп дня';$('#drpSub').textContent='Ограниченный выпуск букетов';$('#drpHow').innerHTML='';return;}
+  const live=d.состояние==='live',over=d.состояние==='over';
+  $('#drpH1').textContent=d.подпись||'Дроп дня';
+  $('#drpSub').innerHTML=d.штук+' '+plural(d.штук,'роза','розы','роз')+' '+d.длина+' см за '+rub(d.цена)
+    +(d.обычная>d.цена?' вместо <s>'+rub(d.обычная)+'</s>':'')
+    +' · '+(live?'🔥 свободно '+d.свободно+' из '+d.всего:over?'сегодня разобрали':'скоро старт')
+    +'<br><strong>Доставка и самовывоз — только сегодня</strong>';
+  box.innerHTML=дропБлоки();
+  $('#drpHow').innerHTML='<section><h2>🔥 Букет дня</h2><p>Ограниченный выпуск по специальной цене. Выберите один из сортов дропа.</p></section><section><h2>⚡ Как забрать</h2><p>Нажмите «Выбрать сорт» и оформите заказ. Один букет в руки.</p></section><section><h2>🚚 Только сегодня</h2><p>Доставка или самовывоз сегодня. На другую дату выберите букет в обычном каталоге.</p></section>';
 }
 
 function дропПеререндер() {
@@ -4686,7 +4643,7 @@ function renderCart() {
         ${PICKUP ? `<p class="pickup-note" id="pickupNote" hidden>Забрать: ${esc(PICKUP.address || 'адрес уточним')}${PICKUP.hours ? `, ${esc(PICKUP.hours)}` : ''}</p>` : ''}
         ${zones.length ? `<label for="fZone" id="zoneBox">Зона доставки<select id="fZone" name="zone" required>${zones.map(z => `<option value="${z.id}">${esc(z.name)} — ${zonePrice(z, t.sum) ? rub(zonePrice(z, t.sum)) : 'бесплатно'}</option>`).join('')}</select></label>` : ''}
         <div class="two">
-          <label for="fDate">Дата<input id="fDate" name="date" type="date" required min="${today}" max="${DEL ? addDays(today, DEL.days_ahead) : ''}" value="${today}"></label>
+          <label for="fDate">Дата<input id="fDate" name="date" type="date" required min="${today}" max="${дропБукет ? today : DEL ? addDays(today, DEL.days_ahead) : ''}" value="${today}"></label>
           <label for="fTime" id="timeLabel">Интервал<select id="fTime" name="time" required></select></label>
         </div>
         <p class="addr-hint" id="timeNote" hidden></p>
@@ -4756,7 +4713,8 @@ ${payChoice()}
     вернутьЧерновик(false);                 // имя, телефон, адрес — до построения интервалов
     fillIntervals();
     вернутьЧерновик(true);                  // дата и время — когда список интервалов готов
-    if (store.get('preorderDate','') === MOTHERS_DAY && MOTHERS_DAY >= today) $('#fDate').value = MOTHERS_DAY;
+    if (!дропБукет && store.get('preorderDate','') === MOTHERS_DAY && MOTHERS_DAY >= today) $('#fDate').value = MOTHERS_DAY;
+    if(дропБукет){const date=$('#fDate');date.value=today;date.min=today;date.max=today;date.readOnly=true;date.insertAdjacentHTML('afterend','<small class="hint">Дроп — доставка и самовывоз только сегодня</small>');}
     syncUnknownAddress();
     fillIntervals(); recalc();
     // запоминаем на ходу: вход в Телеграм уводит со страницы, и браузер её выгружает
@@ -4772,7 +4730,7 @@ ${payChoice()}
       форма.addEventListener('change', запомнить);
     }
 
-    $('#fDate').onchange = () => { store.set('preorderDate', $('#fDate').value === MOTHERS_DAY ? MOTHERS_DAY : ''); fillIntervals(); recalc(); const problem=motherCartProblem($('#fDate').value);if(problem)showMotherRestriction(problem); };
+    $('#fDate').onchange = () => { if(дропБукет && $('#fDate').value!==today){$('#fDate').value=today;toast('Дроп доступен только на сегодня');} store.set('preorderDate', $('#fDate').value === MOTHERS_DAY ? MOTHERS_DAY : ''); fillIntervals(); recalc(); const problem=motherCartProblem($('#fDate').value);if(problem)showMotherRestriction(problem); };
     $('#hourlyToggle').onclick = () => { hourlySlot = !hourlySlot; fillIntervals(); recalc(); };
     if ($('#fZone')) $('#fZone').onchange = recalc;
     $('#fTime').onchange = () => { шаг('slot', $('#fTime').value || ''); recalc(); };

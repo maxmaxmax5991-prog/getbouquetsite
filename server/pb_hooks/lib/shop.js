@@ -754,6 +754,7 @@ function prepareOrder(app, rec) {
     // Из браузера приходит только «вот этот сорт» — всё остальное он мог бы
     // выдумать, а тут дешевле обычного каталога на тысячу рублей.
     if (it && it.kind === "drop") {
+      if(String(rec.get("date"))!==moscowToday())fail("Букеты дропа доступны только на сегодня — с доставкой или самовывозом. На другую дату выберите букет из обычного каталога.");
       const dr = require(`${__hooks}/lib/drop.js`);
       const выдача = dr.взять(app, rec.get("customer"), it.id, rec.get("phone"));
       let p;
