@@ -18,10 +18,10 @@ function validate(row,s){
 }
 function view(row,site){
  const a=attrs(row),state=row.state&&row.state.name||'',paid=(+row.sum>0&&+row.payedSum>=+row.sum)||(/оплачен/i.test(state)&&!/не\s*оплачен/i.test(state));
- return {id:row.id,number:row.name,site_number:site?site.number:null,source:site?'site':'department',channel:row.salesChannel&&row.salesChannel.name||'',store:refId(row.store),organization:refId(row.organization),interval:String(a['Время доставки']||String(row.deliveryPlannedMoment||'').slice(11,16)),address:String(row.shipmentAddress||row.shipmentAddressFull&&row.shipmentAddressFull.addInfo||''),customer:String(row.agent&&row.agent.name||a['Имя покупателя']||''),total:(+row.sum||0)/100,paid,state,locked:(+row.shippedSum||0)>0||(row.demands||[]).length>0||/доставлен|выполнен|завершен/i.test(state)};
+ return {id:row.id,number:row.name,site_number:site?site.number:null,source:site?'site':'department',delivery_type:isDelivery(row)?'delivery':'pickup',channel:row.salesChannel&&row.salesChannel.name||'',store:refId(row.store),organization:refId(row.organization),interval:String(a['Время доставки']||String(row.deliveryPlannedMoment||'').slice(11,16)),address:String(row.shipmentAddress||row.shipmentAddressFull&&row.shipmentAddressFull.addInfo||''),customer:String(row.agent&&row.agent.name||a['Имя покупателя']||''),total:(+row.sum||0)/100,paid,state,locked:(+row.shippedSum||0)>0||(row.demands||[]).length>0||/доставлен|выполнен|завершен/i.test(state)};
 }
 function siteLinks(app){const rows=arrayOf(new DynamicModel({ms_id:'',number:0,status:''}));app.db().newQuery("SELECT ms_id,number,status FROM orders WHERE ms_id!=''").all(rows);const result={};JSON.parse(JSON.stringify(rows)).forEach(o=>result[o.ms_id]=o);return result;}
-function list(app){
+function list(app,includePickup=false){
  const shop=require(`${__hooks}/lib/shop.js`),ms=require(`${__hooks}/lib/ms.js`),s=shop.settings(app),sites=siteLinks(app),orders=[];
  for(const store of STORES){
   let offset=0;
@@ -29,7 +29,7 @@ function list(app){
    const filter='store='+BASE+'/entity/store/'+store.id+';deliveryPlannedMoment>='+DAY+' 00:00:00;deliveryPlannedMoment<2026-11-30 00:00:00';
    const data=checked(ms.ms(s,'GET','/entity/customerorder?filter='+encodeURIComponent(filter)+'&expand=state,salesChannel,agent&limit=100&offset='+offset));
    const rows=data.rows||[];
-   rows.forEach(row=>{if(!isDelivery(row)||cancelled(row)||!allowedOrganization(refId(row.organization))||refId(row.store)!==store.id)return;const site=sites[row.id];if(site&&site.status==='cancelled')return;orders.push(view(row,site));});
+   rows.forEach(row=>{if((!isDelivery(row)&&!(includePickup&&norm(attrs(row)['Способ доставки'])===norm('Самовывоз')))||cancelled(row)||!allowedOrganization(refId(row.organization))||refId(row.store)!==store.id)return;const site=sites[row.id];if(site&&site.status==='cancelled')return;orders.push(view(row,site));});
    offset+=rows.length;if(!rows.length||offset>=(data.meta&&data.meta.size||0))break;if(offset>=3000)fail(502,'Слишком много заказов. Список не загружен полностью.');
   }
  }
@@ -57,4 +57,5 @@ function move(app,body){
  }finally{shop.unclaim(app,id,'mother-store');}
 }
 module.exports={DAY,STORES,list,move,isDelivery,validate,view};
+
 

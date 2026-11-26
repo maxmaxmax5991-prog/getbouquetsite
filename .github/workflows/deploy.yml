@@ -33,6 +33,7 @@ jobs:
           node server/ci/test-reliability.cjs
           node server/ci/test-occasion.cjs
           node server/ci/test-mother-warehouses.cjs
+          node server/ci/test-mother-load.cjs
           node server/ci/test-ms-link-audit.cjs
           python3 server/ci/test-mother-warehouses.py
           python3 server/ci/test-mother-sales.py server/bin/sync-mother-sales.py
