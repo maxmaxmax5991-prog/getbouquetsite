@@ -519,7 +519,7 @@ function ownsLinkedOrder(s,o,row){
   if(!row)return false;
   if(row.syncId===syncId("customerorder",o.id))return true;
   const refid=r=>String(r&&r.meta&&r.meta.href||"").split("/").pop();
-  return [String(s.get("ms_store_id")),"36029ea4-e4b8-11f1-0a80-0c290009e4f4"].indexOf(refid(row.store))>=0&&refid(row.organization)===String(s.get("ms_org_id"))
+  return [String(s.get("ms_store_id")),"36029ea4-e4b8-11f1-0a80-0c290009e4f4"].indexOf(refid(row.store))>=0&&[String(s.get("ms_org_id")),"047ab4e2-e4b8-11f1-0a80-1f37000a92f0"].indexOf(refid(row.organization))>=0
     && String(row.description||"").indexOf("Заказ №"+o.get("number")+" с сайта venikoff.net")>=0;
 }
 function linkedOrder(app,s,o){
@@ -995,4 +995,5 @@ function проверитьПривязки(app, предел) {
 }
 
 module.exports = { проверитьПривязки, stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+
 

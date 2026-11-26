@@ -3,6 +3,7 @@
 import sqlite3,json,urllib.request,urllib.parse,gzip,re,pathlib,datetime,time,os,sys,fcntl
 DAY='2026-11-29';STORE_ID='3d520ee3-76c1-11f0-0a80-142900354c8e';STORE_NAME='Москва 01 - Маленковская 14, к1 (Ласфлор)';BASE='https://api.moysklad.ru/api/remap/1.2'
 STORE_IDS=(STORE_ID,'36029ea4-e4b8-11f1-0a80-0c290009e4f4')
+ORGANIZATION_IDS=('281efedb-76c1-11f0-0a80-0fdb00366fa7','047ab4e2-e4b8-11f1-0a80-1f37000a92f0')
 STORE_NAMES={STORE_ID:STORE_NAME,STORE_IDS[1]:'Москва 02 - 1я Рыбинская 1, с4 (Гет Букет)'}
 SELECTED=['INST Venikoff','VK Venikoff','INST GB','INST GB LP','VK GB','VK Fl','INST FLOW','INST BELCV','INST 31','Телеграм Venikoff','Телеграмм','WhatsApp','MAX','Ева Venikoff','Ева ГБ','Ева Ген.Дир','Личный акк ген.дир','Яковлев МА','Стафф Магазина','Вх. звонок','Розница','Витрина','Канал Готовые букеты','Юрлица']
 def norm(s):return re.sub(r'[^a-zа-я0-9]','',str(s).lower().replace('ё','е').replace('аваланш','аваланж'))
@@ -60,7 +61,7 @@ def site_sync_id(record_id):
  return h[:8]+'-'+h[8:12]+'-5'+h[13:16]+'-8'+h[17:20]+'-'+h[20:32]
 def owns_site_document(order,site,organization):
  ref=lambda key:(order.get(key)or{}).get('meta',{}).get('href','').rstrip('/').split('/')[-1]
- if ref('store')not in STORE_IDS or ref('organization')!=organization:return False
+ if ref('store')not in STORE_IDS or ref('organization')not in (organization,ORGANIZATION_IDS[1]):return False
  if order.get('syncId')==site_sync_id(site['id']):return True
  return bool(re.search(r'Заказ №'+re.escape(str(site['number']))+r' с сайта venikoff\.net(?:\s|$)',order.get('description')or''))
 def reconcile_site_orders(client,db,orders):
@@ -166,5 +167,6 @@ def main():
   with db:db.execute('UPDATE occasion_sales_snapshots SET last_error=?,attempted=? WHERE day=?',('Не удалось получить полный состав заказов МоегоСклада. Сохранён последний успешный расчёт.',now,DAY))
   print('Sales snapshot NOT replaced:',type(e).__name__,str(e)[:200],file=sys.stderr);raise
 if __name__=='__main__':main()
+
 
 

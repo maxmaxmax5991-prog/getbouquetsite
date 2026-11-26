@@ -18,3 +18,8 @@ with tempfile.TemporaryDirectory()as tmp:
 site={'id':'website','number':100};o=order('site',B);o['organization']={'meta':{'href':BASE+'/entity/organization/org'}};o['syncId']=x['site_sync_id']('website')
 assert x['owns_site_document'](o,site,'org')
 print('PASS: both Moscow stores counted once, moved delivery retains all booked stems, verified website link remains valid on Moscow 02')
+
+
+o['organization']={'meta':{'href':BASE+'/entity/organization/047ab4e2-e4b8-11f1-0a80-1f37000a92f0'}}
+assert x['owns_site_document'](o,site,'org')
+print('PASS: verified website document retained after fulfillment organization changes to Moscow 02')
