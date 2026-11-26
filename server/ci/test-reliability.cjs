@@ -50,19 +50,19 @@ console.log('PASS: provider syncId stable per operation and distinct across oper
  console.log('PASS: exact pickup totals for 7/25/51/101 stems and multiple bouquets');
 }
 
-// The owner’s ongoing intake rule applies to every delivery date and both brands.
+// Only Mother’s Day deliveries use Moscow 02; all other dates and pickups use Moscow 01.
 {
  const ms=load("lib/ms.js",{"shop.js":{}});
  const record=data=>({get:k=>data[k]});
  for(const date of ["2026-11-26","2026-11-29","2027-01-01"]){
   for(const invoice of ["v9999","g9999"]){
    const d=ms.fulfillmentOf(record({delivery_type:"delivery",date,invoice}));
-   assert.equal(d.store,"36029ea4-e4b8-11f1-0a80-0c290009e4f4");assert.equal(d.organization,"047ab4e2-e4b8-11f1-0a80-1f37000a92f0");
+   assert.equal(d.store,date==="2026-11-29"?"36029ea4-e4b8-11f1-0a80-0c290009e4f4":"3d520ee3-76c1-11f0-0a80-142900354c8e");assert.equal(d.organization,date==="2026-11-29"?"047ab4e2-e4b8-11f1-0a80-1f37000a92f0":"281efedb-76c1-11f0-0a80-0fdb00366fa7");
    const p=ms.fulfillmentOf(record({delivery_type:"pickup",date,invoice}));
    assert.equal(p.store,"3d520ee3-76c1-11f0-0a80-142900354c8e");assert.equal(p.organization,"281efedb-76c1-11f0-0a80-0fdb00366fa7");
   }
  }
- console.log("PASS: new deliveries route to Moscow 02 and pickup to Moscow 01, organization paired, all dates and both site brands");
+ console.log("PASS: only November 29 deliveries route to Moscow 02; other dates and every pickup remain on Moscow 01, both brands");
 }
 
 {

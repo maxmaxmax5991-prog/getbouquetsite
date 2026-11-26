@@ -698,9 +698,9 @@ function syncPositions(app, o) {
   return ms(s, "PUT", `/entity/customerorder/${o.get("ms_id")}`, { positions: pos.positions });
 }
 
-// Owner rule from 2026-11-26, all dates: deliveries -> Moscow 02; pickup -> Moscow 01.
+// Owner rule: only deliveries for 2026-11-29 -> Moscow 02; all other orders -> Moscow 01.
 function fulfillmentOf(o){
- return o.get("delivery_type")==="pickup"
+ return o.get("delivery_type")==="pickup" || String(o.get("date")).slice(0,10)!=="2026-11-29"
   ? {store:"3d520ee3-76c1-11f0-0a80-142900354c8e",organization:"281efedb-76c1-11f0-0a80-0fdb00366fa7"}
   : {store:"36029ea4-e4b8-11f1-0a80-0c290009e4f4",organization:"047ab4e2-e4b8-11f1-0a80-1f37000a92f0"};
 }
