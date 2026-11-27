@@ -70,7 +70,12 @@ h2{font:700 17px var(--display);letter-spacing:-.03em;margin:0 0 12px}
 .stl{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-2)}
 .stl input{width:86px;padding:4px 8px}
 .stl.minus input{border-color:var(--sale);color:var(--sale);font-weight:700}
-#msStuck{background:#fff1f1;border:1px solid #f3b7b7;border-radius:12px;padding:10px 12px;margin:0 0 8px}
+#msStuck{background:#fff1f1;color:#651c2a;border:1px solid #f3b7b7;border-radius:12px;padding:10px 12px;margin:0 0 8px}
+#msStuck .hint{color:#742b3b;font-size:14px;opacity:1}
+#msStuck .ms-stuck-orders{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+#msStuck .ms-stuck-order{background:#fff;color:#7b1831;border:1px solid #b8566e;border-radius:9px;padding:8px 12px;font-family:inherit;font-weight:700;font-size:20px;line-height:1.2;cursor:pointer}
+#msStuck .ms-stuck-order:hover{background:#ffe1e8}
+#msStuck .ms-stuck-order:focus-visible{outline:3px solid #7b1831;outline-offset:2px}
 #msStuck b{color:#b00020}
 #msStuck .bar{margin:8px 0 0}
 .card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px}
@@ -1818,9 +1823,17 @@ const msStuckBar = safe(async () => {
   const причины = [...new Set(items.map(o => o.ms_error).filter(Boolean))];
   el.hidden = false;
   el.innerHTML = `<b>Оплачено, но нет в МоёмСкладе: ${items.length}.</b> Флорист эти заказы не видит и не собирает.`
-    + `<div class="hint" style="margin:4px 0 0">${items.map(o => '№' + o.number).join(', ')} — самый старый ждёт ${esc(срок)}.</div>`
+    + `<div class="ms-stuck-orders" aria-label="Заказы без передачи в МойСклад">${items.map(o => `<button type="button" class="ms-stuck-order" data-ms-stuck-order="${esc(String(o.number))}" aria-label="Открыть заказ ${esc(String(o.number))}">№${esc(String(o.number))}</button>`).join('')}</div>`
+    + `<div class="hint">Самый старый ждёт ${esc(срок)}.</div>`
     + (причины.length ? `<div class="hint" style="margin:4px 0 0">Причина: ${причины.map(esc).join('; ')}</div>` : '')
     + `<div class="bar"><button class="btn btn-p btn-s" id="msStuckGo">Отправить все в МойСклад</button></div>`;
+  el.querySelectorAll('[data-ms-stuck-order]').forEach(button => {
+    button.onclick = safe(async () => {
+      $('#oSearch').value = button.dataset.msStuckOrder;
+      await loadOrders();
+      $('#orders').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
   $('#msStuckGo').onclick = safe(async () => {
     const b = $('#msStuckGo');
     b.disabled = true;
