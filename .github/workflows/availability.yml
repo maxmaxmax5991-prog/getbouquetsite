@@ -1,0 +1,32 @@
+name: Внешняя проверка доступности
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '*/5 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: external-availability
+  cancel-in-progress: false
+jobs:
+  check:
+    # Enable via repository variable EXTERNAL_MONITOR_ENABLED=true.
+    if: github.event_name == 'workflow_dispatch' || vars.EXTERNAL_MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Проверить обе витрины и API
+        shell: bash
+        run: |
+          failed=0
+          for domain in venikoff.net getbouquet.moscow; do
+            for path in / /api/shop/catalog; do
+              url="https://$domain$path"
+              if ! curl --fail --silent --show-error --output /dev/null \
+                --connect-timeout 8 --max-time 20 --retry 1 "$url"; then
+                echo "::error::Недоступен $url"
+                failed=1
+              fi
+            done
+          done
+          exit "$failed"
