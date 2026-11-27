@@ -75,3 +75,31 @@ console.log('PASS: provider syncId stable per operation and distinct across oper
  assert.equal(bodies.length,2);assert(bodies[0].store.meta.href.endsWith("/36029ea4-e4b8-11f1-0a80-0c290009e4f4"));assert(bodies[0].organization.meta.href.endsWith("/047ab4e2-e4b8-11f1-0a80-1f37000a92f0"));assert(bodies[1].store.meta.href.endsWith("/3d520ee3-76c1-11f0-0a80-142900354c8e"));assert(bodies[1].organization.meta.href.endsWith("/281efedb-76c1-11f0-0a80-0fdb00366fa7"));
  console.log("PASS: real pushOrder request body pairs delivery warehouse/organization 02 and pickup 01");
 }
+
+// Foreign display numbers must not adopt or modify another store's order.
+{
+ const body={name:"v9755",syncId:"stable-site-id",store:{meta:{href:"store/36029ea4-e4b8-11f1-0a80-0c290009e4f4"}},organization:{meta:{href:"organization/047ab4e2-e4b8-11f1-0a80-1f37000a92f0"}},agent:{meta:{href:"counterparty/customer"}},positions:[{quantity:1,price:848000}],description:"Заказ №9755 с сайта venikoff.net"};
+ const foreign={id:"foreign",name:"v9755",store:{meta:{href:"store/other-store"}},organization:{meta:{href:"organization/other-org"}},description:"тест",sum:1499000};
+ const settings={get:()=> "fixture"};
+ function run(syncResponse,nameResponse,postResponse){
+  const calls=[];let posts=0;
+  const worker=load("lib/ms.js",{"shop.js":{}},{$http:{send:req=>{
+   calls.push(req);
+   if(req.method==="POST"){posts++;return posts===1?{statusCode:412,json:{errors:[{error:"Нарушение уникальности наименования"}]}}:postResponse||{statusCode:200,json:{id:"new-site"}};}
+   return decodeURIComponent(req.url).includes("syncId=")?syncResponse:nameResponse;
+  }}});
+  return {result:worker.createCustomerOrder(settings,body,9755),calls};
+ }
+ const empty={statusCode:200,json:{meta:{size:0},rows:[]}};
+ const named={statusCode:200,json:{meta:{size:1},rows:[foreign]}};
+ const fixed=run(empty,named);assert(fixed.result.ok);assert.equal(fixed.result.data.id,"new-site");assert.equal(fixed.calls.filter(x=>x.method==="POST").length,2);
+ const retryBody=JSON.parse(fixed.calls.at(-1).body);assert.equal(retryBody.name,"v9755-site");assert.equal(body.name,"v9755");assert.equal(retryBody.syncId,body.syncId);assert.deepEqual(retryBody.positions,body.positions);assert.deepEqual(retryBody.store,body.store);assert(!fixed.calls.some(x=>x.method==="PUT"));
+ const owned={statusCode:200,json:{rows:[{id:"existing-site",syncId:body.syncId}]}};
+ const adopted=run(owned,named);assert(adopted.result.ok);assert.equal(adopted.result.data.id,"existing-site");assert.equal(adopted.calls.filter(x=>x.method==="POST").length,1);
+ const local=run(empty,{statusCode:200,json:{rows:[{...foreign,store:body.store}]}});assert(!local.result.ok);assert.equal(local.calls.filter(x=>x.method==="POST").length,1);
+ for(const [sync,names]of [[{statusCode:503,json:{}},named],[empty,{statusCode:503,json:{}}],[{statusCode:200,json:{meta:{size:1},rows:[]}},named],[empty,{statusCode:200,json:{meta:{size:2},rows:[foreign]}}]]){
+  const r=run(sync,names);assert(!r.result.ok);assert.equal(r.calls.filter(x=>x.method==="POST").length,1);
+ }
+ const uncertain=run(empty,named,{statusCode:503,json:{}});assert(!uncertain.result.ok);
+ console.log("PASS: foreign name collision uses distinct name and stable syncId, same-site retry adopts once, local ambiguity and incomplete/failed reads block, foreign document never modified");
+}

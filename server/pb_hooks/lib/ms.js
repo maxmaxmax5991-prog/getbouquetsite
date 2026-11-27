@@ -705,6 +705,32 @@ function fulfillmentOf(o){
   : {store:"36029ea4-e4b8-11f1-0a80-0c290009e4f4",organization:"047ab4e2-e4b8-11f1-0a80-1f37000a92f0"};
 }
 
+// Retry a proven foreign display-number collision under a distinct name.
+// The stable syncId is unchanged: a timeout/retry cannot create another order.
+function createCustomerOrder(s,body,number){
+  let created=ms(s,"POST","/entity/customerorder",body);
+  if(created.ok||!/уникальност|syncId/i.test(String(created.error||"")))return created;
+  const bySync=ms(s,"GET","/entity/customerorder?filter="+encodeURIComponent("syncId="+body.syncId)+"&limit=2");
+  if(!bySync.ok||!bySync.data||!Array.isArray(bySync.data.rows))return bySync.ok?{ok:false,error:"Неполный ответ МоегоСклада при проверке заказа."}:bySync;
+  const synced=bySync.data.rows;
+  if(+(bySync.data.meta&&bySync.data.meta.size||0)>synced.length)return {ok:false,error:"Неполная проверка syncId заказа."};
+  const owned=synced.filter(r=>sameSiteOrder(r,body,number));
+  if(owned.length===1)return {ok:true,data:{id:owned[0].id}};
+  if(synced.length)return {ok:false,error:"Неоднозначный syncId заказа. Нужна проверка связи."};
+  const named=ms(s,"GET","/entity/customerorder?filter="+encodeURIComponent("name="+body.name)+"&limit=10");
+  if(!named.ok)return named;
+  const rows=named.data&&named.data.rows;
+  if(!Array.isArray(rows)||+(named.data.meta&&named.data.meta.size||0)>rows.length)return {ok:false,error:"Неполный ответ МоегоСклада при проверке номера."};
+  const matches=rows.filter(r=>sameSiteOrder(r,body,number));
+  if(matches.length===1)return {ok:true,data:{id:matches[0].id}};
+  const ref=r=>String(r&&r.meta&&r.meta.href||"").split("/").pop();
+  const stores=["3d520ee3-76c1-11f0-0a80-142900354c8e","36029ea4-e4b8-11f1-0a80-0c290009e4f4"];
+  const orgs=["281efedb-76c1-11f0-0a80-0fdb00366fa7","047ab4e2-e4b8-11f1-0a80-1f37000a92f0"];
+  const foreign=r=>!!ref(r.store)&&!!ref(r.organization)&&stores.indexOf(ref(r.store))<0&&orgs.indexOf(ref(r.organization))<0&&String(r.description||"").indexOf("Заказ №"+number+" с сайта venikoff.net")<0;
+  if(rows.length&&rows.every(foreign))return ms(s,"POST","/entity/customerorder",Object.assign({},body,{name:body.name+"-site"}));
+  return {ok:false,error:"Не удалось подтвердить принадлежность существующего заказа в МоёмСкладе. Совпадения номера недостаточно; нужна проверка клиента, склада и состава."};
+}
+
 function pushOrder(app, o) {
   const s = shop.settings(app);
   if (!s.get("ms_enabled") || !s.get("ms_token")) return { ok: false, error: "Интеграция выключена." };
@@ -770,19 +796,7 @@ else {
     return { ok: false, wait: true, error: "Не удалось заполнить способ доставки или тип оплаты — повторим передачу через минуту." };
   }
   if (!claim(app, o.id, "push")) return { ok: false, wait: true, error: "Заказ уже отправляется в МойСклад." };
-  let created = ms(s, "POST", "/entity/customerorder", body);
-  // A matching display number is not proof of ownership: other stores use the same numbers.
-  if(!created.ok && /уникальност|syncId/i.test(String(created.error||""))){
-    const bySync=ms(s,"GET","/entity/customerorder?filter="+encodeURIComponent("syncId="+body.syncId)+"&limit=2");
-    const synced=bySync.ok&&bySync.data&&bySync.data.rows||[];
-    let owned=synced.filter(r=>sameSiteOrder(r,body,o.get("number")));
-    if(!owned.length){
-      const named=ms(s,"GET","/entity/customerorder?filter="+encodeURIComponent("name="+body.name)+"&limit=10");
-      owned=(named.ok&&named.data&&named.data.rows||[]).filter(r=>sameSiteOrder(r,body,o.get("number")));
-    }
-    if(owned.length===1)created={ok:true,data:{id:owned[0].id}};
-    else created={ok:false,error:"Не удалось подтвердить принадлежность существующего заказа в МоёмСкладе. Совпадения номера недостаточно; нужна проверка клиента, склада и состава."};
-  }
+  let created = createCustomerOrder(s, body, o.get("number"));
   if (!created.ok) { unclaim(app, o.id, "push"); return created; }
   // Заказ ушёл, но часть полей не заполнилась — чаще всего склад не ответил.
   // Раньше это проходило незаметно: у №3143 так пропал способ доставки.
@@ -1002,7 +1016,7 @@ function проверитьПривязки(app, предел) {
   return { ok: true, беда, проверено, ещё: false };
 }
 
-module.exports = { fulfillmentOf, ownsLinkedOrder, проверитьПривязки, stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
+module.exports = { createCustomerOrder, fulfillmentOf, ownsLinkedOrder, проверитьПривязки, stateName, stateId, ms, refs, pushOrder, updateAttrs, syncPositions, positionsFor, checkItem, channelId, msName, matchProduct, stemsOf, markPaid, addPayment, deliveryService };
 
 
 
