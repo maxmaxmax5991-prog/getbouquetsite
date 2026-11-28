@@ -480,6 +480,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <section class="md-section"><div class="md-section-head"><h3>Каждая ростовка под контролем</h3><button class="btn btn-g" id="motherReserveExport">Выгрузить резерв CSV</button></div><div class="scroll"><table class="t" id="motherReservePositions"></table></div></section>
       <section class="md-section"><details id="motherReserveHistory"><summary>Пополнить резерв и посмотреть историю</summary><div id="motherReserveTopup" class="mother-reserve-form" hidden><label>Сорт<select class="in" id="motherReserveProduct"></select></label><label>Длина, см<input class="in" id="motherReserveLength" type="number" value="50" min="10" max="200"></label><label>Добавить стеблей<input class="in" id="motherReserveQuantity" type="number" min="1" step="1"></label><label>Цена за стебель с НДС, ₽<input class="in" id="motherReserveCost" type="number" min="0" step="0.01" placeholder="Необязательно"></label><label>Счёт / основание<input class="in" id="motherReserveSource" maxlength="160" placeholder="Счёт или поставка"></label><button class="btn btn-p" type="button" id="motherReserveAdd">Пополнить резерв</button><span class="hint" id="motherReserveAddState"></span></div><div class="scroll"><table class="t" id="motherReserveMovements"></table></div></details></section>
       <section class="md-section"><div class="md-section-head"><h3>Карта заказов</h3><button type="button" class="btn btn-g" id="motherMapFit">Показать все метки</button></div><div class="md-map-filters" id="motherMapFilters"><button type="button" data-map-filter="all" aria-pressed="true">Все заказы</button><button type="button" data-map-filter="morning" aria-pressed="false"><i style="--dot:#b48736"></i>08:00–13:00</button><button type="button" data-map-filter="afternoon" aria-pressed="false"><i style="--dot:#8461bd"></i>13:00–18:00</button><button type="button" data-map-filter="evening" aria-pressed="false"><i style="--dot:#bb4676"></i>18:00–22:00</button><button type="button" data-map-filter="hourly" aria-pressed="false">🔥 Часовые</button><button type="button" data-map-filter="pickup" aria-pressed="false"><i style="--dot:#2b8b73"></i>Самовывоз</button></div><div id="motherMapCanvas" aria-label="Карта доставок и точки самовывоза на 29 ноября"></div><p class="hint" id="motherMapState">Загружаем карту…</p><p class="md-map-missing" id="motherMapMissing"></p><details class="md-map-orders"><summary>Адреса списком</summary><div class="scroll"><table class="t" id="motherMapOrders"></table></div></details></section>
+      <section class="md-section"><div class="md-section-head"><h3>Готовность сборки по интервалам</h3><span class="md-tag" id="motherReadinessSummary"></span></div><div class="md-load-stores"><section class="md-panel"><h3>Доставки</h3><div id="motherReadinessDelivery"></div></section><section class="md-panel"><h3>Самовывозы</h3><div id="motherReadinessPickup"></div></section></div><p class="hint" id="motherReadinessState"></p></section>
       <section class="md-section"><div class="md-section-head"><h3>Загрузка доставки</h3><span class="hint">Часовые интервалы — отдельно</span></div><div id="motherSlotCards" class="md-slot-cards"></div><div class="scroll"><table class="t" id="motherReportSlots"></table></div></section>
       <section class="md-section"><div class="md-section-head"><h3>Самовывозы по времени</h3><span class="md-tag">29 НОЯБРЯ</span></div><div class="scroll"><table class="t" id="motherReportPickups"></table></div></section>
       <details class="md-section"><summary>Полная потребность по цветам</summary><button class="btn btn-p" id="motherExport">Скачать закупку CSV</button><div class="scroll"><table class="t" id="motherReportPositions"></table></div></details>
@@ -1521,6 +1522,27 @@ $('#motherWarehousePaid').addEventListener('change',motherWarehouseRender);
 $('#motherSubtabs').addEventListener('click',e=>{const b=e.target.closest('[data-mother-section]');if(!b)return;motherSection=b.dataset.motherSection;$$('#motherSubtabs button').forEach(x=>x.setAttribute('aria-selected',String(x===b)));$('#motherOverview').hidden=motherSection!=='overview';$('#motherWarehousePanel').hidden=motherSection!=='warehouses';$('#motherLoadPanel').hidden=motherSection!=='load';clearTimeout(motherLoadTimer);clearTimeout(motherWarehouseTimer);if(motherSection==='warehouses')loadMotherWarehouses();else if(motherSection==='load')loadMotherLoad();else{clearTimeout(motherWarehouseTimer);loadMotherReport();setTimeout(()=>motherMap&&motherMap.invalidateSize(),0);}});
 
 let motherReportTimer, motherPurchaseRows = [];
+
+function motherReadinessRows(r,view){
+ const states=new Map((r.department?.site_orders||[]).map(o=>[o.site_id,o]));
+ const done=new Set(['Ожидает отправку','Готов к самовывозу','Отправлен','Отгружен','Доставлен']);
+ const rows=(r.site_orders||[]).map(o=>{
+  const m=states.get(o.id),verified=m&&m.ms_id===o.ms_id;
+  return {id:o.id,source:'site',pickup:o.delivery_type==='pickup',interval:o.interval||'Без времени',ready:verified?done.has(m.state):['photo','delivering','done'].includes(o.status)};
+ }).concat((r.department?.documents||[]).filter(o=>o.counted).map(o=>({id:'ms:'+o.id,source:'department',pickup:o.pickup,interval:o.interval||'Без времени',ready:done.has(o.state)})));
+ return rows.filter(o=>view==='all'||o.source===view);
+}
+function renderMotherReadiness(r){
+ const rows=motherReadinessRows(r,motherSalesView),ready=rows.filter(o=>o.ready).length,pct=rows.length?Math.round(ready/rows.length*1000)/10:0;
+ const groups=new Map();
+ rows.forEach(o=>{const label=String(o.interval).replace(/\\s/g,'').replace(/[-—]/g,'–'),key=(o.pickup?'p':'d')+'|'+label;let g=groups.get(key);if(!g){g={label,pickup:o.pickup,total:0,ready:0};groups.set(key,g);}g.total++;if(o.ready)g.ready++;});
+ const sort=(a,b)=>{const minute=x=>{const m=x.label.match(/(\\d{1,2}):(\\d{2})/);return m?+m[1]*60 + +m[2]:9999;};return minute(a)-minute(b)||a.label.localeCompare(b.label);};
+ const bars=pickup=>[...groups.values()].filter(g=>!!g.pickup===pickup).sort(sort).map(g=>{const p=Math.round(g.ready/g.total*1000)/10;return '<div style="margin:15px 0"><div style="display:flex;justify-content:space-between;gap:10px;font-size:13px"><b>'+esc(g.label)+'</b><span>'+g.ready+' / '+g.total+' · <b>'+p.toLocaleString('ru-RU')+'%</b></span></div><div role="progressbar" aria-label="'+esc((pickup?'Самовывоз ':'Доставка ')+g.label)+'" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p+'" style="height:12px;background:var(--line);border-radius:10px;margin-top:7px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:'+(p>=80?'#2b8b73':p>=40?'#c18b36':'#bb4676')+';border-radius:10px"></div></div></div>';}).join('')||'<p class="hint">Нет заказов</p>';
+ $('#motherReadinessSummary').textContent='Готово '+ready+' из '+rows.length+' заказов · '+pct.toLocaleString('ru-RU')+'%';
+ $('#motherReadinessDelivery').innerHTML=bars(false);$('#motherReadinessPickup').innerHTML=bars(true);
+ $('#motherReadinessState').textContent='Считаем заказы, не стебли и не отдельные букеты внутри заказа. Оплаченные доставки + все самовывозы. Готово: «Ожидает отправку», «Готов к самовывозу» и последующие этапы. Данные МоегоСклада: '+(r.department?.updated_at?new Date(r.department.updated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}):'ещё не синхронизированы')+(r.department?.stale?' · требуется обновление':'')+'.';
+}
+
 async function loadMotherReport() {
   if(motherSection==='warehouses'){loadMotherWarehouses();return;}
   if(motherSection==='load'){loadMotherLoad();return;}
@@ -1538,6 +1560,7 @@ async function loadMotherReport() {
     const combined=motherReserveSnapshot.site_orders.map(o=>({...o,source:'site'})).concat(motherDepartmentOrders(motherReserveSnapshot)),selectedOrders=combined.filter(o=>motherSalesView==='all'||o.source===motherSalesView);
     const data = aggregateMotherOrders(selectedOrders,products);
     applyMotherSalesView();
+    renderMotherReadiness(motherReserveSnapshot);
     loadMotherMap();
     motherPurchaseRows=data.positions;
     $('#motherSlotCards').innerHTML=[['morning','08:00–13:00'],['afternoon','13:00–18:00'],['evening','18:00–22:00']].map(([kind,label])=>{const a=data.active.filter(o=>o.delivery_type!=='pickup'&&motherMapKind(o)===kind);return `<div class="md-slot"><span>${label}</span><strong>${a.length}</strong><small>Сайт ${a.filter(o=>o.source==='site').length} · отдел ${a.filter(o=>o.source==='department').length}</small></div>`;}).join('');
