@@ -12,6 +12,7 @@ routerAdd("POST", "/api/shop/pay-link", (e) => {
   let o;
   try { o = $app.findRecordById("orders", String(body.order || "")); } catch (_) { return e.json(404, { message: "Заказ не найден" }); }
   if (o.get("payment_status") === "paid") return e.json(200, { paid: true });
+  if (shop.orderDayClosed(o.get("date"))) return e.json(400, { message: "Приём и оплата новых заказов на сегодня завершены в 16:20. Свяжитесь с менеджером для переноса даты." });
   if (o.get("payment_method") !== "card") return e.json(400, { message: "Этот заказ оплачивается при получении." });
 
   // Витрина заказа решает две вещи: на чей терминал уйдут деньги и куда вернуть
@@ -49,7 +50,7 @@ routerAdd("POST", "/api/shop/pay-check", (e) => {
   const paid = pay.checkOrder($app, o) || o.get("payment_status") === "paid";
   // счёт отдаём сайту: окно оплаты должно выставить ровно тот номер, по которому
   // мы потом ищем платёж, иначе оплата «потеряется»
-  return e.json(200, { paid, number: o.get("number"), invoice: shop.invoiceOf(o) });
+  return e.json(200, { paid, number: o.get("number"), invoice: shop.invoiceOf(o), can_pay: paid || !shop.orderDayClosed(o.get("date")), payment_closed_message: "Оплата заказа на сегодня закрыта в 16:20. Свяжитесь с менеджером для переноса даты." });
 });
 
 // Состояние заказа по его коду — единственный источник правды для покупателя.

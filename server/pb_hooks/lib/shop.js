@@ -547,6 +547,7 @@ function loadExtra(s, pickup) {
   return extra > 0 ? Math.min(600, extra) : 0;
 }
 
+function orderDayClosed(day) { return String(day).slice(0,10)==="2026-11-28" && Date.now()>=Date.parse("2026-11-28T13:20:00Z"); }
 function slotRules(s) {
   // Время сборки отдаём БЕЗ прибавки, а прибавку — отдельными числами: у доставки
   // и самовывоза она своя. Складывает их prepFor (на сервере) и prepMin (на сайте),
@@ -564,6 +565,7 @@ function slotRules(s) {
     hours: +s.get("slot_hours") || 3,
     step: +s.get("slot_step") || 30,
     min: +s.get("slot_min") || 60,
+    order_cutoffs: { "2026-11-28": "2026-11-28T13:20:00Z" },
     by_date: { '2026-11-29': ['08:00–13:00', '13:00–18:00', '18:00–22:00'] },
     hourly_by_date: { '2026-11-29': { price: 1250, windows: Array.from({length:9}, (_,i) => `${hhmm((i+13)*60)}–${hhmm((i+14)*60)}`) } },
   };
@@ -584,6 +586,7 @@ function prepFor(r, sum, express, pickup) {
 // graceMin — небольшая поблажка при проверке заказа: пока покупатель заполнял форму,
 // время ушло вперёд, и выбранный интервал не должен из-за этого «протухнуть».
 function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin, hourly) {
+  if (orderDayClosed(dateIso)) return [];
   const r = slotRules(s);
   const hourlyRule = !pickup && (r.hourly_by_date || {})[dateIso];
   const fixed = !pickup && (hourly && hourlyRule ? hourlyRule.windows : (r.by_date || {})[dateIso]);
@@ -621,6 +624,7 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin, ho
 
 // Что не так с выбранным интервалом: пустая строка — всё в порядке.
 function slotProblem(s, dateIso, sum, label, pickup, ready, express, fromMin) {
+  if (orderDayClosed(dateIso)) return "Приём заказов на сегодня закрыт в 16:20. Ближайшая дата — 29 ноября.";
   const r = slotRules(s);
   if (pickup && dateIso === "2026-11-29" && /^\d{2}:\d{2}$/.test(String(label))) {
     return slotsFor(s,dateIso,sum,20,true,ready,express,fromMin).includes(String(label)) ? "" : "Выберите время, когда заберёте букет.";
@@ -737,6 +741,7 @@ function mothersDayLengthProblem(app, date, p, len) {
 function prepareOrder(app, rec) {
   const s = settings(app);
   const fail = (msg) => { throw new BadRequestError(msg); };
+  if (orderDayClosed(rec.get("date"))) fail("Приём заказов на сегодня закрыт в 16:20. Выберите 29 ноября или более позднюю дату.");
   if (!s.get("accepting")) fail("Сейчас мы не принимаем заказы. Позвоните нам, пожалуйста.");
 
   // Согласие на обработку данных проверяем ЗДЕСЬ, а не только галочкой в
@@ -1287,5 +1292,5 @@ function notifyCustomer(app, o, status) {
 
 module.exports = {
   isMothersDayPreorder, mothersDayLengthProblem, STATUS, COUNTS, rub, jget, settings, role, can, claim, unclaim, moscowToday, fileUrl, labelText, estimateVariants, variantsOf, priceTables, ценаЗаШтуки, рамкиШтук, catalog, prepareOrder, invoicePrefix, invoiceOf, loadExtra, notifyCustomer, readyOf, fromMinOf, stockOf, stockOk, incomingOf, availAt,
-  tg, tgPhoto, clientToken, markBot, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem,
+  tg, tgPhoto, clientToken, markBot, siteName, siteUrl, brandOfOrder, adminIds, bossIds, watcherIds, floristIds, floristText, floristKeyboard, orderText, orderKeyboard, notifyOrder, dateRu, whenText, autoDelivery, slotRules, slotsFor, slotProblem, orderDayClosed,
 };

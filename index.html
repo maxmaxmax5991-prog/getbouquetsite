@@ -3221,6 +3221,7 @@ function полоскаПартии(пар) {
 
 function вставитьДроп(куда) {
   if (!куда) return;
+  if (куда.id === "popular") { куда.querySelectorAll("[data-dropbox]").forEach(x=>x.remove()); return; }
   const партия = партииДропа().find(p => p.id === 'lploh076pnut27y') || null;
   const d = (DROP && DROP.есть) ? DROP : null;
   if (!партия && !d) return;
@@ -4603,6 +4604,7 @@ function renderCart() {
     // а тех, кто щёлкнул способ получения — цифра воронки была не про то.
     шаг('checkout', `${t.n} поз. · ${Math.round(t.sum / 1000)} тыс`);
     const today = mskToday();
+    const nearest = cutoffClosed(today) ? addDays(today,1) : today;
     const zones = DEL ? DEL.zones : [];
     const closedNote = DEL && !DEL.accepting ? `<p class="demo-note" style="color:var(--sale);font-size:13.5px">Сейчас мы не принимаем заказы через сайт${API && API.phone ? ` — позвоните: ${esc(API.phone)}` : ''}.</p>` : '';
     body.innerHTML = `<button class="back" id="toList">${icon('left')}К корзине</button>${closedNote}
@@ -4643,7 +4645,7 @@ function renderCart() {
         ${PICKUP ? `<p class="pickup-note" id="pickupNote" hidden>Забрать: ${esc(PICKUP.address || 'адрес уточним')}${PICKUP.hours ? `, ${esc(PICKUP.hours)}` : ''}</p>` : ''}
         ${zones.length ? `<label for="fZone" id="zoneBox">Зона доставки<select id="fZone" name="zone" required>${zones.map(z => `<option value="${z.id}">${esc(z.name)} — ${zonePrice(z, t.sum) ? rub(zonePrice(z, t.sum)) : 'бесплатно'}</option>`).join('')}</select></label>` : ''}
         <div class="two">
-          <label for="fDate">Дата<input id="fDate" name="date" type="date" required min="${today}" max="${дропБукет ? today : DEL ? addDays(today, DEL.days_ahead) : ''}" value="${today}"></label>
+          <label for="fDate">Дата<input id="fDate" name="date" type="date" required min="${nearest}" max="${дропБукет ? today : DEL ? addDays(today, DEL.days_ahead) : ''}" value="${nearest}"></label>
           <label for="fTime" id="timeLabel">Интервал<select id="fTime" name="time" required></select></label>
         </div>
         <p class="addr-hint" id="timeNote" hidden></p>
@@ -4826,7 +4828,8 @@ async function payWidget(order, name, phone) {
       return { paid: false, error: 'Этого заказа уже нет. Оформите заказ заново — деньги не списаны.' };
     }
     const d = await r.json().catch(() => ({}));
-    if (d && d.paid) return { paid: true };     // уже оплачен, второй раз не берём
+    if (d && d.paid) return { paid: true };
+    if (d && d.can_pay === false) return {paid:false,error:d.payment_closed_message};     // уже оплачен, второй раз не берём
   } catch (_) {}
   return loadWidget().then(ok => {
     if (!ok || !window.cp) return { paid: false, error: 'Не удалось открыть окно оплаты. Мы свяжемся с вами для оплаты.' };
@@ -4926,7 +4929,9 @@ async function payCard(order, name, phone) {
 
 /* доставка: зоны, интервалы, даты — из админки */
 
+function cutoffClosed(date) { const cutoff=(SLOTS.order_cutoffs||{})[date]; return !!cutoff && Date.now()>=Date.parse(cutoff); }
 function slotList(date, sum) {
+  if(cutoffClosed(date)) return [];
   const hourlyRule = getType !== 'pickup' && (SLOTS.hourly_by_date || {})[date];
   const fixed = getType !== 'pickup' && (hourlySlot && hourlyRule ? hourlyRule.windows : (SLOTS.by_date || {})[date]);
   const now = mskNow(), open = fixed ? toMin(fixed[0].split('–')[0]) : toMin(SLOTS.from), send = toMin(SLOTS.to);
@@ -5067,7 +5072,7 @@ function fillIntervals() {
     toggle.textContent = hourlySlot ? `✓ Часовой интервал (+${rub(hourlyRule.price)})` : `Выбрать часовой интервал (+${rub(hourlyRule ? hourlyRule.price : 1250)})`;
     $('#hourlyHint').textContent = hourlySlot ? 'Нажмите ещё раз, чтобы вернуть обычные интервалы без доплаты.' : 'Доставка в выбранный час с 13:00 до 22:00. Доступно только 29 ноября.';
   }
-  const closed = DEL && DEL.closed_dates.includes(date);
+  const closed = cutoffClosed(date) || (DEL && DEL.closed_dates.includes(date));
   const sum = totals().sum;
   const list = closed ? [] : slotList(date, sum);
   const prev = $('#fTime').value;
@@ -5495,6 +5500,9 @@ async function resumeOrder() {
   const btn = $('#resumePay');
   if (btn) btn.onclick = () => { view = 'done'; renderCart(); cartDlg.showModal(); };
 }
+
+
+
 
 if (API && API.notice) $('main')
 .insertAdjacentHTML('afterbegin', `<div class="wrap"><p class="notice">${esc(API.notice)}</p></div>`);
