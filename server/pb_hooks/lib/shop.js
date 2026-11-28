@@ -884,6 +884,7 @@ function prepareOrder(app, rec) {
   }
 
   const unknownAddress = !pickup && !!rec.get("unknown_address");
+  if(unknownAddress && String(rec.get("date")).slice(0,10)==="2026-11-29") fail("Для доставки 29 ноября укажите адрес получателя. Уточнение адреса снова доступно с 30 ноября.");
   rec.set("unknown_address", unknownAddress);
   if (unknownAddress) {
     const recipient = String(rec.get("recipient") || "").trim();

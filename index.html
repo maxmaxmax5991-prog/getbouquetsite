@@ -4732,7 +4732,7 @@ ${payChoice()}
       форма.addEventListener('change', запомнить);
     }
 
-    $('#fDate').onchange = () => { if(дропБукет && $('#fDate').value!==today){$('#fDate').value=today;toast('Дроп доступен только на сегодня');} store.set('preorderDate', $('#fDate').value === MOTHERS_DAY ? MOTHERS_DAY : ''); fillIntervals(); recalc(); const problem=motherCartProblem($('#fDate').value);if(problem)showMotherRestriction(problem); };
+    $('#fDate').onchange = () => { if(дропБукет && $('#fDate').value!==today){$('#fDate').value=today;toast('Дроп доступен только на сегодня');} store.set('preorderDate', $('#fDate').value === MOTHERS_DAY ? MOTHERS_DAY : ''); syncUnknownAddress(); fillIntervals(); recalc(); const problem=motherCartProblem($('#fDate').value);if(problem)showMotherRestriction(problem); };
     $('#hourlyToggle').onclick = () => { hourlySlot = !hourlySlot; fillIntervals(); recalc(); };
     if ($('#fZone')) $('#fZone').onchange = recalc;
     $('#fTime').onchange = () => { шаг('slot', $('#fTime').value || ''); recalc(); };
@@ -5243,10 +5243,12 @@ function bindAddress() {
   ['#fHouse', '#fBlock'].forEach(sel => { const el = $(sel); if (el) el.oninput = checkAddress; });
 }
 
-function isUnknownAddress() { return getType !== 'pickup' && !!(($('#fUnknownAddress') || {}).checked); }
+function unknownAddressAllowed() { return $('#fDate')?.value !== '2026-11-29'; }
+function isUnknownAddress() { return getType !== 'pickup' && unknownAddressAllowed() && !!(($('#fUnknownAddress') || {}).checked); }
 function syncUnknownAddress() {
+  if(!unknownAddressAllowed() && $('#fUnknownAddress')) $('#fUnknownAddress').checked=false;
   const pickup = getType === 'pickup', unknown = isUnknownAddress();
-  $('#unknownAddressChoice').hidden = pickup;
+  $('#unknownAddressChoice').hidden = pickup || !unknownAddressAllowed();
   $('#addrBox').hidden = pickup || unknown;
   $$('#addrBox input').forEach(el => {el.disabled=pickup || unknown;el.required=!pickup && !unknown && ['fStreet','fHouse'].includes(el.id);});
   if ($('#zoneBox')) $('#zoneBox').hidden=pickup || unknown;
