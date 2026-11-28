@@ -1535,13 +1535,22 @@ function motherReadinessRows(r,view){
 }
 function renderMotherReadiness(r){
  const rows=motherReadinessRows(r,motherSalesView),ready=rows.filter(o=>o.ready).length,pct=rows.length?Math.round(ready/rows.length*1000)/10:0;
- const groups=new Map();
- rows.forEach(o=>{const label=String(o.interval).replace(/\\s/g,'').replace(/[-—]/g,'–'),key=(o.pickup?'p':'d')+'|'+label;let g=groups.get(key);if(!g){g={label,pickup:o.pickup,total:0,ready:0};groups.set(key,g);}g.total++;if(o.ready)g.ready++;});
- const sort=(a,b)=>{const minute=x=>{const m=x.label.match(/(\\d{1,2}):(\\d{2})/);return m?+m[1]*60 + +m[2]:9999;};return minute(a)-minute(b)||a.label.localeCompare(b.label);};
- const bars=pickup=>[...groups.values()].filter(g=>!!g.pickup===pickup).sort(sort).map(g=>{const p=Math.round(g.ready/g.total*1000)/10;return '<div style="margin:15px 0"><div style="display:flex;justify-content:space-between;gap:10px;font-size:13px"><b>'+esc(g.label)+'</b><span>'+g.ready+' / '+g.total+' · <b>'+p.toLocaleString('ru-RU')+'%</b></span></div><div role="progressbar" aria-label="'+esc((pickup?'Самовывоз ':'Доставка ')+g.label)+'" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p+'" style="height:12px;background:var(--line);border-radius:10px;margin-top:7px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:'+(p>=80?'#2b8b73':p>=40?'#c18b36':'#bb4676')+';border-radius:10px"></div></div></div>';}).join('')||'<p class="hint">Нет заказов</p>';
+ const labels=['До 13:00','13:00–18:00','18:00–22:00'];
+ const groups=new Map();let missing=0;
+ [false,true].forEach(pickup=>labels.forEach((label,i)=>groups.set((pickup?'p':'d')+'|'+i,{label,pickup,total:0,ready:0,index:i})));
+ rows.forEach(o=>{
+  const times=String(o.interval||'').match(/\d{1,2}:[0-5]\d/g)||[];
+  if(!times.length){missing++;return;}
+  const last=times[times.length-1].split(':').map(Number),end=last[0]*60+last[1];
+  if(end>22*60){missing++;return;}
+  const index=end<=13*60?0:end<=18*60?1:2,g=groups.get((o.pickup?'p':'d')+'|'+index);
+  g.total++;if(o.ready)g.ready++;
+ });
+ const sort=(a,b)=>a.index-b.index;
+ const bars=pickup=>[...groups.values()].filter(g=>!!g.pickup===pickup).sort(sort).map(g=>{const p=g.total?Math.round(g.ready/g.total*1000)/10:0;return '<div style="margin:15px 0"><div style="display:flex;justify-content:space-between;gap:10px;font-size:13px"><b>'+esc(g.label)+'</b><span>'+g.ready+' / '+g.total+' · <b>'+p.toLocaleString('ru-RU')+'%</b></span></div><div role="progressbar" aria-label="'+esc((pickup?'Самовывоз ':'Доставка ')+g.label)+'" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p+'" style="height:12px;background:var(--line);border-radius:10px;margin-top:7px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:'+(p>=80?'#2b8b73':p>=40?'#c18b36':'#bb4676')+';border-radius:10px"></div></div></div>';}).join('')||'<p class="hint">Нет заказов</p>';
  $('#motherReadinessSummary').textContent='Готово '+ready+' из '+rows.length+' заказов · '+pct.toLocaleString('ru-RU')+'%';
  $('#motherReadinessDelivery').innerHTML=bars(false);$('#motherReadinessPickup').innerHTML=bars(true);
- $('#motherReadinessState').textContent='Считаем заказы, не стебли и не отдельные букеты внутри заказа. Оплаченные доставки + все самовывозы. Готово: «Ожидает отправку», «Готов к самовывозу» и последующие этапы. Данные МоегоСклада: '+(r.department?.updated_at?new Date(r.department.updated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}):'ещё не синхронизированы')+(r.department?.stale?' · требуется обновление':'')+'.';
+ $('#motherReadinessState').textContent=(missing?'Без определённого времени: '+missing+' заказов; в три группы не включены. ':'')+'Группа определяется по окончанию интервала; самовывоз на 13:00 относится к первой группе, на 18:00 — ко второй. Считаем заказы, не стебли и не отдельные букеты внутри заказа. Оплаченные доставки + все самовывозы. Готово: «Ожидает отправку», «Готов к самовывозу» и последующие этапы. Данные МоегоСклада: '+(r.department?.updated_at?new Date(r.department.updated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}):'ещё не синхронизированы')+(r.department?.stale?' · требуется обновление':'')+'.';
 }
 
 async function loadMotherReport() {
