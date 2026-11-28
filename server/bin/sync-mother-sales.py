@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only MoySklad -> atomic dated sales snapshot. Never alters ordinary inventory."""
 import sqlite3,json,urllib.request,urllib.parse,gzip,re,pathlib,datetime,time,os,sys,fcntl
+TODAY='2026-11-28';TODAY_FROM='2026-11-28 14:00:00';
 DAY='2026-11-29';STORE_ID='3d520ee3-76c1-11f0-0a80-142900354c8e';STORE_NAME='Москва 01 - Маленковская 14, к1 (Ласфлор)';BASE='https://api.moysklad.ru/api/remap/1.2'
 STORE_IDS=(STORE_ID,'36029ea4-e4b8-11f1-0a80-0c290009e4f4')
 ORGANIZATION_IDS=('281efedb-76c1-11f0-0a80-0fdb00366fa7','047ab4e2-e4b8-11f1-0a80-1f37000a92f0')
@@ -106,7 +107,7 @@ def build(client,db):
  channels=client.all('/entity/saleschannel');selected=[c for c in channels if norm(c['name'])in{norm(n) for n in SELECTED}];channelids={c['id'] for c in selected}
  orders_by_id={}
  for store_id in STORE_IDS:
-  for order in client.all('/entity/customerorder',{'filter':'store='+BASE+'/entity/store/'+store_id+';deliveryPlannedMoment>='+DAY+' 00:00:00;deliveryPlannedMoment<2026-11-30 00:00:00','expand':'salesChannel,state,positions.assortment','order':'updated,asc'}):
+  for order in client.all('/entity/customerorder',{'filter':'store='+BASE+'/entity/store/'+store_id+';deliveryPlannedMoment>='+TODAY+' 00:00:00;deliveryPlannedMoment<2026-11-30 00:00:00','expand':'salesChannel,state,positions.assortment','order':'updated,asc'}):
    orders_by_id[order['id']]=order
  orders=list(orders_by_id.values())
  site_orders,site_issues=reconcile_site_orders(client,db,orders)
@@ -144,23 +145,25 @@ def build(client,db):
   else:pid='ms:'+aid;display=name
   if not mapped:
    externalmeta[pid]={'id':pid,'name':display,'no_stock':untracked};issues.append({'document':doc['id'],'number':doc['number'],'name':name,'quantity':qty,'length':length,'untracked':untracked})
-  items.append({'document':doc['id'],'product_id':pid,'length':length,'quantity':qty,'name':display,'source_name':name,'channel':doc['channel'],'untracked':untracked})
+  items.append({'document':doc['id'],'product_id':pid,'length':length,'quantity':qty,'name':display,'source_name':name,'channel':doc['channel'],'untracked':untracked,'today_consumption':str(doc['date'])[:10]==TODAY})
  for order in orders:
   if (order.get('store')or{}).get('meta',{}).get('href','').rstrip('/').split('/')[-1]not in STORE_IDS:continue
   ch=order.get('salesChannel')or{}
   if order['id'] in siteids:duplicates+=1;continue
   if ch.get('id')not in channelids:continue
-  if str(order.get('deliveryPlannedMoment',''))[:10]!=DAY:raise RuntimeError('Upstream returned incorrect planned day')
+  planned=str(order.get('deliveryPlannedMoment',''))[:10]
+  if planned not in (TODAY,DAY):raise RuntimeError('Upstream returned incorrect planned day')
+  if planned==TODAY and str(order.get('created')or'')<TODAY_FROM:continue
   cl=classify(order);doc={'store_id':(order.get('store')or{}).get('meta',{}).get('href','').split('/')[-1],'id':order['id'],'number':order['name'],'channel':ch.get('name',''),'channel_id':ch.get('id'),'date':order['deliveryPlannedMoment'],'total':float(order.get('sum',0))/100,**cl,**delivery_details(order)};docs.append(doc)
   if not cl['counted']:continue
-  if not cl['pickup']:doc.update(geocode_cached(doc['address'],geokey,geodata))
+  if not cl['pickup'] and planned==DAY:doc.update(geocode_cached(doc['address'],geokey,geodata))
   else:doc.update(lat=0,lon=0,geo_error='')
   positions=order.get('positions')or{};rows=positions.get('rows',[])
   if positions.get('meta',{}).get('size',0)>len(rows):rows=client.all('/entity/customerorder/'+order['id']+'/positions',{'expand':'assortment'})
   for pos in rows:add(pos['assortment'],float(pos['quantity']),doc)
  gtemp=geopath.with_suffix('.tmp');gtemp.write_text(json.dumps(geodata,ensure_ascii=False));gtemp.chmod(0o600);gtemp.replace(geopath)
  temp=cache.with_suffix('.tmp');temp.write_text(json.dumps(stored,ensure_ascii=False));temp.chmod(0o600);temp.replace(cache)
- return {'day':DAY,'site_orders':site_orders,'site_issues':site_issues,'store':{'id':STORE_ID,'name':'Москва 01 + Москва 02'},'stores':[{'id':sid,'name':STORE_NAMES[sid]}for sid in STORE_IDS],'documents':docs,'items':items,'products':list(externalmeta.values()),'unmatched':issues,'channels':[{'id':c['id'],'name':c['name']}for c in selected],'excluded_site':duplicates,'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+ return {'day':DAY,'site_orders':site_orders,'site_issues':site_issues,'store':{'id':STORE_ID,'name':'Москва 01 + Москва 02'},'stores':[{'id':sid,'name':STORE_NAMES[sid]}for sid in STORE_IDS],'today_from':TODAY_FROM,'today_documents':[d for d in docs if str(d['date'])[:10]==TODAY],'today_items':[i for i in items if i.get('today_consumption')],'documents':[d for d in docs if str(d['date'])[:10]==DAY],'items':[i for i in items if not i.get('today_consumption')],'products':list(externalmeta.values()),'unmatched':issues,'channels':[{'id':c['id'],'name':c['name']}for c in selected],'excluded_site':duplicates,'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
 def main():
  lock=open('/opt/venikoff/backups/mother-reserve-20261129/sales-sync.lock','a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
  db=sqlite3.connect('/opt/venikoff/pb/pb_data/data.db',timeout=30);db.row_factory=sqlite3.Row

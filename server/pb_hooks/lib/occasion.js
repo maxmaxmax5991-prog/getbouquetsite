@@ -1,5 +1,6 @@
 const DAY='2026-11-29';
-function aggregate(orders,movements,products,sales=[]) {
+const TODAY='2026-11-28',TODAY_FROM='2026-11-28 11:00:00.000Z';
+function aggregate(orders,movements,products,sales=[],consumption=[]) {
  const names={},meta={};products.forEach(p=>{names[p.id]=p.name;meta[p.id]=p;});
  const rows={};
  const row=(id,length,name)=>{
@@ -23,6 +24,12 @@ function aggregate(orders,movements,products,sales=[]) {
   });
  });
  sales.forEach(m=>{if(!(m.quantity>0)||!m.product_id)return;const r=row(m.product_id,m.length,m.name);r.booked+=+m.quantity;r.sales_booked+=+m.quantity;if(r.orders.indexOf('ms:'+m.document)<0)r.orders.push('ms:'+m.document);});
+ // Today's orders consume only positions actually present in the holiday reserve.
+ consumption.forEach(c=>{
+  const r=rows[c.id+'|'+(+c.length)];if(!r||!r.has_reserve||!(+c.booked>0))return;
+  r.today_booked=+c.booked;r.today_site_booked=+c.site_booked||0;r.today_sales_booked=+c.sales_booked||0;
+  r.booked+=r.today_booked;r.site_booked+=r.today_site_booked;r.sales_booked+=r.today_sales_booked;
+ });
  const positions=Object.keys(rows).map(k=>{
   const r=rows[k];r.order_count=r.orders.length;delete r.orders;
   r.untracked=!!(meta[r.id] && meta[r.id].no_stock);
@@ -48,6 +55,7 @@ function aggregate(orders,movements,products,sales=[]) {
  const total=positions.filter(r=>r.has_reserve).reduce((a,r)=>({reserved:a.reserved+r.reserved,booked:a.booked+r.booked,free:a.free+r.free}),{reserved:0,booked:0,free:0});
  total.site_booked=positions.filter(r=>r.has_reserve).reduce((n,r)=>n+r.site_booked,0);
  total.sales_booked=positions.filter(r=>r.has_reserve).reduce((n,r)=>n+r.sales_booked,0);
+ total.today_booked=positions.reduce((n,r)=>n+(r.today_booked||0),0);
  total.percent=total.reserved?Math.round(total.booked/total.reserved*10000)/100:0;
  total.purchase_cost_kop=positions.reduce((n,r)=>n+r.purchase_cost_kop,0);
  total.purchase_cost=total.purchase_cost_kop/100;
@@ -71,6 +79,8 @@ function departmentReport(app){
  const blocked={};decode(siteIds).forEach(r=>blocked[r.ms_id]=true);
  department.documents=department.documents.filter(d=>!blocked[d.id]);
  department.items=department.items.filter(r=>!blocked[r.document]);
+ department.today_items=(department.today_items||[]).filter(r=>!blocked[r.document]);
+ department.today_documents=(department.today_documents||[]).filter(r=>!blocked[r.id]);
  department.unmatched=department.unmatched.filter(r=>!blocked[r.document]);
  department.stale=!department.updated_at||Date.now()-Date.parse(department.updated_at)>15*60000;
  return department;
@@ -121,12 +131,15 @@ function report(app) {
  const moves=decode(movements).map(m=>({...m,unit_cost_kop:m.unit_cost_kop<0?null:m.unit_cost_kop,cost_kop:m.cost_kop<0?null:m.cost_kop}));
  const department=departmentReport(app),site=siteReport(app,department);
  const allProducts=products.concat((department.products||[]).filter(p=>!products.some(x=>x.id===p.id)));
- const result=aggregate(site.orders,moves,allProducts,department.items),checks=result.counted_orders+department.documents.filter(d=>d.counted).length;
+ const todayRows=arrayOf(new DynamicModel({id:'',date:'',items:'',status:'',delivery_type:'',payment_status:''}));
+ app.db().newQuery("SELECT id,date,items,status,delivery_type,payment_status FROM orders WHERE substr(date,1,10)={:d} AND created>={:cutoff}").bind({d:TODAY,cutoff:TODAY_FROM}).all(todayRows);
+ const today=aggregate(decode(todayRows).map(o=>({...o,date:DAY})),[],allProducts,department.today_items||[]);
+ const result=aggregate(site.orders,moves,allProducts,department.items,today.positions),checks=result.counted_orders+department.documents.filter(d=>d.counted).length;
  const average_checks={delivery:{sum:0,count:0,average:null},pickup:{sum:0,count:0,average:null}};
  site.orders.forEach(o=>{const a=average_checks[o.delivery_type==='pickup'?'pickup':'delivery'];a.sum+=+o.total||0;a.count++;});
  department.documents.filter(d=>d.counted).forEach(o=>{const a=average_checks[o.pickup?'pickup':'delivery'];a.sum+=+o.total||0;a.count++;});
  Object.keys(average_checks).forEach(k=>{const a=average_checks[k];a.sum=Math.round(a.sum*100)/100;a.average=a.count?Math.round(a.sum/a.count*100)/100:null;});
- return {...result,site_orders:site.orders,reconciliation:{issues:site.issues,updated_at:department.updated_at,stale:department.stale||!!department.last_error},average_checks,goal:{target:1000,count:checks,percent:Math.round(checks/1000*10000)/100},department,movements:moves,updated_at:new Date().toISOString()};
+ return {...result,today_consumption:{day:TODAY,from:TODAY_FROM,positions:today.positions.filter(r=>moves.some(m=>m.product_id===r.id&&+m.length===r.length)),site_orders:today.counted_orders,department_orders:(department.today_documents||[]).filter(d=>d.counted).length},site_orders:site.orders,reconciliation:{issues:site.issues,updated_at:department.updated_at,stale:department.stale||!!department.last_error},average_checks,goal:{target:1000,count:checks,percent:Math.round(checks/1000*10000)/100},department,movements:moves,updated_at:new Date().toISOString()};
 }
 
 function stockProblem(app,items){
