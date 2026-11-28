@@ -1294,7 +1294,7 @@ body.mother-route .top .icon-btn:hover{background:#f4e6df;border-color:#a83e65}
   <div class="grid" id="motherGrid"></div>
     </section>
     <section class="mother-delivery"><div><p class="mother-eyebrow">ПОЗАБОТИМСЯ О ВАЖНОМ</p><h2>Встречаемся<br><em>29 ноября.</em></h2><p>Оформите предзаказ заранее и выберите удобное время доставки.</p></div>
-      <div class="mother-windows"><b>Три интервала на выбор</b><span>08:00–13:00</span><span>13:00–18:00</span><span>18:00–22:00</span><p>Нужно точнее? При оформлении можно выбрать часовой интервал с 09:00 до 22:00 за дополнительные 1 250 ₽. Стоимость самой доставки рассчитывается по адресу.</p></div>
+      <div class="mother-windows"><b>Три интервала на выбор</b><span>08:00–13:00</span><span>13:00–18:00</span><span>18:00–22:00</span><p>Нужно точнее? При оформлении можно выбрать часовой интервал с 13:00 до 22:00 за дополнительные 1 250 ₽. Стоимость самой доставки рассчитывается по адресу.</p></div>
     </section>
     <section class="mother-letter"><span>♡</span><h2>Иногда достаточно<br>«Мам, я тебя люблю».</h2><p>Добавьте свои слова в текст открытки при оформлении заказа.</p></section>
   </div>
@@ -4649,7 +4649,7 @@ function renderCart() {
         <p class="addr-hint" id="timeNote" hidden></p>
         <div class="hourly-choice" id="hourlyChoice" hidden>
           <button type="button" id="hourlyToggle" class="hourly-toggle" aria-pressed="false">Выбрать часовой интервал (+1 250 ₽)</button>
-          <p id="hourlyHint">Доставка в выбранный час. Доступно только 29 ноября.</p>
+          <p id="hourlyHint">Доставка в выбранный час с 13:00 до 22:00. Доступно только 29 ноября.</p>
         </div>
 ${payChoice()}
 <label for="fNote">Текст открытки<textarea id="fNote" name="note" placeholder="Пара тёплых слов" maxlength="1000"></textarea></label>
@@ -5065,7 +5065,7 @@ function fillIntervals() {
   if (toggle) {
     toggle.setAttribute('aria-pressed', String(hourlySlot));
     toggle.textContent = hourlySlot ? `✓ Часовой интервал (+${rub(hourlyRule.price)})` : `Выбрать часовой интервал (+${rub(hourlyRule ? hourlyRule.price : 1250)})`;
-    $('#hourlyHint').textContent = hourlySlot ? 'Нажмите ещё раз, чтобы вернуть обычные интервалы без доплаты.' : 'Доставка в выбранный час. Доступно только 29 ноября.';
+    $('#hourlyHint').textContent = hourlySlot ? 'Нажмите ещё раз, чтобы вернуть обычные интервалы без доплаты.' : 'Доставка в выбранный час с 13:00 до 22:00. Доступно только 29 ноября.';
   }
   const closed = DEL && DEL.closed_dates.includes(date);
   const sum = totals().sum;

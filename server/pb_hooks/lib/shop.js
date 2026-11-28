@@ -565,7 +565,7 @@ function slotRules(s) {
     step: +s.get("slot_step") || 30,
     min: +s.get("slot_min") || 60,
     by_date: { '2026-11-29': ['08:00–13:00', '13:00–18:00', '18:00–22:00'] },
-    hourly_by_date: { '2026-11-29': { price: 1250, windows: Array.from({length:13}, (_,i) => `${hhmm((i+9)*60)}–${hhmm((i+10)*60)}`) } },
+    hourly_by_date: { '2026-11-29': { price: 1250, windows: Array.from({length:9}, (_,i) => `${hhmm((i+13)*60)}–${hhmm((i+14)*60)}`) } },
   };
 }
 
