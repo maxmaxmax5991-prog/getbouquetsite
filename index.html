@@ -4929,6 +4929,7 @@ async function payCard(order, name, phone) {
 
 /* доставка: зоны, интервалы, даты — из админки */
 
+setInterval(()=>{if($('#fDate')?.value==='2026-11-29')fillIntervals();},15000);
 function cutoffClosed(date) { const cutoff=(SLOTS.order_cutoffs||{})[date]; return !!cutoff && Date.now()>=Date.parse(cutoff); }
 function slotList(date, sum) {
   if(cutoffClosed(date)) return [];
@@ -4947,7 +4948,8 @@ function slotList(date, sum) {
   // «доставляем не раньше»: сборку не прибавляем — к этому часу букет уже готов
   const пол = cartFrom();
   if (пол > 0) first = Math.max(first, пол);
-  if (fixed) return fixed.filter(label => toMin(label.split('–')[0]) >= first);
+  if(getType==='pickup' && date==='2026-11-29') first=Math.max(first,11*60);
+  if (fixed) return fixed.filter(label => toMin(label.split('–')[0]) >= first && !(date==='2026-11-29' && getType!=='pickup' && label==='08:00–13:00' && Date.now()>=Date.parse(SLOTS.morning_close_at||'2026-11-28T14:00:00Z')));
   const start0 = Math.ceil(first / SLOTS.step) * SLOTS.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
   if (getType === 'pickup' && date === '2026-11-29') {

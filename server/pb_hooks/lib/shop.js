@@ -565,8 +565,10 @@ function slotRules(s) {
     hours: +s.get("slot_hours") || 3,
     step: +s.get("slot_step") || 30,
     min: +s.get("slot_min") || 60,
+    pickup_from_by_date: { '2026-11-29': '11:00' },
+    morning_close_at: '2026-11-28T14:00:00Z',
     order_cutoffs: { "2026-11-28": "2026-11-28T13:20:00Z" },
-    by_date: { '2026-11-29': ['08:00–13:00', '13:00–18:00', '18:00–22:00'] },
+    by_date: { '2026-11-29': (Date.now()>=Date.parse('2026-11-28T14:00:00Z') ? ['13:00–18:00', '18:00–22:00'] : ['08:00–13:00', '13:00–18:00', '18:00–22:00']) },
     hourly_by_date: { '2026-11-29': { price: 1250, windows: Array.from({length:9}, (_,i) => `${hhmm((i+13)*60)}–${hhmm((i+14)*60)}`) } },
   };
 }
@@ -605,6 +607,7 @@ function slotsFor(s, dateIso, sum, graceMin, pickup, ready, express, fromMin, ho
   // «доставляем не раньше»: час суток, одинаковый в любой день. Сборку сюда не
   // добавляем — букет к этому часу уже готов, его можно везти.
   if (fromMin > 0) first = Math.max(first, fromMin);
+  if (pickup && dateIso === '2026-11-29') first=Math.max(first,11*60);
   if (fixed) return fixed.filter(label => toMin(label.split('–')[0]) >= first);
   const start0 = Math.ceil(first / r.step) * r.step;
   // самовывоз: окно короткое, в размер шага — забрать можно сразу, как собрали
