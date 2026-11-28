@@ -79,6 +79,7 @@ def reconcile_site_orders(client,db,orders):
   cl=classify(order);details=delivery_details(order)
   projections.append({'site_id':site['id'],'number':site['number'],'ms_id':mid,'date':str(order.get('deliveryPlannedMoment')or'')[:10],
    'cancelled':not cl['counted']and cl['reason']=='Отменён','pickup':cl['pickup'],'paid':cl['paid'],'state':cl['state'],
+   'store_id':(order.get('store')or{}).get('meta',{}).get('href','').rstrip('/').split('/')[-1],
    'interval':details['interval'],'local_date':site['date'],'local_delivery_type':site['delivery_type'],'local_interval':site['interval']})
  return projections,issues
 

@@ -469,7 +469,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
       <section id="motherLoadPanel" hidden role="tabpanel"><div class="md-hero"><div><span class="md-tag">29 НОЯБРЯ · МОЙСКЛАД</span><h2>Нагрузка по складам</h2><p>Доставки и самовывозы по каждому складу и времени.</p></div><button class="btn btn-p" type="button" id="motherLoadRefresh">Обновить</button></div><p class="hint">Все неотменённые заказы Москвы 01 и Москвы 02. Неоплаченные и новые выделены отдельно. Для бронирования цветов по-прежнему учитываются оплаченные доставки и все самовывозы.</p><p class="hint" id="motherLoadState" role="status" aria-live="polite">Загружаем…</p><div id="motherLoadTotals" class="mother-reserve-summary"></div><div class="md-load-stores" id="motherLoadStores"></div><section class="md-section"><div class="md-section-head"><h3>Доставки по интервалам</h3><span class="md-tag">ОБА СКЛАДА</span></div><div class="scroll"><table class="t md-load-table" id="motherLoadDeliveries"></table></div></section><section class="md-section"><div class="md-section-head"><h3>Самовывозы по времени</h3><span class="md-tag">ТОЧНОЕ ВРЕМЯ ИЗ МС</span></div><div class="scroll"><table class="t md-load-table" id="motherLoadPickups"></table></div></section></section>
       <div id="motherOverview" role="tabpanel">
       <div class="md-sales-switch" id="motherSalesSwitch" role="group" aria-label="Источник продаж"><span class="md-sales-label">Продажи</span><button type="button" data-sales-view="all" aria-pressed="true">Общая</button><button type="button" data-sales-view="site" aria-pressed="false">Сайт</button><button type="button" data-sales-view="department" aria-pressed="false">Отдел продаж</button></div>
-      <section class="md-section"><div class="md-section-head"><h3>Готовность сборки по интервалам</h3><span class="md-tag" id="motherReadinessSummary"></span></div><div class="md-load-stores"><section class="md-panel"><h3>Доставки</h3><div id="motherReadinessDelivery"></div></section><section class="md-panel"><h3>Самовывозы</h3><div id="motherReadinessPickup"></div></section></div><p class="hint" id="motherReadinessState"></p></section>
+      <section class="md-section"><div class="md-section-head"><h3>Готовность сборки по интервалам</h3><span class="md-tag" id="motherReadinessSummary"></span></div><div id="motherReadinessStores" class="md-load-stores"></div><p class="hint" id="motherReadinessState"></p></section>
       <div class="md-hero"><div><span class="md-tag">29 НОЯБРЯ 2026</span><h2>День мамы</h2><p>Запасы под сайт, бронирования и доставка — в одном месте.</p></div><div class="md-actions"><button class="btn btn-p" id="motherReportRefresh">Обновить данные</button><a class="btn btn-g" href="/den-mamy/" target="_blank">Открыть витрину</a></div></div>
       <p class="hint">Бронирования на 29 ноября: только оплаченные доставки и все самовывозы, включая неоплаченные. Неоплаченные доставки и отменённые заказы исключены. Срочные — часовые интервалы за +1 250 ₽. Сорта одной длины складываются в стеблях: 2 букета по 51 розе = 102 стебля. Предзаказы не расходуют сегодняшний остаток.</p>
 <p class="hint" id="motherSalesModeSummary">Кнопки переключают статистику продаж, средний чек, интервалы и карту. Резерв и цель на 1 000 чеков — общие.</p>
@@ -1529,28 +1529,34 @@ function motherReadinessRows(r,view){
  const done=new Set(['Ожидает отправку','Готов к самовывозу','Отправлен','Отгружен','Доставлен']);
  const rows=(r.site_orders||[]).map(o=>{
   const m=states.get(o.id),verified=m&&m.ms_id===o.ms_id;
-  return {id:o.id,source:'site',pickup:o.delivery_type==='pickup',interval:o.interval||'Без времени',ready:verified?done.has(m.state):['photo','delivering','done'].includes(o.status)};
- }).concat((r.department?.documents||[]).filter(o=>o.counted).map(o=>({id:'ms:'+o.id,source:'department',pickup:o.pickup,interval:o.interval||'Без времени',ready:done.has(o.state)})));
+  return {id:o.id,store_id:verified?(m.store_id||''):'',source:'site',pickup:o.delivery_type==='pickup',interval:o.interval||'Без времени',ready:verified?done.has(m.state):['photo','delivering','done'].includes(o.status)};
+ }).concat((r.department?.documents||[]).filter(o=>o.counted).map(o=>({id:'ms:'+o.id,store_id:o.store_id||'',source:'department',pickup:o.pickup,interval:o.interval||'Без времени',ready:done.has(o.state)})));
  return rows.filter(o=>view==='all'||o.source===view);
 }
+
 function renderMotherReadiness(r){
- const rows=motherReadinessRows(r,motherSalesView),ready=rows.filter(o=>o.ready).length,pct=rows.length?Math.round(ready/rows.length*1000)/10:0;
- const labels=['До 13:00','13:00–18:00','18:00–22:00'];
- const groups=new Map();let missing=0;
- [false,true].forEach(pickup=>labels.forEach((label,i)=>groups.set((pickup?'p':'d')+'|'+i,{label,pickup,total:0,ready:0,index:i})));
- rows.forEach(o=>{
-  const times=String(o.interval||'').match(/\d{1,2}:[0-5]\d/g)||[];
-  if(!times.length){missing++;return;}
-  const last=times[times.length-1].split(':').map(Number),end=last[0]*60+last[1];
-  if(end>22*60){missing++;return;}
-  const index=end<=13*60?0:end<=18*60?1:2,g=groups.get((o.pickup?'p':'d')+'|'+index);
-  g.total++;if(o.ready)g.ready++;
- });
- const sort=(a,b)=>a.index-b.index;
- const bars=pickup=>[...groups.values()].filter(g=>!!g.pickup===pickup).sort(sort).map(g=>{const p=g.total?Math.round(g.ready/g.total*1000)/10:0;return '<div style="margin:15px 0"><div style="display:flex;justify-content:space-between;gap:10px;font-size:13px"><b>'+esc(g.label)+'</b><span>'+g.ready+' / '+g.total+' · <b>'+p.toLocaleString('ru-RU')+'%</b></span></div><div role="progressbar" aria-label="'+esc((pickup?'Самовывоз ':'Доставка ')+g.label)+'" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p+'" style="height:12px;background:var(--line);border-radius:10px;margin-top:7px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:'+(p>=80?'#2b8b73':p>=40?'#c18b36':'#bb4676')+';border-radius:10px"></div></div></div>';}).join('')||'<p class="hint">Нет заказов</p>';
- $('#motherReadinessSummary').textContent='Готово '+ready+' из '+rows.length+' заказов · '+pct.toLocaleString('ru-RU')+'%';
- $('#motherReadinessDelivery').innerHTML=bars(false);$('#motherReadinessPickup').innerHTML=bars(true);
- $('#motherReadinessState').textContent=(missing?'Без определённого времени: '+missing+' заказов; в три группы не включены. ':'')+'Группа определяется по окончанию интервала; самовывоз на 13:00 относится к первой группе, на 18:00 — ко второй. Считаем заказы, не стебли и не отдельные букеты внутри заказа. Оплаченные доставки + все самовывозы. Готово: «Ожидает отправку», «Готов к самовывозу» и последующие этапы. Данные МоегоСклада: '+(r.department?.updated_at?new Date(r.department.updated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}):'ещё не синхронизированы')+(r.department?.stale?' · требуется обновление':'')+'.';
+ const rows=motherReadinessRows(r,motherSalesView),stores=[{id:'3d520ee3-76c1-11f0-0a80-142900354c8e',name:'Москва 01'},{id:'36029ea4-e4b8-11f1-0a80-0c290009e4f4',name:'Москва 02'}],labels=['До 13:00','13:00–18:00','18:00–22:00'];
+ const ready=rows.filter(o=>o.ready).length,pct=n=>n.total?Math.round(n.ready/n.total*1000)/10:0,fmt=n=>n.toLocaleString('ru-RU');
+ $('#motherReadinessSummary').textContent='По статусам МС · '+ready+' из '+rows.length+' заказов';
+ let missingTime=0;
+ const card=store=>{
+  const orders=rows.filter(o=>o.store_id===store.id),count={total:orders.length,ready:orders.filter(o=>o.ready).length};
+  const groups=[false,true].flatMap(pickup=>labels.map((label,index)=>({label,index,pickup,total:0,ready:0})));
+  orders.forEach(o=>{
+   const times=String(o.interval||'').match(/\d{1,2}:[0-5]\d/g)||[];
+   if(!times.length){missingTime++;return;}
+   const t=times[times.length-1].split(':').map(Number),end=t[0]*60+t[1];
+   if(end>22*60){missingTime++;return;}
+   const index=end<=13*60?0:end<=18*60?1:2,g=groups.find(g=>g.index===index&&g.pickup===!!o.pickup);g.total++;if(o.ready)g.ready++;
+  });
+  const bars=pickup=>groups.filter(g=>g.pickup===pickup).map(g=>{
+   const p=pct(g);return '<div style="margin:13px 0"><div style="display:flex;justify-content:space-between;gap:10px;font-size:12px"><b>'+g.label+'</b><span>'+g.ready+' / '+g.total+' · <b>'+fmt(p)+'%</b></span></div><div role="progressbar" aria-label="'+esc(store.name+' '+(pickup?'самовывоз ':'доставка ')+g.label)+'" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p+'" style="height:11px;background:var(--line);border-radius:10px;margin-top:6px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:'+(p>=80?'#2b8b73':p>=40?'#c18b36':'#bb4676')+';border-radius:10px"></div></div></div>';
+  }).join('');
+  return '<section class="md-load-store" style="--store-color:'+(store.name==='Москва 01'?'#bb4676':'#8461bd')+'"><header><div><h3>'+store.name+'</h3><p>Готовность по статусам МоегоСклада</p></div><div><b>'+fmt(pct(count))+'%</b><small>Готово '+count.ready+' из '+count.total+'</small></div></header><h4 style="margin:20px 0 8px">Доставки</h4>'+bars(false)+'<h4 style="margin:22px 0 8px">Самовывозы</h4>'+bars(true)+'</section>';
+ };
+ $('#motherReadinessStores').innerHTML=stores.map(card).join('');
+ const unknown=rows.filter(o=>!stores.some(s=>s.id===o.store_id)).length;
+ $('#motherReadinessState').textContent=(unknown?'Склад ещё не подтверждён у '+unknown+' заказов: они не распределены по складам. ':'')+(missingTime?'Время не указано у '+missingTime+' заказов. ':'')+'Процент показывает отметки готовности в МС, а не подтверждает физическую сборку. Готово: «Ожидает отправку», «Готов к самовывозу» и последующие этапы. Склад берётся из документа МС. Оплаченные доставки + все самовывозы; считаем заказы. Группа определяется по окончанию интервала (13:00 относится к утру, 18:00 — ко второй группе). Синхронизация: '+(r.department?.updated_at?new Date(r.department.updated_at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}):'ожидается')+((r.department?.stale||r.department?.last_error)?' · данные требуют обновления':'')+'.';
 }
 
 async function loadMotherReport() {
