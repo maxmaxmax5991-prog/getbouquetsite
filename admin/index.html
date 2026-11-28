@@ -1046,6 +1046,7 @@ table.t td{padding:4px 6px;vertical-align:middle}
         <button class="btn btn-p" id="rpSave">Сохранить прайсы</button>
         <button class="btn btn-g" id="rpPic">🖼 Скачать прайс картинкой</button>
         <button class="btn btn-g" id="rpTg">📣 Плитка для Телеграма</button>
+        <button class="chip" id="rpTgMother" aria-pressed="false" title="Только доступные букеты на 29 ноября">ДМ</button>
       </div>
       <p class="hint">Картинка собирается по разделам: какие сорта в разделе и по какому прайсу они считаются. Годится, чтобы отправить в переписке — PNG, читается на телефоне.</p>
       <div id="rpTgOut" hidden style="margin:10px 0 0"></div>
@@ -5546,15 +5547,34 @@ const ТГ_К = 2;
 // Какая витрина: от неё и ассортимент (у товара поле «на каких витринах»),
 // и логотип на листе. Пусто — venikoff, как было.
 let ВИТРИНА = null;
+let ТГ_ДМ = false;
 async function tgКандидаты(slug) {
   const бр = slug ? `&brand=${encodeURIComponent(slug)}` : '';
-  const d = await (await fetch('/api/shop/catalog?_=' + Date.now() + бр)).json();
+  const response = await fetch('/api/shop/catalog?_=' + Date.now() + бр, {cache:'no-store'});
+  if (!response.ok) throw new Error('Не удалось получить каталог');
+  const d = await response.json();
+  let остатки = null;
+  if (ТГ_ДМ) {
+    const r = await fetch('/api/shop/mother-stock?_=' + Date.now(), {cache:'no-store'});
+    if (!r.ok) throw new Error('Не удалось проверить резерв Дня мамы. Повторите попытку.');
+    const data = await r.json();
+    if (data.day !== '2026-11-29' || !Array.isArray(data.items) || data.department_stale) throw new Error('Резерв Дня мамы пока не обновлён. Повторите попытку.');
+    остатки = new Map(data.items.map(x => [x.id + '|' + x.length, Math.max(0,+x.free || 0)]));
+  }
   const сорта = (d.products || []).map(p => {
-    const живые = (p.variants || []).filter(v => !v.out && !v.wait_at);
+    if (ТГ_ДМ && !p.mothers_day) return null;
+    let живые = (p.variants || []).filter(v => +v.price > 0);
+    if (ТГ_ДМ) {
+      if (Array.isArray(p.mother_lengths)) живые = живые.filter(v => p.mother_lengths.includes(+v.len) && +v.cnt > 0 && +v.cnt <= (остатки.get(p.id + '|' + v.len) || 0));
+    } else живые = живые.filter(v => !v.out && !v.wait_at);
+    // Сборный букет с единой ценой не обязан иметь варианты размеров.
+    const единый = p.cat === 'sbornyy-buket' && !(p.variants || []).length && +p.price > 0 && !(ТГ_ДМ && Array.isArray(p.mother_lengths));
+    const доступен = ТГ_ДМ ? true : !p.off && !p.soldout && !p.ready_at;
+    if (!доступен || !(живые.length || единый) || !p.img) return null;
     const длины = [...new Set(живые.map(v => +v.len).filter(Boolean))].sort((a, b) => a - b);
-    return { имя: p.name, длины: p.cat === 'hydrangea' ? [] : длины, живых: живые.length,
-             фото: p.big || p.img, мелкое: p.img, поп: p.popular ? 1 : 0, off: !!p.off, есть: !!p.img };
-  }).filter(x => x.живых && x.есть && !x.off);
+    return { имя: p.name, длины: p.cat === 'hydrangea' ? [] : длины, живых: живые.length || 1,
+             фото: p.big || p.img, мелкое: p.img, поп: p.popular ? 1 : 0, off: false, есть: true };
+  }).filter(Boolean);
   сорта.sort((a, b) => (b.поп - a.поп) || a.имя.localeCompare(b.имя, 'ru'));
   return сорта;
 }
@@ -5785,6 +5805,11 @@ function тгВыбор(сорта, мимо) {
 }
 
 $('#rpTg').onclick = safe(() => открытьПлитку((ВИТРИНА && ВИТРИНА.slug) || ((BRANDS || [])[0] || {}).slug || ''));
+$('#rpTgMother').onclick = safe(async () => {
+  ТГ_ДМ = !ТГ_ДМ;
+  $('#rpTgMother').setAttribute('aria-pressed', String(ТГ_ДМ));
+  await открытьПлитку((ВИТРИНА && ВИТРИНА.slug) || ((BRANDS || [])[0] || {}).slug || '');
+});
 
 const открытьПлитку = safe(async (slug) => {
   const b = $('#rpTg'), out = $('#rpTgOut');
@@ -5792,7 +5817,7 @@ const открытьПлитку = safe(async (slug) => {
   b.disabled = true; out.hidden = false; out.innerHTML = '<span class="hint">Спрашиваем каталог…</span>';
   let сорта = [];
   try { сорта = await tgКандидаты(slug); } finally { b.disabled = false; }
-  if (!сорта.length) { out.innerHTML = '<span class="hint">Для этой витрины нечего выкладывать: нет сортов в наличии со снимком.</span>'; return; }
+  if (!сорта.length) { out.innerHTML = '<span class="hint">' + (ТГ_ДМ ? 'На День мамы нет доступных букетов со снимком.' : 'Для этой витрины нет доступных букетов со снимком.') + '</span>'; return; }
   const мимо = тгМимо();
   const зумы = тгЗумы();
   сорта.forEach(c => {
@@ -5801,7 +5826,7 @@ const открытьПлитку = safe(async (slug) => {
     c.ax = s.ax === undefined ? 0.5 : +s.ax;
     c.ay = s.ay === undefined ? 0.28 : +s.ay;
   });
-  out.innerHTML = тгВыбор(сорта, мимо);
+  out.innerHTML = (ТГ_ДМ ? '<p class="hint"><b>День мамы · 29 ноября</b> — только открытые позиции. Ростовки проверены по свободному резерву.</p>' : '') + тгВыбор(сорта, мимо);
   const счёт = () => {
     const n = $$('[data-tgp]').filter(x => x.checked).length;
     $('#tgpN').textContent = `Выбрано ${n} из ${сорта.length}`;
